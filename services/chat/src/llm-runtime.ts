@@ -265,7 +265,13 @@ export async function composeAnalystBlocksWithLlm(input: {
     if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.map((entry) => entry.text));
     reportAssertions({ removed });
     answered();
-    return rewriteFirstRichTextBlockWith(input.blocks, kept, stalenessNotes(input.toolCalls));
+    // What the rendered assertions cannot say themselves: a compared company
+    // with no figures shown, and stale data.
+    const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
+    return rewriteFirstRichTextBlockWith(input.blocks, kept, [
+      ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
+      ...stalenessNotes(input.toolCalls),
+    ]);
   };
   const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
