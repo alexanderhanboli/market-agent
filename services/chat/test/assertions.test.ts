@@ -394,3 +394,16 @@ test("a closing fence with trailing spaces is closed (#208)", () => {
   assert.equal(splitAssertions("NVDA leads.\n```assertions\n[]\n```   \nAMD trai").open, false);
   assert.equal(splitAssertions("NVDA leads.\n```assertions\n[{").open, true);
 });
+
+test("only an inference has supports; a worded unit is a unit (#208)", () => {
+  const report = check([
+    { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F1"], supports: [99] },
+    { kind: "observation", text: "NVDA's gross margin was 75 dollars.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's gross margin was 75 shares.", evidence: ["F1"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "only an analyst inference lists supports"],
+    [1, "75 dollars is not a cited figure's value"],
+    [2, "75 shares is not a cited figure's value"],
+  ]);
+});

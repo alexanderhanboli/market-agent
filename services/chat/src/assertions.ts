@@ -95,6 +95,10 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, "evidence is not a list of packet ids");
       continue;
     }
+    if (item.supports !== undefined && kind !== "analyst_inference") {
+      reject(index, item, "only an analyst inference lists supports");
+      continue;
+    }
     if (item.supports !== undefined && (!Array.isArray(item.supports) || !item.supports.every((n) => Number.isInteger(n)))) {
       reject(index, item, "supports is not a list of assertion indexes");
       continue;
@@ -260,8 +264,12 @@ type Quantity = { raw: string; at: number; value: string; unit: string; currency
 // any with a currency symbol ("$", "₹", "CN¥") or a letter prefix the packet's
 // figures are written with ("CHF 3.1B", "F CFA 3.1B"); letters alone are never
 // taken for one otherwise, so "FY 2026" is not a currency.
+// Units written as words ("75 dollars", "75 shares"): stated, so never taken
+// for an omitted unit; no figure is formatted with one, so none matches
+// (except "times", which is the "x" a multiple is shown with).
+const WORDED = String.raw`(?:[Dd]ollars?|[Ee]uros?|[Pp]ounds?|[Yy]en|[Yy]uan|[Ff]rancs?|[Rr]upees?|[Ss]hares?|[Uu]nits?|[Tt]imes)\b`;
 // Case-sensitive, so a currency code is never a word ("top 3" is not TOP).
-const UNIT = String.raw`%|x\b|[KMBTkmbt]\b|[Bb]n\b|[Mm]n\b|[Tt]housand\b|[Mm]illion\b|[Bb]illion\b|[Tt]rillion\b|[Bb]asis points?\b|bps?\b|[Pp]ercentage points?\b|pp\b|[Pp]ercent\b|[Pp]er cent\b`;
+const UNIT = String.raw`%|x\b|[KMBTkmbt]\b|[Bb]n\b|[Mm]n\b|[Tt]housand\b|[Mm]illion\b|[Bb]illion\b|[Tt]rillion\b|[Bb]asis points?\b|bps?\b|[Pp]ercentage points?\b|pp\b|[Pp]ercent\b|[Pp]er cent\b|${WORDED}`;
 // Every ISO currency code ("USD 3.1B"), so one the evidence lacks is a mismatch.
 const ISO_CODES = String.raw`(?<![A-Za-z])(?:${Intl.supportedValuesOf("currency").join("|")})(?=${"[ \u00a0\u202f]"}?[\d.])`;
 const SPACE = String.raw`[ \u00a0\u202f]`;
@@ -289,6 +297,7 @@ const UNITS: Readonly<Record<string, string>> = {
   "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
   "percentage point": "pt", "percentage points": "pt", pp: "pt",
   percent: "%", "per cent": "%",
+  times: "x",
 };
 
 function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantity[] {
