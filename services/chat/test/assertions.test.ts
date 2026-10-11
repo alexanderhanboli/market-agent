@@ -228,3 +228,19 @@ test("an explicit plus, basis points or an abbreviated unit or month is parsed, 
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [2, 4]);
 });
+
+test("a leading-decimal value keeps its scale (#208)", () => {
+  const report = check([{ kind: "observation", text: "NVDA's gross margin was .75%.", evidence: ["F1"] }]);
+  assert.deepEqual(report.rejected.map((entry) => entry.reason), [".75% is not a cited figure's value"]);
+});
+
+test("with claims but no figures, only claim-bound assertions are checked; the rest are counted unchecked (#208)", () => {
+  const report = checkAssertions([
+    { kind: "observation", text: "ACME trades at $12.", evidence: [] },
+    { kind: "management_attribution", text: "AMD management expects 10% revenue growth.", evidence: ["C2"] },
+  ], { ...PACKET, figures: [] });
+  assert.equal(report.status, "checked");
+  assert.deepEqual(report.rejected, []);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
+  assert.equal(report.unchecked, 1);
+});

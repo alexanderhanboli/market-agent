@@ -28,6 +28,9 @@ export type AssertionReport = {
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: ReadonlyArray<Assertion & { index: number }>;
   rejected: ReadonlyArray<{ index: number; text?: string; reason: string }>;
+  // Assertions about figures when none were shown (the answer stood on
+  // available_data, which carries no packet ids): neither accepted nor rejected.
+  unchecked?: number;
 };
 
 export const MAX_ASSERTIONS = 8;
@@ -67,7 +70,12 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
   // Inferences last, so the observations they rest on are already checked.
   const order = list.map((item, index) => ({ item, index }))
     .sort((a, b) => Number(kindOf(a.item) === "analyst_inference") - Number(kindOf(b.item) === "analyst_inference"));
+  let unchecked = 0;
   for (const { item, index } of order) {
+    if (packet.figures.length === 0 && kindOf(item) !== "management_attribution") {
+      unchecked++;
+      continue;
+    }
     if (index >= MAX_ASSERTIONS) {
       reject(index, item, `more than ${MAX_ASSERTIONS} assertions`);
       continue;
@@ -117,7 +125,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
   }
   accepted.sort((a, b) => a.index - b.index);
   rejected.sort((a, b) => a.index - b.index);
-  return { status: "checked", accepted, rejected };
+  return { status: "checked", accepted, rejected, ...(unchecked > 0 ? { unchecked } : {}) };
 }
 
 // What each kind must cite.
@@ -211,7 +219,7 @@ type Quantity = { raw: string; at: number; value: string; unit: string; currency
 
 // Numbers with their sign, currency and unit; the value compared as a number,
 // so "75%" is the "75.0%" shown while "7.5" is not "75".
-const QUANTITY = /([-−+])?(\$)?(\d+(?:,\d{3})*(?:\.\d+)?)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b))?/gi;
+const QUANTITY = /(?<![\d.])([-−+])?(\$)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b))?/gi;
 const UNITS: Readonly<Record<string, string>> = {
   thousand: "K", million: "M", mn: "M", billion: "B", bn: "B", trillion: "T",
   "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
