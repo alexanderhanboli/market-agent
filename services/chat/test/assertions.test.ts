@@ -211,3 +211,20 @@ test("a month and year must be a cited date's (#208)", () => {
   ], dated);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [[1, "March 2026 is not a cited date"]]);
 });
+
+test("an explicit plus, basis points or an abbreviated unit or month is parsed, not dropped (#208)", () => {
+  const signed = { ...PACKET, figures: [...PACKET.figures, { id: "F5", company: "NVDA", metric: "YTD return", value: "-12.5%", source_ids: [] }] };
+  const report = checkAssertions([
+    { kind: "observation", text: "NVDA's YTD return was +12.5%.", evidence: ["F5"] },
+    { kind: "observation", text: "NVDA's gross margin was 75 basis points.", evidence: ["F1"] },
+    { kind: "observation", text: "AMD's revenue was $75.0bn.", evidence: ["F4"] },
+    { kind: "management_attribution", text: "In Mar. 2026, NVDA management credited a richer data-center mix.", evidence: ["C1"] },
+    { kind: "management_attribution", text: "In Feb 2026, NVDA management credited a richer data-center mix.", evidence: ["C1"] },
+  ], signed);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "+12.5% is not a cited figure's value"],
+    [1, "75 basis points is not a cited figure's value"],
+    [3, "March 2026 is not a cited date"],
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [2, 4]);
+});

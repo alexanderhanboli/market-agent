@@ -176,7 +176,7 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
       ?? lastCompanyBefore(text, quantity.at, packet.companies);
-    if (named === undefined && spans && (quantity.unit || quantity.currency || quantity.negative)) {
+    if (named === undefined && spans && (quantity.unit || quantity.currency || quantity.negative || quantity.positive)) {
       return `${quantity.raw} names no company, and its evidence spans several`;
     }
     if (named !== undefined && !candidates.some((entry) => entry.company === named || entry.company === undefined)) {
@@ -190,7 +190,7 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
     ...figures.map((figure) => figure.period_end),
   ].flatMap((date) => (date ? [monthYear(date)] : [])));
   for (const match of text.matchAll(MONTH_YEAR)) {
-    const month = `${match[1]![0]!.toUpperCase()}${match[1]!.slice(1).toLowerCase()} ${match[2]}`;
+    const month = `${MONTHS.find((name) => name.slice(0, 3).toLowerCase() === match[1]!.slice(0, 3).toLowerCase())} ${match[2]}`;
     if (!months.has(month)) return `${month} is not a cited date`;
   }
   if (claims.some((claim) => claim.company === undefined)) return null;
@@ -200,18 +200,22 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
 }
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const MONTH_YEAR = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{4})\\b`, "gi");
+// Full or abbreviated ("Mar", "Sept."), each read as its full name.
+const MONTH_YEAR = new RegExp(`\\b(${MONTHS.map((month) => `${month.slice(0, 3)}(?:${month.slice(3)}|t(?=\\.))?`).join("|")})\\.?\\s+(\\d{4})\\b`, "gi");
 
 function monthYear(iso: string): string {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }
 
-type Quantity = { raw: string; at: number; value: string; unit: string; currency: boolean; negative: boolean };
+type Quantity = { raw: string; at: number; value: string; unit: string; currency: boolean; negative: boolean; positive: boolean };
 
 // Numbers with their sign, currency and unit; the value compared as a number,
 // so "75%" is the "75.0%" shown while "7.5" is not "75".
-const QUANTITY = /([-−])?(\$)?(\d+(?:,\d{3})*(?:\.\d+)?)(?:\s*(%|x\b|[KMBT]\b|thousand\b|million\b|billion\b|trillion\b))?/gi;
-const UNITS: Readonly<Record<string, string>> = { thousand: "K", million: "M", billion: "B", trillion: "T" };
+const QUANTITY = /([-−+])?(\$)?(\d+(?:,\d{3})*(?:\.\d+)?)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b))?/gi;
+const UNITS: Readonly<Record<string, string>> = {
+  thousand: "K", million: "M", mn: "M", billion: "B", bn: "B", trillion: "T",
+  "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
+};
 
 function quantities(text: string): Quantity[] {
   return [...text.matchAll(QUANTITY)].map((match) => {
@@ -222,7 +226,8 @@ function quantities(text: string): Quantity[] {
       value: String(Number(match[3]!.replace(/,/g, ""))),
       unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit.toUpperCase()),
       currency: match[2] !== undefined,
-      negative: match[1] !== undefined,
+      negative: match[1] !== undefined && match[1] !== "+",
+      positive: match[1] === "+",
     };
   });
 }
@@ -233,6 +238,7 @@ function quantities(text: string): Quantity[] {
 function sameQuantity(text: Quantity, figure: Quantity): boolean {
   if (text.value !== figure.value) return false;
   if (text.negative && !figure.negative) return false;
+  if (text.positive && figure.negative) return false;
   if (text.unit && text.unit !== figure.unit) return false;
   return !(text.currency && !figure.currency);
 }
