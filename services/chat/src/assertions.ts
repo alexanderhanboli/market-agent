@@ -175,8 +175,9 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
 
 // A figure's value in the text: a number other than a year or a period's
 // ("FY2025", "Q3"). A rendered inference may state none (#208).
-export function statesValue(text: string): boolean {
-  return quantities(text).some((quantity) => !quantity.period && !(/^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency));
+export function statesValue(text: string, companies: ReadonlyArray<string>): boolean {
+  // A company's name is not a value, even with digits in it ("3M").
+  return quantities(withoutCompanies(text, companies)).some((quantity) => !quantity.period && !(/^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency));
 }
 
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {

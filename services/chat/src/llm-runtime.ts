@@ -247,7 +247,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     }));
     // A rendered inference's figures would be unsealed text: its observations
     // state them, as fact refs, so one quoting a value is not rendered.
-    const quoting = new Set(rendered.filter((entry) => entry.kind === "analyst_inference" && statesValue(plainText(entry.segments))).map((entry) => entry.index));
+    const quoting = new Set(rendered.filter((entry) => entry.kind === "analyst_inference" && statesValue(plainText(entry.segments), packet.companies)).map((entry) => entry.index));
     const guarded = new Set(rendered.filter((entry) => !quoting.has(entry.index) && drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
     // An inference goes with any observation it rests on that the guard removed.
     const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && !quoting.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));

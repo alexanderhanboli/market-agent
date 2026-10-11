@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkAssertions, splitAssertions } from "../src/assertions.ts";
+import { checkAssertions, splitAssertions, statesValue } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const PACKET: EvidencePacket = {
@@ -486,4 +486,10 @@ test("every figure an unknown cause cites is part of a change (#208)", () => {
     { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2", "F3"] },
   ]);
   assert.deepEqual(report.rejected.map((entry) => entry.index), [0]);
+});
+
+test("a company's digits are not a figure an inference states (#208)", () => {
+  assert.equal(statesValue("3M Company appears stronger.", ["3M Company"]), false);
+  assert.equal(statesValue("3M Company's 49.2% margin leads.", ["3M Company"]), true);
+  assert.equal(statesValue("NVDA leads since FY2025.", ["NVDA"]), false);
 });
