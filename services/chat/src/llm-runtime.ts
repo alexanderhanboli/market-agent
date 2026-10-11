@@ -10,7 +10,7 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { checkAssertions, MAX_ASSERTIONS, splitAssertions, statesValue, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
@@ -190,7 +190,8 @@ export async function composeAnalystBlocksWithLlm(input: {
           `a JSON array of at most ${MAX_ASSERTIONS} objects {"kind", "text", "evidence"}. kind is "observation" (what figures`,
           "show; evidence lists their F ids only), \"management_attribution\" (what a claim says management stated; evidence",
           "lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the figures' F ids), or",
-          "\"analyst_inference\" (your conclusion; add \"supports\": the array indexes of the observations it rests on).",
+          "\"analyst_inference\" (your conclusion, stating no figures, which its observations state; add \"supports\": the array",
+          "indexes of the observations it rests on).",
           "text restates the assertion in one sentence, with only numbers and companies its evidence holds.",
           "When evidence_packet has neither figures nor claims, omit the block.",
         ].join(" "),
@@ -244,15 +245,20 @@ export async function composeAnalystBlocksWithLlm(input: {
       kind: assertion.kind,
       supports: assertion.supports ?? [],
     }));
-    const guarded = new Set(rendered.filter((entry) => drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
+    // A rendered inference's figures would be unsealed text: its observations
+    // state them, as fact refs, so one quoting a value is not rendered.
+    const quoting = new Set(rendered.filter((entry) => entry.kind === "analyst_inference" && statesValue(plainText(entry.segments))).map((entry) => entry.index));
+    const guarded = new Set(rendered.filter((entry) => !quoting.has(entry.index) && drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
     // An inference goes with any observation it rests on that the guard removed.
-    const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
-    const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index));
+    const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && !quoting.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
+    const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index) && !quoting.has(entry.index));
     if (kept.length === 0) return null;
     const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
-      reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
+      reason: quoting.has(entry.index)
+        ? "a rendered inference states no figures; its observations do"
+        : guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
     // The guard's own drops; an inference removed with its observation is on the report.
     const dropped = removed.filter((entry) => guarded.has(entry.index));

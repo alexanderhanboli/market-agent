@@ -173,6 +173,12 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
   return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
 }
 
+// A figure's value in the text: a number other than a year or a period's
+// ("FY2025", "Q3"). A rendered inference may state none (#208).
+export function statesValue(text: string): boolean {
+  return quantities(text).some((quantity) => !quantity.period && !(/^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency));
+}
+
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {
   // Every cited figure: the template says each cited metric changed.
   return cited.length > 0 && cited.every((a) => cited.some((b) =>

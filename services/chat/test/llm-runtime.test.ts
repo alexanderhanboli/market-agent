@@ -1030,20 +1030,25 @@ test("with rendering on, the answer is written from its accepted assertions, val
 });
 
 test("rendering keeps the narrative guard as its backstop, assertion by assertion (#208)", async () => {
-  const { block, report } = await renderWithReply(withList([
-    { kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] },
-    // Bound to its observation, but quoting a figure without naming its company,
-    // which the guard credits to no one (#240).
-    { kind: "analyst_inference", text: "Its gross margin of 74.6% leads.", evidence: [], supports: [0] },
-  ]));
-  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).");
-  assert.equal(report.rendered, true);
-  assert.deepEqual(report.rejected, [{
-    index: 1,
-    text: "> **Analyst inference:** Its gross margin of 74.6% leads.",
-    reason: "removed by the narrative guard",
-  }]);
+  // The guard never credits a one-letter ticker's figure ("A", the article):
+  // that observation is dropped, the other kept.
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare A with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [{ ...RENDER_BLOCKS[0]!, subject_labels: ["A", "AMD"] }],
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "AMD's gross margin was 49.2%.", evidence: ["F4"] },
+      { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text, "AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
+  assert.equal(reports[0]!.rendered, true);
+  assert.deepEqual(reports[0]!.rejected, [{ index: 1, text: "A's gross margin was 74.6% in FY2026 (ended Jan 2026).", reason: "removed by the narrative guard" }]);
 });
 
 test("with rendering off, or nothing accepted, the guarded prose stands (#208)", async () => {
@@ -1082,17 +1087,17 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
   const removed: string[][] = [];
   await composeAnalystBlocksWithLlm({
     env: RENDERING_ENV,
-    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    context: { userIntent: "Compare A with AMD", bundleId: "peer_comparison" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
-    factBlocks: RENDER_BLOCKS,
+    factBlocks: [{ ...RENDER_BLOCKS[0]!, subject_labels: ["A", "AMD"] }],
     createClient: () => async () => ({ text: withList([
-      { kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] },
-      { kind: "analyst_inference", text: "Its gross margin of 74.6% leads.", evidence: [], supports: [0] },
+      { kind: "observation", text: "AMD's gross margin was 49.2%.", evidence: ["F4"] },
+      { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
     ]) }),
     onNarrativeRemoved: (sentences) => removed.push([...sentences]),
   });
-  assert.deepEqual(removed, [["> **Analyst inference:** Its gross margin of 74.6% leads."]]);
+  assert.deepEqual(removed, [["A's gross margin was 74.6% in FY2026 (ended Jan 2026)."]]);
 });
 
 test("a rendered answer keeps a stale-data warning; a sourced causal claim renders with no figures shown (#208)", async () => {
@@ -1157,5 +1162,19 @@ test("an inference resting on an observation the guard removed is removed too (#
   assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
     [0, "removed by the narrative guard"],
     [2, "rests on an observation the narrative guard removed"],
+  ]);
+});
+
+test("a rendered inference states no figures: its observations carry them, sealed (#208)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "NVDA's 74.6% margin outruns AMD's 49.2%.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [0] },
+  ]));
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.match(text, /> \*\*Analyst inference:\*\* NVDA keeps more of each sale than AMD\.$/);
+  assert.doesNotMatch(text, /outruns/);
+  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [1, "a rendered inference states no figures; its observations do"],
   ]);
 });
