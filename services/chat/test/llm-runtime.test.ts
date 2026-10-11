@@ -1051,3 +1051,42 @@ test("with rendering off, or nothing accepted, the guarded prose stands (#208)",
   assert.equal((none.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(none.report.rendered, undefined);
 });
+
+test("a claim-only answer is rendered too; guard drops while rendering count as narrative removals (#208)", async () => {
+  const claimId = "c2080000-0000-4000-8000-000000000001";
+  const toolCall = {
+    tool_call_id: "tc-1",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence: { claims: [{ claim_id: claimId, source_id: "s-claim", text_canonical: "Management raised its outlook.", predicate: "guidance.change", polarity: "positive", effective_time: "2026-02-25T00:00:00.000Z" }] } },
+  } as never;
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "What did management say?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [toolCall],
+    factBlocks: [],
+    createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] }]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const segments = composed[0].segments as Array<{ type: string; ref_id?: string; text?: string; format?: string }>;
+  assert.equal(segments.map((segment) => segment.text ?? segment.format).join(""), "According to a source dated Feb 2026: Management raised its outlook.");
+  assert.equal(segments.at(-1)?.ref_id, claimId);
+  assert.equal(reports[0]?.rendered, true);
+
+  const removed: string[][] = [];
+  await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: RENDER_BLOCKS,
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] },
+      { kind: "analyst_inference", text: "Its gross margin of 74.6% leads.", evidence: [], supports: [0] },
+    ]) }),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+  });
+  assert.deepEqual(removed, [["> **Analyst inference:** Its gross margin of 74.6% leads."]]);
+});

@@ -232,6 +232,26 @@ export async function composeAnalystBlocksWithLlm(input: {
         rendered: true,
       }
       : report);
+  // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
+  // written from the accepted assertions, with the turn's guard still the
+  // backstop on each (its drops reported as narrative removals). Null when
+  // there is nothing to render, so the guarded prose stands, as with the flag
+  // off.
+  const renderAccepted = (drops: (text: string) => ReadonlyArray<string>) => {
+    if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
+    const rendered = report.accepted.map((assertion) => renderAssertion(assertion, packet, input.factBlocks ?? []));
+    const kept = rendered.filter((entry) => drops(plainText(entry.segments)).length === 0);
+    if (kept.length === 0) return null;
+    const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
+      index: entry.index,
+      text: plainText(entry.segments),
+      reason: "removed by the narrative guard",
+    }));
+    if (removed.length > 0) input.onNarrativeRemoved?.(removed.map((entry) => entry.text));
+    reportAssertions({ removed });
+    answered();
+    return rewriteFirstRichTextBlockWith(input.blocks, kept);
+  };
   const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
   // Cut off inside the assertion list, the prose before it is whole.
@@ -250,6 +270,10 @@ export async function composeAnalystBlocksWithLlm(input: {
   // a labelled hypothesis either (#263). One condition decides both.
   const shown = displayedFigures(input.factBlocks ?? []);
   if (shown.length === 0) {
+    // A claim-only answer renders; one also standing on available_data (its
+    // figure assertions unchecked, with no fact to render) keeps its prose.
+    const claimOnly = report.unchecked ? null : renderAccepted((text) => keepUncausedSentences(text).removed);
+    if (claimOnly) return claimOnly;
     reportAssertions();
     const uncaused = keepUncausedSentences(text);
     if (uncaused.removed.length > 0) {
@@ -279,23 +303,8 @@ export async function composeAnalystBlocksWithLlm(input: {
     shown.flatMap((figure) => figure.metric ?? []),
     input.subjectLabels ?? [],
   );
-  // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
-  // written from the accepted assertions, the guard still the final backstop on
-  // each. With none left, the guarded prose stands, as with the flag off.
-  if (assertionRenderingEnabled(input.env ?? process.env) && report.status === "checked" && report.accepted.length > 0) {
-    const rendered = report.accepted.map((assertion) => renderAssertion(assertion, packet, input.factBlocks ?? []));
-    const kept = rendered.filter((entry) => guard(plainText(entry.segments)).removed.length === 0);
-    const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
-      index: entry.index,
-      text: plainText(entry.segments),
-      reason: "removed by the narrative guard",
-    }));
-    if (kept.length > 0) {
-      reportAssertions({ removed });
-      answered();
-      return rewriteFirstRichTextBlockWith(input.blocks, kept);
-    }
-  }
+  const rendered = renderAccepted((text) => guard(text).removed);
+  if (rendered) return rendered;
   reportAssertions();
   const guarded = guard(text);
   if (guarded.removed.length > 0) {
