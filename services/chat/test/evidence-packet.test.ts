@@ -231,3 +231,16 @@ test("a price window adds its event predicates to the route's, over the route's 
     effective_from: "2024-09-01T00:00:00.000Z",
   });
 });
+
+test("an auto-selected peer's claims name it as coverage does, even with no figures (#207)", () => {
+  const peer = "60000000-0000-4000-8000-0000000000ff";
+  const base = scope("Compare NVDA with its peers");
+  const packet = buildEvidencePacket({
+    scope: { ...base, companies: [NVDA, { issuer_id: peer }] },
+    factBlocks: [],
+    cutoff: CUTOFF,
+    claims: { claims: [claim("p", { subject_id: peer })] },
+  });
+  assert.ok(packet.coverage.some((entry) => entry.company === "issuer:60000000"));
+  assert.equal(packet.claims[0]!.company, "issuer:60000000");
+});

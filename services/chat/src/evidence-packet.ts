@@ -133,10 +133,12 @@ export function buildEvidencePacket(input: {
       isRecord(subject) && isString(subject.id) && isString(labels[index]) ? [[subject.id, labels[index]] as const] : []
     );
   }));
+  const scopeLabels = new Map((input.scope?.companies ?? []).map((company) => [
+    company.issuer_id,
+    company.label ?? blockLabels.get(company.issuer_id) ?? `issuer:${company.issuer_id.slice(0, 8)}`,
+  ]));
   const companies = unique([
-    ...(input.scope?.companies.map((company) =>
-      company.label ?? blockLabels.get(company.issuer_id) ?? `issuer:${company.issuer_id.slice(0, 8)}`
-    ) ?? []),
+    ...scopeLabels.values(),
     ...input.factBlocks.flatMap((block) => Array.isArray(block.subject_labels) ? block.subject_labels.filter(isString) : []),
   ]);
   // A single company's figures name no company: they are all its own.
@@ -158,18 +160,18 @@ export function buildEvidencePacket(input: {
       ...(input.scope ? queryBounds(input.scope) : {}),
       ...(input.claims ? { claims: claimBounds(input.scope, input.cutoff) } : {}),
     },
-    ...packetClaims(input.claims, input.scope, blockLabels),
+    // A claim names its company as coverage does; one matched outside the
+    // scope by the block's label.
+    ...packetClaims(input.claims, (issuer) => scopeLabels.get(issuer) ?? blockLabels.get(issuer)),
   };
 }
 
 function packetClaims(
   evidence: ClaimEvidence | undefined,
-  scope: ResearchScope | undefined,
-  blockLabels: ReadonlyMap<string, string>,
+  companyOf: (issuer: string) => string | undefined,
 ): Pick<EvidencePacket, "claims" | "disagreements" | "claims_status" | "claims_truncated"> {
   const records = evidence?.claims ?? [];
-  const label = (issuer: string | undefined) =>
-    issuer === undefined ? undefined : scope?.companies.find((company) => company.issuer_id === issuer)?.label ?? blockLabels.get(issuer);
+  const label = (issuer: string | undefined) => (issuer === undefined ? undefined : companyOf(issuer));
   const claims: PacketClaim[] = records.map((record, index) => {
     const company = label(record.subject_id);
     return {
