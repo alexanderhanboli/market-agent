@@ -15,7 +15,7 @@ export type LocalRuntimeEvidenceInput = {
   as_of?: string;
   // A chat route's selection (#207): claims whose predicate starts with one of
   // the prefixes, dated from effective_from on, rank ahead of newer others; a
-  // claim repeated (same predicate and text) counts once; and stored
+  // claim repeated (same company, predicate and text) counts once; and stored
   // contradiction relations among the selected are returned.
   selection?: { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null };
 };
@@ -186,23 +186,27 @@ export async function loadLocalRuntimeEvidence(
               )
             )
           )
-        -- The issuer row first, so subject_id names the company.
+        -- The company the claim is about: its subject role before a competitor
+        -- or affected party, the issuer row before a listing, then by id so the
+        -- pick is stable.
         -- ponytail: a claim argued only about a listing keeps the listing's id.
         order by c.claim_id,
+                 (ca.role = 'subject') desc,
                  (sr.subject_kind = 'issuer') desc,
+                 sr.subject_id,
                  c.effective_time desc nulls last,
                  c.created_at desc
      ),
-     -- A repeat is the same predicate and text (case-insensitive), however many
+     -- A repeat is the same company, predicate and text (case-insensitive), however many
      -- sources or copied documents carry it: it counts once, as its earliest
      -- report in the route's window (else its earliest), and the others never
      -- add support. Different sources do not show
      -- independence, so none is inferred.
      -- ponytail: exact text only; paraphrases are not caught.
      selected as (
-       select distinct on (case when $10::boolean then predicate || '|' || lower(text_canonical) else claim_id end) *
+       select distinct on (case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical) else claim_id end) *
          from matching_claims
-        order by case when $10::boolean then predicate || '|' || lower(text_canonical) else claim_id end,
+        order by case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical) else claim_id end,
                  relevant desc, coalesce(effective_time, published_at, claim_created_at) asc nulls last, claim_id
      )
      select claim_id,

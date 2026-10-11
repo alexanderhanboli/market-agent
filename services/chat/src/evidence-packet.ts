@@ -182,10 +182,15 @@ function packetClaims(
     };
   });
   const packetId = new Map(claims.map((claim) => [claim.claim_id, claim.id]));
-  const stored = (evidence?.contradictions ?? []).flatMap(([a, b]) => {
-    const pair = [packetId.get(a), packetId.get(b)] as const;
-    return pair[0] && pair[1] ? [{ claims: pair as readonly [string, string], basis: "a stored relation marks them as contradicting" }] : [];
-  });
+  // Each pair in packet order (C1 before C2), however the relation lists it,
+  // so a stored and an inferred disagreement on the same pair are one.
+  const byIndex = (x: string, y: string) => Number(x.slice(1)) - Number(y.slice(1));
+  const stored = [...new Map((evidence?.contradictions ?? []).flatMap(([a, b]) => {
+    const ids = [packetId.get(a), packetId.get(b)];
+    if (!ids[0] || !ids[1] || ids[0] === ids[1]) return [];
+    const pair = (ids as string[]).sort(byIndex) as [string, string];
+    return [[pair.join(), { claims: pair as readonly [string, string], basis: "a stored relation marks them as contradicting" }] as const];
+  })).values()];
   const storedKeys = new Set(stored.map((entry) => entry.claims.join()));
   const opposed = records.flatMap((a, i) => records.slice(i + 1).flatMap((b, offset) => {
     const pair = [`C${i + 1}`, `C${i + offset + 2}`] as const;

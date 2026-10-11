@@ -121,3 +121,34 @@ test("a route's selection keeps an older decisive claim, counts repeats once, an
   assert.ok(repeated.claim_refs.includes(REPEAT_SAME_SOURCE), "the in-window repeat stands for the claim");
   assert.equal(repeated.claim_refs.filter((id) => [OLD_GUIDANCE, REPEAT_SAME_SOURCE, REPEAT_COPIED_DOCUMENT].includes(id)).length, 1);
 });
+
+test("the same wording about two companies is two claims, and a claim names its subject, not a competitor (#207)", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-subjects");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  // Sorts before ISSUER, so an unordered pick would tend to name it.
+  const RIVAL = "c0000000-0000-4000-8000-000000000001";
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc'), ($2, 'Rival Inc')`, [ISSUER, RIVAL]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const boilerplate = { source: FILINGS, predicate: "kpi.commentary", text: "Revenue increased year over year.", polarity: "positive" };
+  await claim(db, { id: KPI_UP, ...boilerplate, at: "2026-03-01T00:00:00Z" });
+  await claim(db, { id: KPI_DOWN, ...boilerplate, at: "2026-03-02T00:00:00Z" });
+  await db.query(`update claim_arguments set subject_id = $1 where claim_id = $2`, [RIVAL, KPI_DOWN]);
+  // Acme's claim also names the rival, as a competitor.
+  await db.query(
+    `insert into claim_arguments (claim_id, subject_kind, subject_id, role) values ($1, 'issuer', $2, 'competitor')`,
+    [KPI_UP, RIVAL],
+  );
+  const selected = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }, { kind: "issuer", id: RIVAL }],
+    selection: { predicate_prefixes: ["kpi."], effective_from: null },
+  });
+  assert.deepEqual(
+    selected.claims.map((entry) => [entry.claim_id, entry.subject_id]).sort(),
+    [[KPI_UP, ISSUER], [KPI_DOWN, RIVAL]].sort(),
+  );
+});

@@ -210,3 +210,15 @@ test("a failed claims read is unavailable, never none on file, and names nothing
   assert.deepEqual(packetForModel(packet), { route: "unknown", cutoff: CUTOFF, figures: [], query_bounds: packet.query_bounds, claims_status: "unavailable" });
   assert.equal(buildEvidencePacket({ factBlocks: [], cutoff: CUTOFF, claims: { claims: [] } }).claims_status, "none");
 });
+
+test("a stored contradiction listed in either order is one disagreement (#207)", () => {
+  const packet = buildEvidencePacket({
+    factBlocks: [],
+    cutoff: CUTOFF,
+    claims: {
+      claims: [claim("raised", { polarity: "positive" }), claim("lowered", { polarity: "negative" })],
+      contradictions: [["lowered", "raised"]],
+    },
+  });
+  assert.deepEqual(packet.disagreements, [{ claims: ["C1", "C2"], basis: "a stored relation marks them as contradicting" }]);
+});
