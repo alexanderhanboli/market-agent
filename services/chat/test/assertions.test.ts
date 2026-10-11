@@ -372,3 +372,20 @@ test("an explicit currency code is a currency, and a quarter's number is a perio
     [1, "4 is not a cited figure's value"],
   ]);
 });
+
+test("a period's number binds only a period; \"Sept\" is a month; a spaced sign stays with its amount (#208)", () => {
+  const packet = { ...PACKET, claims: [
+    { id: "C1", text: "AMD management expects 3% growth.", predicate: "guidance.change", stance: "supporting" as const, company: "AMD", effective_time: "2026-02-25T00:00:00.000Z", claim_id: "c", source_id: "s" },
+  ] };
+  const report = checkAssertions([
+    { kind: "management_attribution", text: "In Q3, AMD management expects growth.", evidence: ["C1"] },
+    { kind: "management_attribution", text: "In Sept 2026, AMD management expected 3% growth.", evidence: ["C1"] },
+    { kind: "observation", text: "AMD's revenue was - $75.0B.", evidence: ["F4"] },
+    { kind: "management_attribution", text: "In FY2026, AMD management expected 3% growth.", evidence: ["C1"] },
+  ], packet);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "3 is not a cited figure's value"],
+    [1, "September 2026 is not a cited date"],
+    [2, "- $75.0B is not a cited figure's value"],
+  ]);
+});

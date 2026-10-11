@@ -195,8 +195,11 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
       { source: figure.period ?? "", role: "period" },
       { source: figure.period_end?.slice(0, 4) ?? "", role: "period" },
     ].map((entry) => ({ ...entry, company: companyOf(figure.company) }))),
-    ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]
-      .map((source) => ({ source, role: "claim", company: claim.company }))),
+    ...claims.flatMap((claim) => [
+      { source: claim.text, role: "claim" },
+      { source: claim.effective_time?.slice(0, 4) ?? "", role: "period" },
+      { source: claim.published_at?.slice(0, 4) ?? "", role: "period" },
+    ].map((entry) => ({ ...entry, company: claim.company }))),
   ];
   const prefixes = currencyPrefixes(packet);
   // A stored quarter ("Q42026") reads as prose writes it ("Q4 2026").
@@ -209,7 +212,10 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
   const spans = new Set(evidence.flatMap((entry) => (entry.company ? [entry.company] : []))).size > 1;
   // A company's name is not a value, even with digits in it ("3M Company").
   for (const quantity of quantities(withoutCompanies(text, packet.companies), prefixes)) {
-    const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity) && !(quantity.period && entry.role === "value"));
+    // A period's number ("Q3") binds only a period: a figure's, a claim's
+    // dates, or one a claim's text writes as a period.
+    const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity) &&
+      (!quantity.period || entry.role === "period" || (entry.role === "claim" && entry.quantity.period)));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
       ?? lastCompanyBefore(text, quantity.at, packet.companies);
@@ -238,7 +244,7 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 // Full or abbreviated ("Mar", "Sept."), each read as its full name.
-const MONTH_YEAR = new RegExp(`\\b(${MONTHS.map((month) => `${month.slice(0, 3)}(?:${month.slice(3)}|t(?=\\.))?`).join("|")})\\.?\\s+(\\d{4})\\b`, "gi");
+const MONTH_YEAR = new RegExp(`\\b(${MONTHS.map((month) => `${month.slice(0, 3)}(?:${month.slice(3)}${month === "September" ? "|t" : ""})?`).join("|")})\\.?\\s+(\\d{4})\\b`, "gi");
 
 function monthYear(iso: string): string {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
@@ -263,7 +269,9 @@ function quantityPattern(prefixes: ReadonlyArray<string>): RegExp {
   const known = [...prefixes].sort((a, b) => b.length - a.length)
     .map((prefix) => `(?<![A-Za-z])${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, SPACE)}`);
   const currency = [...known, ISO_CODES, String.raw`(?:(?<![A-Za-z])[A-Z]{1,2})?\p{Sc}`].join("|");
-  return new RegExp(String.raw`(?<![\d.])([-−+])?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?`, "gu");
+  // A sign may stand apart from a currency prefix ("- $75B"), never from bare
+  // digits (a list's "- 3.1%").
+  return new RegExp(String.raw`(?<![\d.])(?:([-−+])(?:${SPACE}(?=${currency.replace(/\(\?<!\[A-Za-z\]\)/g, "")}))?)?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?`, "gu");
 }
 
 // The currency prefixes a packet's figures are written with: whatever stands
