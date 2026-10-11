@@ -200,16 +200,19 @@ export async function loadLocalRuntimeEvidence(
                  c.effective_time desc nulls last,
                  c.created_at desc
      ),
-     -- A repeat is the same company, predicate and text (case-insensitive), however many
+     -- A repeat is the same company, predicate and text (case-insensitive) for
+     -- the same quarter (a statement made again a quarter later is new), however many
      -- sources or copied documents carry it: it counts once, as its first
      -- publication in the route's window (else its first), and the others never
      -- add support. Different sources do not show
      -- independence, so none is inferred.
      -- ponytail: exact text only; paraphrases are not caught.
      selected as (
-       select distinct on (case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical) else claim_id end) *
+       select distinct on (case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical)
+                                      || '|' || coalesce(date_trunc('quarter', effective_time)::text, '') else claim_id end) *
          from matching_claims
-        order by case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical) else claim_id end,
+        order by case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical)
+                                      || '|' || coalesce(date_trunc('quarter', effective_time)::text, '') else claim_id end,
                  relevant desc, coalesce(published_at, claim_created_at) asc, claim_id
      )
      select claim_id,
@@ -229,7 +232,14 @@ export async function loadLocalRuntimeEvidence(
             effective_time,
             subject_id
        from selected
+      -- Within each tier, companies take turns (each one's newest first), so a
+      -- comparison's slots are not all one company's.
       order by relevant desc,
+               case when $10::boolean
+                 then row_number() over (
+                   partition by relevant, subject_id
+                   order by coalesce(effective_time, published_at, claim_created_at) desc nulls last, claim_id desc)
+                 else 0 end,
                coalesce(effective_time, published_at, claim_created_at) desc nulls last,
                claim_id desc
       limit $2::int + 1`,

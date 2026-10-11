@@ -184,3 +184,38 @@ test("a repeated claim stands as its first publication, even when the copies sha
   });
   assert.deepEqual(selected.claim_refs, [KPI_DOWN]);
 });
+
+test("the same statement in two quarters is two claims, and a comparison's slots are shared between its companies (#207)", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-periods");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  const RIVAL = "c0000000-0000-4000-8000-000000000001";
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc'), ($2, 'Rival Inc')`, [ISSUER, RIVAL]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const recurring = { source: FILINGS, predicate: "kpi.commentary", text: "Revenue increased year over year.", polarity: "positive" };
+  await claim(db, { id: KPI_UP, ...recurring, at: "2026-02-01T00:00:00Z" });
+  await claim(db, { id: KPI_DOWN, ...recurring, at: "2026-05-01T00:00:00Z" });
+  const alone = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    selection: { predicate_prefixes: ["kpi."], effective_from: null },
+  });
+  assert.deepEqual(alone.claim_refs, [KPI_DOWN, KPI_UP], "each quarter's statement, newest first");
+
+  // Acme has five newer route claims; the rival's one older claim still gets a slot.
+  for (let n = 1; n <= 4; n++) {
+    await claim(db, { id: INSIDER(n), source: FILINGS, predicate: "guidance.change", text: `Acme guidance note ${n}.`, polarity: "neutral", at: `2026-0${n + 5}-01T00:00:00Z` });
+  }
+  await claim(db, { id: OLD_GUIDANCE, source: FILINGS, predicate: "guidance.change", text: "Rival cut guidance.", polarity: "negative", at: "2025-12-01T00:00:00Z" });
+  await db.query(`update claim_arguments set subject_id = $1 where claim_id = $2`, [RIVAL, OLD_GUIDANCE]);
+  const compared = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }, { kind: "issuer", id: RIVAL }],
+    selection: { predicate_prefixes: ["guidance.", "kpi."], effective_from: null },
+  });
+  assert.equal(compared.claim_refs.length, 5);
+  assert.ok(compared.claim_refs.includes(OLD_GUIDANCE), "the rival's claim is not crowded out");
+  assert.equal(compared.truncated, true);
+});
