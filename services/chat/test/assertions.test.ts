@@ -58,7 +58,7 @@ test("each kind cites what it must (#208)", () => {
     { kind: "guess", text: "Margins will rise.", evidence: ["F1"] },
   ]);
   assert.deepEqual(report.rejected.map((entry) => entry.reason), [
-    "a management attribution cites the claim that makes it",
+    "a management attribution cites the claim that makes it, and only claims",
     "an observation cites figures, and only figures",
     "an unknown cause cites the figures that changed, and no claim",
     'unknown kind "guess"',
@@ -332,4 +332,22 @@ test("on the no-figures path, an inference must still rest on listed observation
     [3, "an inference binds the accepted observations it rests on"],
   ]);
   assert.equal(report.unchecked, 2);
+});
+
+test("a stored quarter (\"Q42026\") binds its quarter and year as written in prose (#208)", () => {
+  const quarterly = { ...PACKET, figures: [{ id: "F1", company: "NVDA", metric: "Revenue", period: "Q42026", value: "$10.0B", source_ids: [] }] };
+  assert.deepEqual(checkAssertions([{ kind: "observation", text: "NVDA's revenue was $10.0B in Q4 2026.", evidence: ["F1"] }], quarterly).rejected, []);
+});
+
+test("a management attribution cites claims only, so a figure cannot lend it a number (#208)", () => {
+  const report = check([{ kind: "management_attribution", text: "NVDA management said its margin was 75.0%.", evidence: ["C1", "F1"] }]);
+  assert.deepEqual(report.rejected.map((entry) => entry.reason), ["a management attribution cites the claim that makes it, and only claims"]);
+});
+
+test("on the no-figures path, an inference resting on a rejected observation is rejected (#208)", () => {
+  const report = checkAssertions([
+    { kind: "observation", text: "ACME trades at $12.", evidence: ["F99"] },
+    { kind: "analyst_inference", text: "ACME looks cheap.", evidence: [], supports: [0] },
+  ], { ...PACKET, figures: [] });
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [0, 1]);
 });

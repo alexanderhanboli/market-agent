@@ -71,6 +71,8 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
   const order = list.map((item, index) => ({ item, index }))
     .sort((a, b) => Number(kindOf(a.item) === "analyst_inference") - Number(kindOf(b.item) === "analyst_inference"));
   let unchecked = 0;
+  // Observations that passed every check they could take, with no figures to bind.
+  const uncheckedObservations = new Set<number>();
   for (const { item, index } of order) {
     if (index >= MAX_ASSERTIONS) {
       reject(index, item, `more than ${MAX_ASSERTIONS} assertions`);
@@ -107,10 +109,11 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     if (packet.figures.length === 0 && kind !== "management_attribution") {
       if ((kind === "observation" || kind === "unknown_cause") && claimIds.length > 0) {
         reject(index, item, shapeError(kind, [], claimIds, [], accepted)!);
-      } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, list)) {
+      } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, uncheckedObservations)) {
         reject(index, item, "an inference binds the accepted observations it rests on");
       } else {
         unchecked++;
+        if (kind === "observation") uncheckedObservations.add(index);
       }
       continue;
     }
@@ -137,11 +140,9 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
 }
 
 // An inference's supports, when the observations cannot be figure-checked:
-// at least one, each a listed, well-formed observation within the limit.
-function restsOnObservations(supports: unknown, list: ReadonlyArray<unknown>): boolean {
-  return Array.isArray(supports) && supports.length > 0 && supports.every((n) =>
-    typeof n === "number" && n >= 0 && n < Math.min(list.length, MAX_ASSERTIONS) && kindOf(list[n]) === "observation"
-  );
+// at least one, each an observation that passed every check it could take.
+function restsOnObservations(supports: unknown, observations: ReadonlySet<number>): boolean {
+  return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
 }
 
 // What each kind must cite.
@@ -160,7 +161,7 @@ function shapeError(
     case "unknown_cause":
       return figureIds.length === 0 || claimIds.length > 0 ? "an unknown cause cites the figures that changed, and no claim" : null;
     case "management_attribution":
-      return claimIds.length === 0 ? "a management attribution cites the claim that makes it" : null;
+      return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
     case "analyst_inference": {
       const observations = new Set(accepted.filter((entry) => entry.kind === "observation").map((entry) => entry.index));
       return supports.length === 0 || !supports.every((n) => observations.has(n))
@@ -191,7 +192,10 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
       .map((source) => ({ source, company: claim.company }))),
   ];
   const prefixes = currencyPrefixes(packet);
-  const evidence = sources.flatMap(({ source, company }) => quantities(source, prefixes).map((quantity) => ({ quantity, company })));
+  // A stored quarter ("Q42026") reads as prose writes it ("Q4 2026").
+  const evidence = sources.flatMap(({ source, company }) =>
+    quantities(source.replace(/\bQ([1-4])(?=\d{4}\b)/g, "Q$1 "), prefixes).map((quantity) => ({ quantity, company }))
+  );
   // Evidence spanning companies leaves a value's company to its phrasing; one
   // with no company named before it (or right after it, "for AMD") is unbound
   // rather than guessed ("75.0% was AMD's margin").
