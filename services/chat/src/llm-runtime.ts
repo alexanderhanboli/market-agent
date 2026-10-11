@@ -11,6 +11,7 @@ import type {
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionReport } from "./assertions.ts";
+import { plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
 
@@ -222,11 +223,20 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }
-  input.onAssertions?.(report);
+  const reportAssertions = (rendered?: { removed: AssertionReport["rejected"] }) =>
+    input.onAssertions?.(rendered
+      ? {
+        ...report,
+        accepted: report.accepted.filter((entry) => !rendered.removed.some((removed) => removed.index === entry.index)),
+        rejected: [...report.rejected, ...rendered.removed].sort((a, b) => a.index - b.index),
+        rendered: true,
+      }
+      : report);
   const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
   // Cut off inside the assertion list, the prose before it is whole.
   if ((result.truncated && !open) || text.length === 0) {
+    reportAssertions();
     console.warn(`[chat] model answer was ${result.truncated ? "cut off at the token limit" : "empty"}; showing the fallback sentence`);
     // Pointing to "the reported figures below" needs figures shown, not a gap note.
     return rewriteFirstRichTextBlock(
@@ -240,6 +250,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   // a labelled hypothesis either (#263). One condition decides both.
   const shown = displayedFigures(input.factBlocks ?? []);
   if (shown.length === 0) {
+    reportAssertions();
     const uncaused = keepUncausedSentences(text);
     if (uncaused.removed.length > 0) {
       console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
@@ -251,7 +262,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   }
 
   const displayTexts = displayTextsForBlocks(input.factBlocks ?? []);
-  const guarded = keepSupportedSentences(
+  const guard = (text: string) => keepSupportedSentences(
     text,
     [...displayTexts.map(withoutDays), ...claimTextsFromToolCalls(input.toolCalls)],
     shown.flatMap((figure) =>
@@ -268,6 +279,25 @@ export async function composeAnalystBlocksWithLlm(input: {
     shown.flatMap((figure) => figure.metric ?? []),
     input.subjectLabels ?? [],
   );
+  // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
+  // written from the accepted assertions, the guard still the final backstop on
+  // each. With none left, the guarded prose stands, as with the flag off.
+  if (assertionRenderingEnabled(input.env ?? process.env) && report.status === "checked" && report.accepted.length > 0) {
+    const rendered = report.accepted.map((assertion) => renderAssertion(assertion, packet, input.factBlocks ?? []));
+    const kept = rendered.filter((entry) => guard(plainText(entry.segments)).removed.length === 0);
+    const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
+      index: entry.index,
+      text: plainText(entry.segments),
+      reason: "removed by the narrative guard",
+    }));
+    if (kept.length > 0) {
+      reportAssertions({ removed });
+      answered();
+      return rewriteFirstRichTextBlockWith(input.blocks, kept);
+    }
+  }
+  reportAssertions();
+  const guarded = guard(text);
   if (guarded.removed.length > 0) {
     console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) quoting figures not shown to the user`);
     input.onNarrativeRemoved?.(guarded.removed);
@@ -440,6 +470,32 @@ function availableData(structured: ReadonlyArray<Record<string, unknown>>): Reco
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// The narrative block as rendered assertions: their segments, paragraph by
+// paragraph, with the fact bindings and sources their refs seal with.
+function rewriteFirstRichTextBlockWith(
+  blocks: ReadonlyArray<Record<string, unknown>>,
+  rendered: ReadonlyArray<ReturnType<typeof renderAssertion>>,
+): ReadonlyArray<Record<string, unknown>> {
+  const segments = rendered.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]);
+  const factBindings = [...new Map(rendered.flatMap((entry) => entry.fact_bindings).map((binding) => [binding.fact_id, binding])).values()];
+  let rewritten = false;
+  return Object.freeze(blocks.map((block) => {
+    if (rewritten || block.kind !== "rich_text") return block;
+    rewritten = true;
+    const dataRef = (block.data_ref ?? {}) as Record<string, unknown>;
+    return Object.freeze({
+      ...block,
+      segments: Object.freeze(segments.map((segment) => Object.freeze({ ...segment }))),
+      ...(factBindings.length > 0 ? { data_ref: { ...dataRef, params: { fact_bindings: factBindings } } } : {}),
+      source_refs: [...new Set(rendered.flatMap((entry) => entry.source_refs))],
+    });
+  }));
+}
+
+function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
+  return /^(?:1|true|yes|on)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
 }
 
 function rewriteFirstRichTextBlock(

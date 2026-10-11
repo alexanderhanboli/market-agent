@@ -9,6 +9,7 @@
 // controlled rendering from validated assertions is #208's second slice.
 
 import type { EvidencePacket } from "./evidence-packet.ts";
+import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "management_attribution", "analyst_inference", "unknown_cause"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
@@ -31,6 +32,8 @@ export type AssertionReport = {
   // Assertions about figures when none were shown (the answer stood on
   // available_data, which carries no packet ids): neither accepted nor rejected.
   unchecked?: number;
+  // The answer was written from the accepted assertions (controlled rendering).
+  rendered?: boolean;
 };
 
 export const MAX_ASSERTIONS = 8;
@@ -128,6 +131,14 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     const shape = shapeError(kind, figureIds, claimIds, supports, accepted);
     if (shape) {
       reject(index, item, shape);
+      continue;
+    }
+    // A metric the question asked for that no reader serves is a named gap: no
+    // other figure stands in for it ("free cash flow" from net income).
+    // Read with the question's own metric names, so "FCF" is free cash flow.
+    const gap = requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label;
+    if (gap !== undefined) {
+      reject(index, item, `${gap} is not in the evidence: it is a named gap`);
       continue;
     }
     // An inference's evidence is its own plus that of the observations it rests on.
