@@ -351,3 +351,24 @@ test("on the no-figures path, an inference resting on a rejected observation is 
   ], { ...PACKET, figures: [] });
   assert.deepEqual(report.rejected.map((entry) => entry.index), [0, 1]);
 });
+
+test("every assertion block is cut from the prose (#208)", () => {
+  const block = '```assertions\n[]\n```';
+  assert.equal(splitAssertions(`NVDA leads.\n${block}\nAMD trails.\n${block}`).prose, "NVDA leads.\n\nAMD trails.");
+});
+
+test("an explicit currency code is a currency, and a quarter's number is a period, not a value (#208)", () => {
+  const packet = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Net income", value: "CHF 3.1B", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "EPS", period: "Q32026", value: "$4.00", source_ids: [] },
+  ] };
+  const report = checkAssertions([
+    { kind: "observation", text: "NVDA's net income was USD 3.1B.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's EPS was $4.00 in Q4 2026.", evidence: ["F2"] },
+    { kind: "observation", text: "NVDA's EPS was $4.00 in Q3 2026.", evidence: ["F2"] },
+  ], packet);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "USD 3.1B is not a cited figure's value"],
+    [1, "4 is not a cited figure's value"],
+  ]);
+});

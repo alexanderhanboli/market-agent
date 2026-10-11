@@ -39,17 +39,19 @@ export const MAX_ASSERTIONS = 8;
 // it is, and closed or not, it is cut from the prose. open: the list never
 // closed, so an answer cut off at the token limit inside it kept its prose
 // whole (a cut after a closed list fell in the prose).
-const FENCE = /```assertions[ \t]*\n([\s\S]*?)(?:```|$)/;
+const FENCES = /[ \t]*```assertions[ \t]*\n([\s\S]*?)(?:```|$)[ \t]*/g;
 
 // The prose without its assertion list, and the list as written (undefined when
 // there is none; null when it does not parse).
 export function splitAssertions(text: string): { prose: string; list: unknown[] | null | undefined; open: boolean } {
-  const match = FENCE.exec(text);
-  if (!match) return { prose: text, list: undefined, open: false };
-  const open = !match[0].endsWith("```");
-  const prose = `${text.slice(0, match.index).trimEnd()}\n\n${text.slice(match.index + match[0].length).trimStart()}`.trim();
+  const matches = [...text.matchAll(FENCES)];
+  if (matches.length === 0) return { prose: text, list: undefined, open: false };
+  // Every block is cut, so a second (a corrected list) never shows; the first
+  // is the one checked.
+  const prose = text.replace(FENCES, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  const open = !matches.at(-1)![0].endsWith("```");
   try {
-    const parsed: unknown = JSON.parse(match[1]!);
+    const parsed: unknown = JSON.parse(matches[0]![1]!);
     return { prose, list: Array.isArray(parsed) ? parsed : null, open };
   } catch {
     return { prose, list: null, open };
@@ -185,16 +187,21 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
   // A figure with no company is the only company's; a claim with none is no
   // company's (its record named none), so it binds a number for any.
   const companyOf = (company: string | undefined) => company ?? packet.companies[0];
+  // Each candidate keeps its role: a figure's value, its period, or a claim's
+  // number. A period's number in the text ("Q4") binds only a period.
   const sources = [
-    ...figures.flatMap((figure) => [figure.value, figure.period ?? "", figure.period_end?.slice(0, 4) ?? ""]
-      .map((source) => ({ source, company: companyOf(figure.company) }))),
+    ...figures.flatMap((figure) => [
+      { source: figure.value, role: "value" },
+      { source: figure.period ?? "", role: "period" },
+      { source: figure.period_end?.slice(0, 4) ?? "", role: "period" },
+    ].map((entry) => ({ ...entry, company: companyOf(figure.company) }))),
     ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]
-      .map((source) => ({ source, company: claim.company }))),
+      .map((source) => ({ source, role: "claim", company: claim.company }))),
   ];
   const prefixes = currencyPrefixes(packet);
   // A stored quarter ("Q42026") reads as prose writes it ("Q4 2026").
-  const evidence = sources.flatMap(({ source, company }) =>
-    quantities(source.replace(/\bQ([1-4])(?=\d{4}\b)/g, "Q$1 "), prefixes).map((quantity) => ({ quantity, company }))
+  const evidence = sources.flatMap(({ source, role, company }) =>
+    quantities(source.replace(/\bQ([1-4])(?=\d{4}\b)/g, "Q$1 "), prefixes).map((quantity) => ({ quantity, role, company }))
   );
   // Evidence spanning companies leaves a value's company to its phrasing; one
   // with no company named before it (or right after it, "for AMD") is unbound
@@ -202,7 +209,7 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
   const spans = new Set(evidence.flatMap((entry) => (entry.company ? [entry.company] : []))).size > 1;
   // A company's name is not a value, even with digits in it ("3M Company").
   for (const quantity of quantities(withoutCompanies(text, packet.companies), prefixes)) {
-    const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity));
+    const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity) && !(quantity.period && entry.role === "value"));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
       ?? lastCompanyBefore(text, quantity.at, packet.companies);
@@ -238,21 +245,25 @@ function monthYear(iso: string): string {
 }
 
 // currency: its prefix as written ("$", "€", "CN¥"), "" for none.
-type Quantity = { raw: string; at: number; value: string; unit: string; currency: string; negative: boolean; positive: boolean };
+// period: written as a period's number ("Q4", "FY2026", "H1").
+type Quantity = { raw: string; at: number; value: string; unit: string; currency: string; negative: boolean; positive: boolean; period: boolean };
 
 // Numbers with their sign, currency prefix and unit; the value compared as a number,
 // so "75%" is the "75.0%" shown while "7.5" is not "75". A currency prefix is
 // any with a currency symbol ("$", "₹", "CN¥") or a letter prefix the packet's
 // figures are written with ("CHF 3.1B", "F CFA 3.1B"); letters alone are never
 // taken for one otherwise, so "FY 2026" is not a currency.
-const UNIT = String.raw`%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b|percentage points?\b|pp\b|percent\b|per cent\b`;
+// Case-sensitive, so a currency code is never a word ("top 3" is not TOP).
+const UNIT = String.raw`%|x\b|[KMBTkmbt]\b|[Bb]n\b|[Mm]n\b|[Tt]housand\b|[Mm]illion\b|[Bb]illion\b|[Tt]rillion\b|[Bb]asis points?\b|bps?\b|[Pp]ercentage points?\b|pp\b|[Pp]ercent\b|[Pp]er cent\b`;
+// Every ISO currency code ("USD 3.1B"), so one the evidence lacks is a mismatch.
+const ISO_CODES = String.raw`(?<![A-Za-z])(?:${Intl.supportedValuesOf("currency").join("|")})(?=${"[ \u00a0\u202f]"}?[\d.])`;
 const SPACE = String.raw`[ \u00a0\u202f]`;
 
 function quantityPattern(prefixes: ReadonlyArray<string>): RegExp {
   const known = [...prefixes].sort((a, b) => b.length - a.length)
     .map((prefix) => `(?<![A-Za-z])${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, SPACE)}`);
-  const currency = [...known, String.raw`(?:(?<![A-Za-z])[A-Z]{1,2})?\p{Sc}`].join("|");
-  return new RegExp(String.raw`(?<![\d.])([-−+])?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?`, "giu");
+  const currency = [...known, ISO_CODES, String.raw`(?:(?<![A-Za-z])[A-Z]{1,2})?\p{Sc}`].join("|");
+  return new RegExp(String.raw`(?<![\d.])([-−+])?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?`, "gu");
 }
 
 // The currency prefixes a packet's figures are written with: whatever stands
@@ -282,6 +293,7 @@ function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantit
       currency: (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$"),
       negative: match[1] !== undefined && match[1] !== "+",
       positive: match[1] === "+",
+      period: /(?:\bQ|\bFY ?|\bH)$/.test(text.slice(0, match.index)),
     };
   });
 }
