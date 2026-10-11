@@ -925,3 +925,18 @@ test("the answer's assertion list is checked in shadow and never shown (#208)", 
     rejected: [{ index: 1, text: "Revenue rose.", reason: 'unknown evidence id "F99"' }],
   }]);
 });
+
+test("with no figures shown there is nothing to bind, so the check is skipped (#208)", async () => {
+  const reports: Array<{ status: string }> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Analyze ACME", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    createClient: () => async () => ({ text: "ACME trades at $12.\n```assertions\n[{\"kind\":\"observation\",\"text\":\"ACME trades at $12.\",\"evidence\":[]}]\n```" }),
+    onAssertions: (report) => reports.push(report),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "ACME trades at $12.");
+  assert.deepEqual(reports.map((report) => report.status), ["skipped"]);
+});

@@ -195,9 +195,9 @@ test("the report shows each turn's assertion check and the run's totals (#208)",
       { message: "q2", outcome: "turn.completed", blocks: [], assertions: { status: "missing" as const, accepted: [], rejected: [] } },
     ] },
   ];
-  assert.equal(assertionSummary(answered), "1 accepted, 1 rejected over 2 answered turns; 1 missing, 0 malformed");
+  assert.equal(assertionSummary(answered), "1 accepted, 1 rejected over 2 answered turns; 1 missing, 0 malformed, 0 with no figures");
   const report = renderReport("r", "a/m", "http://app", answered);
-  assert.match(report, /Assertions \(shadow\): 1 accepted, 1 rejected over 2 answered turns; 1 missing, 0 malformed\./);
+  assert.match(report, /Assertions \(shadow\): 1 accepted, 1 rejected over 2 answered turns; 1 missing, 0 malformed, 0 with no figures\./);
   assert.match(report, /- ✓ observation \[F1\]: NVDA's margin was 75\.0%\.\n- ✗ a management attribution cites the claim that makes it: Mix lifted margins\./);
   assert.match(report, /_Assertions \(shadow\): missing\._/);
   assert.equal(assertionSummary([]), "not reported");

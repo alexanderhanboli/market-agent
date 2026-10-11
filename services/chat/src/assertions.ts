@@ -22,8 +22,10 @@ export type Assertion = {
 };
 
 export type AssertionReport = {
-  // missing: the answer listed none; malformed: the list did not parse.
-  status: "missing" | "malformed" | "checked";
+  // missing: the answer listed none; malformed: the list did not parse;
+  // skipped: no figures were shown, so there was nothing to bind (the answer
+  // stood on available_data, which carries no packet ids).
+  status: "missing" | "malformed" | "checked" | "skipped";
   accepted: ReadonlyArray<Assertion & { index: number }>;
   rejected: ReadonlyArray<{ index: number; text?: string; reason: string }>;
 };
@@ -49,6 +51,7 @@ export function splitAssertions(text: string): { prose: string; list: unknown[] 
 }
 
 export function checkAssertions(list: unknown[] | null | undefined, packet: EvidencePacket): AssertionReport {
+  if (packet.figures.length === 0) return { status: "skipped", accepted: [], rejected: [] };
   if (list === undefined) return { status: "missing", accepted: [], rejected: [] };
   if (list === null) return { status: "malformed", accepted: [], rejected: [] };
   const figures = new Map(packet.figures.map((figure) => [figure.id, figure]));
@@ -131,30 +134,76 @@ function shapeError(
   }
 }
 
-// Every number and company the text states must be its evidence's: a cited
-// figure's value, period or metric, or a cited claim's text and dates.
+// Every number the text states binds to its evidence. A number with a unit or
+// sign (a value) must be one cited figure's value, in that figure's unit, sign
+// allowing, and the figure must be the company the text last named before it.
+// A bare number may also be a cited period, year, or a number a cited claim
+// states. Every company the text names must be its evidence's.
+// ponytail: the metric is not matched; two cited figures with the same value
+// and unit under different metrics are interchangeable here.
 function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
-  const sources = [
-    ...figures.flatMap((figure) => [figure.value, figure.period ?? "", figure.metric, figure.period_end?.slice(0, 4) ?? ""]),
+  const companyOf = (company: string | undefined) => company ?? packet.companies[0];
+  const values = figures.flatMap((figure) => quantities(figure.value).map((quantity) => ({ quantity, company: companyOf(figure.company) })));
+  const bare = new Set([
+    ...figures.flatMap((figure) => [figure.period ?? "", figure.period_end?.slice(0, 4) ?? "", figure.metric]),
     ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]),
-  ];
-  const allowed = new Set(sources.flatMap(numbers));
-  const stray = numbers(text).find((number) => !allowed.has(number));
-  if (stray !== undefined) return `${stray} is not in its evidence`;
-  // A figure or claim with no company is the only company's.
-  const own = new Set([
-    ...figures.map((figure) => figure.company ?? packet.companies[0]),
-    ...claims.map((claim) => claim.company ?? packet.companies[0]),
-  ]);
+  ].flatMap((source) => quantities(source).map((quantity) => quantity.value)));
+  for (const quantity of quantities(text)) {
+    if (!quantity.unit && !quantity.negative && !quantity.currency && bare.has(quantity.value)) continue;
+    const candidates = values.filter((entry) => sameQuantity(quantity, entry.quantity));
+    if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
+    const named = lastCompanyBefore(text, quantity.at, packet.companies);
+    if (named !== undefined && !candidates.some((entry) => entry.company === named)) {
+      return `${quantity.raw} is not a cited figure's value for ${named}`;
+    }
+  }
+  const own = new Set([...figures.map((figure) => companyOf(figure.company)), ...claims.map((claim) => companyOf(claim.company))]);
   const other = packet.companies.find((company) => !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
 }
 
-// By value, so "75%" is the "75.0%" shown, while "7.5" is not "75".
-function numbers(text: string): string[] {
-  return (text.match(/\d+(?:,\d{3})*(?:\.\d+)?/g) ?? []).map((number) => String(Number(number.replace(/,/g, ""))));
+type Quantity = { raw: string; at: number; value: string; unit: string; currency: boolean; negative: boolean };
+
+// Numbers with their sign, currency and unit; the value compared as a number,
+// so "75%" is the "75.0%" shown while "7.5" is not "75".
+const QUANTITY = /([-−])?(\$)?(\d+(?:,\d{3})*(?:\.\d+)?)(?:\s*(%|x\b|[KMBT]\b|thousand\b|million\b|billion\b|trillion\b))?/gi;
+const UNITS: Readonly<Record<string, string>> = { thousand: "K", million: "M", billion: "B", trillion: "T" };
+
+function quantities(text: string): Quantity[] {
+  return [...text.matchAll(QUANTITY)].map((match) => {
+    const unit = (match[4] ?? "").toLowerCase();
+    return {
+      raw: match[0].trim(),
+      at: match.index,
+      value: String(Number(match[3]!.replace(/,/g, ""))),
+      unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit.toUpperCase()),
+      currency: match[2] !== undefined,
+      negative: match[1] !== undefined,
+    };
+  });
+}
+
+// The same value in the same unit. A sign the text adds must be the figure's;
+// a negative figure may be told in words ("fell 3.2%"). A unit or currency the
+// text leaves out is not a mismatch ("62.1" of "$62.1B").
+function sameQuantity(text: Quantity, figure: Quantity): boolean {
+  if (text.value !== figure.value) return false;
+  if (text.negative && !figure.negative) return false;
+  if (text.unit && text.unit !== figure.unit) return false;
+  return !(text.currency && !figure.currency);
+}
+
+function lastCompanyBefore(text: string, at: number, companies: ReadonlyArray<string>): string | undefined {
+  let last: { company: string; at: number } | undefined;
+  for (const company of companies) {
+    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    for (const match of text.slice(0, at).matchAll(new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "g"))) {
+      if (!last || match.index > last.at) last = { company, at: match.index };
+    }
+  }
+  return last?.company;
 }
 
 function mentions(text: string, company: string): boolean {

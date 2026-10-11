@@ -36,7 +36,7 @@ export type AnsweredQuestion = {
 
 // As chat reports it on turn.completed (services/chat/src/assertions.ts).
 type AssertionReport = {
-  status: "missing" | "malformed" | "checked";
+  status: "missing" | "malformed" | "checked" | "skipped";
   accepted: Array<{ kind: string; text: string; evidence: string[] }>;
   rejected: Array<{ index: number; text?: string; reason: string }>;
 };
@@ -146,7 +146,7 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   const count = (status: AssertionReport["status"]) => reports.filter((report) => report.status === status).length;
   const accepted = reports.reduce((sum, report) => sum + report.accepted.length, 0);
   const rejected = reports.reduce((sum, report) => sum + report.rejected.length, 0);
-  return `${accepted} accepted, ${rejected} rejected over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed`;
+  return `${accepted} accepted, ${rejected} rejected over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures`;
 }
 
 // Sentences the narrative guard dropped, in total and per answered turn.

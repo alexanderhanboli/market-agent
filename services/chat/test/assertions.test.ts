@@ -12,6 +12,7 @@ const PACKET: EvidencePacket = {
     { id: "F1", company: "NVDA", metric: "Gross margin", period: "FY2026", value: "75.0%", source_ids: [] },
     { id: "F2", company: "NVDA", metric: "Gross margin", period: "FY2025", value: "72.7%", source_ids: [] },
     { id: "F3", company: "AMD", metric: "Gross margin", period: "FY2025", value: "49.4%", source_ids: [] },
+    { id: "F4", company: "AMD", metric: "Revenue", period: "FY2025", value: "$75.0B", source_ids: [] },
   ],
   coverage: [],
   gaps: [],
@@ -77,7 +78,7 @@ test("an inference binds accepted observations, and states only their numbers (#
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [3, "an inference binds the accepted observations it rests on"],
     [4, "an inference binds the accepted observations it rests on"],
-    [5, "80 is not in its evidence"],
+    [5, "80% is not a cited figure's value"],
   ]);
 });
 
@@ -91,9 +92,9 @@ test("a matching number is not enough: the wrong company, scale or id is rejecte
     { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F9"] },
   ]);
   assert.deepEqual(report.rejected.map((entry) => entry.reason), [
-    "49.4 is not in its evidence",
-    "names AMD, which its evidence does not",
-    "7.5 is not in its evidence",
+    "49.4% is not a cited figure's value",
+    "75.0% is not a cited figure's value for AMD",
+    "7.50% is not a cited figure's value",
     'unknown evidence id "F9"',
   ]);
   assert.equal(report.accepted.length, 0);
@@ -104,4 +105,28 @@ test("at most eight assertions are checked; the rest are rejected (#208)", () =>
   const report = check(Array.from({ length: 10 }, () => one));
   assert.equal(report.accepted.length, 8);
   assert.deepEqual(report.rejected.map((entry) => entry.index), [8, 9]);
+});
+
+test("a company the text names must be its evidence's (#208)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0%, ahead of AMD.", evidence: ["F1"] }]).rejected.map((entry) => entry.reason), [
+    "names AMD, which its evidence does not",
+  ]);
+});
+
+test("each number binds to one cited figure: its unit, sign and company, not pooled digits (#208)", () => {
+  const report = check([
+    // AMD's $75.0B revenue is not a 75.0% margin, nor -75.0%.
+    { kind: "observation", text: "AMD's gross margin was 75.0%.", evidence: ["F4"] },
+    { kind: "observation", text: "AMD's revenue fell -75.0B.", evidence: ["F4"] },
+    // Both companies cited, but each value credited to the other.
+    { kind: "observation", text: "NVDA's margin was 49.4% and AMD's was 75.0%.", evidence: ["F1", "F3"] },
+    { kind: "observation", text: "NVDA's margin was 75.0% and AMD's was 49.4%.", evidence: ["F1", "F3"] },
+    { kind: "observation", text: "AMD's revenue was $75.0 billion in FY2025.", evidence: ["F4"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "75.0% is not a cited figure's value"],
+    [1, "-75.0B is not a cited figure's value"],
+    [2, "49.4% is not a cited figure's value for NVDA"],
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [3, 4]);
 });
