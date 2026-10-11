@@ -9,7 +9,8 @@ import type {
   ChatAnalystToolRuntimeToolCall,
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
-import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord } from "./evidence-packet.ts";
+import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
+import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionReport } from "./assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
 
@@ -114,12 +115,15 @@ export async function composeAnalystBlocksWithLlm(input: {
   onAnswered?: (deployment: string) => void;
   // Receives the answer call's token usage, so evals can measure it (#181).
   onUsage?: (usage: AnswerUsage) => void;
+  // Receives the check of the answer's assertion list, in shadow (#208).
+  onAssertions?: (report: AssertionReport) => void;
   deadlines?: ModelDeadlines;
 }): Promise<ReadonlyArray<Record<string, unknown>>> {
   const router = await createLlmRouterFromEnv(input.env ?? process.env, {
     createClient: input.createClient,
   });
   if (!router) return input.blocks;
+  const packet = turnPacket(input);
 
   const result = await router.complete({
     messages: [
@@ -180,11 +184,18 @@ export async function composeAnalystBlocksWithLlm(input: {
           "fact_recency.stale / a large fact_recency.age_days), explicitly note",
           "that the figure may be out of date and say how old it is.",
           "Return plain text suitable for a rich_text block.",
+          // Shadow assertions (#208): checked against the packet, never shown.
+          "After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line:",
+          `a JSON array of at most ${MAX_ASSERTIONS} objects {"kind", "text", "evidence"}. kind is "observation" (what figures`,
+          "show; evidence lists their F ids only), \"management_attribution\" (what a claim says management stated; evidence",
+          "lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the figures' F ids), or",
+          "\"analyst_inference\" (your conclusion; add \"supports\": the array indexes of the observations it rests on).",
+          "text restates the assertion in one sentence, with only numbers and companies its evidence holds.",
         ].join(" "),
       },
       {
         role: "user",
-        content: JSON.stringify(answerContext(input)),
+        content: JSON.stringify(answerContext({ ...input, packet })),
       },
     ],
     temperature: 0.2,
@@ -204,7 +215,14 @@ export async function composeAnalystBlocksWithLlm(input: {
   // The deployment is reported only when some of its prose is shown: a fallback
   // sentence in its place was written by no model (#183).
   const answered = () => input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
-  const text = result.text.trim();
+  // The assertion list is checked, never shown (#208).
+  const { prose, list } = splitAssertions(result.text.trim());
+  const report = checkAssertions(list, packet);
+  if (report.status !== "checked" || report.rejected.length > 0) {
+    console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
+  }
+  input.onAssertions?.(report);
+  const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
   if (result.truncated || text.length === 0) {
     console.warn(`[chat] model answer was ${result.truncated ? "cut off at the token limit" : "empty"}; showing the fallback sentence`);
@@ -299,6 +317,8 @@ export function answerContext(input: {
   availableData?: boolean;
   scope?: ResearchScope;
   cutoff?: string;
+  // The turn's packet, when the caller has built it (turnPacket).
+  packet?: EvidencePacket;
 }): Record<string, unknown> {
   const results = input.toolCalls.map((toolCall) => (isRecord(toolCall.result) ? toolCall.result : {}));
   const structured = results.map((result) => (isRecord(result.structured_context) ? result.structured_context : {}));
@@ -307,12 +327,7 @@ export function answerContext(input: {
   );
   const factRecency = structured.flatMap((context) => (isRecord(context.fact_recency) ? [context.fact_recency] : []));
   const claims = claimEvidence(input.toolCalls);
-  const packet = packetForModel(buildEvidencePacket({
-    ...(input.scope ? { scope: input.scope } : {}),
-    factBlocks: input.factBlocks ?? [],
-    cutoff: input.cutoff ?? new Date().toISOString(),
-    claims,
-  }));
+  const packet = packetForModel(input.packet ?? turnPacket(input));
   // Subjects with no evidence at all are a gap too; when the claims read
   // failed, the claims are unknown, not absent (#207).
   const gaps = [
@@ -337,6 +352,21 @@ export function answerContext(input: {
         : {}),
     },
   };
+}
+
+// The turn's evidence packet: its figures, claims and bounds (#207).
+function turnPacket(input: {
+  toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
+  factBlocks?: ReadonlyArray<Record<string, unknown>>;
+  scope?: ResearchScope;
+  cutoff?: string;
+}): EvidencePacket {
+  return buildEvidencePacket({
+    ...(input.scope ? { scope: input.scope } : {}),
+    factBlocks: input.factBlocks ?? [],
+    cutoff: input.cutoff ?? new Date().toISOString(),
+    claims: claimEvidence(input.toolCalls),
+  });
 }
 
 // The claims the turn's evidence reads selected, each once across tool calls,

@@ -30,7 +30,15 @@ export type AnsweredQuestion = {
   // answeredBy: the deployment that wrote the turn's answer, as chat recorded it (#183).
   // usage: the answer call's tokens, from turn.completed (#181).
   // removed: sentences the narrative guard dropped, from turn.completed (#144).
-  turns: Array<{ message: string; outcome: string; blocks: Block[]; answeredBy?: string | null; usage?: AnswerUsage | null; removed?: string[] }>;
+  // assertions: the check of the answer's assertion list, in shadow (#208).
+  turns: Array<{ message: string; outcome: string; blocks: Block[]; answeredBy?: string | null; usage?: AnswerUsage | null; removed?: string[]; assertions?: AssertionReport | null }>;
+};
+
+// As chat reports it on turn.completed (services/chat/src/assertions.ts).
+type AssertionReport = {
+  status: "missing" | "malformed" | "checked";
+  accepted: Array<{ kind: string; text: string; evidence: string[] }>;
+  rejected: Array<{ index: number; text?: string; reason: string }>;
 };
 
 // --- report ----------------------------------------------------------------------
@@ -87,6 +95,8 @@ export function renderReport(run: string, model: string, base: string, answered:
     "",
     `Guard drops: ${removedSummary(answered)}.`,
     "",
+    `Assertions (shadow): ${assertionSummary(answered)}.`,
+    "",
     `Model: \`${model}\`. Data: frozen golden dataset. Score each question in \`${run}.scores.json\` (rubric below),`,
     "then run `node --experimental-strip-types scripts/research-quality-eval.ts summary`.",
     "Bold figures are cited (linked to a fact); open the thread link for charts and sources.",
@@ -108,10 +118,35 @@ export function renderReport(run: string, model: string, base: string, answered:
       if (turn.removed?.length) {
         lines.push(`_Guard dropped ${turn.removed.length} sentence${turn.removed.length === 1 ? "" : "s"}:_`, "", ...turn.removed.map((sentence) => `> ~~${sentence}~~`), "");
       }
+      if (turn.assertions) lines.push(...renderAssertions(turn.assertions), "");
       lines.push(...turn.blocks.flatMap((block) => [renderBlock(block), ""]));
     }
   }
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+// A turn's assertion check: each accepted assertion with its evidence, each
+// rejected one with its reason.
+function renderAssertions(report: AssertionReport): string[] {
+  if (report.status !== "checked") return [`_Assertions (shadow): ${report.status}._`];
+  return [
+    `_Assertions (shadow): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
+    "",
+    ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]: ${entry.text}`),
+    ...report.rejected.map((entry) => `- ✗ ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
+  ];
+}
+
+// Assertions accepted and rejected over the answered turns, and the turns whose
+// answer listed none or a broken list.
+export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): string {
+  const turns = answered.flatMap((question) => question.turns).filter((turn) => turn.outcome === "turn.completed");
+  const reports = turns.flatMap((turn) => (turn.assertions ? [turn.assertions] : []));
+  if (reports.length === 0) return "not reported";
+  const count = (status: AssertionReport["status"]) => reports.filter((report) => report.status === status).length;
+  const accepted = reports.reduce((sum, report) => sum + report.accepted.length, 0);
+  const rejected = reports.reduce((sum, report) => sum + report.rejected.length, 0);
+  return `${accepted} accepted, ${rejected} rejected over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed`;
 }
 
 // Sentences the narrative guard dropped, in total and per answered turn.
@@ -271,16 +306,18 @@ async function run(base: string): Promise<void> {
       const startedAt = Date.now();
       let usage: AnswerUsage | null = null;
       let removed: string[] = [];
+      let assertions: AssertionReport | null = null;
       const outcome = await runTurn(base, threadId, turn.message, 180_000, turn.subjectText, (data) => {
         usage = (data.answer_usage as AnswerUsage | undefined) ?? null;
         removed = Array.isArray(data.narrative_removed) ? data.narrative_removed as string[] : [];
+        assertions = (data.assertion_report as AssertionReport | undefined) ?? null;
       });
       console.log(`${outcome === "turn.completed" ? "done" : outcome}  ${question.id}: ${turn.message}  (${((Date.now() - startedAt) / 1000).toFixed(1)}s)`);
       const { messages } = await api<{ messages: Message[] }>(base, "GET", `/v1/chat/threads/${threadId}/messages`);
       const answers = messages.filter((m) => m.role === "assistant");
       // A failed turn may have saved no answer: show none rather than the previous one.
       const answer = answers.length > answersSoFar ? answers.at(-1)! : null;
-      turns.push({ message: turn.message, outcome, blocks: answer?.blocks ?? [], answeredBy: answer?.answered_by ?? null, usage, removed });
+      turns.push({ message: turn.message, outcome, blocks: answer?.blocks ?? [], answeredBy: answer?.answered_by ?? null, usage, removed, assertions });
       answersSoFar = answers.length;
     }
     answered.push({ question, threadId, turns });

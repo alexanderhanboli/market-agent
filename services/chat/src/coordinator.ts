@@ -31,6 +31,7 @@ import type { ChatClarificationAnswer, ChatFinancialRuntime } from "./financial-
 import { ChatSnapshotSealError } from "./messages.ts";
 import { financialAwareRunner } from "./financial-turn.ts";
 import { LIST_END, namesFacet, words, type ResearchScope } from "./research-scope.ts";
+import type { AssertionReport } from "./assertions.ts";
 
 export type ChatTurnInput = {
   threadId: string;
@@ -92,6 +93,8 @@ export type ChatAnalystToolRuntimeResult = {
   // Narrative sentences the guard dropped for quoting figures it could not
   // attribute; reported on turn.completed so evals can count them (#144).
   narrative_removed?: ReadonlyArray<string>;
+  // The check of the answer's assertion list, in shadow (#208).
+  assertion_report?: AssertionReport;
   // The deployment (channel/model) that wrote the narrative; absent when no
   // model answered (#183).
   answered_by?: string;
@@ -1185,6 +1188,7 @@ async function toolBackedAnalystTurnRunner(
   // Which model answered, on the completion and the saved message (#183).
   const answeredBy = result.answered_by ? { answered_by: result.answered_by } : {};
   const answerUsage = result.answer_usage ? { answer_usage: result.answer_usage } : {};
+  const assertionReport = result.assertion_report ? { assertion_report: result.assertion_report } : {};
 
   // display_unverified: show what failed verification, labelled, and save nothing.
   // turn.completed carries the full blocks because there is no message to reload.
@@ -1201,6 +1205,7 @@ async function toolBackedAnalystTurnRunner(
       ...narrativeRemoved,
       ...answeredBy,
       ...answerUsage,
+      ...assertionReport,
       unverified: { persisted: false, failures, blocks: assistantBlocks },
     });
   };
@@ -1269,6 +1274,7 @@ async function toolBackedAnalystTurnRunner(
     ...narrativeRemoved,
     ...answeredBy,
     ...answerUsage,
+    ...assertionReport,
   });
 }
 

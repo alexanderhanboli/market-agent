@@ -1115,6 +1115,21 @@ test("turn.completed reports the narrative sentences the guard dropped, only whe
   assert.equal("narrative_removed" in cleanTurn.events.at(-1)!, false);
 });
 
+test("turn.completed reports the shadow assertion check when the answer had one (#208)", async () => {
+  const report = { status: "checked" as const, accepted: [], rejected: [{ index: 0, reason: 'unknown evidence id "F9"' }] };
+  const checked = createChatCoordinator({
+    analystToolRuntime: async (context) => ({ ...(await successfulRuntime(context)), assertion_report: report }),
+  });
+  const turn = checked.getOrCreateTurn({ threadId: "t", runId: "r" });
+  await turn.completed;
+  assert.deepEqual(turn.events.at(-1)!.assertion_report, report);
+
+  const clean = createChatCoordinator({ analystToolRuntime: successfulRuntime });
+  const cleanTurn = clean.getOrCreateTurn({ threadId: "t", runId: "r" });
+  await cleanTurn.completed;
+  assert.equal("assertion_report" in cleanTurn.events.at(-1)!, false);
+});
+
 test("the answering model is reported on turn.completed and saved with the message, only when one answered (#183)", async () => {
   const saved: Array<string | undefined> = [];
   const answered = createChatCoordinator({

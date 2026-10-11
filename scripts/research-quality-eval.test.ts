@@ -10,6 +10,7 @@ import {
   answeredBySummary,
   usageSummary,
   removedSummary,
+  assertionSummary,
   modelLabel,
   readRuns,
   renderBlock,
@@ -177,4 +178,27 @@ test("the report lists each turn's dropped sentences and the run's total (#144)"
   const report = renderReport("r", "a/m", "http://app", answered);
   assert.match(report, /Guard drops: 2 sentences in 1 of 2 answered turns\./);
   assert.match(report, /_Guard dropped 2 sentences:_\n\n> ~~At 74\.6%, NVDA leads\.~~\n> ~~AMD trails at 49\.2%\.~~/);
+});
+
+test("the report shows each turn's assertion check and the run's totals (#208)", () => {
+  const [first, second] = QUESTIONS;
+  const answered = [
+    { question: first, threadId: "t1", turns: [{
+      message: "q1", outcome: "turn.completed", blocks: [],
+      assertions: {
+        status: "checked" as const,
+        accepted: [{ kind: "observation", text: "NVDA's margin was 75.0%.", evidence: ["F1"] }],
+        rejected: [{ index: 1, text: "Mix lifted margins.", reason: "a management attribution cites the claim that makes it" }],
+      },
+    }] },
+    { question: second, threadId: "t2", turns: [
+      { message: "q2", outcome: "turn.completed", blocks: [], assertions: { status: "missing" as const, accepted: [], rejected: [] } },
+    ] },
+  ];
+  assert.equal(assertionSummary(answered), "1 accepted, 1 rejected over 2 answered turns; 1 missing, 0 malformed");
+  const report = renderReport("r", "a/m", "http://app", answered);
+  assert.match(report, /Assertions \(shadow\): 1 accepted, 1 rejected over 2 answered turns; 1 missing, 0 malformed\./);
+  assert.match(report, /- ✓ observation \[F1\]: NVDA's margin was 75\.0%\.\n- ✗ a management attribution cites the claim that makes it: Mix lifted margins\./);
+  assert.match(report, /_Assertions \(shadow\): missing\._/);
+  assert.equal(assertionSummary([]), "not reported");
 });

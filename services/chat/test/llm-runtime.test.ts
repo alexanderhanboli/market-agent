@@ -902,3 +902,26 @@ test("with claims unreadable and nothing else on file, the gap never says there 
   assert.equal(packet.claims_status, "unavailable");
   assert.deepEqual(packet.gaps, ["No reported facts or quote are on file for this subject, and its research claims could not be read."]);
 });
+
+test("the answer's assertion list is checked in shadow and never shown (#208)", async () => {
+  const reports: unknown[] = [];
+  const list = JSON.stringify([
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] },
+    { kind: "observation", text: "Revenue rose.", evidence: ["F99"] },
+  ]);
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: COMPARISON_BLOCKS,
+    createClient: () => async () => ({ text: `NVDA is larger.\n\n\`\`\`assertions\n${list}\n\`\`\`` }),
+    onAssertions: (report) => reports.push(report),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "NVDA is larger.");
+  assert.deepEqual(reports, [{
+    status: "checked",
+    accepted: [{ index: 0, kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] }],
+    rejected: [{ index: 1, text: "Revenue rose.", reason: 'unknown evidence id "F99"' }],
+  }]);
+});

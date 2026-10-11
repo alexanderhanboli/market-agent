@@ -28,6 +28,7 @@ import {
   type ChatPriorSubjectsLoader,
   type ChatThreadTitleGenerator,
 } from "./coordinator.ts";
+import type { AssertionReport } from "./assertions.ts";
 import { claimSelection } from "./evidence-packet.ts";
 import { companyListings, loadTurnFactBlocks, mayOfferOtherFacts, priceListingsForTurn, scopeGapBlocks, turnCompanies } from "./fact-blocks.ts";
 import { resolveResearchScope, type ResearchScope } from "./research-scope.ts";
@@ -205,6 +206,7 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   ]);
   const factBlocks = [...shownBlocks, ...scopeGapBlocks(scope, shownBlocks, { snapshotId: result.snapshot_id, asOf })];
   let narrativeRemoved: ReadonlyArray<string> = [];
+  let assertionReport: AssertionReport | undefined;
   let answeredBy: string | undefined;
   let answerUsage: AnswerUsage | undefined;
   const llmBlocks = await composeAnalystBlocksWithLlm({
@@ -228,6 +230,9 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     onNarrativeRemoved: (sentences) => {
       narrativeRemoved = sentences;
     },
+    onAssertions: (report) => {
+      assertionReport = report;
+    },
   });
   const normalize = (block: Record<string, unknown>, refs: typeof defaultRefs) =>
     normalizeAssistantBlock(block, {
@@ -248,6 +253,7 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     ...(narrativeRemoved.length > 0 ? { narrative_removed: narrativeRemoved } : {}),
     ...(answeredBy ? { answered_by: answeredBy } : {}),
     ...(answerUsage ? { answer_usage: answerUsage } : {}),
+    ...(assertionReport ? { assertion_report: assertionReport } : {}),
     research_scope: scope,
   } satisfies ChatAnalystToolRuntimeResult;
 };
