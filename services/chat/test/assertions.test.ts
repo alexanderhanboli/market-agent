@@ -303,3 +303,33 @@ test("on the no-figures path, an unknown id or a claim cited as a figure is reje
   ]);
   assert.equal(report.unchecked, 1);
 });
+
+test("any currency prefix the formatter writes keeps its identity and sign (#208)", () => {
+  const priced = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Net income", value: "-CHF 3.1B", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "Revenue", period: "FY 2026", value: "F CFA 75.0B", source_ids: [] },
+  ] };
+  const report = checkAssertions([
+    { kind: "observation", text: "NVDA's net income was ₹3.1B.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's net income was +CHF 3.1B.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's net income was -CHF 3.1B and its revenue F CFA 75.0B in FY 2026.", evidence: ["F1", "F2"] },
+  ], priced);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "₹3.1B is not a cited figure's value"],
+    [1, "+CHF 3.1B is not a cited figure's value"],
+  ]);
+});
+
+test("on the no-figures path, an inference must still rest on listed observations (#208)", () => {
+  const report = checkAssertions([
+    { kind: "observation", text: "ACME trades at $12.", evidence: [] },
+    { kind: "analyst_inference", text: "ACME looks cheap.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "ACME looks cheap.", evidence: [], supports: [99] },
+    { kind: "analyst_inference", text: "ACME looks cheap.", evidence: [], supports: [1] },
+  ], { ...PACKET, figures: [] });
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [2, "an inference binds the accepted observations it rests on"],
+    [3, "an inference binds the accepted observations it rests on"],
+  ]);
+  assert.equal(report.unchecked, 2);
+});

@@ -107,6 +107,8 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     if (packet.figures.length === 0 && kind !== "management_attribution") {
       if ((kind === "observation" || kind === "unknown_cause") && claimIds.length > 0) {
         reject(index, item, shapeError(kind, [], claimIds, [], accepted)!);
+      } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, list)) {
+        reject(index, item, "an inference binds the accepted observations it rests on");
       } else {
         unchecked++;
       }
@@ -132,6 +134,14 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
   accepted.sort((a, b) => a.index - b.index);
   rejected.sort((a, b) => a.index - b.index);
   return { status: "checked", accepted, rejected, ...(unchecked > 0 ? { unchecked } : {}) };
+}
+
+// An inference's supports, when the observations cannot be figure-checked:
+// at least one, each a listed, well-formed observation within the limit.
+function restsOnObservations(supports: unknown, list: ReadonlyArray<unknown>): boolean {
+  return Array.isArray(supports) && supports.length > 0 && supports.every((n) =>
+    typeof n === "number" && n >= 0 && n < Math.min(list.length, MAX_ASSERTIONS) && kindOf(list[n]) === "observation"
+  );
 }
 
 // What each kind must cite.
@@ -180,13 +190,14 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
     ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]
       .map((source) => ({ source, company: claim.company }))),
   ];
-  const evidence = sources.flatMap(({ source, company }) => quantities(source).map((quantity) => ({ quantity, company })));
+  const prefixes = currencyPrefixes(packet);
+  const evidence = sources.flatMap(({ source, company }) => quantities(source, prefixes).map((quantity) => ({ quantity, company })));
   // Evidence spanning companies leaves a value's company to its phrasing; one
   // with no company named before it (or right after it, "for AMD") is unbound
   // rather than guessed ("75.0% was AMD's margin").
   const spans = new Set(evidence.flatMap((entry) => (entry.company ? [entry.company] : []))).size > 1;
   // A company's name is not a value, even with digits in it ("3M Company").
-  for (const quantity of quantities(withoutCompanies(text, packet.companies))) {
+  for (const quantity of quantities(withoutCompanies(text, packet.companies), prefixes)) {
     const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
@@ -226,8 +237,29 @@ function monthYear(iso: string): string {
 type Quantity = { raw: string; at: number; value: string; unit: string; currency: string; negative: boolean; positive: boolean };
 
 // Numbers with their sign, currency prefix and unit; the value compared as a number,
-// so "75%" is the "75.0%" shown while "7.5" is not "75".
-const QUANTITY = /(?<![\d.])([-−+])?((?:(?<![A-Za-z])[A-Z]{1,2})?[$€£¥])?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b|percentage points?\b|pp\b|percent\b|per cent\b))?/gi;
+// so "75%" is the "75.0%" shown while "7.5" is not "75". A currency prefix is
+// any with a currency symbol ("$", "₹", "CN¥") or a letter prefix the packet's
+// figures are written with ("CHF 3.1B", "F CFA 3.1B"); letters alone are never
+// taken for one otherwise, so "FY 2026" is not a currency.
+const UNIT = String.raw`%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b|percentage points?\b|pp\b|percent\b|per cent\b`;
+const SPACE = String.raw`[ \u00a0\u202f]`;
+
+function quantityPattern(prefixes: ReadonlyArray<string>): RegExp {
+  const known = [...prefixes].sort((a, b) => b.length - a.length)
+    .map((prefix) => `(?<![A-Za-z])${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, SPACE)}`);
+  const currency = [...known, String.raw`(?:(?<![A-Za-z])[A-Z]{1,2})?\p{Sc}`].join("|");
+  return new RegExp(String.raw`(?<![\d.])([-−+])?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?`, "giu");
+}
+
+// The currency prefixes a packet's figures are written with: whatever stands
+// between a value's sign and its digits.
+function currencyPrefixes(packet: EvidencePacket): string[] {
+  return [...new Set(packet.figures.flatMap((figure) => {
+    const prefix = /^[-−]?(\D*?)\s*[\d.]/.exec(figure.value)?.[1]?.trim();
+    return prefix ? [prefix] : [];
+  }))];
+}
+
 const UNITS: Readonly<Record<string, string>> = {
   thousand: "K", million: "M", mn: "M", billion: "B", bn: "B", trillion: "T",
   "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
@@ -235,15 +267,15 @@ const UNITS: Readonly<Record<string, string>> = {
   percent: "%", "per cent": "%",
 };
 
-function quantities(text: string): Quantity[] {
-  return [...text.matchAll(QUANTITY)].map((match) => {
+function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantity[] {
+  return [...text.matchAll(quantityPattern(prefixes))].map((match) => {
     const unit = (match[4] ?? "").toLowerCase();
     return {
       raw: match[0].trim(),
       at: match.index,
       value: String(Number(match[3]!.replace(/,/g, ""))),
       unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit.toUpperCase()),
-      currency: (match[2] ?? "").replace(/^US\$$/, "$"),
+      currency: (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$"),
       negative: match[1] !== undefined && match[1] !== "+",
       positive: match[1] === "+",
     };
