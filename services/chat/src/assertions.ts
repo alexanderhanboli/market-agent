@@ -133,6 +133,12 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, shape);
       continue;
     }
+    // An unknown cause is a change's: it cites one company's metric in two
+    // periods, so the figures show something changed.
+    if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!))) {
+      reject(index, item, "an unknown cause cites a change: one company's metric in two periods");
+      continue;
+    }
     // A metric the question asked for that no reader serves is a named gap: no
     // other figure stands in for it ("free cash flow" from net income).
     // Read with the question's own metric names, so "FCF" is free cash flow.
@@ -161,6 +167,12 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
 // at least one, each an observation that passed every check it could take.
 function restsOnObservations(supports: unknown, observations: ReadonlySet<number>): boolean {
   return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
+}
+
+function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {
+  return cited.some((a) => cited.some((b) =>
+    a.company === b.company && a.metric === b.metric && a.period !== undefined && b.period !== undefined && a.period !== b.period
+  ));
 }
 
 // What each kind must cite.

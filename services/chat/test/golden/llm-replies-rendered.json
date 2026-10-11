@@ -18,7 +18,7 @@
     },
     {
       "match": "Write a concise investment research answer",
-      "text": "NVIDIA's reported revenue rose in every quarter shown.\n\n```assertions\n[{\"kind\": \"observation\", \"text\": \"NVDA's latest quarterly revenue is shown.\", \"evidence\": [\"F1\"]}, {\"kind\": \"unknown_cause\", \"text\": \"The figures do not show why revenue changed.\", \"evidence\": [\"F1\"]}]\n```"
+      "text": "NVIDIA's reported revenue rose in every quarter shown.\n\n```assertions\n[{\"kind\": \"observation\", \"text\": \"NVDA's latest quarterly revenue is shown.\", \"evidence\": [\"F1\"]}]\n```"
     }
   ]
 }

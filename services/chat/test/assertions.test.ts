@@ -452,3 +452,16 @@ test("a requested metric no reader serves is a named gap: no other figure stands
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
 });
+
+test("an unknown cause needs a change: one company's metric in two periods (#208)", () => {
+  const report = check([
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] },
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F3"] },
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "an unknown cause cites a change: one company's metric in two periods"],
+    [1, "an unknown cause cites a change: one company's metric in two periods"],
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+});

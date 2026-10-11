@@ -48,7 +48,13 @@ test("a value whose fact cannot seal here is plain text (#208)", () => {
 
 test("a management attribution quotes its claim, dated and sourced; an unknown cause and an inference are labelled (#208)", () => {
   const attribution = renderAssertion({ index: 0, kind: "management_attribution", text: "x", evidence: ["C1"] }, PACKET, FACT_BLOCKS);
-  assert.equal(plainText(attribution.segments), "According to a source dated Feb 2026 on NVDA: Management cited a richer data-center mix.");
+  assert.equal(plainText(attribution.segments), "According to a source, effective Feb 2026 on NVDA: Management cited a richer data-center mix.");
+  // Dated by its publication; a differing effective date is said apart.
+  const dated = { ...PACKET, claims: [{ ...PACKET.claims[0]!, effective_time: "2025-12-31T00:00:00.000Z", published_at: "2026-02-25T00:00:00.000Z" }] };
+  assert.equal(
+    plainText(renderAssertion({ index: 0, kind: "management_attribution", text: "x", evidence: ["C1"] }, dated, FACT_BLOCKS).segments),
+    "According to a source dated Feb 2026, effective Dec 2025 on NVDA: Management cited a richer data-center mix.",
+  );
   assert.deepEqual(attribution.segments.at(-1), { type: "ref", ref_kind: "claim", ref_id: CLAIM, format: "Management cited a richer data-center mix." });
   assert.deepEqual(attribution.source_refs, ["s-claim"]);
   const unknown = renderAssertion({ index: 1, kind: "unknown_cause", text: "x", evidence: ["F1"] }, PACKET, FACT_BLOCKS);

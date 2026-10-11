@@ -906,7 +906,7 @@ test("with claims unreadable and nothing else on file, the gap never says there 
 test("the answer's assertion list is checked in shadow and never shown (#208)", async () => {
   const reports: unknown[] = [];
   const list = JSON.stringify([
-    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's revenue is shown.", evidence: ["F1"] },
     { kind: "observation", text: "Revenue rose.", evidence: ["F99"] },
   ]);
   const composed = await composeAnalystBlocksWithLlm({
@@ -921,7 +921,7 @@ test("the answer's assertion list is checked in shadow and never shown (#208)", 
   assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "NVDA is larger.");
   assert.deepEqual(reports, [{
     status: "checked",
-    accepted: [{ index: 0, kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] }],
+    accepted: [{ index: 0, kind: "observation", text: "NVDA's revenue is shown.", evidence: ["F1"] }],
     rejected: [{ index: 1, text: "Revenue rose.", reason: 'unknown evidence id "F99"' }],
   }]);
 });
@@ -1007,13 +1007,14 @@ const withList = (list: unknown[]) => `NVDA earns more on each sale than AMD.\n\
 test("with rendering on, the answer is written from its accepted assertions, values as sealed refs (#208)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
-    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F4"] },
     { kind: "observation", text: "NVDA's revenue was $99B.", evidence: ["F1"] },
+    // Two companies in one period show no change.
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F4"] },
   ]));
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
   assert.equal(
     segments.map((segment) => segment.text ?? segment.format).join(""),
-    "NVDA's gross margin was 74.6% in FY2026; AMD's gross margin was 49.2% in FY2025.\n\nThe figures do not show why NVDA's gross margin and AMD's gross margin changed.",
+    "NVDA's gross margin was 74.6% in FY2026; AMD's gross margin was 49.2% in FY2025.",
   );
   assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4)]);
   assert.deepEqual(
@@ -1022,7 +1023,10 @@ test("with rendering on, the answer is written from its accepted assertions, val
   );
   assert.deepEqual(block.source_refs, ["s-nvda", "s-amd"]);
   assert.equal(report.rendered, true);
-  assert.deepEqual((report.rejected as Array<{ index: number }>).map((entry) => entry.index), [2]);
+  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [1, "$99B is not a cited figure's value"],
+    [2, "an unknown cause cites a change: one company's metric in two periods"],
+  ]);
 });
 
 test("rendering keeps the narrative guard as its backstop, assertion by assertion (#208)", async () => {
@@ -1071,7 +1075,7 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
     onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
   });
   const segments = composed[0].segments as Array<{ type: string; ref_id?: string; text?: string; format?: string }>;
-  assert.equal(segments.map((segment) => segment.text ?? segment.format).join(""), "According to a source dated Feb 2026: Management raised its outlook.");
+  assert.equal(segments.map((segment) => segment.text ?? segment.format).join(""), "According to a source, effective Feb 2026: Management raised its outlook.");
   assert.equal(segments.at(-1)?.ref_id, claimId);
   assert.equal(reports[0]?.rendered, true);
 

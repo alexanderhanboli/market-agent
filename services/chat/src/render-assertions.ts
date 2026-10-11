@@ -70,8 +70,11 @@ export function renderAssertion(
       break;
     case "management_attribution":
       claims.forEach((claim, i) => {
-        const date = claim.effective_time ?? claim.published_at;
-        text(`${i === 0 ? "" : " "}According to ${date ? `a source dated ${monthYear(date)}` : "a source"}${claim.company ? ` on ${claim.company}` : ""}: `);
+        // Dated by its publication; an effective date that differs is its own.
+        const published = claim.published_at ? monthYear(claim.published_at) : undefined;
+        const effective = claim.effective_time ? monthYear(claim.effective_time) : undefined;
+        const dated = published ? `a source dated ${published}${effective && effective !== published ? `, effective ${effective}` : ""}` : `a source${effective ? `, effective ${effective}` : ""}`;
+        text(`${i === 0 ? "" : " "}According to ${dated}${claim.company ? ` on ${claim.company}` : ""}: `);
         segments.push(quote(claim));
       });
       break;
