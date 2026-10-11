@@ -201,8 +201,8 @@ export async function loadLocalRuntimeEvidence(
                  c.created_at desc
      ),
      -- A repeat is the same company, predicate and text (case-insensitive), however many
-     -- sources or copied documents carry it: it counts once, as its earliest
-     -- report in the route's window (else its earliest), and the others never
+     -- sources or copied documents carry it: it counts once, as its first
+     -- publication in the route's window (else its first), and the others never
      -- add support. Different sources do not show
      -- independence, so none is inferred.
      -- ponytail: exact text only; paraphrases are not caught.
@@ -210,7 +210,7 @@ export async function loadLocalRuntimeEvidence(
        select distinct on (case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical) else claim_id end) *
          from matching_claims
         order by case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical) else claim_id end,
-                 relevant desc, coalesce(effective_time, published_at, claim_created_at) asc nulls last, claim_id
+                 relevant desc, coalesce(published_at, claim_created_at) asc, claim_id
      )
      select claim_id,
             document_id,

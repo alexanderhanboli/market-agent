@@ -159,3 +159,28 @@ test("the same wording about two companies is two claims, and a claim names its 
   });
   assert.deepEqual(rivalOnly.claim_refs, [KPI_DOWN]);
 });
+
+test("a repeated claim stands as its first publication, even when the copies share an event date (#207)", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-first-report");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc')`, [ISSUER]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now()), ($2, 'newswire', 'article', 'secondary', 'public', now())`,
+    [FILINGS, NEWS],
+  );
+  const event = { predicate: "material_event.officer_change", text: "Acme's CFO resigned.", polarity: "negative", at: "2026-04-01T00:00:00Z" };
+  // The copy sorts first by id but was published a week later.
+  await claim(db, { id: KPI_UP, source: NEWS, ...event });
+  await claim(db, { id: KPI_DOWN, source: FILINGS, ...event });
+  await db.query(
+    `update documents set published_at = $2 from claims where claims.document_id = documents.document_id and claims.claim_id = $1`,
+    [KPI_UP, "2026-04-08T00:00:00Z"],
+  );
+  const selected = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    selection: { predicate_prefixes: ["material_event."], effective_from: null },
+  });
+  assert.deepEqual(selected.claim_refs, [KPI_DOWN]);
+});

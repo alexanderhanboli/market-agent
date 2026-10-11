@@ -222,3 +222,12 @@ test("a stored contradiction listed in either order is one disagreement (#207)",
   });
   assert.deepEqual(packet.disagreements, [{ claims: ["C1", "C2"], basis: "a stored relation marks them as contradicting" }]);
 });
+
+test("a price window adds its event predicates to the route's, over the route's period (#207)", () => {
+  const ytd = scope("Compare NVDA with AMD YTD", [NVDA, AMD]);
+  assert.equal(ytd.reads, "comparison");
+  assert.deepEqual(claimSelection(ytd, CUTOFF), {
+    predicate_prefixes: ["guidance.", "kpi.", "material_event."],
+    effective_from: "2024-09-01T00:00:00.000Z",
+  });
+});

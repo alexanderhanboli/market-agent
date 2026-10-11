@@ -90,15 +90,18 @@ export function claimSelection(
   cutoff: string,
 ): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null } {
   if (!scope) return { predicate_prefixes: [], effective_from: null };
-  const prefixes = ROUTE_PREDICATES[scope.reads] ?? (scope.price_window ? PRICE_PREDICATES : []);
-  return { predicate_prefixes: prefixes, effective_from: periodStart(scope, cutoff) };
+  const route = ROUTE_PREDICATES[scope.reads] ?? [];
+  // A price window adds the events that move a price, whatever else is read.
+  const prefixes = [...new Set([...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
+  return { predicate_prefixes: prefixes, effective_from: periodStart(scope, cutoff, route.length > 0) };
 }
 
 // ponytail: calendar approximations of the readers' periods; a fiscal year is
-// widened by a year so one ending mid-year still covers its claims.
-function periodStart(scope: ResearchScope, cutoff: string): string | null {
+// widened by a year so one ending mid-year still covers its claims. One window
+// for every predicate: the route's period, which covers a year-to-date window.
+function periodStart(scope: ResearchScope, cutoff: string, routed: boolean): string | null {
   if (scope.fiscal_year !== null) return `${scope.fiscal_year - 1}-01-01T00:00:00.000Z`;
-  if (scope.price_window) return `${cutoff.slice(0, 4)}-01-01T00:00:00.000Z`;
+  if (scope.price_window && !routed) return `${cutoff.slice(0, 4)}-01-01T00:00:00.000Z`;
   const start = new Date(cutoff);
   if (Number.isNaN(start.getTime())) return null;
   start.setUTCMonth(start.getUTCMonth() - 3 * QUARTERS_SHOWN);
@@ -229,7 +232,7 @@ function quarterOf(iso: string): string {
 function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
   const { predicate_prefixes: prefixes, effective_from: from } = claimSelection(scope, cutoff);
   const route = prefixes.length > 0
-    ? `${prefixes.map((prefix) => prefix.replace(/\.$/, "")).join(" and ")} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
+    ? `${new Intl.ListFormat("en").format(prefixes.map((prefix) => prefix.replace(/\.$/, "")))} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
     : "the most recent claims";
   return `${route}, published by the ${cutoff.slice(0, 10)} cutoff; a claim repeated by several sources or copies counts once`;
 }
