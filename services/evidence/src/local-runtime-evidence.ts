@@ -201,7 +201,8 @@ export async function loadLocalRuntimeEvidence(
                  c.created_at desc
      ),
      -- A repeat is the same company, predicate and text (case-insensitive) for
-     -- the same quarter (a statement made again a quarter later is new), however many
+     -- the same quarter (a statement made again a quarter later is new; an
+     -- undated one by when it was published), however many
      -- sources or copied documents carry it: it counts once, as its first
      -- publication in the route's window (else its first), and the others never
      -- add support. Different sources do not show
@@ -209,10 +210,10 @@ export async function loadLocalRuntimeEvidence(
      -- ponytail: exact text only; paraphrases are not caught.
      selected as (
        select distinct on (case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical)
-                                      || '|' || coalesce(date_trunc('quarter', effective_time)::text, '') else claim_id end) *
+                                      || '|' || date_trunc('quarter', coalesce(effective_time, published_at, claim_created_at))::text else claim_id end) *
          from matching_claims
         order by case when $10::boolean then subject_id || '|' || predicate || '|' || lower(text_canonical)
-                                      || '|' || coalesce(date_trunc('quarter', effective_time)::text, '') else claim_id end,
+                                      || '|' || date_trunc('quarter', coalesce(effective_time, published_at, claim_created_at))::text else claim_id end,
                  relevant desc, coalesce(published_at, claim_created_at) asc, claim_id
      )
      select claim_id,

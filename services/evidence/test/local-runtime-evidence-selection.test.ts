@@ -204,6 +204,14 @@ test("the same statement in two quarters is two claims, and a comparison's slots
     selection: { predicate_prefixes: ["kpi."], effective_from: null },
   });
   assert.deepEqual(alone.claim_refs, [KPI_DOWN, KPI_UP], "each quarter's statement, newest first");
+  // Undated statements are told apart by when they were published.
+  await db.query(`update claims set effective_time = null where claim_id = any($1::uuid[])`, [[KPI_UP, KPI_DOWN]]);
+  const undated = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    selection: { predicate_prefixes: ["kpi."], effective_from: null },
+  });
+  assert.deepEqual(undated.claim_refs, [KPI_DOWN, KPI_UP]);
+  await db.query(`update claims set effective_time = created_at where claim_id = any($1::uuid[])`, [[KPI_UP, KPI_DOWN]]);
 
   // Acme has five newer route claims; the rival's one older claim still gets a slot.
   for (let n = 1; n <= 4; n++) {

@@ -10,7 +10,7 @@
 //
 // Claims are the route's selection (claimSelection, loaded with the turn's
 // cutoff): repeats already counted once, each placed by its stored polarity,
-// with any disagreement between them named.
+// with any stored contradiction between them named.
 
 import { displayedFigures, QUARTERS_SHOWN, type DisplayedFigure } from "./fact-blocks.ts";
 import type { ResearchScope } from "./research-scope.ts";
@@ -185,25 +185,19 @@ function packetClaims(
     };
   });
   const packetId = new Map(claims.map((claim) => [claim.claim_id, claim.id]));
-  // Each pair in packet order (C1 before C2), however the relation lists it,
-  // so a stored and an inferred disagreement on the same pair are one.
+  // Only a stored relation: a claim records no metric or value, so opposite
+  // directions ("raised revenue guidance", "lowered EPS guidance") can both be
+  // true. Each pair in packet order (C1 before C2), however it is listed.
   const byIndex = (x: string, y: string) => Number(x.slice(1)) - Number(y.slice(1));
-  const stored = [...new Map((evidence?.contradictions ?? []).flatMap(([a, b]) => {
+  const disagreements = [...new Map((evidence?.contradictions ?? []).flatMap(([a, b]) => {
     const ids = [packetId.get(a), packetId.get(b)];
     if (!ids[0] || !ids[1] || ids[0] === ids[1]) return [];
     const pair = (ids as string[]).sort(byIndex) as [string, string];
     return [[pair.join(), { claims: pair as readonly [string, string], basis: "a stored relation marks them as contradicting" }] as const];
   })).values()];
-  const storedKeys = new Set(stored.map((entry) => entry.claims.join()));
-  const opposed = records.flatMap((a, i) => records.slice(i + 1).flatMap((b, offset) => {
-    const pair = [`C${i + 1}`, `C${i + offset + 2}`] as const;
-    return conflicting(a, b) && !storedKeys.has(pair.join())
-      ? [{ claims: pair, basis: "opposite directions for the same company, predicate and quarter" }]
-      : [];
-  }));
   return {
     claims,
-    disagreements: [...stored, ...opposed],
+    disagreements,
     claims_status: evidence?.unavailable ? "unavailable" : claims.length > 0 ? "available" : "none",
     claims_truncated: evidence?.truncated === true,
   };
@@ -214,20 +208,6 @@ const STANCE: Readonly<Record<string, PacketClaim["stance"]>> = {
   negative: "challenging",
   neutral: "neutral",
 };
-
-// Directly conflicting: the same company and predicate, in the same calendar
-// quarter, one positive and one negative. A difference in tone alone is
-// sentiment, never a contradiction.
-function conflicting(a: ClaimRecord, b: ClaimRecord): boolean {
-  if (a.predicate !== b.predicate || a.predicate === "management.tone") return false;
-  if (a.subject_id === undefined || a.subject_id !== b.subject_id) return false;
-  if (!a.effective_time || !b.effective_time || quarterOf(a.effective_time) !== quarterOf(b.effective_time)) return false;
-  return (a.polarity === "positive" && b.polarity === "negative") || (a.polarity === "negative" && b.polarity === "positive");
-}
-
-function quarterOf(iso: string): string {
-  return `${iso.slice(0, 4)}Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
-}
 
 function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
   const { predicate_prefixes: prefixes, effective_from: from } = claimSelection(scope, cutoff);

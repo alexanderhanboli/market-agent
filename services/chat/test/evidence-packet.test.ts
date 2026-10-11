@@ -181,14 +181,15 @@ test("claims carry short ids, their company and a stance only their stored polar
   assert.equal(forModel.claims_truncated, true);
 });
 
-test("a stored contradiction, or opposite directions for one company, predicate and quarter, is a disagreement; tone or another company is not (#207)", () => {
+test("only a stored contradiction is a disagreement; opposite directions, tone or another company are not (#207)", () => {
   const packet = buildEvidencePacket({
     factBlocks: [],
     cutoff: CUTOFF,
     claims: {
       claims: [
-        claim("raised", { polarity: "positive" }),
-        claim("lowered", { polarity: "negative", effective_time: "2026-06-15T00:00:00.000Z" }),
+        // Raised revenue guidance and lowered EPS guidance can both be true.
+        claim("raised-revenue", { polarity: "positive" }),
+        claim("lowered-eps", { polarity: "negative", effective_time: "2026-06-15T00:00:00.000Z" }),
         claim("amd-lowered", { polarity: "negative", subject_id: AMD.issuer_id }),
         claim("upbeat", { predicate: "management.tone", polarity: "positive" }),
         claim("downbeat", { predicate: "management.tone", polarity: "negative" }),
@@ -200,7 +201,6 @@ test("a stored contradiction, or opposite directions for one company, predicate 
   });
   assert.deepEqual(packet.disagreements, [
     { claims: ["C6", "C7"], basis: "a stored relation marks them as contradicting" },
-    { claims: ["C1", "C2"], basis: "opposite directions for the same company, predicate and quarter" },
   ]);
 });
 
