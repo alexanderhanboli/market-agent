@@ -39,7 +39,7 @@ export const MAX_ASSERTIONS = 8;
 // it is, and closed or not, it is cut from the prose. open: the list never
 // closed, so an answer cut off at the token limit inside it kept its prose
 // whole (a cut after a closed list fell in the prose).
-const FENCES = /[ \t]*```assertions[ \t]*\n([\s\S]*?)(?:(```)|$)[ \t]*/g;
+const FENCES = /[ \t]*```assertions[ \t]*\r?\n([\s\S]*?)(?:(```)|$)[ \t]*/g;
 
 // The prose without its assertion list, and the list as written (undefined when
 // there is none; null when it does not parse).
@@ -48,7 +48,7 @@ export function splitAssertions(text: string): { prose: string; list: unknown[] 
   if (matches.length === 0) return { prose: text, list: undefined, open: false };
   // Every block is cut, so a second (a corrected list) never shows; the first
   // is the one checked.
-  const prose = text.replace(FENCES, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  const prose = text.replace(FENCES, "\n\n").replace(/(?:\r?\n){3,}/g, "\n\n").trim();
   // Closed when its closing fence matched, whatever spaces follow it.
   const open = matches.at(-1)![2] === undefined;
   try {

@@ -407,3 +407,7 @@ test("only an inference has supports; a worded unit is a unit (#208)", () => {
     [2, "75 shares is not a cited figure's value"],
   ]);
 });
+
+test("a block with CRLF line endings is cut from the prose too (#208)", () => {
+  assert.deepEqual(splitAssertions("NVDA leads.\r\n```assertions\r\n[]\r\n```\r\n"), { prose: "NVDA leads.", list: [], open: false });
+});
