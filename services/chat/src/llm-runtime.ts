@@ -9,7 +9,7 @@ import type {
   ChatAnalystToolRuntimeToolCall,
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
-import { buildEvidencePacket, packetForModel } from "./evidence-packet.ts";
+import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord } from "./evidence-packet.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
 
@@ -170,8 +170,11 @@ export async function composeAnalystBlocksWithLlm(input: {
           "apart, say so: the same fiscal year covers different months for each company.",
           "When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead;",
           "a value with a coverage other than full covers only part of its period, so say so.",
-          "Claims in cited_claims are sourced statements you may draw on, dated by effective_time",
-          "and published_at: say when a claim dates from, by month and year, if it is not recent. evidence_packet.gaps say what",
+          "Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time",
+          "and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its",
+          "stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one.",
+          "If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable,",
+          "research claims could not be read, so never say there are none. evidence_packet.gaps say what",
           "could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds",
           "which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or",
           "fact_recency.stale / a large fact_recency.age_days), explicitly note",
@@ -258,8 +261,8 @@ export async function composeAnalystBlocksWithLlm(input: {
 // ("in November 2025"), so that year is supported, while an ISO date's day and
 // time digits ("19", "0") never become supported figures (#181).
 function claimTextsFromToolCalls(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>): string[] {
-  return citedClaims(toolCalls).flatMap((claim) => [
-    claim.text,
+  return claimEvidence(toolCalls).claims.flatMap((claim) => [
+    claim.text_canonical,
     ...[claim.effective_time, claim.published_at].flatMap((date) => (date ? [monthYear(date)] : [])),
   ]);
 }
@@ -303,19 +306,23 @@ export function answerContext(input: {
     isRecord(context.quote) ? [{ ticker: context.quote.ticker, as_of: context.quote.as_of, stale: context.quote.stale }] : []
   );
   const factRecency = structured.flatMap((context) => (isRecord(context.fact_recency) ? [context.fact_recency] : []));
+  const claims = claimEvidence(input.toolCalls);
   const packet = packetForModel(buildEvidencePacket({
     ...(input.scope ? { scope: input.scope } : {}),
     factBlocks: input.factBlocks ?? [],
     cutoff: input.cutoff ?? new Date().toISOString(),
+    claims,
   }));
-  // Subjects with no evidence at all are a gap too.
+  // Subjects with no evidence at all are a gap too; when the claims read
+  // failed, the claims are unknown, not absent (#207).
   const gaps = [
     ...((packet.gaps as string[] | undefined) ?? []),
     ...(results.some((result) => result.evidence_status === "insufficient_evidence")
-      ? ["No research claims, reported facts, or quote are on file for this subject."]
+      ? [claims.unavailable
+        ? "No reported facts or quote are on file for this subject, and its research claims could not be read."
+        : "No research claims, reported facts, or quote are on file for this subject."]
       : []),
   ];
-  const claims = citedClaims(input.toolCalls);
   const shown = (packet.figures as unknown[]).length > 0;
   const available = !shown && input.availableData !== false ? availableData(structured) : null;
   return {
@@ -329,25 +336,41 @@ export function answerContext(input: {
         ? { staleness: { ...(quotes.length > 0 ? { quote: quotes } : {}), ...(factRecency.length > 0 ? { fact_recency: factRecency } : {}) } }
         : {}),
     },
-    ...(claims.length > 0 ? { cited_claims: claims } : {}),
   };
 }
 
-// Cited claim text with its dates, so a past claim (an earlier quarter's
-// guidance) is not read as current.
-function citedClaims(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>): Array<Record<string, string>> {
-  return toolCalls.flatMap((toolCall) => {
-    const evidence = (toolCall.result as { evidence?: { claims?: unknown } } | undefined)?.evidence;
-    if (!Array.isArray(evidence?.claims)) return [];
-    return evidence.claims.flatMap((claim: unknown) => {
-      if (!isRecord(claim) || typeof claim.text_canonical !== "string") return [];
-      return [{
-        text: claim.text_canonical,
-        ...(typeof claim.effective_time === "string" ? { effective_time: claim.effective_time } : {}),
-        ...(typeof claim.published_at === "string" ? { published_at: claim.published_at } : {}),
-      }];
-    });
+// The claims the turn's evidence reads selected, each once across tool calls,
+// with their dates, so a past claim (an earlier quarter's guidance) is not read
+// as current.
+function claimEvidence(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>): ClaimEvidence {
+  const evidence = toolCalls.flatMap((toolCall) => {
+    const result = isRecord(toolCall.result) ? toolCall.result.evidence : undefined;
+    return isRecord(result) ? [result] : [];
   });
+  const claims = new Map<string, ClaimRecord>();
+  for (const claim of evidence.flatMap((entry) => (Array.isArray(entry.claims) ? entry.claims : []))) {
+    if (!isRecord(claim) || typeof claim.text_canonical !== "string") continue;
+    const id = typeof claim.claim_id === "string" ? claim.claim_id : `unidentified:${claims.size}`;
+    if (claims.has(id)) continue;
+    claims.set(id, {
+      claim_id: id,
+      source_id: typeof claim.source_id === "string" ? claim.source_id : "",
+      text_canonical: claim.text_canonical,
+      predicate: typeof claim.predicate === "string" ? claim.predicate : "",
+      polarity: typeof claim.polarity === "string" ? claim.polarity : "",
+      effective_time: typeof claim.effective_time === "string" ? claim.effective_time : null,
+      published_at: typeof claim.published_at === "string" ? claim.published_at : null,
+      ...(typeof claim.subject_id === "string" ? { subject_id: claim.subject_id } : {}),
+    });
+  }
+  const contradictions = evidence.flatMap((entry) => (Array.isArray(entry.contradictions) ? entry.contradictions : []))
+    .filter((pair): pair is [string, string] => Array.isArray(pair) && pair.length === 2 && pair.every((id) => typeof id === "string"));
+  return {
+    claims: [...claims.values()],
+    truncated: evidence.some((entry) => entry.truncated === true),
+    contradictions: [...new Map(contradictions.map((pair) => [pair.join(), pair] as const)).values()],
+    unavailable: evidence.some((entry) => entry.unavailable === true),
+  };
 }
 
 // The quote and reported facts, compactly: what an answer with no displayed
