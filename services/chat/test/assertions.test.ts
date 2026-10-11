@@ -18,6 +18,7 @@ const PACKET: EvidencePacket = {
   gaps: [],
   query_bounds: {},
   claims: [
+    { id: "C2", text: "AMD management expects 10% revenue growth next year.", predicate: "guidance.change", stance: "supporting", company: "AMD", claim_id: "c2", source_id: "s2" },
     { id: "C1", text: "Management said a richer data-center mix lifted margins.", predicate: "kpi.commentary", stance: "supporting", company: "NVDA", effective_time: "2026-02-25T00:00:00.000Z", claim_id: "c1", source_id: "s1" },
   ],
   disagreements: [],
@@ -129,4 +130,30 @@ test("each number binds to one cited figure: its unit, sign and company, not poo
     [2, "49.4% is not a cited figure's value for NVDA"],
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [3, 4]);
+});
+
+test("a claim's own numbers bind to it, for its company (#208)", () => {
+  const report = check([
+    { kind: "management_attribution", text: "AMD management expects 10% revenue growth.", evidence: ["C2"] },
+    { kind: "management_attribution", text: "NVDA management expects 10% revenue growth.", evidence: ["C2"] },
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0]);
+  assert.deepEqual(report.rejected.map((entry) => entry.reason), ["10% is not a cited figure's value for NVDA"]);
+});
+
+test("a cited period binds to its figure's company (#208)", () => {
+  const report = check([
+    { kind: "observation", text: "NVDA's margin was 75.0% in FY2025, and AMD's 49.4% in FY2026.", evidence: ["F1", "F3"] },
+    { kind: "observation", text: "NVDA's margin was 75.0% in FY2026, and AMD's 49.4% in FY2025.", evidence: ["F1", "F3"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [[0, "2025 is not a cited figure's value for NVDA"]]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
+});
+
+test("a packet with claims but no figures is still checked; one with neither is skipped (#208)", () => {
+  const claimsOnly = { ...PACKET, figures: [] };
+  const report = checkAssertions([{ kind: "management_attribution", text: "AMD management expects 10% revenue growth.", evidence: ["C2"] }], claimsOnly);
+  assert.equal(report.status, "checked");
+  assert.equal(report.accepted.length, 1);
+  assert.equal(checkAssertions([], { ...claimsOnly, claims: [] }).status, "skipped");
 });

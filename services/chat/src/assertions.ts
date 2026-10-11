@@ -23,7 +23,7 @@ export type Assertion = {
 
 export type AssertionReport = {
   // missing: the answer listed none; malformed: the list did not parse;
-  // skipped: no figures were shown, so there was nothing to bind (the answer
+  // skipped: no figures or claims, so there was nothing to bind (the answer
   // stood on available_data, which carries no packet ids).
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: ReadonlyArray<Assertion & { index: number }>;
@@ -51,7 +51,7 @@ export function splitAssertions(text: string): { prose: string; list: unknown[] 
 }
 
 export function checkAssertions(list: unknown[] | null | undefined, packet: EvidencePacket): AssertionReport {
-  if (packet.figures.length === 0) return { status: "skipped", accepted: [], rejected: [] };
+  if (packet.figures.length === 0 && packet.claims.length === 0) return { status: "skipped", accepted: [], rejected: [] };
   if (list === undefined) return { status: "missing", accepted: [], rejected: [] };
   if (list === null) return { status: "malformed", accepted: [], rejected: [] };
   const figures = new Map(packet.figures.map((figure) => [figure.id, figure]));
@@ -134,25 +134,27 @@ function shapeError(
   }
 }
 
-// Every number the text states binds to its evidence. A number with a unit or
-// sign (a value) must be one cited figure's value, in that figure's unit, sign
-// allowing, and the figure must be the company the text last named before it.
-// A bare number may also be a cited period, year, or a number a cited claim
-// states. Every company the text names must be its evidence's.
+// Every number the text states binds to one piece of its evidence, which
+// belongs to the company the text last named before it: a cited figure's value
+// (in its unit, sign allowing), its period or year, or a number a cited claim
+// states. A bare number may match any of them; one with a unit, sign or
+// currency must match in kind. Every company the text names must be its
+// evidence's.
 // ponytail: the metric is not matched; two cited figures with the same value
 // and unit under different metrics are interchangeable here.
 function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
   const companyOf = (company: string | undefined) => company ?? packet.companies[0];
-  const values = figures.flatMap((figure) => quantities(figure.value).map((quantity) => ({ quantity, company: companyOf(figure.company) })));
-  const bare = new Set([
-    ...figures.flatMap((figure) => [figure.period ?? "", figure.period_end?.slice(0, 4) ?? "", figure.metric]),
-    ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]),
-  ].flatMap((source) => quantities(source).map((quantity) => quantity.value)));
+  const sources = [
+    ...figures.flatMap((figure) => [figure.value, figure.period ?? "", figure.period_end?.slice(0, 4) ?? ""]
+      .map((source) => ({ source, company: companyOf(figure.company) }))),
+    ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]
+      .map((source) => ({ source, company: companyOf(claim.company) }))),
+  ];
+  const evidence = sources.flatMap(({ source, company }) => quantities(source).map((quantity) => ({ quantity, company })));
   for (const quantity of quantities(text)) {
-    if (!quantity.unit && !quantity.negative && !quantity.currency && bare.has(quantity.value)) continue;
-    const candidates = values.filter((entry) => sameQuantity(quantity, entry.quantity));
+    const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = lastCompanyBefore(text, quantity.at, packet.companies);
     if (named !== undefined && !candidates.some((entry) => entry.company === named)) {

@@ -191,7 +191,7 @@ export async function composeAnalystBlocksWithLlm(input: {
           "lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the figures' F ids), or",
           "\"analyst_inference\" (your conclusion; add \"supports\": the array indexes of the observations it rests on).",
           "text restates the assertion in one sentence, with only numbers and companies its evidence holds.",
-          "When evidence_packet.figures is empty, omit the block.",
+          "When evidence_packet has neither figures nor claims, omit the block.",
         ].join(" "),
       },
       {
