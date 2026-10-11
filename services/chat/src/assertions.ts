@@ -173,11 +173,19 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
   return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
 }
 
-// A figure's value in the text: a number other than a year or a period's
-// ("FY2025", "Q3"). A rendered inference may state none (#208).
+// A year said as a time: after a preposition of time or a month ("since
+// 2025", "in Feb 2026"); a bare "2025 employees" is a figure.
+const TIME_BEFORE = new RegExp(String.raw`(?:\b(?:in|since|from|to|by|through|until|during|before|after|of|fiscal(?: year)?|calendar(?: year)?)|\b(?:${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].join("|")})[a-z]*\.?)\s+$`, "i");
+
+// A figure's value in the text: a number other than a year said as a time or
+// a period's ("FY2025", "Q3"). A rendered inference may state none (#208).
 export function statesValue(text: string, companies: ReadonlyArray<string>): boolean {
   // A company's name is not a value, even with digits in it ("3M").
-  return quantities(withoutCompanies(text, companies)).some((quantity) => !quantity.period && !(/^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency));
+  const masked = withoutCompanies(text, companies);
+  return quantities(masked).some((quantity) => !quantity.period && !(
+    /^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency && !quantity.negative && !quantity.positive &&
+    TIME_BEFORE.test(masked.slice(0, quantity.at))
+  ));
 }
 
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {

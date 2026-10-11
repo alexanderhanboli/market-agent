@@ -493,3 +493,9 @@ test("a company's digits are not a figure an inference states (#208)", () => {
   assert.equal(statesValue("3M Company's 49.2% margin leads.", ["3M Company"]), true);
   assert.equal(statesValue("NVDA leads since FY2025.", ["NVDA"]), false);
 });
+
+test("only a year said as a time is not a figure (#208)", () => {
+  assert.equal(statesValue("NVDA has 2025 employees.", ["NVDA"]), true);
+  assert.equal(statesValue("NVDA has led since 2025.", ["NVDA"]), false);
+  assert.equal(statesValue("NVDA led in Feb 2026.", ["NVDA"]), false);
+});

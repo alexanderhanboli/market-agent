@@ -265,10 +265,20 @@ export async function composeAnalystBlocksWithLlm(input: {
     if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.map((entry) => entry.text));
     reportAssertions({ removed });
     answered();
+    // A stored disagreement keeps both sides: a claim rendered without the
+    // claim that contradicts it brings that claim along, said as such.
+    const shownClaims = new Set(kept.filter((entry) => entry.kind === "management_attribution")
+      .flatMap((entry) => report.accepted.find((assertion) => assertion.index === entry.index)?.evidence ?? []));
+    const otherSides = [...new Set(packet.disagreements.flatMap(({ claims: [a, b] }) =>
+      shownClaims.has(a) && !shownClaims.has(b) ? [b] : shownClaims.has(b) && !shownClaims.has(a) ? [a] : []
+    ))].map((id, i) => {
+      const side = renderAssertion({ index: -1 - i, kind: "management_attribution", text: "", evidence: [id] }, packet, input.factBlocks ?? []);
+      return { ...side, segments: [{ type: "text" as const, text: "A source disagrees. " }, ...side.segments] };
+    });
     // What the rendered assertions cannot say themselves: a compared company
     // with no figures shown, and stale data.
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
-    return rewriteFirstRichTextBlockWith(input.blocks, kept, [
+    return rewriteFirstRichTextBlockWith(input.blocks, [...kept, ...otherSides], [
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
       ...stalenessNotes(input.toolCalls),
     ]);

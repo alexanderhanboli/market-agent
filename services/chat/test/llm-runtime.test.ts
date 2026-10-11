@@ -1192,3 +1192,34 @@ test("a rendered answer says which compared companies it shows no figures for (#
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).\n\nNo figures are shown for AMD.");
 });
+
+test("a rendered answer keeps the other side of a stored disagreement (#208)", async () => {
+  const claim = (n: number, text: string, polarity: string) => ({
+    claim_id: `c2080000-0000-4000-8000-00000000001${n}`, source_id: `s${n}`, text_canonical: text, predicate: "kpi.commentary", polarity, published_at: "2026-02-25T00:00:00.000Z",
+  });
+  const toolCall = {
+    tool_call_id: "tc-1",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence: {
+      claims: [claim(1, "Backlog grew.", "positive"), claim(2, "Backlog shrank.", "negative")],
+      contradictions: [["c2080000-0000-4000-8000-000000000011", "c2080000-0000-4000-8000-000000000012"]],
+    } },
+  } as never;
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "What happened to backlog?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [toolCall],
+    factBlocks: [],
+    createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Backlog grew.", evidence: ["C1"] }]) }),
+  });
+  const segments = composed[0].segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
+  assert.equal(
+    segments.map((segment) => segment.text ?? segment.format).join(""),
+    "According to a source dated Feb 2026: Backlog grew.\n\nA source disagrees. According to a source dated Feb 2026: Backlog shrank.",
+  );
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [
+    "c2080000-0000-4000-8000-000000000011", "c2080000-0000-4000-8000-000000000012",
+  ]);
+});
