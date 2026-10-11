@@ -479,3 +479,11 @@ test("an unchanged value is no change; a claim about a missing metric may be att
   assert.deepEqual(report.rejected.map((entry) => entry.index), [0]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
 });
+
+test("every figure an unknown cause cites is part of a change (#208)", () => {
+  const report = check([
+    // NVDA's margin changed; AMD's single value did not.
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2", "F3"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [0]);
+});

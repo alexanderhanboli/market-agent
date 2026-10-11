@@ -133,8 +133,8 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, shape);
       continue;
     }
-    // An unknown cause is a change's: it cites one company's metric in two
-    // periods with different values, so the figures show something changed.
+    // An unknown cause is a change's: each figure it cites has its company's
+    // same metric in another period with a different value beside it.
     if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!))) {
       reject(index, item, "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
@@ -174,7 +174,8 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
 }
 
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {
-  return cited.some((a) => cited.some((b) =>
+  // Every cited figure: the template says each cited metric changed.
+  return cited.length > 0 && cited.every((a) => cited.some((b) =>
     a.company === b.company && a.metric === b.metric && a.period !== undefined && b.period !== undefined &&
     a.period !== b.period && a.value !== b.value
   ));
