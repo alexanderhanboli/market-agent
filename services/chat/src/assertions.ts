@@ -94,11 +94,6 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, "supports is not a list of assertion indexes");
       continue;
     }
-    // Well-formed, but about figures when none were shown: nothing to bind.
-    if (packet.figures.length === 0 && kind !== "management_attribution") {
-      unchecked++;
-      continue;
-    }
     const evidence = item.evidence as string[];
     const unknown = evidence.find((id) => !figures.has(id) && !claims.has(id));
     if (unknown !== undefined) {
@@ -107,6 +102,16 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     }
     const figureIds = evidence.filter((id) => figures.has(id));
     const claimIds = evidence.filter((id) => claims.has(id));
+    // About figures when none were shown: nothing to bind, unless it cites a
+    // claim where only figures may stand.
+    if (packet.figures.length === 0 && kind !== "management_attribution") {
+      if ((kind === "observation" || kind === "unknown_cause") && claimIds.length > 0) {
+        reject(index, item, shapeError(kind, [], claimIds, [], accepted)!);
+      } else {
+        unchecked++;
+      }
+      continue;
+    }
     const supports = (item.supports ?? []) as number[];
     const shape = shapeError(kind, figureIds, claimIds, supports, accepted);
     if (shape) {
@@ -180,7 +185,8 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
   // with no company named before it (or right after it, "for AMD") is unbound
   // rather than guessed ("75.0% was AMD's margin").
   const spans = new Set(evidence.flatMap((entry) => (entry.company ? [entry.company] : []))).size > 1;
-  for (const quantity of quantities(text)) {
+  // A company's name is not a value, even with digits in it ("3M Company").
+  for (const quantity of quantities(withoutCompanies(text, packet.companies))) {
     const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
@@ -221,10 +227,12 @@ type Quantity = { raw: string; at: number; value: string; unit: string; currency
 
 // Numbers with their sign, currency prefix and unit; the value compared as a number,
 // so "75%" is the "75.0%" shown while "7.5" is not "75".
-const QUANTITY = /(?<![\d.])([-−+])?((?:(?<![A-Za-z])[A-Z]{1,2})?[$€£¥])?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b))?/gi;
+const QUANTITY = /(?<![\d.])([-−+])?((?:(?<![A-Za-z])[A-Z]{1,2})?[$€£¥])?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b|percentage points?\b|pp\b|percent\b|per cent\b))?/gi;
 const UNITS: Readonly<Record<string, string>> = {
   thousand: "K", million: "M", mn: "M", billion: "B", bn: "B", trillion: "T",
   "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
+  "percentage point": "pt", "percentage points": "pt", pp: "pt",
+  percent: "%", "per cent": "%",
 };
 
 function quantities(text: string): Quantity[] {
@@ -260,6 +268,14 @@ function companyAfter(text: string, end: number, companies: ReadonlyArray<string
     const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`^\\s*(?:for|at|of|from|by|in)\\s+${escaped}(?![A-Za-z0-9])`).test(rest);
   });
+}
+
+// The text with each company's name blanked to spaces, keeping offsets.
+function withoutCompanies(text: string, companies: ReadonlyArray<string>): string {
+  return companies.reduce((masked, company) => {
+    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return masked.replace(new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "g"), (name) => " ".repeat(name.length));
+  }, text);
 }
 
 function lastCompanyBefore(text: string, at: number, companies: ReadonlyArray<string>): string | undefined {

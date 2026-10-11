@@ -273,3 +273,33 @@ test("a currency prefix keeps its identity and sign (#208)", () => {
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
 });
+
+test("digits in a company's name are not a value; spelled percents and points are units (#208)", () => {
+  const named = { ...PACKET, companies: ["3M Company", "AMD"], figures: [
+    { id: "F1", company: "3M Company", metric: "Gross margin", value: "49.2%", source_ids: [] },
+    { id: "F4", company: "AMD", metric: "Revenue", value: "$75.0B", source_ids: [] },
+  ] };
+  const report = checkAssertions([
+    { kind: "observation", text: "3M Company's gross margin was 49.2%.", evidence: ["F1"] },
+    { kind: "observation", text: "3M Company's gross margin was 49.2 percent.", evidence: ["F1"] },
+    { kind: "observation", text: "AMD's gross margin was 75 percent.", evidence: ["F4"] },
+    { kind: "observation", text: "3M Company's margin rose 49.2 percentage points.", evidence: ["F1"] },
+  ], named);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [2, "75 percent is not a cited figure's value"],
+    [3, "49.2 percentage points is not a cited figure's value"],
+  ]);
+});
+
+test("on the no-figures path, an unknown id or a claim cited as a figure is rejected, not unchecked (#208)", () => {
+  const report = checkAssertions([
+    { kind: "observation", text: "ACME trades at $12.", evidence: ["F99"] },
+    { kind: "observation", text: "ACME trades at $12.", evidence: ["C2"] },
+    { kind: "observation", text: "ACME trades at $12.", evidence: [] },
+  ], { ...PACKET, figures: [] });
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, 'unknown evidence id "F99"'],
+    [1, "an observation cites figures, and only figures"],
+  ]);
+  assert.equal(report.unchecked, 1);
+});
