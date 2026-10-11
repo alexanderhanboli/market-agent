@@ -1268,3 +1268,25 @@ test("a rendered answer says when more claims matched, or none could be read (#2
   });
   assert.match((answer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), /\n\nResearch claims could not be read for this answer\.$/);
 });
+
+test("an observation whose value cannot be sealed is not rendered (#208)", async () => {
+  // A price return is read off its chart series, with no fact behind it.
+  const perf = [{ id: "perf-1", kind: "perf_comparison", title: "Price performance", default_range: "YTD 2026: 2025-12-31 close to 2026-08-31 close",
+    series: [{ name: "NVDA", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 12.5 }] }] }];
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "How has NVDA done YTD?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: perf,
+    createClient: () => async () => ({ text: `NVDA returned 12.5% this year.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "observation", text: "NVDA returned 12.5%.", evidence: ["F1"] }])}\n\`\`\`` }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>)[0]!.text, "NVDA returned 12.5% this year.");
+  assert.equal(reports[0]!.rendered, undefined);
+  assert.deepEqual(
+    (reports[0]!.rejected as Array<{ reason: string }>).map((entry) => entry.reason),
+    ["its figure has no fact to seal, so it is not rendered"],
+  );
+});

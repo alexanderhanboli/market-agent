@@ -224,13 +224,16 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }
-  const reportAssertions = (rendered?: { removed: AssertionReport["rejected"] }) =>
-    input.onAssertions?.(rendered
+  // Assertions rendering left out, with why: on the report whether or not the
+  // answer was rendered, so evals see them either way.
+  let renderRemovals: AssertionReport["rejected"] = [];
+  const reportAssertions = (rendered = false) =>
+    input.onAssertions?.(renderRemovals.length > 0 || rendered
       ? {
         ...report,
-        accepted: report.accepted.filter((entry) => !rendered.removed.some((removed) => removed.index === entry.index)),
-        rejected: [...report.rejected, ...rendered.removed].sort((a, b) => a.index - b.index),
-        rendered: true,
+        accepted: report.accepted.filter((entry) => !renderRemovals.some((removed) => removed.index === entry.index)),
+        rejected: [...report.rejected, ...renderRemovals].sort((a, b) => a.index - b.index),
+        ...(rendered ? { rendered: true } : {}),
       }
       : report);
   // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
@@ -248,10 +251,22 @@ export async function composeAnalystBlocksWithLlm(input: {
     // A rendered inference's figures would be unsealed text: its observations
     // state them, as fact refs, so one quoting a value is not rendered.
     const quoting = new Set(rendered.filter((entry) => entry.kind === "analyst_inference" && statesValue(plainText(entry.segments), packet.companies)).map((entry) => entry.index));
+    // A value with no fact behind it would be unsealed text: not rendered.
+    const unsealed = new Set(rendered.filter((entry) => entry.unsealed).map((entry) => entry.index));
+    for (const index of unsealed) quoting.add(index);
     const guarded = new Set(rendered.filter((entry) => !quoting.has(entry.index) && drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
     // An inference goes with any observation it rests on that the guard removed.
     const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && !quoting.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
     const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index) && !quoting.has(entry.index));
+    renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
+      index: entry.index,
+      text: plainText(entry.segments),
+      reason: unsealed.has(entry.index)
+        ? "its figure has no fact to seal, so it is not rendered"
+        : quoting.has(entry.index)
+        ? "a rendered inference states no figures; its observations do"
+        : guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
+    }));
     if (kept.length === 0) return null;
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
@@ -263,17 +278,10 @@ export async function composeAnalystBlocksWithLlm(input: {
       ...keptAssertions.flatMap((assertion) => packet.claims.filter((claim) => assertion.evidence.includes(claim.id)).map((claim) => claim.company)),
     ]);
     if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) return null;
-    const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
-      index: entry.index,
-      text: plainText(entry.segments),
-      reason: quoting.has(entry.index)
-        ? "a rendered inference states no figures; its observations do"
-        : guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
-    }));
     // The guard's own drops; an inference removed with its observation is on the report.
-    const dropped = removed.filter((entry) => guarded.has(entry.index));
-    if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.map((entry) => entry.text));
-    reportAssertions({ removed });
+    const dropped = renderRemovals.filter((entry) => guarded.has(entry.index));
+    if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.flatMap((entry) => (entry.text ? [entry.text] : [])));
+    reportAssertions(true);
     answered();
     // A stored disagreement keeps both sides: a claim rendered without the
     // claim that contradicts it brings that claim along, said as such.

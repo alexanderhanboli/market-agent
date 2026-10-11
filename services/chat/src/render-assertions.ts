@@ -22,6 +22,9 @@ export type RenderedAssertion = {
   // The fact bindings and sources its refs need to seal.
   fact_bindings: ReadonlyArray<Record<string, unknown>>;
   source_refs: ReadonlyArray<string>;
+  // A value had no fact to seal (a price return read off its chart): plain
+  // text, so the assertion is not rendered.
+  unsealed: boolean;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -40,12 +43,16 @@ export function renderAssertion(
     return company ? `${company}'s ` : "";
   };
   const fact_bindings: Array<Record<string, unknown>> = [];
+  let unsealed = false;
   const source_refs = new Set<string>();
   // A value is a fact ref only when its fact can seal here: a UUID with the
   // binding the fact block carries; otherwise it is plain text.
   const value = (figure: PacketFigure): Segment => {
     const binding = figure.fact_id ? bindings.get(figure.fact_id) : undefined;
-    if (!figure.fact_id || !UUID.test(figure.fact_id) || !binding) return { type: "text", text: figure.value };
+    if (!figure.fact_id || !UUID.test(figure.fact_id) || !binding) {
+      unsealed = true;
+      return { type: "text", text: figure.value };
+    }
     fact_bindings.push(binding);
     figure.source_ids.forEach((id) => source_refs.add(id));
     return { type: "ref", ref_kind: "fact", ref_id: figure.fact_id, format: figure.value };
@@ -65,7 +72,10 @@ export function renderAssertion(
         segments.push(value(figure));
         // A stored quarter ("Q42026") reads as "Q4 2026"; its end month is
         // said, since fiscal calendars differ (#180).
-        if (figure.period) text(` in ${figure.period.replace(/^([QH][1-4])(\d{4})$/, "$1 $2")}`);
+        // A window's dates by month and year, never the day.
+        if (figure.period) {
+          text(` in ${figure.period.replace(/^([QH][1-4])(\d{4})$/, "$1 $2").replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date))}`);
+        }
         if (figure.period_end) text(` (ended ${monthYear(figure.period_end)})`);
       });
       text(".");
@@ -89,7 +99,7 @@ export function renderAssertion(
       text(`> **Analyst inference:** ${assertion.text}`);
       break;
   }
-  return { index: assertion.index, segments, fact_bindings, source_refs: [...source_refs] };
+  return { index: assertion.index, segments, fact_bindings, source_refs: [...source_refs], unsealed };
 }
 
 // Companies whose same-named periods end in different months: said once for

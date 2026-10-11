@@ -44,6 +44,17 @@ test("a value whose fact cannot seal here is plain text (#208)", () => {
   assert.equal(plainText(rendered.segments), "AMD's EPS was $1.37.");
   assert.equal(rendered.segments.some((segment) => segment.type === "ref"), false);
   assert.deepEqual(rendered.fact_bindings, []);
+  // So it is marked unsealed, and the answer does not render it.
+  assert.equal(rendered.unsealed, true);
+  assert.equal(renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F1"] }, PACKET, FACT_BLOCKS).unsealed, false);
+});
+
+test("a period's dates are written by month and year, never the day (#208)", () => {
+  const windowed = { ...PACKET, figures: [{ ...PACKET.figures[0]!, metric: "Price return", period: "YTD 2026: 2025-12-31 close to 2026-08-31 close", value: "12.5%" }] };
+  assert.equal(
+    plainText(renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F1"] }, windowed, FACT_BLOCKS).segments),
+    "NVDA's price return was 12.5% in YTD 2026: Dec 2025 close to Aug 2026 close.",
+  );
 });
 
 test("a management attribution quotes its claim, dated and sourced; an unknown cause and an inference are labelled (#208)", () => {
