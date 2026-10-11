@@ -272,7 +272,7 @@ const DENOMINATION = String.raw`(?:[Dd]ollars?|[Ee]uros?|[Pp]ounds?|[Yy]en|[Yy]u
 // (except "times", which is the "x" a multiple is shown with).
 const WORDED = String.raw`(?:[Dd]ollars?|[Ee]uros?|[Pp]ounds?|[Yy]en|[Yy]uan|[Ff]rancs?|[Rr]upees?|[Ss]hares?|[Uu]nits?|[Tt]imes)\b`;
 // Case-sensitive, so a currency code is never a word ("top 3" is not TOP).
-const UNIT = String.raw`%|x\b|[KMBTkmbt]\b|[Bb]n\b|[Mm]n\b|[Tt]housand\b|[Mm]illion\b|[Bb]illion\b|[Tt]rillion\b|[Bb]asis points?\b|bps?\b|[Pp]ercentage points?\b|pp\b|[Pp]ercent\b|[Pp]er cent\b|${WORDED}`;
+const UNIT = String.raw`%|x\b|×|[KMBTkmbt]\b|[Bb]n\b|[Mm]n\b|[Tt]housand\b|[Mm]illion\b|[Bb]illion\b|[Tt]rillion\b|[Bb]asis points?\b|bps?\b|[Pp]ercentage points?\b|pp\b|[Pp]ercent\b|[Pp]er cent\b|${WORDED}`;
 // Every ISO currency code ("USD 3.1B"), so one the evidence lacks is a mismatch.
 const ISO_CODES = String.raw`(?<![A-Za-z])(?:${Intl.supportedValuesOf("currency").join("|")})(?=${"[ \u00a0\u202f]"}?[\d.])`;
 const SPACE = String.raw`[ \u00a0\u202f]`;
@@ -308,12 +308,12 @@ function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantit
     const unit = (match[4] ?? "").toLowerCase();
     const denomination = DENOMINATIONS[(match[5] ?? "").toLowerCase().replace(/s$/, "")];
     // Accounting parentheses ("($3.1B)") make it negative.
-    const parenthesized = text[match.index - 1] === "(" && text[match.index + match[0].length] === ")";
+    const parenthesized = /\(\s*$/.test(text.slice(0, match.index)) && /^\s*\)/.test(text.slice(match.index + match[0].length));
     return {
       raw: parenthesized ? `(${match[0].trim()})` : match[0].trim(),
       at: match.index,
       value: String(Number(match[3]!.replace(/,/g, ""))),
-      unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit.toUpperCase()),
+      unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit === "×" ? "x" : unit.toUpperCase()),
       currency: (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$") || denomination || "",
       negative: parenthesized || (match[1] !== undefined && match[1] !== "+"),
       positive: match[1] === "+",

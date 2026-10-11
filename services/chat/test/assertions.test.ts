@@ -427,3 +427,15 @@ test("a denomination after a magnitude is a currency; accounting parentheses are
     [2, "($3.1B) is not a cited figure's value"],
   ]);
 });
+
+test("a multiplication sign is a multiple; spaced accounting parentheses are negative (#208)", () => {
+  const packet = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "P/E", value: "52.3%", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "Net income", value: "$3.1B", source_ids: [] },
+  ] };
+  const report = checkAssertions([
+    { kind: "observation", text: "NVDA's P/E was 52.3×.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's net income was ( $3.1B ).", evidence: ["F2"] },
+  ], packet);
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [0, 1]);
+});
