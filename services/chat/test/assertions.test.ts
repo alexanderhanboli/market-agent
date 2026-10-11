@@ -30,10 +30,10 @@ const check = (list: unknown[]) => checkAssertions(list, PACKET);
 
 test("the assertion list is cut from the prose wherever it is, and a broken one is malformed (#208)", () => {
   const list = '[{"kind":"observation","text":"x","evidence":["F1"]}]';
-  assert.deepEqual(splitAssertions(`NVDA leads.\n\n\`\`\`assertions\n${list}\n\`\`\``), { prose: "NVDA leads.", list: JSON.parse(list), fenced: true });
+  assert.deepEqual(splitAssertions(`NVDA leads.\n\n\`\`\`assertions\n${list}\n\`\`\``), { prose: "NVDA leads.", list: JSON.parse(list), open: false });
   assert.deepEqual(splitAssertions(`NVDA leads.\n\`\`\`assertions\n${list}\n\`\`\`\nAMD trails.`).prose, "NVDA leads.\n\nAMD trails.");
-  assert.deepEqual(splitAssertions("NVDA leads.\n```assertions\n[{\"kind\":"), { prose: "NVDA leads.", list: null, fenced: true });
-  assert.deepEqual(splitAssertions("NVDA leads."), { prose: "NVDA leads.", list: undefined, fenced: false });
+  assert.deepEqual(splitAssertions("NVDA leads.\n```assertions\n[{\"kind\":"), { prose: "NVDA leads.", list: null, open: true });
+  assert.deepEqual(splitAssertions("NVDA leads."), { prose: "NVDA leads.", list: undefined, open: false });
   assert.equal(checkAssertions(undefined, PACKET).status, "missing");
   assert.equal(checkAssertions(null, PACKET).status, "malformed");
 });
@@ -165,4 +165,30 @@ test("a company named right after a number (\"49.4% for AMD\") is that number's 
   ]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [[0, "49.4% is not a cited figure's value for NVDA"]]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
+});
+
+test("a claim with no company is no company's: it neither credits the first nor bars the right one (#208)", () => {
+  const unowned = {
+    ...PACKET,
+    claims: [{ id: "C1", text: "Management reiterated 10% growth guidance.", predicate: "guidance.change", stance: "neutral" as const, claim_id: "c", source_id: "s" }],
+  };
+  const report = checkAssertions([
+    { kind: "management_attribution", text: "AMD management reiterated 10% growth guidance.", evidence: ["C1"] },
+    { kind: "management_attribution", text: "Management reiterated 10% growth guidance.", evidence: ["C1"] },
+  ], unowned);
+  assert.deepEqual(report.rejected, []);
+});
+
+test("malformed evidence or supports is rejected, not cleaned up (#208)", () => {
+  const report = check([
+    { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F1", null] },
+    { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: "F1" },
+    { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "NVDA's margin is high.", evidence: [], supports: [2, "0"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "evidence is not a list of packet ids"],
+    [1, "evidence is not a list of packet ids"],
+    [3, "supports is not a list of assertion indexes"],
+  ]);
 });

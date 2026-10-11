@@ -33,21 +33,23 @@ export type AssertionReport = {
 export const MAX_ASSERTIONS = 8;
 
 // The list closes the answer in a fenced block the reader never sees. Wherever
-// it is, and closed or not, it is cut from the prose. fenced: the list began,
-// so an answer cut off at the token limit inside it kept its prose whole.
+// it is, and closed or not, it is cut from the prose. open: the list never
+// closed, so an answer cut off at the token limit inside it kept its prose
+// whole (a cut after a closed list fell in the prose).
 const FENCE = /```assertions[ \t]*\n([\s\S]*?)(?:```|$)/;
 
 // The prose without its assertion list, and the list as written (undefined when
 // there is none; null when it does not parse).
-export function splitAssertions(text: string): { prose: string; list: unknown[] | null | undefined; fenced: boolean } {
+export function splitAssertions(text: string): { prose: string; list: unknown[] | null | undefined; open: boolean } {
   const match = FENCE.exec(text);
-  if (!match) return { prose: text, list: undefined, fenced: false };
+  if (!match) return { prose: text, list: undefined, open: false };
+  const open = !match[0].endsWith("```");
   const prose = `${text.slice(0, match.index).trimEnd()}\n\n${text.slice(match.index + match[0].length).trimStart()}`.trim();
   try {
     const parsed: unknown = JSON.parse(match[1]!);
-    return { prose, list: Array.isArray(parsed) ? parsed : null, fenced: true };
+    return { prose, list: Array.isArray(parsed) ? parsed : null, open };
   } catch {
-    return { prose, list: null, fenced: true };
+    return { prose, list: null, open };
   }
 }
 
@@ -79,7 +81,16 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, `unknown kind ${JSON.stringify(item.kind)}`);
       continue;
     }
-    const evidence = Array.isArray(item.evidence) ? item.evidence.filter((id): id is string => typeof id === "string") : [];
+    // A malformed list is the model's error to report, never cleaned up.
+    if (!Array.isArray(item.evidence) || !item.evidence.every((id) => typeof id === "string")) {
+      reject(index, item, "evidence is not a list of packet ids");
+      continue;
+    }
+    if (item.supports !== undefined && (!Array.isArray(item.supports) || !item.supports.every((n) => Number.isInteger(n)))) {
+      reject(index, item, "supports is not a list of assertion indexes");
+      continue;
+    }
+    const evidence = item.evidence as string[];
     const unknown = evidence.find((id) => !figures.has(id) && !claims.has(id));
     if (unknown !== undefined) {
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
@@ -87,7 +98,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     }
     const figureIds = evidence.filter((id) => figures.has(id));
     const claimIds = evidence.filter((id) => claims.has(id));
-    const supports = Array.isArray(item.supports) ? item.supports.filter((n): n is number => Number.isInteger(n)) : [];
+    const supports = (item.supports ?? []) as number[];
     const shape = shapeError(kind, figureIds, claimIds, supports, accepted);
     if (shape) {
       reject(index, item, shape);
@@ -146,12 +157,14 @@ function shapeError(
 function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
+  // A figure with no company is the only company's; a claim with none is no
+  // company's (its record named none), so it binds a number for any.
   const companyOf = (company: string | undefined) => company ?? packet.companies[0];
   const sources = [
     ...figures.flatMap((figure) => [figure.value, figure.period ?? "", figure.period_end?.slice(0, 4) ?? ""]
       .map((source) => ({ source, company: companyOf(figure.company) }))),
     ...claims.flatMap((claim) => [claim.text, claim.effective_time?.slice(0, 4) ?? "", claim.published_at?.slice(0, 4) ?? ""]
-      .map((source) => ({ source, company: companyOf(claim.company) }))),
+      .map((source) => ({ source, company: claim.company }))),
   ];
   const evidence = sources.flatMap(({ source, company }) => quantities(source).map((quantity) => ({ quantity, company })));
   for (const quantity of quantities(text)) {
@@ -159,11 +172,12 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
       ?? lastCompanyBefore(text, quantity.at, packet.companies);
-    if (named !== undefined && !candidates.some((entry) => entry.company === named)) {
+    if (named !== undefined && !candidates.some((entry) => entry.company === named || entry.company === undefined)) {
       return `${quantity.raw} is not a cited figure's value for ${named}`;
     }
   }
-  const own = new Set([...figures.map((figure) => companyOf(figure.company)), ...claims.map((claim) => companyOf(claim.company))]);
+  if (claims.some((claim) => claim.company === undefined)) return null;
+  const own = new Set([...figures.map((figure) => companyOf(figure.company)), ...claims.map((claim) => claim.company)]);
   const other = packet.companies.find((company) => !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
 }

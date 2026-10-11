@@ -217,7 +217,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   // sentence in its place was written by no model (#183).
   const answered = () => input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
   // The assertion list is checked, never shown (#208).
-  const { prose, list, fenced } = splitAssertions(result.text.trim());
+  const { prose, list, open } = splitAssertions(result.text.trim());
   const report = checkAssertions(list, packet);
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
@@ -226,7 +226,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
   // Cut off inside the assertion list, the prose before it is whole.
-  if ((result.truncated && !fenced) || text.length === 0) {
+  if ((result.truncated && !open) || text.length === 0) {
     console.warn(`[chat] model answer was ${result.truncated ? "cut off at the token limit" : "empty"}; showing the fallback sentence`);
     // Pointing to "the reported figures below" needs figures shown, not a gap note.
     return rewriteFirstRichTextBlock(

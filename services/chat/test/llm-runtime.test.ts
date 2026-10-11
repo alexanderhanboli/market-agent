@@ -955,3 +955,16 @@ test("an answer cut off inside its assertion list keeps the prose before it (#20
   assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "NVDA is larger.");
   assert.deepEqual(reports.map((report) => report.status), ["malformed"]);
 });
+
+test("an answer cut off in prose after a closed assertion list shows the fallback (#208)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: COMPARISON_BLOCKS,
+    createClient: () => async () => ({ text: "NVDA is larger.\n```assertions\n[]\n```\nAMD's margin trails beca", truncated: true }),
+  });
+  assert.notEqual((composed[0].segments as Array<{ text: string }>)[0].text, "NVDA is larger.\n\nAMD's margin trails beca");
+  assert.doesNotMatch((composed[0].segments as Array<{ text: string }>)[0].text, /beca$/);
+});
