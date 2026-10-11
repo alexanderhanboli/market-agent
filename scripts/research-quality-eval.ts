@@ -39,6 +39,8 @@ type AssertionReport = {
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: Array<{ kind: string; text: string; evidence: string[] }>;
   rejected: Array<{ index: number; text?: string; reason: string }>;
+  // Figure assertions when no figures were shown: neither accepted nor rejected.
+  unchecked?: number;
 };
 
 // --- report ----------------------------------------------------------------------
@@ -130,7 +132,7 @@ export function renderReport(run: string, model: string, base: string, answered:
 function renderAssertions(report: AssertionReport): string[] {
   if (report.status !== "checked") return [`_Assertions (shadow): ${report.status}._`];
   return [
-    `_Assertions (shadow): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
+    `_Assertions (shadow): ${report.accepted.length} accepted, ${report.rejected.length} rejected${report.unchecked ? `, ${report.unchecked} unchecked (no figures shown)` : ""}:_`,
     "",
     ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]: ${entry.text}`),
     ...report.rejected.map((entry) => `- ✗ ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
@@ -146,7 +148,8 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   const count = (status: AssertionReport["status"]) => reports.filter((report) => report.status === status).length;
   const accepted = reports.reduce((sum, report) => sum + report.accepted.length, 0);
   const rejected = reports.reduce((sum, report) => sum + report.rejected.length, 0);
-  return `${accepted} accepted, ${rejected} rejected over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures`;
+  const unchecked = reports.reduce((sum, report) => sum + (report.unchecked ?? 0), 0);
+  return `${accepted} accepted, ${rejected} rejected, ${unchecked} unchecked over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures`;
 }
 
 // Sentences the narrative guard dropped, in total and per answered turn.

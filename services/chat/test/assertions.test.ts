@@ -244,3 +244,32 @@ test("with claims but no figures, only claim-bound assertions are checked; the r
   assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
   assert.equal(report.unchecked, 1);
 });
+
+test("on the no-figures path, malformed or over-limit entries are still rejected, not unchecked (#208)", () => {
+  const one = { kind: "observation", text: "ACME trades at $12.", evidence: [] };
+  const report = checkAssertions([null, { kind: "guess", text: "x", evidence: [] }, ...Array.from({ length: 7 }, () => one)], { ...PACKET, figures: [] });
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "not an assertion with text"],
+    [1, 'unknown kind "guess"'],
+    [8, "more than 8 assertions"],
+  ]);
+  assert.equal(report.unchecked, 6);
+});
+
+test("a currency prefix keeps its identity and sign (#208)", () => {
+  const priced = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Net income", value: "-CN¥3.1B", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "Revenue", value: "€75.0B", source_ids: [] },
+  ] };
+  const report = checkAssertions([
+    // The figure is negative: an explicit plus contradicts it.
+    { kind: "observation", text: "NVDA's net income was +CN¥3.1B.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's revenue was £75.0B.", evidence: ["F2"] },
+    { kind: "observation", text: "NVDA's revenue was €75.0B and its net income -CN¥3.1B.", evidence: ["F1", "F2"] },
+  ], priced);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "+CN¥3.1B is not a cited figure's value"],
+    [1, "£75.0B is not a cited figure's value"],
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+});

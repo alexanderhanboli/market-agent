@@ -72,10 +72,6 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     .sort((a, b) => Number(kindOf(a.item) === "analyst_inference") - Number(kindOf(b.item) === "analyst_inference"));
   let unchecked = 0;
   for (const { item, index } of order) {
-    if (packet.figures.length === 0 && kindOf(item) !== "management_attribution") {
-      unchecked++;
-      continue;
-    }
     if (index >= MAX_ASSERTIONS) {
       reject(index, item, `more than ${MAX_ASSERTIONS} assertions`);
       continue;
@@ -96,6 +92,11 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     }
     if (item.supports !== undefined && (!Array.isArray(item.supports) || !item.supports.every((n) => Number.isInteger(n)))) {
       reject(index, item, "supports is not a list of assertion indexes");
+      continue;
+    }
+    // Well-formed, but about figures when none were shown: nothing to bind.
+    if (packet.figures.length === 0 && kind !== "management_attribution") {
+      unchecked++;
       continue;
     }
     const evidence = item.evidence as string[];
@@ -215,11 +216,12 @@ function monthYear(iso: string): string {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }
 
-type Quantity = { raw: string; at: number; value: string; unit: string; currency: boolean; negative: boolean; positive: boolean };
+// currency: its prefix as written ("$", "€", "CN¥"), "" for none.
+type Quantity = { raw: string; at: number; value: string; unit: string; currency: string; negative: boolean; positive: boolean };
 
-// Numbers with their sign, currency and unit; the value compared as a number,
+// Numbers with their sign, currency prefix and unit; the value compared as a number,
 // so "75%" is the "75.0%" shown while "7.5" is not "75".
-const QUANTITY = /(?<![\d.])([-−+])?(\$)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b))?/gi;
+const QUANTITY = /(?<![\d.])([-−+])?((?:(?<![A-Za-z])[A-Z]{1,2})?[$€£¥])?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(%|x\b|[KMBT]\b|bn\b|mn\b|thousand\b|million\b|billion\b|trillion\b|basis points?\b|bps?\b))?/gi;
 const UNITS: Readonly<Record<string, string>> = {
   thousand: "K", million: "M", mn: "M", billion: "B", bn: "B", trillion: "T",
   "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
@@ -233,7 +235,7 @@ function quantities(text: string): Quantity[] {
       at: match.index,
       value: String(Number(match[3]!.replace(/,/g, ""))),
       unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit.toUpperCase()),
-      currency: match[2] !== undefined,
+      currency: (match[2] ?? "").replace(/^US\$$/, "$"),
       negative: match[1] !== undefined && match[1] !== "+",
       positive: match[1] === "+",
     };
@@ -248,7 +250,7 @@ function sameQuantity(text: Quantity, figure: Quantity): boolean {
   if (text.negative && !figure.negative) return false;
   if (text.positive && figure.negative) return false;
   if (text.unit && text.unit !== figure.unit) return false;
-  return !(text.currency && !figure.currency);
+  return !text.currency || text.currency === figure.currency;
 }
 
 // A company named right after the number, by a preposition ("49.4% for AMD").
