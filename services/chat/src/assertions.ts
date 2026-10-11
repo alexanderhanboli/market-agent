@@ -167,19 +167,43 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
       .map((source) => ({ source, company: claim.company }))),
   ];
   const evidence = sources.flatMap(({ source, company }) => quantities(source).map((quantity) => ({ quantity, company })));
+  // Evidence spanning companies leaves a value's company to its phrasing; one
+  // with no company named before it (or right after it, "for AMD") is unbound
+  // rather than guessed ("75.0% was AMD's margin").
+  const spans = new Set(evidence.flatMap((entry) => (entry.company ? [entry.company] : []))).size > 1;
   for (const quantity of quantities(text)) {
     const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
       ?? lastCompanyBefore(text, quantity.at, packet.companies);
+    if (named === undefined && spans && (quantity.unit || quantity.currency || quantity.negative)) {
+      return `${quantity.raw} names no company, and its evidence spans several`;
+    }
     if (named !== undefined && !candidates.some((entry) => entry.company === named || entry.company === undefined)) {
       return `${quantity.raw} is not a cited figure's value for ${named}`;
     }
+  }
+  // A month the text dates something by is a cited date's: a claim's, or the
+  // month a figure's period ends in.
+  const months = new Set([
+    ...claims.flatMap((claim) => [claim.effective_time, claim.published_at]),
+    ...figures.map((figure) => figure.period_end),
+  ].flatMap((date) => (date ? [monthYear(date)] : [])));
+  for (const match of text.matchAll(MONTH_YEAR)) {
+    const month = `${match[1]![0]!.toUpperCase()}${match[1]!.slice(1).toLowerCase()} ${match[2]}`;
+    if (!months.has(month)) return `${month} is not a cited date`;
   }
   if (claims.some((claim) => claim.company === undefined)) return null;
   const own = new Set([...figures.map((figure) => companyOf(figure.company)), ...claims.map((claim) => claim.company)]);
   const other = packet.companies.find((company) => !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTH_YEAR = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{4})\\b`, "gi");
+
+function monthYear(iso: string): string {
+  return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }
 
 type Quantity = { raw: string; at: number; value: string; unit: string; currency: boolean; negative: boolean };

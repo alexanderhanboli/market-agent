@@ -192,3 +192,22 @@ test("malformed evidence or supports is rejected, not cleaned up (#208)", () => 
     [3, "supports is not a list of assertion indexes"],
   ]);
 });
+
+test("across companies, a value with no company beside it is unbound, whatever the phrasing (#208)", () => {
+  const report = check([
+    { kind: "observation", text: "75.0% was AMD's margin, while 49.4% was NVDA's.", evidence: ["F1", "F3"] },
+    // One company's evidence: an unnamed value is its own.
+    { kind: "observation", text: "Gross margin reached 75.0% in FY2026.", evidence: ["F1"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [[0, "75.0% names no company, and its evidence spans several"]]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
+});
+
+test("a month and year must be a cited date's (#208)", () => {
+  const dated = { ...PACKET, claims: [{ ...PACKET.claims[1]!, effective_time: "2026-02-25T00:00:00.000Z" }] };
+  const report = checkAssertions([
+    { kind: "management_attribution", text: "In February 2026, NVDA management credited a richer data-center mix.", evidence: ["C1"] },
+    { kind: "management_attribution", text: "In March 2026, NVDA management credited a richer data-center mix.", evidence: ["C1"] },
+  ], dated);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [[1, "March 2026 is not a cited date"]]);
+});
