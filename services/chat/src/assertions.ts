@@ -264,6 +264,9 @@ type Quantity = { raw: string; at: number; value: string; unit: string; currency
 // any with a currency symbol ("$", "₹", "CN¥") or a letter prefix the packet's
 // figures are written with ("CHF 3.1B", "F CFA 3.1B"); letters alone are never
 // taken for one otherwise, so "FY 2026" is not a currency.
+// A denomination after a magnitude ("75 million dollars") is its currency.
+const DENOMINATIONS: Readonly<Record<string, string>> = { dollar: "$", euro: "€", pound: "£", yen: "¥", yuan: "CN¥", rupee: "₹", franc: "CHF" };
+const DENOMINATION = String.raw`(?:[Dd]ollars?|[Ee]uros?|[Pp]ounds?|[Yy]en|[Yy]uan|[Rr]upees?|[Ff]rancs?)\b`;
 // Units written as words ("75 dollars", "75 shares"): stated, so never taken
 // for an omitted unit; no figure is formatted with one, so none matches
 // (except "times", which is the "x" a multiple is shown with).
@@ -280,7 +283,7 @@ function quantityPattern(prefixes: ReadonlyArray<string>): RegExp {
   const currency = [...known, ISO_CODES, String.raw`(?:(?<![A-Za-z])[A-Z]{1,2})?\p{Sc}`].join("|");
   // A sign may stand apart from a currency prefix ("- $75B"), never from bare
   // digits (a list's "- 3.1%").
-  return new RegExp(String.raw`(?<![\d.])(?:([-−+])(?:${SPACE}(?=${currency.replace(/\(\?<!\[A-Za-z\]\)/g, "")}))?)?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?`, "gu");
+  return new RegExp(String.raw`(?<![\d.])(?:([-−+])(?:${SPACE}(?=${currency.replace(/\(\?<!\[A-Za-z\]\)/g, "")}))?)?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?(?:\s+(${DENOMINATION}))?`, "gu");
 }
 
 // The currency prefixes a packet's figures are written with: whatever stands
@@ -303,13 +306,16 @@ const UNITS: Readonly<Record<string, string>> = {
 function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantity[] {
   return [...text.matchAll(quantityPattern(prefixes))].map((match) => {
     const unit = (match[4] ?? "").toLowerCase();
+    const denomination = DENOMINATIONS[(match[5] ?? "").toLowerCase().replace(/s$/, "")];
+    // Accounting parentheses ("($3.1B)") make it negative.
+    const parenthesized = text[match.index - 1] === "(" && text[match.index + match[0].length] === ")";
     return {
-      raw: match[0].trim(),
+      raw: parenthesized ? `(${match[0].trim()})` : match[0].trim(),
       at: match.index,
       value: String(Number(match[3]!.replace(/,/g, ""))),
       unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit.toUpperCase()),
-      currency: (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$"),
-      negative: match[1] !== undefined && match[1] !== "+",
+      currency: (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$") || denomination || "",
+      negative: parenthesized || (match[1] !== undefined && match[1] !== "+"),
       positive: match[1] === "+",
       period: /(?:\bQ|\bFY ?|\bH)$/.test(text.slice(0, match.index)),
     };

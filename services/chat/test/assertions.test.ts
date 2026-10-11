@@ -411,3 +411,19 @@ test("only an inference has supports; a worded unit is a unit (#208)", () => {
 test("a block with CRLF line endings is cut from the prose too (#208)", () => {
   assert.deepEqual(splitAssertions("NVDA leads.\r\n```assertions\r\n[]\r\n```\r\n"), { prose: "NVDA leads.", list: [], open: false });
 });
+
+test("a denomination after a magnitude is a currency; accounting parentheses are negative (#208)", () => {
+  const packet = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Capex", value: "€75M", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "Net income", value: "$3.1B", source_ids: [] },
+  ] };
+  const report = checkAssertions([
+    { kind: "observation", text: "NVDA's capex was 75 million dollars.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's capex was 75 million euros.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's net income was ($3.1B).", evidence: ["F2"] },
+  ], packet);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "75 million dollars is not a cited figure's value"],
+    [2, "($3.1B) is not a cited figure's value"],
+  ]);
+});
