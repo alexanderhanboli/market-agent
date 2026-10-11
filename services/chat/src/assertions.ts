@@ -174,8 +174,9 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
 }
 
 // A year said as a time: after a preposition of time or a month ("since
-// 2025", "in Feb 2026"); a bare "2025 employees" is a figure.
-const TIME_BEFORE = new RegExp(String.raw`(?:\b(?:in|since|from|to|by|through|until|during|before|after|of|fiscal(?: year)?|calendar(?: year)?)|\b(?:${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].join("|")})[a-z]*\.?)\s+$`, "i");
+// 2025", "in Feb 2026"); a bare "2025 employees", or one after "to" or "of"
+// ("grew to 2025"), is a figure.
+const TIME_BEFORE = new RegExp(String.raw`(?:\b(?:in|since|from|by|through|until|during|before|after|fiscal(?: year)?|calendar(?: year)?)|\b(?:${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].join("|")})[a-z]*\.?)\s+$`, "i");
 
 // A figure's value in the text: a number other than a year said as a time or
 // a period's ("FY2025", "Q3"). A rendered inference may state none (#208).

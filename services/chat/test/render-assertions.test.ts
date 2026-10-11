@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { plainText, renderAssertion } from "../src/render-assertions.ts";
+import { calendarsDiffer, plainText, renderAssertion } from "../src/render-assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const NVDA_GM = "a1000000-0000-4000-8000-000000000001";
@@ -68,14 +68,15 @@ test("a stored quarter is written as prose writes it (#208)", () => {
   assert.equal(plainText(renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F1"] }, quarterly, FACT_BLOCKS).segments), "NVDA's revenue was $57.0B in Q4 2026.");
 });
 
-test("an observation names each period's end month, and warns when the fiscal years end months apart (#208)", () => {
+test("an observation names each period's end month; calendars that end months apart are detected (#208)", () => {
   const ended = { ...PACKET, figures: [
     { ...PACKET.figures[0]!, period: "FY2026", period_end: "2026-01-25" },
     { ...PACKET.figures[1]!, period: "FY2026", period_end: "2025-12-27" },
   ] };
   assert.equal(
     plainText(renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F1", "F2"] }, ended, FACT_BLOCKS).segments),
-    "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2026 (ended Dec 2025). " +
-      "The same fiscal year ends in different months for each company, so the periods do not line up.",
+    "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2026 (ended Dec 2025).",
   );
+  assert.equal(calendarsDiffer(ended.figures), true);
+  assert.equal(calendarsDiffer(PACKET.figures), false);
 });

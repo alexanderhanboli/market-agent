@@ -69,7 +69,6 @@ export function renderAssertion(
         if (figure.period_end) text(` (ended ${monthYear(figure.period_end)})`);
       });
       text(".");
-      if (calendarsDiffer(figures)) text(" The same fiscal year ends in different months for each company, so the periods do not line up.");
       break;
     case "management_attribution":
       claims.forEach((claim, i) => {
@@ -93,8 +92,9 @@ export function renderAssertion(
   return { index: assertion.index, segments, fact_bindings, source_refs: [...source_refs] };
 }
 
-// Companies whose same-named periods end in different months.
-function calendarsDiffer(figures: ReadonlyArray<PacketFigure>): boolean {
+// Companies whose same-named periods end in different months: said once for
+// the whole answer, whichever observations show them.
+export function calendarsDiffer(figures: ReadonlyArray<PacketFigure>): boolean {
   return figures.some((a) => figures.some((b) =>
     a.company !== b.company && a.period !== undefined && a.period === b.period &&
     a.period_end !== undefined && b.period_end !== undefined && a.period_end.slice(0, 7) !== b.period_end.slice(0, 7)

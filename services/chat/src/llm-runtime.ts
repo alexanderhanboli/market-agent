@@ -11,7 +11,7 @@ import type {
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, statesValue, type AssertionKind, type AssertionReport } from "./assertions.ts";
-import { plainText, renderAssertion } from "./render-assertions.ts";
+import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
 
@@ -253,6 +253,16 @@ export async function composeAnalystBlocksWithLlm(input: {
     const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && !quoting.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
     const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index) && !quoting.has(entry.index));
     if (kept.length === 0) return null;
+    // The figures the kept assertions state, and their companies: a comparison
+    // rendered for only some of the companies it shows figures for would read
+    // one-sided, so its prose stands instead.
+    const keptAssertions = kept.flatMap((entry) => report.accepted.filter((assertion) => assertion.index === entry.index));
+    const keptFigures = keptAssertions.flatMap((assertion) => packet.figures.filter((figure) => assertion.evidence.includes(figure.id)));
+    const covered = new Set([
+      ...keptFigures.map((figure) => figure.company ?? packet.companies[0]),
+      ...keptAssertions.flatMap((assertion) => packet.claims.filter((claim) => assertion.evidence.includes(claim.id)).map((claim) => claim.company)),
+    ]);
+    if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) return null;
     const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
@@ -279,6 +289,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // with no figures shown, and stale data.
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
     return rewriteFirstRichTextBlockWith(input.blocks, [...kept, ...otherSides], [
+      ...(calendarsDiffer(keptFigures) ? ["The same fiscal year ends in different months for each company, so the periods do not line up."] : []),
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
       ...stalenessNotes(input.toolCalls),
     ]);

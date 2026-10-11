@@ -499,3 +499,7 @@ test("only a year said as a time is not a figure (#208)", () => {
   assert.equal(statesValue("NVDA has led since 2025.", ["NVDA"]), false);
   assert.equal(statesValue("NVDA led in Feb 2026.", ["NVDA"]), false);
 });
+
+test("\"to\" or \"of\" before a number does not make it a year (#208)", () => {
+  assert.equal(statesValue("NVDA's headcount grew to 2025 employees.", ["NVDA"]), true);
+});
