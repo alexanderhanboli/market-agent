@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildEvidencePacket, packetForModel } from "../src/evidence-packet.ts";
+import { buildEvidencePacket, claimSelection, packetForModel, type ClaimRecord } from "../src/evidence-packet.ts";
 import { resolveResearchScope } from "../src/research-scope.ts";
 
 const NVDA = { issuer_id: "60000000-0000-4000-8000-000000000001", label: "NVDA" };
@@ -128,4 +128,85 @@ test("a single company's figures carry the period and end date their facts are b
     ["F3", "Q3 2026", "2025-10-26"],
     ["F4", "Q4 2026", null],
   ]);
+});
+
+const claim = (id: string, overrides: Partial<ClaimRecord>): ClaimRecord => ({
+  claim_id: id,
+  source_id: `s-${id}`,
+  text_canonical: `Claim ${id}.`,
+  predicate: "guidance.change",
+  polarity: "neutral",
+  effective_time: "2026-05-01T00:00:00.000Z",
+  published_at: "2026-05-02T00:00:00.000Z",
+  subject_id: NVDA.issuer_id,
+  ...overrides,
+});
+
+test("a route reads its predicate families first, from the start of the period it covers (#207)", () => {
+  assert.deepEqual(claimSelection(scope("Analyze NVDA's latest quarter"), CUTOFF), {
+    predicate_prefixes: ["guidance.", "kpi."],
+    effective_from: "2024-09-01T00:00:00.000Z",
+  });
+  assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["segment.", "guidance."]);
+  assert.equal(claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
+  assert.deepEqual(claimSelection(undefined, CUTOFF), { predicate_prefixes: [], effective_from: null });
+});
+
+test("claims carry short ids, their company and a stance only their stored polarity gives (#207)", () => {
+  const packet = buildEvidencePacket({
+    scope: scope("Compare NVDA with AMD", [NVDA, AMD]),
+    factBlocks: [],
+    cutoff: CUTOFF,
+    claims: {
+      claims: [
+        claim("a", { polarity: "positive" }),
+        claim("b", { polarity: "negative", subject_id: AMD.issuer_id }),
+        claim("c", { polarity: "mixed" }),
+        claim("d", { polarity: "neutral", subject_id: undefined }),
+      ],
+      truncated: true,
+    },
+  });
+  assert.deepEqual(packet.claims.map((entry) => [entry.id, entry.company ?? null, entry.stance, entry.claim_id]), [
+    ["C1", "NVDA", "supporting", "a"],
+    ["C2", "AMD", "challenging", "b"],
+    ["C3", "NVDA", "unclassified", "c"],
+    ["C4", null, "neutral", "d"],
+  ]);
+  assert.equal(packet.claims_truncated, true);
+  assert.match(packet.query_bounds.claims!, /^guidance and kpi claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff/);
+  const forModel = packetForModel(packet);
+  assert.equal(JSON.stringify(forModel).includes("s-a"), false, "no source ids reach the model");
+  assert.equal(JSON.stringify(forModel).includes("\"claim_id\""), false, "no claim ids reach the model");
+  assert.equal(forModel.claims_truncated, true);
+});
+
+test("a stored contradiction, or opposite directions for one company, predicate and quarter, is a disagreement; tone or another company is not (#207)", () => {
+  const packet = buildEvidencePacket({
+    factBlocks: [],
+    cutoff: CUTOFF,
+    claims: {
+      claims: [
+        claim("raised", { polarity: "positive" }),
+        claim("lowered", { polarity: "negative", effective_time: "2026-06-15T00:00:00.000Z" }),
+        claim("amd-lowered", { polarity: "negative", subject_id: AMD.issuer_id }),
+        claim("upbeat", { predicate: "management.tone", polarity: "positive" }),
+        claim("downbeat", { predicate: "management.tone", polarity: "negative" }),
+        claim("backlog-up", { predicate: "kpi.commentary", polarity: "positive", effective_time: "2025-01-01T00:00:00.000Z" }),
+        claim("backlog-down", { predicate: "kpi.commentary", polarity: "negative", effective_time: "2026-01-01T00:00:00.000Z" }),
+      ],
+      contradictions: [["backlog-up", "backlog-down"], ["backlog-up", "not-selected"]],
+    },
+  });
+  assert.deepEqual(packet.disagreements, [
+    { claims: ["C6", "C7"], basis: "a stored relation marks them as contradicting" },
+    { claims: ["C1", "C2"], basis: "opposite directions for the same company, predicate and quarter" },
+  ]);
+});
+
+test("a failed claims read is unavailable, never none on file, and names nothing (#207)", () => {
+  const packet = buildEvidencePacket({ factBlocks: [], cutoff: CUTOFF, claims: { claims: [], unavailable: true } });
+  assert.equal(packet.claims_status, "unavailable");
+  assert.deepEqual(packetForModel(packet), { route: "unknown", cutoff: CUTOFF, figures: [], query_bounds: packet.query_bounds, claims_status: "unavailable" });
+  assert.equal(buildEvidencePacket({ factBlocks: [], cutoff: CUTOFF, claims: { claims: [] } }).claims_status, "none");
 });

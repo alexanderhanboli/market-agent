@@ -4,12 +4,13 @@
 // the bounds the readers applied. Built from the deterministic fact blocks
 // and the turn's research scope, never from raw tool results.
 //
-// The model sees short ids ("F1"); the fact and source ids stay here, so the
-// prompt stays compact (#181) and an assertion citing "F1" can be bound back
-// to its fact (#208).
+// The model sees short ids ("F1", "C1"); the fact, claim and source ids stay
+// here, so the prompt stays compact (#181) and an assertion citing one can be
+// bound back to its record (#208).
 //
-// ponytail: figures only; claim selection (route predicates, older decisive
-// claims, duplicates, disagreement) is #207's second slice.
+// Claims are the route's selection (claimSelection, loaded with the turn's
+// cutoff): repeats already counted once, each placed by its stored polarity,
+// with any disagreement between them named.
 
 import { displayedFigures, QUARTERS_SHOWN, type DisplayedFigure } from "./fact-blocks.ts";
 import type { ResearchScope } from "./research-scope.ts";
@@ -22,6 +23,40 @@ export type PacketFigure = Omit<DisplayedFigure, "fact_id" | "block_id"> & {
   source_ids: ReadonlyArray<string>;
 };
 
+// A claim as the evidence loader returns it (local-runtime-evidence.ts).
+export type ClaimRecord = {
+  claim_id: string;
+  source_id: string;
+  text_canonical: string;
+  predicate: string;
+  polarity: string;
+  effective_time: string | null;
+  published_at: string | null;
+  subject_id?: string;
+};
+
+export type ClaimEvidence = {
+  claims: ReadonlyArray<ClaimRecord>;
+  truncated?: boolean;
+  contradictions?: ReadonlyArray<readonly [string, string]>;
+  // The claims read failed: they are unavailable, never "none on file".
+  unavailable?: boolean;
+};
+
+export type PacketClaim = {
+  id: string;
+  text: string;
+  predicate: string;
+  // Placed only by the claim's stored polarity: positive supports the
+  // company's case, negative challenges it, mixed is unclassified.
+  stance: "supporting" | "challenging" | "neutral" | "unclassified";
+  company?: string;
+  effective_time?: string;
+  published_at?: string;
+  claim_id: string;
+  source_id: string;
+};
+
 export type EvidencePacket = {
   route: string;
   cutoff: string;
@@ -32,12 +67,49 @@ export type EvidencePacket = {
   // What could not be shown, as the gap notes say it.
   gaps: ReadonlyArray<string>;
   query_bounds: Readonly<Record<string, string>>;
+  claims: ReadonlyArray<PacketClaim>;
+  // Claims that may disagree, by packet id, and why.
+  disagreements: ReadonlyArray<{ claims: readonly [string, string]; basis: string }>;
+  claims_status: "available" | "none" | "unavailable";
+  claims_truncated: boolean;
 };
+
+// The claims a route reads first (#207): its predicate families, from the
+// start of the period it covers. Others still fill any room left, newest first.
+const ROUTE_PREDICATES: Partial<Record<ResearchScope["reads"], ReadonlyArray<string>>> = {
+  latest_quarter: ["guidance.", "kpi."],
+  trend: ["guidance.", "kpi."],
+  derived_margin: ["guidance.", "kpi."],
+  comparison: ["guidance.", "kpi."],
+  segments: ["segment.", "guidance."],
+};
+const PRICE_PREDICATES = ["material_event.", "guidance."];
+
+export function claimSelection(
+  scope: ResearchScope | undefined,
+  cutoff: string,
+): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null } {
+  if (!scope) return { predicate_prefixes: [], effective_from: null };
+  const prefixes = ROUTE_PREDICATES[scope.reads] ?? (scope.price_window ? PRICE_PREDICATES : []);
+  return { predicate_prefixes: prefixes, effective_from: periodStart(scope, cutoff) };
+}
+
+// ponytail: calendar approximations of the readers' periods; a fiscal year is
+// widened by a year so one ending mid-year still covers its claims.
+function periodStart(scope: ResearchScope, cutoff: string): string | null {
+  if (scope.fiscal_year !== null) return `${scope.fiscal_year - 1}-01-01T00:00:00.000Z`;
+  if (scope.price_window) return `${cutoff.slice(0, 4)}-01-01T00:00:00.000Z`;
+  const start = new Date(cutoff);
+  if (Number.isNaN(start.getTime())) return null;
+  start.setUTCMonth(start.getUTCMonth() - 3 * QUARTERS_SHOWN);
+  return start.toISOString();
+}
 
 export function buildEvidencePacket(input: {
   scope?: ResearchScope;
   factBlocks: ReadonlyArray<Block>;
   cutoff: string;
+  claims?: ClaimEvidence;
 }): EvidencePacket {
   const blockSources = new Map(input.factBlocks.flatMap((block) =>
     typeof block.id === "string" ? [[block.id, sourceIds(block)] as const] : []
@@ -79,8 +151,82 @@ export function buildEvidencePacket(input: {
         ? block.segments.flatMap((segment) => (isRecord(segment) && isString(segment.text) ? [segment.text] : []))
         : []
     ),
-    query_bounds: input.scope ? queryBounds(input.scope) : {},
+    query_bounds: {
+      ...(input.scope ? queryBounds(input.scope) : {}),
+      ...(input.claims ? { claims: claimBounds(input.scope, input.cutoff) } : {}),
+    },
+    ...packetClaims(input.claims, input.scope, blockLabels),
   };
+}
+
+function packetClaims(
+  evidence: ClaimEvidence | undefined,
+  scope: ResearchScope | undefined,
+  blockLabels: ReadonlyMap<string, string>,
+): Pick<EvidencePacket, "claims" | "disagreements" | "claims_status" | "claims_truncated"> {
+  const records = evidence?.claims ?? [];
+  const label = (issuer: string | undefined) =>
+    issuer === undefined ? undefined : scope?.companies.find((company) => company.issuer_id === issuer)?.label ?? blockLabels.get(issuer);
+  const claims: PacketClaim[] = records.map((record, index) => {
+    const company = label(record.subject_id);
+    return {
+      id: `C${index + 1}`,
+      text: record.text_canonical,
+      predicate: record.predicate,
+      stance: STANCE[record.polarity] ?? "unclassified",
+      ...(company ? { company } : {}),
+      ...(record.effective_time ? { effective_time: record.effective_time } : {}),
+      ...(record.published_at ? { published_at: record.published_at } : {}),
+      claim_id: record.claim_id,
+      source_id: record.source_id,
+    };
+  });
+  const packetId = new Map(claims.map((claim) => [claim.claim_id, claim.id]));
+  const stored = (evidence?.contradictions ?? []).flatMap(([a, b]) => {
+    const pair = [packetId.get(a), packetId.get(b)] as const;
+    return pair[0] && pair[1] ? [{ claims: pair as readonly [string, string], basis: "a stored relation marks them as contradicting" }] : [];
+  });
+  const storedKeys = new Set(stored.map((entry) => entry.claims.join()));
+  const opposed = records.flatMap((a, i) => records.slice(i + 1).flatMap((b, offset) => {
+    const pair = [`C${i + 1}`, `C${i + offset + 2}`] as const;
+    return conflicting(a, b) && !storedKeys.has(pair.join())
+      ? [{ claims: pair, basis: "opposite directions for the same company, predicate and quarter" }]
+      : [];
+  }));
+  return {
+    claims,
+    disagreements: [...stored, ...opposed],
+    claims_status: evidence?.unavailable ? "unavailable" : claims.length > 0 ? "available" : "none",
+    claims_truncated: evidence?.truncated === true,
+  };
+}
+
+const STANCE: Readonly<Record<string, PacketClaim["stance"]>> = {
+  positive: "supporting",
+  negative: "challenging",
+  neutral: "neutral",
+};
+
+// Directly conflicting: the same company and predicate, in the same calendar
+// quarter, one positive and one negative. A difference in tone alone is
+// sentiment, never a contradiction.
+function conflicting(a: ClaimRecord, b: ClaimRecord): boolean {
+  if (a.predicate !== b.predicate || a.predicate === "management.tone") return false;
+  if (a.subject_id === undefined || a.subject_id !== b.subject_id) return false;
+  if (!a.effective_time || !b.effective_time || quarterOf(a.effective_time) !== quarterOf(b.effective_time)) return false;
+  return (a.polarity === "positive" && b.polarity === "negative") || (a.polarity === "negative" && b.polarity === "positive");
+}
+
+function quarterOf(iso: string): string {
+  return `${iso.slice(0, 4)}Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
+}
+
+function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
+  const { predicate_prefixes: prefixes, effective_from: from } = claimSelection(scope, cutoff);
+  const route = prefixes.length > 0
+    ? `${prefixes.map((prefix) => prefix.replace(/\.$/, "")).join(" and ")} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
+    : "the most recent claims";
+  return `${route}, published by the ${cutoff.slice(0, 10)} cutoff; a claim repeated by several sources or copies counts once`;
 }
 
 // The packet as the model sees it: short ids only, no fact or source ids.
@@ -92,6 +238,12 @@ export function packetForModel(packet: EvidencePacket): Record<string, unknown> 
     ...(packet.coverage.length > 0 ? { coverage: packet.coverage } : {}),
     ...(packet.gaps.length > 0 ? { gaps: packet.gaps } : {}),
     ...(Object.keys(packet.query_bounds).length > 0 ? { query_bounds: packet.query_bounds } : {}),
+    ...(packet.claims.length > 0
+      ? { claims: packet.claims.map(({ claim_id: _claimId, source_id: _sourceId, ...claim }) => claim) }
+      : {}),
+    ...(packet.disagreements.length > 0 ? { disagreements: packet.disagreements } : {}),
+    ...(packet.claims_status === "unavailable" ? { claims_status: "unavailable" } : {}),
+    ...(packet.claims_truncated ? { claims_truncated: true } : {}),
   };
 }
 

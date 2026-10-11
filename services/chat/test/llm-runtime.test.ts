@@ -565,7 +565,10 @@ test("the answer model sees a compact context, not raw tool JSON (#181)", async 
         facts: Array.from({ length: 24 }, (_, i) => ({ fact_id: `f${i}`, metric_key: "revenue", value_num: i })),
         fact_recency: { latest_as_of: "2026-08-01T00:00:00.000Z", age_days: 31, stale: false },
       },
-      evidence: { claims: [{ claim_id: "c1", text_canonical: "NVIDIA guided data-center revenue higher.", effective_time: "2025-11-19T00:00:00.000Z", published_at: "2025-11-20T00:00:00.000Z" }] },
+      evidence: {
+        claims: [{ claim_id: "c1", source_id: "s-claim", text_canonical: "NVIDIA guided data-center revenue higher.", predicate: "guidance.change", polarity: "positive", effective_time: "2025-11-19T00:00:00.000Z", published_at: "2025-11-20T00:00:00.000Z" }],
+        truncated: true,
+      },
     },
   } as never;
   const gap = { kind: "rich_text", segments: [{ type: "text", text: "Year-to-date price performance is not shown: AMD has no prices from before 2026." }] };
@@ -582,16 +585,21 @@ test("the answer model sees a compact context, not raw tool JSON (#181)", async 
     onUsage: (reported) => usage.push(reported),
   });
   const context = JSON.parse(prompt) as Record<string, unknown>;
-  assert.deepEqual(Object.keys(context).sort(), ["conversation", "cited_claims", "evidence_packet", "question"].sort());
+  assert.deepEqual(Object.keys(context).sort(), ["conversation", "evidence_packet", "question"].sort());
   const packet = context.evidence_packet as Record<string, unknown>;
   // The figures carry short packet ids; the facts behind them stay server-side (#207).
   assert.deepEqual((packet.figures as Array<{ id: string }>).map((figure) => figure.id), ["F1", "F2", "F3", "F4"]);
-  // Each claim keeps its dates, so a past claim is not read as current.
-  assert.deepEqual(context.cited_claims, [{
+  // Each claim keeps its dates, so a past claim is not read as current, and a
+  // short id: its claim and source ids stay server-side (#207).
+  assert.deepEqual(packet.claims, [{
+    id: "C1",
     text: "NVIDIA guided data-center revenue higher.",
+    predicate: "guidance.change",
+    stance: "supporting",
     effective_time: "2025-11-19T00:00:00.000Z",
     published_at: "2025-11-20T00:00:00.000Z",
   }]);
+  assert.equal(packet.claims_truncated, true);
   assert.deepEqual(packet.gaps, ["Year-to-date price performance is not shown: AMD has no prices from before 2026."]);
   assert.deepEqual(packet.staleness, {
     quote: [{ ticker: "NVDA", as_of: "2026-09-01T00:00:00.000Z", stale: true }],

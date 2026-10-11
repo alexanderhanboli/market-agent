@@ -28,6 +28,7 @@ import {
   type ChatPriorSubjectsLoader,
   type ChatThreadTitleGenerator,
 } from "./coordinator.ts";
+import { claimSelection } from "./evidence-packet.ts";
 import { companyListings, loadTurnFactBlocks, mayOfferOtherFacts, priceListingsForTurn, scopeGapBlocks, turnCompanies } from "./fact-blocks.ts";
 import { resolveResearchScope, type ResearchScope } from "./research-scope.ts";
 import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin } from "./ytd-hydration.ts";
@@ -77,12 +78,14 @@ export function preResolveSubject(
 export async function loadEvidenceOrEmpty(
   db: QueryExecutor,
   input: LocalRuntimeEvidenceInput,
-): Promise<LocalRuntimeEvidence> {
+): Promise<LocalRuntimeEvidence & { unavailable?: true }> {
   try {
     return await loadLocalRuntimeEvidence(db, input);
   } catch (reason) {
     console.warn("[chat] evidence load failed; serving without research claims", reason);
-    return emptyEvidence(input.subject_refs);
+    // Unavailable, not "none on file": the packet says so (#207), and names
+    // nothing the failed read might have held.
+    return { ...emptyEvidence(input.subject_refs), unavailable: true };
   }
 }
 
@@ -130,6 +133,9 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
         loadEvidenceOrEmpty(pool(), {
           subject_refs: subjectRefs,
           user_id: context.userId ?? null,
+          // The route's claims first, none published after the turn's cutoff (#207).
+          as_of: asOf,
+          selection: claimSelection(scope, asOf),
         }),
         loadStructuredSubjectContext(pool(), structuredRefs, { now: asOf }),
       ]);

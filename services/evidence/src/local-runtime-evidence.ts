@@ -13,6 +13,11 @@ export type LocalRuntimeEvidenceInput = {
   limit?: number;
   // Optional date boundary only; current document visibility always applies.
   as_of?: string;
+  // A chat route's selection (#207): claims whose predicate starts with one of
+  // the prefixes, dated from effective_from on, rank ahead of newer others; a
+  // claim repeated (same predicate and text) counts once; and stored
+  // contradiction relations among the selected are returned.
+  selection?: { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null };
 };
 
 export type LocalRuntimeClaimEvidence = {
@@ -31,10 +36,16 @@ export type LocalRuntimeClaimEvidence = {
   document_title: string | null;
   published_at: string | null;
   effective_time: string | null;
+  // The covered subject the claim matched, when the selection asked for it.
+  subject_id?: string;
 };
 
 export type LocalRuntimeEvidence = {
   claims: ReadonlyArray<LocalRuntimeClaimEvidence>;
+  // More claims matched than the limit returned.
+  truncated?: boolean;
+  // Pairs of selected claims a stored cluster relates as support vs contradict.
+  contradictions?: ReadonlyArray<readonly [string, string]>;
   source_ids: ReadonlyArray<string>;
   document_refs: ReadonlyArray<string>;
   claim_refs: ReadonlyArray<string>;
@@ -60,6 +71,7 @@ type ClaimEvidenceRow = {
   document_title: string | null;
   published_at: Date | string | null;
   effective_time: Date | string | null;
+  subject_id: string;
 };
 
 type VerifierRows = {
@@ -74,6 +86,7 @@ export async function loadLocalRuntimeEvidence(
 ): Promise<LocalRuntimeEvidence> {
   const subjectRefs = normalizeSubjectRefs(input.subject_refs);
   if (subjectRefs.length === 0) return emptyEvidence(subjectRefs);
+  const limit = input.limit ?? 5;
 
   const excludedClaimIds = unique(input.exclude_claim_ids ?? []);
   const sourceCategories = input.source_categories ?? null;
@@ -125,7 +138,11 @@ export async function loadLocalRuntimeEvidence(
               d.title as document_title,
               d.published_at,
               c.effective_time,
-              c.created_at as claim_created_at
+              c.created_at as claim_created_at,
+              sr.subject_id::text as subject_id,
+              coalesce(c.predicate like any($8::text[]), false)
+                and ($9::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) >= $9::timestamptz)
+                as relevant
          from subject_refs sr
          join claim_arguments ca
            on ca.subject_kind = sr.subject_kind
@@ -169,9 +186,24 @@ export async function loadLocalRuntimeEvidence(
               )
             )
           )
+        -- The issuer row first, so subject_id names the company.
+        -- ponytail: a claim argued only about a listing keeps the listing's id.
         order by c.claim_id,
+                 (sr.subject_kind = 'issuer') desc,
                  c.effective_time desc nulls last,
                  c.created_at desc
+     ),
+     -- A repeat is the same predicate and text (case-insensitive), however many
+     -- sources or copied documents carry it: it counts once, as its earliest
+     -- report in the route's window (else its earliest), and the others never
+     -- add support. Different sources do not show
+     -- independence, so none is inferred.
+     -- ponytail: exact text only; paraphrases are not caught.
+     selected as (
+       select distinct on (case when $10::boolean then predicate || '|' || lower(text_canonical) else claim_id end) *
+         from matching_claims
+        order by case when $10::boolean then predicate || '|' || lower(text_canonical) else claim_id end,
+                 relevant desc, coalesce(effective_time, published_at, claim_created_at) asc nulls last, claim_id
      )
      select claim_id,
             document_id,
@@ -187,23 +219,55 @@ export async function loadLocalRuntimeEvidence(
             confidence,
             document_title,
             published_at,
-            effective_time
-       from matching_claims
-      order by coalesce(effective_time, published_at, claim_created_at) desc nulls last,
+            effective_time,
+            subject_id
+       from selected
+      order by relevant desc,
+               coalesce(effective_time, published_at, claim_created_at) desc nulls last,
                claim_id desc
-      limit $2`,
+      limit $2::int + 1`,
     [
       JSON.stringify(subjectRefs),
-      input.limit ?? 5,
+      limit,
       userIdOrNull(input.user_id),
       excludedClaimIds,
       includeIssuerIr,
       includeNonIr,
       input.as_of ?? null,
+      input.selection ? [...input.selection.predicate_prefixes].map((prefix) => `${prefix.replace(/[\\%_]/g, "\\$&")}%`) : null,
+      input.selection?.effective_from ?? null,
+      input.selection !== undefined,
     ],
   );
+  const evidence = evidenceFromClaimRows(subjectRefs, rows.slice(0, limit), input.selection !== undefined);
+  if (!input.selection) return Object.freeze({ ...evidence, truncated: rows.length > limit });
+  return Object.freeze({
+    ...evidence,
+    truncated: rows.length > limit,
+    contradictions: await loadContradictions(db, evidence.claim_refs),
+  });
+}
 
-  return evidenceFromClaimRows(subjectRefs, rows);
+// Selected claims one stored cluster holds on opposite sides (support vs
+// contradict). Only pairs where both are selected, so each has its reference.
+async function loadContradictions(
+  db: QueryExecutor,
+  claimIds: ReadonlyArray<string>,
+): Promise<ReadonlyArray<readonly [string, string]>> {
+  if (claimIds.length < 2) return Object.freeze([]);
+  const { rows } = await db.query<{ a: string; b: string }>(
+    `select distinct a.claim_id::text as a, b.claim_id::text as b
+       from claim_cluster_members a
+       join claim_cluster_members b
+         on b.cluster_id = a.cluster_id
+        and b.claim_id > a.claim_id
+        and b.relation <> a.relation
+      where a.claim_id = any($1::uuid[])
+        and b.claim_id = any($1::uuid[])
+      order by a, b`,
+    [claimIds],
+  );
+  return Object.freeze(rows.map((row) => Object.freeze([row.a, row.b] as const)));
 }
 
 export async function loadVerifierRowsForRefs(
@@ -332,6 +396,7 @@ export async function loadVerifierFactsForRefs(
 function evidenceFromClaimRows(
   subjectRefs: ReadonlyArray<SnapshotSubjectRef>,
   rows: ReadonlyArray<ClaimEvidenceRow>,
+  withSubject: boolean,
 ): LocalRuntimeEvidence {
   const claims = rows.map((row) =>
     Object.freeze({
@@ -353,6 +418,7 @@ function evidenceFromClaimRows(
       document_title: row.document_title,
       published_at: row.published_at == null ? null : isoString(row.published_at),
       effective_time: row.effective_time == null ? null : isoString(row.effective_time),
+      ...(withSubject ? { subject_id: row.subject_id } : {}),
     }),
   );
   const documents = [...new Map(rows.map(row => [row.document_id,
