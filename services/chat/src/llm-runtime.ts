@@ -292,7 +292,12 @@ export async function composeAnalystBlocksWithLlm(input: {
   const displayTexts = displayTextsForBlocks(input.factBlocks ?? []);
   const guard = (text: string) => keepSupportedSentences(
     text,
-    [...displayTexts.map(withoutDays), ...claimTextsFromToolCalls(input.toolCalls)],
+    [
+      ...displayTexts.map(withoutDays),
+      ...claimTextsFromToolCalls(input.toolCalls),
+      // Each figure's period end, as a rendered observation names it ("ended Jan 2026", #208).
+      ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
+    ],
     shown.flatMap((figure) =>
       figure.company === undefined ? [] : [
         { company: figure.company, value: figure.value, metric: figure.metric },
@@ -334,6 +339,11 @@ function claimTextsFromToolCalls(toolCalls: ReadonlyArray<ChatAnalystToolRuntime
 // guard reads them as month and year, so a day ("31") never passes as a return.
 function withoutDays(text: string): string {
   return text.replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date));
+}
+
+function shortMonthYear(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 function monthYear(iso: string): string {

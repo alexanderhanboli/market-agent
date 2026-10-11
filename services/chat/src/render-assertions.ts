@@ -63,10 +63,13 @@ export function renderAssertion(
       figures.forEach((figure, i) => {
         text(`${i === 0 ? "" : "; "}${capitalize(`${owner(figure)}${metricLabel(figure.metric)}`)} was `);
         segments.push(value(figure));
-        // A stored quarter ("Q42026") reads as "Q4 2026".
+        // A stored quarter ("Q42026") reads as "Q4 2026"; its end month is
+        // said, since fiscal calendars differ (#180).
         if (figure.period) text(` in ${figure.period.replace(/^([QH][1-4])(\d{4})$/, "$1 $2")}`);
+        if (figure.period_end) text(` (ended ${monthYear(figure.period_end)})`);
       });
       text(".");
+      if (calendarsDiffer(figures)) text(" The same fiscal year ends in different months for each company, so the periods do not line up.");
       break;
     case "management_attribution":
       claims.forEach((claim, i) => {
@@ -88,6 +91,14 @@ export function renderAssertion(
       break;
   }
   return { index: assertion.index, segments, fact_bindings, source_refs: [...source_refs] };
+}
+
+// Companies whose same-named periods end in different months.
+function calendarsDiffer(figures: ReadonlyArray<PacketFigure>): boolean {
+  return figures.some((a) => figures.some((b) =>
+    a.company !== b.company && a.period !== undefined && a.period === b.period &&
+    a.period_end !== undefined && b.period_end !== undefined && a.period_end.slice(0, 7) !== b.period_end.slice(0, 7)
+  ));
 }
 
 // The text a rendered assertion reads as, for the narrative guard.

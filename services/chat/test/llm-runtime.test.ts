@@ -1014,7 +1014,7 @@ test("with rendering on, the answer is written from its accepted assertions, val
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
   assert.equal(
     segments.map((segment) => segment.text ?? segment.format).join(""),
-    "NVDA's gross margin was 74.6% in FY2026; AMD's gross margin was 49.2% in FY2025.",
+    "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).",
   );
   assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4)]);
   assert.deepEqual(
@@ -1037,7 +1037,7 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
     { kind: "analyst_inference", text: "Its gross margin of 74.6% leads.", evidence: [], supports: [0] },
   ]));
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.equal(text, "NVDA's gross margin was 74.6% in FY2026.");
+  assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).");
   assert.equal(report.rendered, true);
   assert.deepEqual(report.rejected, [{
     index: 1,
@@ -1114,7 +1114,7 @@ test("a rendered answer keeps a stale-data warning; a sourced causal claim rende
     createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] }]) }),
   });
   const staleText = (staleAnswer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.equal(staleText, "NVDA's gross margin was 74.6% in FY2026.\n\nThe latest reported figures are 190 days old and may be out of date. The quote, as of Jun 2026, may be out of date.");
+  assert.equal(staleText, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).\n\nThe latest reported figures are 190 days old and may be out of date. The quote, as of Jun 2026, may be out of date.");
 
   const claimId = "c2080000-0000-4000-8000-000000000002";
   const causal = {

@@ -657,7 +657,7 @@ test("golden conversation: a rendered answer seals under strict verification (#2
   const segments = (narrative?.segments ?? []) as Array<{ type: string; ref_kind?: string; ref_id?: string; text?: string; format?: string }>;
   const factRef = segments.find((segment) => segment.type === "ref" && segment.ref_kind === "fact");
   assert.ok(factRef, `the narrative has no fact ref: ${JSON.stringify(segments)}`);
-  assert.match(segments.map((segment) => segment.text ?? segment.format).join(""), /^NVDA's revenue was \$[\d.]+B in Q\d \d{4}\.$/);
+  assert.match(segments.map((segment) => segment.text ?? segment.format).join(""), /^NVDA's revenue was \$[\d.]+B in Q\d \d{4} \(ended [A-Z][a-z]{2} \d{4}\)\.$/);
   // The value is a fact the snapshot cites.
   const { rows } = await client.query<{ fact_refs: string[] }>(`select fact_refs from snapshots where snapshot_id = $1::uuid`, [answer.snapshot_id]);
   assert.ok((rows[0]?.fact_refs ?? []).includes(factRef.ref_id!), "the rendered value's fact is not in the snapshot");
