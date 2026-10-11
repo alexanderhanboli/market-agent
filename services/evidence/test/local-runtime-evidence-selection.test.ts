@@ -151,4 +151,11 @@ test("the same wording about two companies is two claims, and a claim names its 
     selected.claims.map((entry) => [entry.claim_id, entry.subject_id]).sort(),
     [[KPI_UP, ISSUER], [KPI_DOWN, RIVAL]].sort(),
   );
+  // Asking about the rival alone: Acme's claim names it only as a competitor,
+  // so it is not the rival's claim and is not selected.
+  const rivalOnly = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: RIVAL }],
+    selection: { predicate_prefixes: ["kpi."], effective_from: null },
+  });
+  assert.deepEqual(rivalOnly.claim_refs, [KPI_DOWN]);
 });

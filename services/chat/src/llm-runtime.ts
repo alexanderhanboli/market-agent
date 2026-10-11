@@ -306,17 +306,21 @@ export function answerContext(input: {
     isRecord(context.quote) ? [{ ticker: context.quote.ticker, as_of: context.quote.as_of, stale: context.quote.stale }] : []
   );
   const factRecency = structured.flatMap((context) => (isRecord(context.fact_recency) ? [context.fact_recency] : []));
+  const claims = claimEvidence(input.toolCalls);
   const packet = packetForModel(buildEvidencePacket({
     ...(input.scope ? { scope: input.scope } : {}),
     factBlocks: input.factBlocks ?? [],
     cutoff: input.cutoff ?? new Date().toISOString(),
-    claims: claimEvidence(input.toolCalls),
+    claims,
   }));
-  // Subjects with no evidence at all are a gap too.
+  // Subjects with no evidence at all are a gap too; when the claims read
+  // failed, the claims are unknown, not absent (#207).
   const gaps = [
     ...((packet.gaps as string[] | undefined) ?? []),
     ...(results.some((result) => result.evidence_status === "insufficient_evidence")
-      ? ["No research claims, reported facts, or quote are on file for this subject."]
+      ? [claims.unavailable
+        ? "No reported facts or quote are on file for this subject, and its research claims could not be read."
+        : "No research claims, reported facts, or quote are on file for this subject."]
       : []),
   ];
   const shown = (packet.figures as unknown[]).length > 0;

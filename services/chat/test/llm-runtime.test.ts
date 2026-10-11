@@ -7,6 +7,7 @@ import test from "node:test";
 import { LlmProviderError, LlmRouterError } from "../../llm/src/index.ts";
 import {
   ANSWER_DEADLINES,
+  answerContext,
   composeAnalystBlocksWithLlm,
   TITLE_DEADLINES,
   createLlmThreadTitleModel,
@@ -888,4 +889,16 @@ test("an answer whose every sentence goes beside a gap note falls back without p
     createClient: () => async () => ({ text: "It fell due to heavy spending." }),
   });
   assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "No written answer is available for this question; try asking again.");
+});
+
+test("with claims unreadable and nothing else on file, the gap never says there are no claims (#207)", () => {
+  const toolCall = {
+    tool_call_id: "tc-1",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence_status: "insufficient_evidence", evidence: { claims: [], unavailable: true } },
+  } as never;
+  const packet = answerContext({ context: { userIntent: "Analyze ACME", bundleId: "single_name" }, toolCalls: [toolCall] }).evidence_packet as Record<string, unknown>;
+  assert.equal(packet.claims_status, "unavailable");
+  assert.deepEqual(packet.gaps, ["No reported facts or quote are on file for this subject, and its research claims could not be read."]);
 });

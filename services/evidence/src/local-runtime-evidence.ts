@@ -164,6 +164,9 @@ export async function loadLocalRuntimeEvidence(
             and coalesce(d.published_at,d.created_at) <= $7::timestamptz
           ))
           and not (c.claim_id = any($4::uuid[]))
+          -- A route reads a company's own claims: one naming it only as a
+          -- competitor, customer or other party is another company's claim.
+          and (not $10::boolean or ca.role = 'subject')
           and (
             s.user_id is null
             or ($3::uuid is not null and s.user_id = $3::uuid)
