@@ -389,3 +389,8 @@ test("a period's number binds only a period; \"Sept\" is a month; a spaced sign 
     [2, "- $75.0B is not a cited figure's value"],
   ]);
 });
+
+test("a closing fence with trailing spaces is closed (#208)", () => {
+  assert.equal(splitAssertions("NVDA leads.\n```assertions\n[]\n```   \nAMD trai").open, false);
+  assert.equal(splitAssertions("NVDA leads.\n```assertions\n[{").open, true);
+});
