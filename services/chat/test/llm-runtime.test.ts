@@ -1094,3 +1094,43 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
   });
   assert.deepEqual(removed, [["> **Analyst inference:** Its gross margin of 74.6% leads."]]);
 });
+
+test("a rendered answer keeps a stale-data warning; a sourced causal claim renders with no figures shown (#208)", async () => {
+  const stale = {
+    tool_call_id: "tc-1",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { structured_context: {
+      quote: { ticker: "NVDA", as_of: "2026-06-01T00:00:00.000Z", stale: true },
+      fact_recency: { latest_as_of: "2026-02-26T00:00:00.000Z", fiscal_year: 2026, fiscal_period: "FY", age_days: 190, stale: true },
+    } },
+  } as never;
+  const staleAnswer = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [stale],
+    factBlocks: RENDER_BLOCKS,
+    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] }]) }),
+  });
+  const staleText = (staleAnswer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(staleText, "NVDA's gross margin was 74.6% in FY2026.\n\nThe latest reported figures are 190 days old and may be out of date. The quote, as of Jun 2026, may be out of date.");
+
+  const claimId = "c2080000-0000-4000-8000-000000000002";
+  const causal = {
+    tool_call_id: "tc-2",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence: { claims: [{ claim_id: claimId, source_id: "s", text_canonical: "Margins rose due to a richer mix.", predicate: "kpi.commentary", polarity: "positive", published_at: "2026-02-25T00:00:00.000Z" }] } },
+  } as never;
+  const claimAnswer = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Why did margins rise?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [causal],
+    factBlocks: [],
+    createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Margins rose due to a richer mix.", evidence: ["C1"] }]) }),
+  });
+  const claimText = (claimAnswer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(claimText, "According to a source dated Feb 2026: Margins rose due to a richer mix.");
+});

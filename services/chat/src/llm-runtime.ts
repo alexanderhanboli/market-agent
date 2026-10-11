@@ -10,7 +10,7 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionReport } from "./assertions.ts";
+import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
@@ -237,10 +237,10 @@ export async function composeAnalystBlocksWithLlm(input: {
   // backstop on each (its drops reported as narrative removals). Null when
   // there is nothing to render, so the guarded prose stands, as with the flag
   // off.
-  const renderAccepted = (drops: (text: string) => ReadonlyArray<string>) => {
+  const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
     if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
-    const rendered = report.accepted.map((assertion) => renderAssertion(assertion, packet, input.factBlocks ?? []));
-    const kept = rendered.filter((entry) => drops(plainText(entry.segments)).length === 0);
+    const rendered = report.accepted.map((assertion) => ({ ...renderAssertion(assertion, packet, input.factBlocks ?? []), kind: assertion.kind }));
+    const kept = rendered.filter((entry) => drops(plainText(entry.segments), entry.kind).length === 0);
     if (kept.length === 0) return null;
     const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
@@ -250,7 +250,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     if (removed.length > 0) input.onNarrativeRemoved?.(removed.map((entry) => entry.text));
     reportAssertions({ removed });
     answered();
-    return rewriteFirstRichTextBlockWith(input.blocks, kept);
+    return rewriteFirstRichTextBlockWith(input.blocks, kept, stalenessNotes(input.toolCalls));
   };
   const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
@@ -272,7 +272,11 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (shown.length === 0) {
     // A claim-only answer renders; one also standing on available_data (its
     // figure assertions unchecked, with no fact to render) keeps its prose.
-    const claimOnly = report.unchecked ? null : renderAccepted((text) => keepUncausedSentences(text).removed);
+    // An attribution quotes its sourced claim word for word, so a cause the
+    // claim states is the claim's, not the model's.
+    const claimOnly = report.unchecked ? null : renderAccepted((text, kind) =>
+      kind === "management_attribution" ? [] : keepUncausedSentences(text).removed
+    );
     if (claimOnly) return claimOnly;
     reportAssertions();
     const uncaused = keepUncausedSentences(text);
@@ -486,8 +490,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function rewriteFirstRichTextBlockWith(
   blocks: ReadonlyArray<Record<string, unknown>>,
   rendered: ReadonlyArray<ReturnType<typeof renderAssertion>>,
+  notes: ReadonlyArray<string>,
 ): ReadonlyArray<Record<string, unknown>> {
-  const segments = rendered.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]);
+  const segments = [
+    ...rendered.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]),
+    ...(notes.length > 0 ? [{ type: "text", text: `\n\n${notes.join(" ")}` }] : []),
+  ];
   const factBindings = [...new Map(rendered.flatMap((entry) => entry.fact_bindings).map((binding) => [binding.fact_id, binding])).values()];
   let rewritten = false;
   return Object.freeze(blocks.map((block) => {
@@ -501,6 +509,29 @@ function rewriteFirstRichTextBlockWith(
       source_refs: [...new Set(rendered.flatMap((entry) => entry.source_refs))],
     });
   }));
+}
+
+// What the prompt asks the model to say about stale data, said by the rendered
+// answer itself: the reported figures' age, and a quote's date.
+function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>): string[] {
+  const structured = toolCalls.flatMap((toolCall) => {
+    const result = isRecord(toolCall.result) ? toolCall.result.structured_context : undefined;
+    return isRecord(result) ? [result] : [];
+  });
+  const ages = structured.flatMap((context) =>
+    isRecord(context.fact_recency) && context.fact_recency.stale === true && typeof context.fact_recency.age_days === "number"
+      ? [context.fact_recency.age_days]
+      : []
+  );
+  const quotes = structured.flatMap((context) =>
+    isRecord(context.quote) && context.quote.stale === true && typeof context.quote.as_of === "string" ? [context.quote.as_of] : []
+  );
+  return [
+    ...(ages.length > 0 ? [`The latest reported figures are ${Math.max(...ages)} days old and may be out of date.`] : []),
+    ...[...new Set(quotes)].map((asOf) =>
+      `The quote, as of ${new Date(asOf).toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}, may be out of date.`
+    ),
+  ];
 }
 
 function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
