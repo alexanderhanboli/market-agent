@@ -134,15 +134,19 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       continue;
     }
     // An unknown cause is a change's: it cites one company's metric in two
-    // periods, so the figures show something changed.
+    // periods with different values, so the figures show something changed.
     if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!))) {
-      reject(index, item, "an unknown cause cites a change: one company's metric in two periods");
+      reject(index, item, "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
     }
     // A metric the question asked for that no reader serves is a named gap: no
     // other figure stands in for it ("free cash flow" from net income).
     // Read with the question's own metric names, so "FCF" is free cash flow.
-    const gap = requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label;
+    // A management attribution cites its claim, never a figure, so a claim
+    // about the missing metric may be attributed.
+    const gap = kind === "management_attribution"
+      ? undefined
+      : requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label;
     if (gap !== undefined) {
       reject(index, item, `${gap} is not in the evidence: it is a named gap`);
       continue;
@@ -171,7 +175,8 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
 
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {
   return cited.some((a) => cited.some((b) =>
-    a.company === b.company && a.metric === b.metric && a.period !== undefined && b.period !== undefined && a.period !== b.period
+    a.company === b.company && a.metric === b.metric && a.period !== undefined && b.period !== undefined &&
+    a.period !== b.period && a.value !== b.value
   ));
 }
 

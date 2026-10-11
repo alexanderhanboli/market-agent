@@ -1025,7 +1025,7 @@ test("with rendering on, the answer is written from its accepted assertions, val
   assert.equal(report.rendered, true);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
     [1, "$99B is not a cited figure's value"],
-    [2, "an unknown cause cites a change: one company's metric in two periods"],
+    [2, "an unknown cause cites a change: one company's metric, two periods, two values"],
   ]);
 });
 

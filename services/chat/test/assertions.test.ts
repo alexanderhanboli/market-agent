@@ -460,8 +460,22 @@ test("an unknown cause needs a change: one company's metric in two periods (#208
     { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2"] },
   ]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
-    [0, "an unknown cause cites a change: one company's metric in two periods"],
-    [1, "an unknown cause cites a change: one company's metric in two periods"],
+    [0, "an unknown cause cites a change: one company's metric, two periods, two values"],
+    [1, "an unknown cause cites a change: one company's metric, two periods, two values"],
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+});
+
+test("an unchanged value is no change; a claim about a missing metric may be attributed (#208)", () => {
+  const flat = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Gross margin", period: "FY2026", value: "75.0%", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "Gross margin", period: "FY2025", value: "75.0%", source_ids: [] },
+  ], claims: [{ id: "C1", text: "NVDA management expects free cash flow to grow.", predicate: "guidance.change", stance: "supporting" as const, company: "NVDA", claim_id: "c", source_id: "s" }],
+  unavailable_metrics: ["Free cash flow"] };
+  const report = checkAssertions([
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2"] },
+    { kind: "management_attribution", text: "NVDA management expects free cash flow to grow.", evidence: ["C1"] },
+  ], flat);
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [0]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
 });
