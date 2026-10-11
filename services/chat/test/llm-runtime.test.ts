@@ -1242,3 +1242,29 @@ test("a rendered comparison covers every company it shows figures for, and warns
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.match(text, /\n\nThe same fiscal year ends in different months for each company, so the periods do not line up\.$/);
 });
+
+test("a rendered answer says when more claims matched, or none could be read (#208)", async () => {
+  const truncated = { ...(A_TOOL_CALL as unknown as Record<string, unknown>) };
+  truncated.result = { evidence: { ...((A_TOOL_CALL as unknown as { result: { evidence: Record<string, unknown> } }).result.evidence), truncated: true } };
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Analyze A", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [truncated as never],
+    factBlocks: A_BLOCKS,
+    createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] }]) }),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.\n\nMore sources matched than are shown here.");
+
+  const unreadable = { tool_call_id: "tc-u", tool_name: "research_lookup", status: "ok", result: { evidence: { claims: [], unavailable: true } } } as never;
+  const answer = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [unreadable],
+    factBlocks: RENDER_BLOCKS,
+    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] }]) }),
+  });
+  assert.match((answer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), /\n\nResearch claims could not be read for this answer\.$/);
+});

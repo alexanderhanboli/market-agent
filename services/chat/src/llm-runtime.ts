@@ -291,6 +291,9 @@ export async function composeAnalystBlocksWithLlm(input: {
     return rewriteFirstRichTextBlockWith(input.blocks, [...kept, ...otherSides], [
       ...(calendarsDiffer(keptFigures) ? ["The same fiscal year ends in different months for each company, so the periods do not line up."] : []),
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
+      // The claims as selected: more matched than were read, or none could be.
+      ...(packet.claims_truncated ? ["More sources matched than are shown here."] : []),
+      ...(packet.claims_status === "unavailable" ? ["Research claims could not be read for this answer."] : []),
       ...stalenessNotes(input.toolCalls),
     ]);
   };
