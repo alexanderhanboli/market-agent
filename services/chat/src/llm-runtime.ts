@@ -239,15 +239,24 @@ export async function composeAnalystBlocksWithLlm(input: {
   // off.
   const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
     if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
-    const rendered = report.accepted.map((assertion) => ({ ...renderAssertion(assertion, packet, input.factBlocks ?? []), kind: assertion.kind }));
-    const kept = rendered.filter((entry) => drops(plainText(entry.segments), entry.kind).length === 0);
+    const rendered = report.accepted.map((assertion) => ({
+      ...renderAssertion(assertion, packet, input.factBlocks ?? []),
+      kind: assertion.kind,
+      supports: assertion.supports ?? [],
+    }));
+    const guarded = new Set(rendered.filter((entry) => drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
+    // An inference goes with any observation it rests on that the guard removed.
+    const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
+    const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index));
     if (kept.length === 0) return null;
     const removed = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
-      reason: "removed by the narrative guard",
+      reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
-    if (removed.length > 0) input.onNarrativeRemoved?.(removed.map((entry) => entry.text));
+    // The guard's own drops; an inference removed with its observation is on the report.
+    const dropped = removed.filter((entry) => guarded.has(entry.index));
+    if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.map((entry) => entry.text));
     reportAssertions({ removed });
     answered();
     return rewriteFirstRichTextBlockWith(input.blocks, kept, stalenessNotes(input.toolCalls));

@@ -1134,3 +1134,28 @@ test("a rendered answer keeps a stale-data warning; a sourced causal claim rende
   const claimText = (claimAnswer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(claimText, "According to a source dated Feb 2026: Margins rose due to a richer mix.");
 });
+
+test("an inference resting on an observation the guard removed is removed too (#208)", async () => {
+  // The guard never credits a one-letter ticker's figure ("A", the article).
+  const blocks = [{ ...RENDER_BLOCKS[0]!, subject_labels: ["A", "AMD"] }];
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare A with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: blocks,
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
+      { kind: "observation", text: "AMD's gross margin was 49.2%.", evidence: ["F4"] },
+      { kind: "analyst_inference", text: "A appears stronger.", evidence: [], supports: [0] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text, "AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
+  assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [0, "removed by the narrative guard"],
+    [2, "rests on an observation the narrative guard removed"],
+  ]);
+});
