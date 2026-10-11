@@ -33,20 +33,21 @@ export type AssertionReport = {
 export const MAX_ASSERTIONS = 8;
 
 // The list closes the answer in a fenced block the reader never sees. Wherever
-// it is, and closed or not, it is cut from the prose.
+// it is, and closed or not, it is cut from the prose. fenced: the list began,
+// so an answer cut off at the token limit inside it kept its prose whole.
 const FENCE = /```assertions[ \t]*\n([\s\S]*?)(?:```|$)/;
 
 // The prose without its assertion list, and the list as written (undefined when
 // there is none; null when it does not parse).
-export function splitAssertions(text: string): { prose: string; list: unknown[] | null | undefined } {
+export function splitAssertions(text: string): { prose: string; list: unknown[] | null | undefined; fenced: boolean } {
   const match = FENCE.exec(text);
-  if (!match) return { prose: text, list: undefined };
+  if (!match) return { prose: text, list: undefined, fenced: false };
   const prose = `${text.slice(0, match.index).trimEnd()}\n\n${text.slice(match.index + match[0].length).trimStart()}`.trim();
   try {
     const parsed: unknown = JSON.parse(match[1]!);
-    return { prose, list: Array.isArray(parsed) ? parsed : null };
+    return { prose, list: Array.isArray(parsed) ? parsed : null, fenced: true };
   } catch {
-    return { prose, list: null };
+    return { prose, list: null, fenced: true };
   }
 }
 
@@ -156,7 +157,8 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
   for (const quantity of quantities(text)) {
     const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity));
     if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
-    const named = lastCompanyBefore(text, quantity.at, packet.companies);
+    const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
+      ?? lastCompanyBefore(text, quantity.at, packet.companies);
     if (named !== undefined && !candidates.some((entry) => entry.company === named)) {
       return `${quantity.raw} is not a cited figure's value for ${named}`;
     }
@@ -195,6 +197,15 @@ function sameQuantity(text: Quantity, figure: Quantity): boolean {
   if (text.negative && !figure.negative) return false;
   if (text.unit && text.unit !== figure.unit) return false;
   return !(text.currency && !figure.currency);
+}
+
+// A company named right after the number, by a preposition ("49.4% for AMD").
+function companyAfter(text: string, end: number, companies: ReadonlyArray<string>): string | undefined {
+  const rest = text.slice(end);
+  return companies.find((company) => {
+    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`^\\s*(?:for|at|of|from|by|in)\\s+${escaped}(?![A-Za-z0-9])`).test(rest);
+  });
 }
 
 function lastCompanyBefore(text: string, at: number, companies: ReadonlyArray<string>): string | undefined {

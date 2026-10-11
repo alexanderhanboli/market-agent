@@ -30,10 +30,10 @@ const check = (list: unknown[]) => checkAssertions(list, PACKET);
 
 test("the assertion list is cut from the prose wherever it is, and a broken one is malformed (#208)", () => {
   const list = '[{"kind":"observation","text":"x","evidence":["F1"]}]';
-  assert.deepEqual(splitAssertions(`NVDA leads.\n\n\`\`\`assertions\n${list}\n\`\`\``), { prose: "NVDA leads.", list: JSON.parse(list) });
+  assert.deepEqual(splitAssertions(`NVDA leads.\n\n\`\`\`assertions\n${list}\n\`\`\``), { prose: "NVDA leads.", list: JSON.parse(list), fenced: true });
   assert.deepEqual(splitAssertions(`NVDA leads.\n\`\`\`assertions\n${list}\n\`\`\`\nAMD trails.`).prose, "NVDA leads.\n\nAMD trails.");
-  assert.deepEqual(splitAssertions("NVDA leads.\n```assertions\n[{\"kind\":"), { prose: "NVDA leads.", list: null });
-  assert.deepEqual(splitAssertions("NVDA leads."), { prose: "NVDA leads.", list: undefined });
+  assert.deepEqual(splitAssertions("NVDA leads.\n```assertions\n[{\"kind\":"), { prose: "NVDA leads.", list: null, fenced: true });
+  assert.deepEqual(splitAssertions("NVDA leads."), { prose: "NVDA leads.", list: undefined, fenced: false });
   assert.equal(checkAssertions(undefined, PACKET).status, "missing");
   assert.equal(checkAssertions(null, PACKET).status, "malformed");
 });
@@ -156,4 +156,13 @@ test("a packet with claims but no figures is still checked; one with neither is 
   assert.equal(report.status, "checked");
   assert.equal(report.accepted.length, 1);
   assert.equal(checkAssertions([], { ...claimsOnly, claims: [] }).status, "skipped");
+});
+
+test("a company named right after a number (\"49.4% for AMD\") is that number's (#208)", () => {
+  const report = check([
+    { kind: "observation", text: "Margins were 49.4% for NVDA and 75.0% for AMD.", evidence: ["F1", "F3"] },
+    { kind: "observation", text: "Margins were 75.0% for NVDA and 49.4% for AMD.", evidence: ["F1", "F3"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [[0, "49.4% is not a cited figure's value for NVDA"]]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
 });

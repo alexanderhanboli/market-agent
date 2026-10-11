@@ -940,3 +940,18 @@ test("with no figures shown there is nothing to bind, so the check is skipped (#
   assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "ACME trades at $12.");
   assert.deepEqual(reports.map((report) => report.status), ["skipped"]);
 });
+
+test("an answer cut off inside its assertion list keeps the prose before it (#208)", async () => {
+  const reports: Array<{ status: string }> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: COMPARISON_BLOCKS,
+    createClient: () => async () => ({ text: "NVDA is larger.\n\n```assertions\n[{\"kind\":\"obs", truncated: true }),
+    onAssertions: (report) => reports.push(report),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "NVDA is larger.");
+  assert.deepEqual(reports.map((report) => report.status), ["malformed"]);
+});
