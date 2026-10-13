@@ -505,3 +505,29 @@ test("a fiscal year's balance points do not date its end", async (t) => {
   // No year dated by its facts: the label's calendar bounds hold both, newest first.
   assert.deepEqual(evidence.claim_refs, [Q3]);
 });
+
+// Guidance for a year is given during it: the full year's with the last year's
+// results, just after it starts; the next year's after it ends.
+test("a fiscal year's guidance is what was given during it", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  // NVDA-like: FY2026 runs 2025-01-27 to 2026-01-25.
+  const db = await fiscalCalendarDb(t, "evidence-selection-fiscal-guidance", {
+    period_kind: "fiscal_y", period_start: "2025-01-27", period_end: "2026-01-25", fiscal_year: 2026, fiscal_period: "FY", observed_at: "2026-02-26T00:00:00Z",
+  });
+  const FY_GUIDANCE = "c4000000-0000-4000-8000-0000000000ea";
+  const guidance = { source: FILINGS, predicate: "guidance.revenue", polarity: "neutral" };
+  await claim(db, { id: FY_GUIDANCE, ...guidance, text: "Revenue for fiscal 2026 is expected to grow.", at: "2025-02-26T00:00:00Z" });
+  // The next year's, given with this year's results.
+  await claim(db, { id: INSIDER(1), ...guidance, text: "Revenue for fiscal 2027 is expected to grow.", at: "2026-02-25T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 1,
+    selection: {
+      predicate_prefixes: ["guidance."],
+      effective_from: "2025-01-01T00:00:00.000Z",
+      effective_until: "2027-04-01T00:00:00.000Z",
+      fiscal_year: 2026,
+    },
+  });
+  assert.deepEqual(evidence.claim_refs, [FY_GUIDANCE]);
+});

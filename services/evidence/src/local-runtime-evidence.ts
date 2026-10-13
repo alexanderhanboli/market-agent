@@ -181,7 +181,13 @@ export async function loadLocalRuntimeEvidence(
               coalesce(c.predicate like any($8::text[]), false)
                 and case
                   -- The releases about a fiscal year come out from the end of
-                  -- its first quarter until a quarter after it ends.
+                  -- its first quarter until a quarter after it ends. Its
+                  -- guidance is given during it: the full year's with the last
+                  -- year's results, just after it starts; the next year's,
+                  -- after it ends, is not its.
+                  when fy.ends is not null and c.predicate like 'guidance.%' then
+                    coalesce(c.effective_time, d.published_at, c.created_at) >= fy.starts
+                    and coalesce(c.effective_time, d.published_at, c.created_at) < fy.ends
                   when fy.ends is not null then
                     coalesce(c.effective_time, d.published_at, c.created_at) >= fy.starts + interval '3 months'
                     and coalesce(c.effective_time, d.published_at, c.created_at) < fy.ends + interval '3 months'

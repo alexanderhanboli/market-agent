@@ -246,7 +246,8 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   prefixes shares one where the scope doesn't record which was named (an operating income, net income or expenses
   question is read as the income statement, so its explanations rank together; so do the margins'). Within a
   priority, each predicate (and each company) takes its turn, newest first, so no one metric fills every slot.
-  A question about a fiscal year reads the releases
+  A question about a fiscal year reads its guidance as given during the year (the full year's comes with the last
+  year's results) and the releases
   about that year first: from the end of its first quarter until a quarter after it ends, by the issuer's own fiscal
   year where its facts date it (calendar bounds from the label otherwise), so later releases don't crowd it out. The
   window is a year, not the quarter asked about.

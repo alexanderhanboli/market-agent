@@ -294,8 +294,9 @@ function endMarkBefore(text: string, at: number, marks: RegExp): boolean {
 // with. Not after a colon or semicolon: what follows one is part of a sentence
 // ("This is not company guidance: Revenue is expected to...").
 function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
-  // A block after one ending in a colon or semicolon continues its sentence.
-  if (exhibit.edges.has(start)) return !/[:;]\s*$/.test(exhibit.text.slice(Math.max(0, start - 3), start));
+  // A block after one ending in a colon, semicolon, comma or dash continues its
+  // sentence ("This is not company guidance -").
+  if (exhibit.edges.has(start)) return !/[:;,-]\s*$/.test(exhibit.text.slice(Math.max(0, start - 3), start));
   return /\s/.test(exhibit.text[start - 1] ?? "") &&
     endMarkBefore(exhibit.text, start - 1, /[.!?•]["')]?$/) &&
     SENTENCE_START.test(exhibit.text.slice(start));

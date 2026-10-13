@@ -164,11 +164,13 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
     "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance: Revenue is expected to grow 10%.</div>\n</TEXT>\n</DOCUMENT>",
   );
   assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "Revenue is expected to grow 10%." }, qualified), null);
-  // Nor when the colon ends the block before it.
-  const split = releaseExhibits(
-    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance:</div><div>Revenue is expected to grow 10%.</div>\n</TEXT>\n</DOCUMENT>",
-  );
-  assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "Revenue is expected to grow 10%." }, split), null);
+  // Nor when the colon (or a dash or comma) ends the block before it.
+  for (const mark of [":", " &mdash;", ","]) {
+    const split = releaseExhibits(
+      `<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance${mark}</div><div>Revenue is expected to grow 10%.</div>\n</TEXT>\n</DOCUMENT>`,
+    );
+    assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "Revenue is expected to grow 10%." }, split), null, mark);
+  }
   // Nor before a capitalized continuation ("the U.S. Data Center market").
   const continued = releaseExhibits(
     "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Revenue did not decline in the U.S. Data Center market due to weaker demand.</div>\n</TEXT>\n</DOCUMENT>",
