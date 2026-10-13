@@ -646,3 +646,10 @@ test("the noun \"cause\" is not a stated cause (#294 review)", () => {
   assert.deepEqual(check([{ kind: "observation", text: "The cause is not shown; NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] }]).rejected, []);
   assert.equal(rejectionCheck(check([{ kind: "observation", text: "Charges caused NVDA's gross margin of 75.0% in FY2026.", evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause");
 });
+
+test("noun forms (drives, pressures, boosts, lifts) are not causes (#294 review)", () => {
+  const packet = { ...PACKET, figures: [{ id: "F1", company: "NVDA", metric: "Revenue", period: "FY2026", value: "$3.1B", source_ids: [] }] };
+  for (const text of ["NVDA's hard drives generated $3.1B in revenue in FY2026.", "NVDA's revenue of $3.1B in FY2026 came with cost pressures and price boosts."]) {
+    assert.deepEqual(checkAssertions([{ kind: "observation", text, evidence: ["F1"] }], packet).rejected, [], text);
+  }
+});

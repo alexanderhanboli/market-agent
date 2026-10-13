@@ -430,7 +430,7 @@ export async function composeAnalystBlocksWithLlm(input: {
 // On a turn with no data there is nothing such a word could measure.
 // A bare number word is a value too ("a P/E of twenty", #294 review); "one"
 // and "a" are left out, as ordinary wording ("one of the metrics").
-const WORDED_AMOUNT = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|dozens?|hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?|won)\b/i;
+const WORDED_AMOUNT = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|dozens?|hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?)\b/i;
 
 // On a turn with no data, a sentence stating an amount in words goes as one
 // in digits does.

@@ -146,14 +146,16 @@ const CAUSAL = new RegExp(
 // financial causatives "lifted", "boosted", "pressured", "weighed on", #294
 // review): unlike "reflects", these only ever say why.
 // ponytail: a vocabulary, not a parser; checked takeaways and causes are #288.
-const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down)|(?:could|may|might|would|will|can|should|to)\s+(?:lift|boost|pressure|drive|cause|lead to|weigh on|drag (?:on|down)|contribute to|result in))\b/i;
+const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from|lift(?:ed|ing)|boost(?:ed|ing)|pressur(?:ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down)|(?:could|may|might|would|will|can|should|to)\s+(?:lift|boost|pressure|drive|cause|lead to|weigh on|drag (?:on|down)|contribute to|result in))\b/i;
 // An active causal verb in prose ("AI demand lifted revenue"): its cause is
 // the few words before it, held to the same grounding as a connective's
 // (#294 review). Not a passive "caused by", which CAUSAL reads.
 // ponytail: up to four words before the verb are taken as its cause.
 // "Cause" and "causes" are nouns as often ("does not show a cause"): only
 // "caused" and "causing" count.
-const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down)|(?:could|may|might|would|will|can|should|to)\s+(?:lift|boost|pressure|drive|cause|lead to|weigh on|drag (?:on|down)|contribute to|result in))`;
+const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|lift(?:ed|ing)|boost(?:ed|ing)|pressur(?:ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down)|(?:could|may|might|would|will|can|should|to)\s+(?:lift|boost|pressure|drive|cause|lead to|weigh on|drag (?:on|down)|contribute to|result in))`;
+// Third-person "drives", "lifts", "boosts", "pressures" are plural nouns as
+// often ("hard drives"), so they are left out (#294 review; see #296).
 // Base forms ("could lift", "may drive", #294 review) count only after a modal
 // or "to": bare "pressure" and "drive" are as often nouns.
 const ACTIVE_CAUSAL = new RegExp(String.raw`((?:[^\s,;:.]+\s+){1,4}?)${ACTIVE_VERB}\b(?!\s+by\b)`, "gi");
