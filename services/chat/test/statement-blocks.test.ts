@@ -16,6 +16,7 @@ import {
   freeCashFlowSpecs,
   loadStatementBlocks,
   statementFacets,
+  type StatementFacets,
 } from "../src/statement-blocks.ts";
 import { fakeQuery } from "./fake-query.ts";
 
@@ -108,7 +109,7 @@ function minted(specs: ReturnType<typeof freeCashFlowSpecs>): DerivedQuarterFact
   });
 }
 
-function blocksFor(facts = nvdaFacts(), facets = ALL) {
+function blocksFor(facts = nvdaFacts(), facets: StatementFacets = ALL) {
   const verifier = verifierFacts(facts);
   return buildStatementBlocks({
     facts,

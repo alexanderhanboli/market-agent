@@ -259,6 +259,19 @@ test("segments asked with any margin record the margin, so both are read", () =>
   assert.equal(resolveResearchScope({ question: "What is its gross margin?", companies: [AMD], prior, asOf: AS_OF }).margins, true);
 });
 
+test("a statement metric asked year to date is a named gap, never the latest quarter in its place", () => {
+  for (const question of ["What is NVDA's free cash flow YTD?", "Show NVDA's year-to-date EPS"]) {
+    const scope = fresh(question, [NVDA]);
+    assert.equal(scope.route, "unavailable_metric", question);
+    assert.deepEqual(scope.metrics.map((metric) => metric.available), [false], question);
+  }
+  assert.deepEqual(fresh("What is NVDA's free cash flow YTD?", [NVDA]).metrics, [
+    { metric_key: "free_cash_flow_ytd", label: "Free cash flow year to date", available: false },
+  ]);
+  // A comparison charts the window; its statement metrics are already one company at a time.
+  assert.equal(fresh("Compare NVDA and AMD free cash flow YTD", [NVDA, AMD]).route, "comparison");
+});
+
 test("a single company's YTD gap stays a gap: its answer has no price chart", () => {
   assert.equal(fresh("What was AMD's EBITDA YTD?", [AMD]).route, "unavailable_metric");
   // A comparison does chart the window, so it is read beside the gap.

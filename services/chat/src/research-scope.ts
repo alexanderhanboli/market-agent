@@ -235,7 +235,18 @@ export function resolveResearchScope(input: {
   const scanned = scanMetrics(question);
   const marginAsked = MARGINS.test(scanned.rest);
   const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
-  const named = scanned.metrics.map((metric) => (input.served ? { ...metric, available: true } : metric));
+  // A statement metric asked year to date ("free cash flow YTD") is another
+  // figure no reader serves, like a qualified one: a named gap, never the
+  // latest quarter or year in its place. A comparison charts the window and
+  // names its statement metrics as gaps anyway.
+  const ytdOfOne = requestedPriceWindow(question) === "ytd" && input.companies.length < 2;
+  const named = scanned.metrics.map((metric) =>
+    input.served
+      ? { ...metric, available: true }
+      : ytdOfOne && metric.available && metric.metric_key in STATEMENT_METRIC_LABELS
+      ? { metric_key: `${metric.metric_key}_ytd`, label: `${metric.label} year to date`, available: false }
+      : metric
+  );
   // A metric turned off leaves the ones kept; none left keeps none.
   const kept = prior?.metrics.filter((metric) => !off.metrics.has(metric.metric_key)) ?? [];
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
