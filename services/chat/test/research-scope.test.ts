@@ -321,6 +321,22 @@ test("dropping the cash flow drops every cash flow figure", () => {
   assert.equal(next.route, "statements");
 });
 
+test("dropping operating cash flow by name keeps the other cash flow figures", () => {
+  const prior = fresh("Show NVDA's operating cash flow and capex", [NVDA]);
+  const next = resolveResearchScope({ question: "Drop operating cash flow", companies: [NVDA], prior, asOf: AS_OF });
+  assert.deepEqual(next.metrics.map((metric) => metric.metric_key), ["capex"]);
+});
+
+test("dropping the balance sheet drops its items, however they were kept", () => {
+  const ask = (question: string, prior: ResearchScope | null) =>
+    resolveResearchScope({ question, companies: [NVDA], prior, asOf: AS_OF });
+  const balance = ask("Show NVDA's balance sheet and EPS", null);
+  const withoutAssets = ask("Drop total assets", balance);
+  assert.deepEqual(withoutAssets.metrics.map((metric) => metric.metric_key), ["cash_and_equivalents", "total_liabilities", "total_equity", "eps_diluted"]);
+  const withoutBalance = ask("Drop the balance sheet", withoutAssets);
+  assert.deepEqual(withoutBalance.metrics.map((metric) => metric.metric_key), ["eps_diluted"]);
+});
+
 test("a follow-up that turns a facet off clears it; the rest is kept", () => {
   const prior = fresh("Compare NVDA with AMD segments, margin trends and free cash flow, fiscal 2025, YTD", [NVDA, AMD]);
   const next = (question: string) =>

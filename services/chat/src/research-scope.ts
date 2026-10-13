@@ -386,9 +386,13 @@ function turnedOff(question: string): { fields: Set<ScopeField>; metrics: Set<st
     if (WINDOW.test(object)) fields.add("price_window");
     if (FISCAL.test(object)) fields.add("fiscal_year");
     for (const metric of scanMetrics(object).metrics) metrics.add(metric.metric_key);
-    // Unqualified "cash flow" is operating cash flow; dropping it drops the
-    // cash flow figures with it ("drop the cash flow").
-    if (metrics.has("operating_cash_flow")) for (const key of ["capex", "free_cash_flow"]) metrics.add(key);
+    // Unqualified "cash flow" ("drop the cash flow") drops every cash flow
+    // figure; "drop operating cash flow" names only that one.
+    if (metrics.has("operating_cash_flow") && !/\boperating\b|\boperations\b/i.test(object)) {
+      for (const key of ["capex", "free_cash_flow"]) metrics.add(key);
+    }
+    // The whole balance sheet drops its items too, however they were kept.
+    if (metrics.has("balance_sheet")) for (const key of BALANCE_SHEET_ITEMS) metrics.add(key);
     return fields.size + metrics.size > before ? " " : phrase;
   });
   return { fields, metrics, rest };
