@@ -130,13 +130,13 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
     metric_key: "financing_cash_flow",
     label: "Financing cash flow",
     available: false,
-    pattern: /\bfinancing cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) financing(?: activities)?\b/gi,
+    pattern: /\bfinancing cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used (?:in|for)|provided by|(?:provided by|used in) \(?used in\)?) financing(?: activities)?\b/gi,
   },
   {
     metric_key: "investing_cash_flow",
     label: "Investing cash flow",
     available: false,
-    pattern: /\binvesting cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) investing(?: activities)?\b/gi,
+    pattern: /\binvesting cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used (?:in|for)|provided by|(?:provided by|used in) \(?used in\)?) investing(?: activities)?\b/gi,
   },
   // Unqualified "cash flow" means operating cash flow.
   // So is cash "from operations" / "provided by operating activities".
@@ -144,7 +144,8 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
     metric_key: "operating_cash_flow",
     label: "Operating cash flow",
     available: true,
-    pattern: /\b(?:operating )?cash[- ]flows?\b|\bcash (?:(?:was|is|were) )?(?:from|provided by|generated (?:by|from)) (?:operations|operating activities)\b/gi,
+    // A negative operating cash flow is cash "used in" operating activities.
+    pattern: /\b(?:operating )?cash[- ]flows?\b|\bcash (?:(?:was|is|were) )?(?:from|provided by|used (?:in|for)|generated (?:by|from)) (?:operations|operating activities)\b/gi,
   },
   { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
   // The whole balance sheet, or one item of it, each its own request: a cash

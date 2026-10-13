@@ -337,11 +337,16 @@ test("cash from operations and cash equivalents are the statement figures they n
     "What was NVDA's cash from operations?",
     "NVDA cash provided by operating activities",
     "How much cash was generated from operations?",
+    // A negative operating cash flow is reported as cash used.
+    "What was AMD's net cash used in operating activities?",
+    "AMD cash used for operations",
   ]) {
     assert.deepEqual(keys(question), ["operating_cash_flow"], question);
   }
   assert.deepEqual(keys("What was AMD's cash used in investing activities?"), ["investing_cash_flow"]);
   assert.deepEqual(keys("AMD cash provided by financing activities"), ["financing_cash_flow"]);
+  assert.deepEqual(keys("AMD cash used for investing activities"), ["investing_cash_flow"]);
+  assert.deepEqual(keys("AMD cash flows used for financing activities"), ["financing_cash_flow"]);
   assert.deepEqual(keys("What are NVDA's cash equivalents?"), ["cash_and_equivalents"]);
   assert.equal(fresh("What was NVDA's cash from operations?", [NVDA]).route, "statements");
 });
