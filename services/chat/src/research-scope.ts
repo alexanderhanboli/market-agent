@@ -482,9 +482,11 @@ export function resolveResearchScope(input: {
     price_window,
     benchmark,
     // Asked this turn, or by the answer an evidence follow-up re-reads.
-    // (search: GUIDANCE_OFF is global, and test would keep its place.)
+    // Turned off in the question as asked: the turn-off of a metric ("without
+    // revenue guidance") has taken its words out of `question`. (search:
+    // GUIDANCE_OFF is global, and test would keep its place.)
     ...(GUIDANCE.test(question.replace(AGAINST_GUIDANCE, " ").replace(GUIDANCE_OFF, " ")) ||
-        (evidence && prior?.guidance && question.search(GUIDANCE_OFF) < 0)
+        (evidence && prior?.guidance && input.question.search(GUIDANCE_OFF) < 0)
       ? { guidance: true as const }
       : {}),
     ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),

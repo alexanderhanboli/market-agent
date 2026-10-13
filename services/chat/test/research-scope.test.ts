@@ -145,6 +145,9 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
   const without = resolveResearchScope({ question: "What are your sources, but without guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(without.route, "evidence_followup");
   assert.equal(without.guidance, undefined);
+  // Even naming a metric the turn-off reads as its own ("without revenue guidance").
+  const withoutRevenue = resolveResearchScope({ question: "What are your sources, but without revenue guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(withoutRevenue.guidance, undefined);
   assert.deepEqual(sources.income_items, ["revenue"]);
   // Any other turn names its own; one that names none, and keeps the metrics
   // it asked about, keeps its items too.
