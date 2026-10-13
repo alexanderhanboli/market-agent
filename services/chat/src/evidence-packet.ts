@@ -114,11 +114,11 @@ export function claimSelection(
   ];
   // A question asking for guidance reads it first, before any other
   // explanation: for the metrics it names, then any; whatever the figures'
-  // route (a metric no reader serves included). Management's explanation of
-  // those metrics shares the top priority, so a turn asking why as well
-  // ("why did revenue fall, and what guidance?") gets both.
+  // route (a metric no reader serves included). A turn asking why as well
+  // ("why did revenue fall, and what guidance?") reads management's
+  // explanation of those metrics at the same priority, so it gets both.
   let asked: Array<string | ReadonlyArray<string>> = scope.guidance ? [...metrics.map(family("guidance.")), "guidance."] : [];
-  if (scope.guidance && metrics.length > 0) {
+  if (scope.guidance && scope.explains && metrics.length > 0) {
     const [guidance, ...guidanceRest] = asked;
     const [explanation, ...explanationRest] = explained;
     asked = [[guidance!, explanation!].flat(), ...guidanceRest];

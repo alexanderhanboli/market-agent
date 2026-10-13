@@ -67,10 +67,14 @@ export type ResearchScope = {
   price_window: { kind: "ytd"; cutoff: string } | null;
   // A benchmark index asked for: never in this data, so always a named gap.
   benchmark: boolean;
-  // Guidance asked for this turn ("what guidance", "the outlook"), or by the
-  // answer an evidence follow-up re-reads: its claims are read first. Absent
+  // Guidance asked for ("what guidance", "the outlook"), this turn or an
+  // earlier one, until a turn turns it off: its claims are read first. Absent
   // when not.
   guidance?: true;
+  // A cause asked for ("why", "what drove"): management's explanation is then
+  // read with the guidance. This turn's, or the answer an evidence follow-up
+  // re-reads. Absent when not.
+  explains?: true;
   // The income-statement items the question names ("operating income"), which
   // its metrics read as the whole statement: their claims come first. This
   // turn's, or the answer an evidence follow-up re-reads. Absent when none.
@@ -119,6 +123,8 @@ const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|ex
 // out ("current guidance versus prior guidance" does).
 const AGAINST_GUIDANCE =
   /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,5}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
+// A cause asked for.
+const EXPLAINS = /\b(?:why|explain\w*|caus(?:e|es|ed)|drove|driv(?:e|es|en|ers?)|reasons?|due to|because)\b/i;
 // Guidance turned off ("without using guidance", "no forecasts") is not asked for.
 const GUIDANCE_OFF =
   /\b(?:without(?: including)?|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|leave out|(?:don['’]t|do not) (?:use|include))\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
@@ -481,14 +487,16 @@ export function resolveResearchScope(input: {
     fiscal_year,
     price_window,
     benchmark,
-    // Asked this turn, or by the answer an evidence follow-up re-reads.
-    // Turned off in the question as asked: the turn-off of a metric ("without
-    // revenue guidance") has taken its words out of `question`. (search:
-    // GUIDANCE_OFF is global, and test would keep its place.)
+    // Asked this turn, or kept from an earlier one, as the other facets are,
+    // unless this one turns it off. Turned off in the question as asked: the
+    // turn-off of a metric ("without revenue guidance") has taken its words out
+    // of `question`. (search: GUIDANCE_OFF is global, and test would keep its
+    // place.)
     ...(GUIDANCE.test(question.replace(AGAINST_GUIDANCE, " ").replace(GUIDANCE_OFF, " ")) ||
-        (evidence && prior?.guidance && input.question.search(GUIDANCE_OFF) < 0)
+        (prior?.guidance && input.question.search(GUIDANCE_OFF) < 0)
       ? { guidance: true as const }
       : {}),
+    ...((evidence ? prior?.explains : EXPLAINS.test(question)) ? { explains: true as const } : {}),
     ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };
@@ -591,6 +599,7 @@ export function parseResearchScope(value: unknown): ResearchScope | null {
     // Absent on scopes saved before benchmarks were recorded.
     benchmark: scope.benchmark === true,
     ...(scope.guidance === true ? { guidance: true as const } : {}),
+    ...(scope.explains === true ? { explains: true as const } : {}),
     ...(Array.isArray(scope.income_items) && scope.income_items.length > 0 && scope.income_items.every((item) => typeof item === "string")
       ? { income_items: scope.income_items as string[] }
       : {}),

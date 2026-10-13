@@ -99,7 +99,7 @@ test("a window asked for again is cut off at the new turn", () => {
   assert.deepEqual(next.inherited, []);
 });
 
-test("guidance is asked for by the turn's own words, not carried to the next", () => {
+test("guidance is asked for in a turn's words, and kept until turned off", () => {
   const asked = fresh("What revenue guidance did NVDA give?", [NVDA]);
   assert.equal(asked.guidance, true);
   // Asked as an expectation, a projection or a target too.
@@ -136,8 +136,16 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     assert.equal(fresh(question, [NVDA]).guidance, undefined, question);
   }
   assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
+  // A follow-up keeps it, as it keeps the scope's other facets ("How about EPS?").
   const next = resolveResearchScope({ question: "And its gross margin?", companies: [NVDA], prior: asked, asOf: AS_OF });
-  assert.equal(next.guidance, undefined);
+  assert.equal(next.guidance, true);
+  const eps = resolveResearchScope({ question: "How about EPS?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(eps.guidance, true);
+  const off = resolveResearchScope({ question: "And its gross margin, without guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(off.guidance, undefined);
+  // Asking why is recorded too: management's explanation then shares guidance's priority.
+  assert.equal(asked.explains, undefined);
+  assert.equal(fresh("Why did NVDA's revenue decline, and what guidance did management give?", [NVDA]).explains, true);
   // An evidence follow-up re-reads the answer it asks about, guidance first too.
   const sources = resolveResearchScope({ question: "What are your sources?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(sources.route, "evidence_followup");

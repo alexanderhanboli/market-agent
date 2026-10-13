@@ -239,9 +239,10 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   metric named), since one release can hold more explanations than the claim limit. The scope reads revenue, margins
   and income as the whole income statement, so it also records the items the question names (`income_items`:
   "operating income"), and theirs come first. A question asking for guidance
-  ("guidance", "outlook", "forecast", "expects", "projections", "target"; not "than expected": the scope's `guidance`, this turn only, or
-  kept by an evidence follow-up) reads guidance claims first instead, for the metrics it names and then any,
-  whatever the figures' route. The loader ranks claims by the
+  ("guidance", "outlook", "forecast", "expects", "projections", "target"; not "than expected": the scope's `guidance`,
+  kept by follow-ups until one turns it off) reads guidance claims first instead, for the metrics it names and then
+  any, whatever the figures' route; one asking why as well (`explains`) reads management's explanation of those
+  metrics at the same priority. The loader ranks claims by the
   first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`); a group of
   prefixes shares one where the scope doesn't record which was named (an operating income, net income or expenses
   question is read as the income statement, so its explanations rank together; so do the margins'). Within a
