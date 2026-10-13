@@ -98,9 +98,38 @@ export function claimSelection(
 ): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null } {
   if (!scope) return { predicate_prefixes: [], effective_from: null };
   const route = ROUTE_PREDICATES[scope.reads] ?? [];
+  // Management's explanation of what the question asks about comes before its
+  // other explanations: one release can hold more of them than the claim limit.
+  const explained = route.length > 0 ? explainedMetrics(scope).map((metric) => `management.explanation.${metric}`) : [];
   // A price window adds the events that move a price, whatever else is read.
-  const prefixes = [...new Set([...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
+  const prefixes = [...new Set([...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
   return { predicate_prefixes: prefixes, effective_from: periodStart(scope, cutoff, route.length > 0) };
+}
+
+// The metrics, in earnings-release terms (sec-earnings-release-extraction.ts),
+// whose explanations answer the question: margins first when it asks about
+// them, then each metric it names (a qualified one, "free cash flow margin",
+// by the metric it qualifies).
+const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string>>> = {
+  free_cash_flow: ["free_cash_flow", "operating_cash_flow", "capex"],
+  operating_cash_flow: ["operating_cash_flow"],
+  capex: ["capex"],
+  eps_diluted: ["eps"],
+  eps_basic: ["eps"],
+  non_gaap_income: ["operating_income", "net_income"],
+  income_statement: ["revenue"],
+};
+
+function explainedMetrics(scope: ResearchScope): string[] {
+  const margins = scope.margins || scope.reads === "derived_margin";
+  const metrics: string[] = margins ? ["gross_margin", "operating_income", "net_income"] : [];
+  for (const requested of scope.metrics) {
+    // In a margin question, the income statement it names is the margin.
+    if (margins && requested.metric_key === "income_statement") continue;
+    const base = Object.keys(EXPLAINED_BY).find((key) => requested.metric_key === key || requested.metric_key.startsWith(`${key}_`));
+    if (base) metrics.push(...EXPLAINED_BY[base]!);
+  }
+  return [...new Set(metrics)];
 }
 
 // ponytail: calendar approximations of the readers' periods; a fiscal year is
@@ -223,8 +252,10 @@ const STANCE: Readonly<Record<string, PacketClaim["stance"]>> = {
 
 function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
   const { predicate_prefixes: prefixes, effective_from: from } = claimSelection(scope, cutoff);
+  // Named by family ("management", not each metric's explanation).
+  const families = [...new Set(prefixes.map((prefix) => prefix.split(".")[0]!))];
   const route = prefixes.length > 0
-    ? `${new Intl.ListFormat("en").format(prefixes.map((prefix) => prefix.replace(/\.$/, "")))} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
+    ? `${new Intl.ListFormat("en").format(families)} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
     : "the most recent claims";
   return `${route}, published by the ${cutoff.slice(0, 10)} cutoff; a claim repeated by several sources or copies counts once`;
 }

@@ -223,13 +223,18 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
 - **The model picks, the filing decides.** The model gets the EX-99 exhibits as plain text (tags dropped, entities
   decoded, typographic quotes and dashes made plain) and returns up to 8 `{kind, metric, quote}`: kind explanation or
   guidance, metric from a closed list. A quote is kept only if it appears verbatim in an exhibit (in that canonical
-  form), and the stored text is the exhibit's own, never the model's string. Paraphrases and invented causes are
-  dropped.
+  form) as whole sentences: it starts at a block edge or after a sentence's end, and ends at a block edge or with its
+  own end mark. So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
+  to weaker demand") is rejected, while a sentence after a heading block is whole. The stored text is the exhibit's
+  own, never the model's string. Paraphrases and invented causes are dropped.
 - **Claims:** `management.explanation.<metric>` or `guidance.<metric>`, modality `quoted`, attributed to the issuer,
   dated by the filing, confidence 0.8 (the words are verified; reading them as an explanation is the model's). A
   `claim_evidence` row locates each one (exhibit, character span, quote hash).
 - **Chat** reads `management.` claims first on every route that reads figures (latest quarter, trends, margins,
   segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
+  The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
+  metric named), since one release can hold more explanations than the claim limit. The loader ranks claims by the
+  first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`).
 - **Run it** after the 8-K crawl: `npm run extract:earnings-releases` (in `services/evidence`). It is a batch step,
   never the crawl: one model call per release, at low reasoning; about 46 s on the dev model in a probe (4 minutes at
   its default reasoning).

@@ -82,6 +82,18 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
   const curly = verifyStatement({ kind: "explanation", metric: "gross_margin", quote: "NVIDIA’s gross margin  was 60.5%, reflecting the H20 charge." }, exhibits);
   assert.equal(curly?.quote, "NVIDIA's gross margin was 60.5%, reflecting the H20 charge.");
 
+  // A clause cut from a sentence is not a quote of it: it can drop the words
+  // that change its meaning.
+  const negated = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Gaming results were mixed. Revenue did not decline due to weaker demand in the quarter.</div>" +
+      "<div>Data Center</div><div>Revenue was up 73%, driven by demand for our accelerated computing platform.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "decline due to weaker demand in the quarter." }, negated), null);
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline due to weaker demand" }, negated), null);
+  assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline due to weaker demand in the quarter." }, negated));
+  // A sentence after a heading block (no punctuation between) is whole.
+  assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue was up 73%, driven by demand for our accelerated computing platform." }, negated));
+
   // A paraphrase, an invented cause, or a fragment is not a quote.
   for (const quote of [
     "We incurred a $4.5 billion charge because demand for H20 fell.",

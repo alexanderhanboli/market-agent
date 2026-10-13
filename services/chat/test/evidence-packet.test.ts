@@ -165,8 +165,25 @@ test("a route reads its predicate families first, from the start of the period i
     effective_from: "2024-09-01T00:00:00.000Z",
   });
   assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.", "segment.", "guidance."]);
+  // Management's explanation of what the question asks about comes before its
+  // other explanations: one release can hold more than the claim limit.
+  assert.deepEqual(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?"), CUTOFF).predicate_prefixes, [
+    "management.explanation.gross_margin",
+    "management.explanation.operating_income",
+    "management.explanation.net_income",
+    "management.",
+    "guidance.",
+    "kpi.",
+  ]);
+  assert.deepEqual(claimSelection(scope("What is NVDA's free cash flow?"), CUTOFF).predicate_prefixes.slice(0, 4), [
+    "management.explanation.free_cash_flow",
+    "management.explanation.operating_cash_flow",
+    "management.explanation.capex",
+    "management.",
+  ]);
+  assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
   for (const question of ["How have NVDA's margins trended?", "What is NVDA's free cash flow?", "Compare NVDA with AMD"]) {
-    assert.equal(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes[0], "management.", question);
+    assert.ok(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes[0]!.startsWith("management."), question);
   }
   assert.equal(claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
   assert.deepEqual(claimSelection(undefined, CUTOFF), { predicate_prefixes: [], effective_from: null });

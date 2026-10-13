@@ -78,7 +78,10 @@ export type ReleaseCandidate = {
   effectiveTime: string | null;
 };
 
-export type ReleaseExhibit = { type: string; text: string };
+// An exhibit's text, and where its HTML blocks (paragraphs, list items, table
+// cells, headings) start and end in it: a heading has no full stop, so a block
+// edge is a sentence edge too.
+export type ReleaseExhibit = { type: string; text: string; edges: ReadonlySet<number> };
 export type ReleaseStatement = { kind: ReleaseStatementKind; metric: ReleaseMetric; quote: string };
 export type VerifiedStatement = ReleaseStatement & { exhibit: string; start: number; end: number };
 
@@ -142,11 +145,22 @@ export function releaseExhibits(submission: string): ReleaseExhibit[] {
     const type = /<TYPE>([^\n<]+)/.exec(document!)?.[1]?.trim() ?? "";
     if (!/^EX-99(?:\.\d+)?$/i.test(type)) continue;
     const body = /<TEXT>([\s\S]*)<\/TEXT>/.exec(document!)?.[1] ?? "";
-    const text = canonicalText(body);
-    if (text !== "") exhibits.push({ type: type.toUpperCase(), text });
+    const blocks = body.split(BLOCK_BREAK).map(canonicalText).filter((block) => block !== "");
+    const edges = new Set<number>();
+    let at = 0;
+    for (const block of blocks) {
+      edges.add(at);
+      at += block.length;
+      edges.add(at);
+      at += 1; // the space joining blocks
+    }
+    const text = blocks.join(" ");
+    if (text !== "") exhibits.push({ type: type.toUpperCase(), text, edges });
   }
   return exhibits;
 }
+
+const BLOCK_BREAK = /<(?:\/(?:div|p|li|tr|td|th|h[1-6]|table|ul|ol)|br\s*\/?)\s*>/i;
 
 // Exhibit HTML (or text) as comparable text: tags dropped, entities decoded,
 // typographic quotes and dashes made plain, whitespace collapsed. Quotes are
@@ -208,19 +222,37 @@ export function parseReleaseStatements(text: string): ReleaseStatement[] | null 
   return statements;
 }
 
-// A statement whose quote is in an exhibit, verbatim (in canonical form), with
-// where it is; null for a quote the exhibits do not hold, or one too short or
-// long to be a sentence. The stored text is the exhibit's, not the model's.
+// A statement whose quote is in an exhibit, verbatim (in canonical form) and
+// as whole sentences, with where it is; null for a quote the exhibits do not
+// hold, a clause cut from a sentence ("decline due to weaker demand" out of
+// "Revenue did not decline due to weaker demand"), or one too short or long.
+// The stored text is the exhibit's, not the model's.
 export function verifyStatement(statement: ReleaseStatement, exhibits: ReadonlyArray<ReleaseExhibit>): VerifiedStatement | null {
   const quote = canonicalText(statement.quote);
   if (quote.length < MIN_QUOTE_CHARS || quote.length > MAX_QUOTE_CHARS) return null;
   for (const exhibit of exhibits) {
-    const start = exhibit.text.indexOf(quote);
-    if (start >= 0) {
-      return { ...statement, quote: exhibit.text.slice(start, start + quote.length), exhibit: exhibit.type, start, end: start + quote.length };
+    for (let start = exhibit.text.indexOf(quote); start >= 0; start = exhibit.text.indexOf(quote, start + 1)) {
+      const end = start + quote.length;
+      if (startsSentence(exhibit, start) && endsSentence(exhibit, end)) {
+        return { ...statement, quote: exhibit.text.slice(start, end), exhibit: exhibit.type, start, end };
+      }
     }
   }
   return null;
+}
+
+// A sentence starts where a block starts, or after a sentence's end (a full
+// stop, question or exclamation mark, colon, semicolon or bullet).
+function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
+  return exhibit.edges.has(start) || /[.!?:;•]["')]?\s$/.test(exhibit.text.slice(Math.max(0, start - 3), start));
+}
+
+// A sentence ends where a block ends, or with its own end mark (and a closing
+// quote or bracket), before a space or the end of the text.
+function endsSentence(exhibit: ReleaseExhibit, end: number): boolean {
+  if (exhibit.edges.has(end)) return true;
+  const next = exhibit.text[end];
+  return /[.!?]["')]?$/.test(exhibit.text.slice(Math.max(0, end - 2), end)) && (next === undefined || next === " ");
 }
 
 function buildMessages(exhibits: ReadonlyArray<ReleaseExhibit>): LlmChatMessage[] {
