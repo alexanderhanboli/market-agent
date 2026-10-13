@@ -120,6 +120,17 @@ function qualifierParts(qualifier: string): { key: string; label: string } {
 const EVIDENCE =
   /\b(evidence|cite|citations?|(?:the|your|its) sources?(?!\s+of\b)|sources? (?:for|of) (?:this|that|these|those)|where (?:does|do|did) (?:this|that|these|those) come from)\b/i;
 
+// How a statement names the cash of an activity after it: "cash from",
+// "provided by", "used in", "used for", and the label's "provided by (used
+// in)". One phrasing for operating, investing and financing alike.
+const CASH_FOR = String.raw`\bcash(?:[- ]flows?)? (?:(?:was|is|were) )?(?:from|generated (?:by|from)|(?:provided by|used (?:in|for))(?: \((?:provided by|used in)\))?) `;
+
+// A cash flow category named before "cash flow" (its prepositive pattern) or
+// after "cash ..." (its activity).
+function cashFlowPattern(prepositive: string, activity: string): RegExp {
+  return new RegExp(String.raw`${prepositive}|${CASH_FOR}${activity}\b`, "gi");
+}
+
 // The metrics a question can name, most specific first: each match is removed
 // before the next is tried, so "free cash flow" is not also "cash flow" and
 // "earnings per share" is not also "earnings".
@@ -130,22 +141,21 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
     metric_key: "financing_cash_flow",
     label: "Financing cash flow",
     available: false,
-    pattern: /\bfinancing cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used (?:in|for)|provided by|(?:provided by|used in) \(?used in\)?) financing(?: activities)?\b/gi,
+    pattern: cashFlowPattern(String.raw`\bfinancing cash[- ]flows?\b`, String.raw`financing(?: activities)?`),
   },
   {
     metric_key: "investing_cash_flow",
     label: "Investing cash flow",
     available: false,
-    pattern: /\binvesting cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used (?:in|for)|provided by|(?:provided by|used in) \(?used in\)?) investing(?: activities)?\b/gi,
+    pattern: cashFlowPattern(String.raw`\binvesting cash[- ]flows?\b`, String.raw`investing(?: activities)?`),
   },
-  // Unqualified "cash flow" means operating cash flow.
-  // So is cash "from operations" / "provided by operating activities".
+  // Unqualified "cash flow" means operating cash flow, and so does cash "from
+  // operations" or "used in operating activities" (a negative one).
   {
     metric_key: "operating_cash_flow",
     label: "Operating cash flow",
     available: true,
-    // A negative operating cash flow is cash "used in" operating activities.
-    pattern: /\b(?:operating )?cash[- ]flows?\b|\bcash (?:(?:was|is|were) )?(?:from|provided by|used (?:in|for)|generated (?:by|from)) (?:operations|operating activities)\b/gi,
+    pattern: cashFlowPattern(String.raw`\b(?:operating )?cash[- ]flows?\b`, String.raw`(?:operations|operating activities)`),
   },
   { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
   // The whole balance sheet, or one item of it, each its own request: a cash

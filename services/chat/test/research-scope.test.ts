@@ -340,6 +340,8 @@ test("cash from operations and cash equivalents are the statement figures they n
     // A negative operating cash flow is reported as cash used.
     "What was AMD's net cash used in operating activities?",
     "AMD cash used for operations",
+    // The statement's own label.
+    "What was AMD's net cash provided by (used in) operating activities?",
   ]) {
     assert.deepEqual(keys(question), ["operating_cash_flow"], question);
   }
@@ -347,6 +349,12 @@ test("cash from operations and cash equivalents are the statement figures they n
   assert.deepEqual(keys("AMD cash provided by financing activities"), ["financing_cash_flow"]);
   assert.deepEqual(keys("AMD cash used for investing activities"), ["investing_cash_flow"]);
   assert.deepEqual(keys("AMD cash flows used for financing activities"), ["financing_cash_flow"]);
+  // One phrasing for all three categories, so none drifts from the others.
+  for (const [activity, key] of [["operating", "operating_cash_flow"], ["investing", "investing_cash_flow"], ["financing", "financing_cash_flow"]] as const) {
+    for (const verb of ["from", "provided by", "used in", "used for", "provided by (used in)", "used in (provided by)"]) {
+      assert.deepEqual(keys(`AMD net cash ${verb} ${activity} activities`), [key], `${verb} ${activity}`);
+    }
+  }
   assert.deepEqual(keys("What are NVDA's cash equivalents?"), ["cash_and_equivalents"]);
   assert.equal(fresh("What was NVDA's cash from operations?", [NVDA]).route, "statements");
 });
