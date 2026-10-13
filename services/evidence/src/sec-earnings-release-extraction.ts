@@ -162,7 +162,8 @@ export function releaseExhibits(submission: string): ReleaseExhibit[] {
   return exhibits;
 }
 
-const BLOCK_BREAK = /<(?:\/(?:div|p|li|tr|td|th|h[1-6]|table|ul|ol)|br\s*\/?)\s*>/i;
+// A closing block tag, or a line break (with any attributes).
+const BLOCK_BREAK = /<(?:\/(?:div|p|li|tr|td|th|h[1-6]|table|ul|ol)\s*|br\b[^>]*)>/i;
 const MARKUP = /<\/?(?:html|body|div|p|br|table|font|span)\b/i;
 
 // A plain-text exhibit's blocks: its paragraphs (between blank lines), with a
@@ -170,7 +171,7 @@ const MARKUP = /<\/?(?:html|body|div|p|br|table|font|span)\b/i;
 // sentence wrapped across lines stays one block. ponytail: a mixed-case
 // heading line ("Outlook") is read as the start of its paragraph.
 function plainTextBlocks(body: string): string[] {
-  return body.split(/\n[ \t]*\n/).flatMap((paragraph) => {
+  return body.replace(/\r\n?/g, "\n").split(/\n[ \t]*\n/).flatMap((paragraph) => {
     const blocks: string[] = [];
     let lines: string[] = [];
     for (const line of paragraph.split("\n")) {

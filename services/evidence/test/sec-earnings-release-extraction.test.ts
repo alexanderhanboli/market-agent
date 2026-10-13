@@ -73,6 +73,16 @@ test("a plain-text exhibit's headings and paragraphs are blocks, so the sentence
   const wrapped = "Gross margins are expected to be 71.8% and 72.0%, respectively.";
   assert.ok(verifyStatement({ kind: "guidance", metric: "gross_margin", quote: wrapped }, exhibits), "wrapped");
   assert.equal(verifyStatement({ kind: "guidance", metric: "gross_margin", quote: "Gross margins are expected to be 71.8%" }, exhibits), null, "a wrapped line alone");
+  // CRLF line endings, as many plain-text filings have.
+  const crlf = releaseExhibits("<DOCUMENT>\r\n<TYPE>EX-99.1\r\n<TEXT>\r\nFirst quarter results\r\n\r\nRevenue is expected to be $45.0 billion, plus or minus 2%.\r\n</TEXT>\r\n</DOCUMENT>");
+  assert.ok(verifyStatement({ kind: "guidance", metric: "revenue", quote: REVENUE_GUIDANCE }, crlf), "after a CRLF blank line");
+});
+
+test("an HTML line break with attributes is a block edge", () => {
+  const exhibits = releaseExhibits(
+    `<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<html><body><p>Outlook<br style="clear:both">${REVENUE_GUIDANCE}</p></body></html>\n</TEXT>\n</DOCUMENT>`,
+  );
+  assert.ok(verifyStatement({ kind: "guidance", metric: "revenue", quote: REVENUE_GUIDANCE }, exhibits));
 });
 
 test("a release longer than one prompt is read whole, across prompts split between blocks", () => {
