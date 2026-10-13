@@ -315,6 +315,20 @@ test("a route's prefix group ranks its predicates together, newest first", async
     },
   });
   assert.ok(evidence.claim_refs.includes(OPERATING), "the operating income explanation is read");
+
+  // Older than all of them, it is still read: within a tier each predicate
+  // takes its turn (its newest first), so no one metric fills every slot.
+  const OLDER = "c4000000-0000-4000-8000-0000000000e9";
+  await claim(db, { id: OLDER, ...explanation, predicate: "management.explanation.net_income", text: "Net income fell on a tax charge.", at: "2025-12-01T00:00:00Z" });
+  const turns = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 5,
+    selection: {
+      predicate_prefixes: [["management.explanation.revenue", "management.explanation.operating_income", "management.explanation.net_income"]],
+      effective_from: null,
+    },
+  });
+  assert.deepEqual([...turns.claim_refs.slice(0, 3)].sort(), [OPERATING, INSIDER(5), OLDER].sort(), "each metric's newest first");
 });
 
 // A fiscal year is the issuer's own: one ending in September reads the releases

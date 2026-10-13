@@ -161,12 +161,12 @@ test("a route reads its predicate families first, from the start of the period i
   // Management's own explanations come first on every route: they are the only
   // causes an answer may state.
   assert.deepEqual(claimSelection(scope("Analyze NVDA's latest quarter"), CUTOFF), {
-    predicate_prefixes: ["management.", "guidance.", "kpi."],
+    predicate_prefixes: ["management.explanation.", "guidance.", "kpi."],
     effective_from: "2024-09-01T00:00:00.000Z",
     effective_until: null,
     fiscal_year: null,
   });
-  assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.", "segment.", "guidance."]);
+  assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.explanation.", "segment.", "guidance."]);
   // Management's explanation of what the question asks about comes before its
   // other explanations: one release can hold more than the claim limit. The
   // margin named comes first; the others share one priority after it, so none
@@ -175,7 +175,7 @@ test("a route reads its predicate families first, from the start of the period i
   assert.deepEqual(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?"), CUTOFF).predicate_prefixes, [
     "management.explanation.gross_margin",
     MARGINS,
-    "management.",
+    "management.explanation.",
     "guidance.",
     "kpi.",
   ]);
@@ -183,7 +183,7 @@ test("a route reads its predicate families first, from the start of the period i
   assert.deepEqual(claimSelection(scope("What is NVDA's free cash flow?"), CUTOFF).predicate_prefixes.slice(0, 3), [
     "management.explanation.free_cash_flow",
     ["management.explanation.operating_cash_flow", "management.explanation.capex"],
-    "management.",
+    "management.explanation.",
   ]);
   // A question asking for guidance reads it first: for the metric it names,
   // then any. Whatever the figures' route, a metric no reader serves included:
@@ -228,10 +228,10 @@ test("a route reads its predicate families first, from the start of the period i
       "management.explanation.operating_income",
       "management.explanation.net_income",
     ],
-    "management.",
+    "management.explanation.",
   ]);
   for (const question of ["How have NVDA's margins trended?", "What is NVDA's free cash flow?", "Compare NVDA with AMD"]) {
-    assert.ok(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("management."), question);
+    assert.ok(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("management.explanation."), question);
   }
   // A fiscal year's window ends a quarter after the year, when its last release is out.
   const fiscal = claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF);
@@ -318,7 +318,7 @@ test("a price window adds its event predicates to the route's, over the route's 
   const ytd = scope("Compare NVDA with AMD YTD", [NVDA, AMD]);
   assert.equal(ytd.reads, "comparison");
   assert.deepEqual(claimSelection(ytd, CUTOFF), {
-    predicate_prefixes: ["management.", "guidance.", "kpi.", "material_event."],
+    predicate_prefixes: ["management.explanation.", "guidance.", "kpi.", "material_event."],
     effective_from: "2024-09-01T00:00:00.000Z",
     effective_until: null,
     fiscal_year: null,

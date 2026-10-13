@@ -288,13 +288,14 @@ export async function loadLocalRuntimeEvidence(
             subject_id
        from selected
       -- Relevant claims first, by their prefix's priority; within each tier,
-      -- companies take turns (each one's newest first), so a comparison's
-      -- slots are not all one company's.
+      -- companies and predicates take turns (each one's newest first), so a
+      -- comparison's slots are not all one company's, nor a tier's all one
+      -- metric's.
       order by relevant desc,
                case when relevant then tier end asc nulls last,
                case when $10::boolean
                  then row_number() over (
-                   partition by relevant, case when relevant then tier end, subject_id
+                   partition by relevant, case when relevant then tier end, subject_id, case when relevant then predicate end
                    order by coalesce(effective_time, published_at, claim_created_at) desc nulls last, claim_id desc)
                  else 0 end,
                coalesce(effective_time, published_at, claim_created_at) desc nulls last,

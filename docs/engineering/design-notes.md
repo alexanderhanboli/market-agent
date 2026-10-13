@@ -233,7 +233,7 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
 - **Claims:** `management.explanation.<metric>` or `guidance.<metric>`, modality `quoted`, attributed to the issuer,
   dated by the filing, confidence 0.8 (the words are verified; reading them as an explanation is the model's). A
   `claim_evidence` row locates each one (exhibit, character span, quote hash).
-- **Chat** reads `management.` claims first on every route that reads figures (latest quarter, trends, margins,
+- **Chat** reads `management.explanation.` claims first (not `management.tone`) on every route that reads figures (latest quarter, trends, margins,
   segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
   The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
   metric named), since one release can hold more explanations than the claim limit. The scope reads revenue, margins
@@ -244,7 +244,9 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   whatever the figures' route. The loader ranks claims by the
   first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`); a group of
   prefixes shares one where the scope doesn't record which was named (an operating income, net income or expenses
-  question is read as the income statement, so its explanations rank together; so do the margins'). A question about a fiscal year reads the releases
+  question is read as the income statement, so its explanations rank together; so do the margins'). Within a
+  priority, each predicate (and each company) takes its turn, newest first, so no one metric fills every slot.
+  A question about a fiscal year reads the releases
   about that year first: from the end of its first quarter until a quarter after it ends, by the issuer's own fiscal
   year where its facts date it (calendar bounds from the label otherwise), so later releases don't crowd it out. The
   window is a year, not the quarter asked about.

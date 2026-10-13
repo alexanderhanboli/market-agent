@@ -81,14 +81,15 @@ export type EvidencePacket = {
 // start of the period it covers. Others still fill any room left, newest first.
 // Management's own explanations (management.explanation.*, verbatim from
 // earnings releases) come first on every route: they are the only causes an
-// answer may state.
+// answer may state. Not management's other claims (management.tone, from IR
+// pages), which are no explanation.
 const ROUTE_PREDICATES: Partial<Record<ResearchScope["reads"], ReadonlyArray<string>>> = {
-  latest_quarter: ["management.", "guidance.", "kpi."],
-  trend: ["management.", "guidance.", "kpi."],
-  derived_margin: ["management.", "guidance.", "kpi."],
-  comparison: ["management.", "guidance.", "kpi."],
-  segments: ["management.", "segment.", "guidance."],
-  statements: ["management.", "guidance.", "kpi."],
+  latest_quarter: ["management.explanation.", "guidance.", "kpi."],
+  trend: ["management.explanation.", "guidance.", "kpi."],
+  derived_margin: ["management.explanation.", "guidance.", "kpi."],
+  comparison: ["management.explanation.", "guidance.", "kpi."],
+  segments: ["management.explanation.", "segment.", "guidance."],
+  statements: ["management.explanation.", "guidance.", "kpi."],
 };
 const PRICE_PREDICATES = ["material_event.", "guidance."];
 
