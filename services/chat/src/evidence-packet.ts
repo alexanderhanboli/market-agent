@@ -95,48 +95,71 @@ const PRICE_PREDICATES = ["material_event.", "guidance."];
 export function claimSelection(
   scope: ResearchScope | undefined,
   cutoff: string,
-): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null; effective_until: string | null } {
-  if (!scope) return { predicate_prefixes: [], effective_from: null, effective_until: null };
+): ClaimSelection {
+  if (!scope) return { predicate_prefixes: [], effective_from: null, effective_until: null, fiscal_year: null };
   const route = ROUTE_PREDICATES[scope.reads] ?? [];
   // Management's explanation of what the question asks about comes before its
   // other explanations: one release can hold more of them than the claim limit.
-  const explained = route.length > 0 ? explainedMetrics(scope).map((metric) => `management.explanation.${metric}`) : [];
+  const explanation = (metric: string) => `management.explanation.${metric}`;
+  const explained = route.length > 0
+    ? explainedMetrics(scope).map((entry) => (typeof entry === "string" ? explanation(entry) : entry.map(explanation)))
+    : [];
   // A price window adds the events that move a price, whatever else is read.
   const prefixes = [...new Set([...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
   return {
     predicate_prefixes: prefixes,
     effective_from: periodStart(scope, cutoff, route.length > 0),
     // A fiscal year's window ends a quarter after it (its last release); a
-    // later release's explanation is of another period.
+    // later release's explanation is of another period. The loader dates it by
+    // the issuer's own fiscal year where its facts do; these calendar bounds
+    // are the fallback.
     effective_until: scope.fiscal_year !== null ? `${scope.fiscal_year + 1}-04-01T00:00:00.000Z` : null,
+    fiscal_year: scope.fiscal_year,
   };
 }
+
+type ClaimSelection = {
+  // In priority order; a group's prefixes share one.
+  predicate_prefixes: ReadonlyArray<string | ReadonlyArray<string>>;
+  effective_from: string | null;
+  effective_until: string | null;
+  fiscal_year: number | null;
+};
 
 // The metrics, in earnings-release terms (sec-earnings-release-extraction.ts),
 // whose explanations answer the question: margins first when it asks about
 // them, then each metric it names (a qualified one, "free cash flow margin",
 // by the metric it qualifies).
-const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string>>> = {
+// A group shares one priority.
+const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string | ReadonlyArray<string>>>> = {
   free_cash_flow: ["free_cash_flow", "operating_cash_flow", "capex"],
   operating_cash_flow: ["operating_cash_flow"],
   capex: ["capex"],
   eps_diluted: ["eps"],
   eps_basic: ["eps"],
   non_gaap_income: ["operating_income", "net_income"],
-  // Operating and net income are read as the income statement too.
-  income_statement: ["revenue", "operating_income", "net_income"],
+  // Operating and net income are read as the income statement too, so no one
+  // of its explanations comes before the others.
+  income_statement: [["revenue", "operating_income", "net_income"]],
 };
 
-function explainedMetrics(scope: ResearchScope): string[] {
+function explainedMetrics(scope: ResearchScope): Array<string | ReadonlyArray<string>> {
   const margins = scope.margins || scope.reads === "derived_margin";
-  const metrics: string[] = margins ? ["gross_margin", "operating_income", "net_income"] : [];
+  const metrics: Array<string | ReadonlyArray<string>> = margins ? ["gross_margin", "operating_income", "net_income"] : [];
   for (const requested of scope.metrics) {
     // In a margin question, the income statement it names is the margin.
     if (margins && requested.metric_key === "income_statement") continue;
     const base = Object.keys(EXPLAINED_BY).find((key) => requested.metric_key === key || requested.metric_key.startsWith(`${key}_`));
     if (base) metrics.push(...EXPLAINED_BY[base]!);
   }
-  return [...new Set(metrics)];
+  // Each once, at its first and highest priority.
+  const seen = new Set<string>();
+  return metrics.filter((entry) => {
+    const members = typeof entry === "string" ? [entry] : entry;
+    if (members.every((metric) => seen.has(metric))) return false;
+    members.forEach((metric) => seen.add(metric));
+    return true;
+  });
 }
 
 // ponytail: calendar approximations of the readers' periods; a fiscal year is
@@ -260,7 +283,7 @@ const STANCE: Readonly<Record<string, PacketClaim["stance"]>> = {
 function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
   const { predicate_prefixes: prefixes, effective_from: from, effective_until: until } = claimSelection(scope, cutoff);
   // Named by family ("management", not each metric's explanation).
-  const families = [...new Set(prefixes.map((prefix) => prefix.split(".")[0]!))];
+  const families = [...new Set(prefixes.flat().map((prefix) => prefix.split(".")[0]!))];
   const route = prefixes.length > 0
     ? `${new Intl.ListFormat("en").format(families)} claims${from ? ` from ${from.slice(0, 10)}` : ""}${until ? ` until ${until.slice(0, 10)}` : ""} first, then the most recent others`
     : "the most recent claims";

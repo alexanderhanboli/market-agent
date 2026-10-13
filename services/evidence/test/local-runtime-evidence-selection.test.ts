@@ -287,3 +287,75 @@ test("a route's window ends where the period it asks about does", async (t) => {
   });
   assert.equal(evidence.claim_refs[0], IN_YEAR, "the year's explanation, though older, comes first");
 });
+
+// A group of prefixes shares one priority: an operating income explanation in
+// the newest release comes before revenue's in older ones.
+test("a route's prefix group ranks its predicates together, newest first", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-group");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc')`, [ISSUER]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const OPERATING = "c4000000-0000-4000-8000-0000000000e3";
+  const explanation = { source: FILINGS, polarity: "neutral" };
+  for (let n = 1; n <= 5; n++) {
+    await claim(db, { id: INSIDER(n), ...explanation, predicate: "management.explanation.revenue", text: `Revenue grew for reason ${n}.`, at: `2026-0${n}-01T00:00:00Z` });
+  }
+  await claim(db, { id: OPERATING, ...explanation, predicate: "management.explanation.operating_income", text: "Operating income fell on higher costs.", at: "2026-05-01T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 5,
+    selection: {
+      predicate_prefixes: [["management.explanation.revenue", "management.explanation.operating_income"], "management."],
+      effective_from: null,
+    },
+  });
+  assert.ok(evidence.claim_refs.includes(OPERATING), "the operating income explanation is read");
+});
+
+// A fiscal year is the issuer's own: one ending in September reads the releases
+// about it (after its first quarter, until a quarter after it ends), not the
+// next year's first quarter.
+test("a fiscal year's window follows the issuer's fiscal calendar", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-fiscal");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc')`, [ISSUER]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const { rows: [metric] } = await db.query<{ metric_id: string }>(
+    `insert into metrics (metric_key, display_name, unit_class, aggregation, interpretation, canonical_source_class)
+     values ('revenue', 'Revenue', 'currency', 'sum', 'higher_is_better', 'filing') returning metric_id`,
+  );
+  await db.query(
+    `insert into facts (subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+                        value_num, unit, currency, as_of, observed_at, source_id, method, verification_status,
+                        freshness_class, coverage_level, confidence)
+     values ('issuer', $1, $2, 'fiscal_y', '2024-09-29', '2025-09-27', 2025, 'FY', 1, 'currency', 'USD', now(), now(), $3,
+             'reported', 'authoritative', 'filing_time', 'full', 1)`,
+    [ISSUER, metric!.metric_id, FILINGS],
+  );
+  const FY_Q4 = "c4000000-0000-4000-8000-0000000000e4";
+  const explanation = { source: FILINGS, predicate: "management.explanation.gross_margin", polarity: "neutral" };
+  await claim(db, { id: FY_Q4, ...explanation, text: "Gross margin rose on mix in the fourth quarter.", at: "2025-10-30T00:00:00Z" });
+  // The next fiscal year's first quarter, still before the label's April fallback.
+  await claim(db, { id: INSIDER(1), ...explanation, text: "Gross margin fell in the first quarter.", at: "2026-01-29T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 1,
+    selection: {
+      predicate_prefixes: ["management.explanation.gross_margin"],
+      effective_from: "2024-01-01T00:00:00.000Z",
+      effective_until: "2026-04-01T00:00:00.000Z",
+      fiscal_year: 2025,
+    },
+  });
+  assert.deepEqual(evidence.claim_refs, [FY_Q4]);
+});
