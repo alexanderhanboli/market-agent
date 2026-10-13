@@ -23,7 +23,7 @@
 import { createHash } from "node:crypto";
 
 import type { LlmChatMessage, LlmChatRequest, LlmRouterResult } from "../../llm/src/router.ts";
-import { writeToolCallLog } from "../../observability/src/tool-call.ts";
+import { runLoggedToolCall, writeToolCallLog } from "../../observability/src/tool-call.ts";
 import { createClaimArgument } from "./claim-argument-repo.ts";
 import { createClaimEvidence } from "./claim-evidence-repo.ts";
 import { createClaim } from "./claim-repo.ts";
@@ -288,12 +288,13 @@ function endMarkBefore(text: string, at: number, marks: RegExp): boolean {
 }
 
 // A sentence starts where a block starts, or after a sentence's end (a full
-// stop, question or exclamation mark, colon, semicolon or bullet) with what a
-// sentence starts with.
+// stop, question or exclamation mark, or a bullet) with what a sentence starts
+// with. Not after a colon or semicolon: what follows one is part of a sentence
+// ("This is not company guidance: Revenue is expected to...").
 function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
   if (exhibit.edges.has(start)) return true;
   return /\s/.test(exhibit.text[start - 1] ?? "") &&
-    endMarkBefore(exhibit.text, start - 1, /[.!?:;•]["')]?$/) &&
+    endMarkBefore(exhibit.text, start - 1, /[.!?•]["')]?$/) &&
     SENTENCE_START.test(exhibit.text.slice(start));
 }
 
@@ -376,11 +377,21 @@ export async function extractReleaseStatements(
   // Every prompt is read.
   const proposed: ReleaseStatement[] = [];
   let unparseable = false;
-  for (const prompt of releasePrompts(exhibits)) {
-    // Low reasoning: it picks sentences, and the quote check does the rest. A
-    // large model's default reasoning took 4 minutes on one release in a probe.
-    const completion = await deps.llm.complete({ messages: buildMessages(prompt), temperature: 0, maxTokens: 3_000, reasoning: "low" });
-    model = completion.deployment.model;
+  const prompts = releasePrompts(exhibits);
+  for (const [index, prompt] of prompts.entries()) {
+    // Each call is recorded for audit, a failed one too (as digests: that it
+    // ran, not what it said). Low reasoning: it picks sentences, and the quote
+    // check does the rest; a large model's default reasoning took 4 minutes on
+    // one release in a probe.
+    const completion = await runLoggedToolCall(deps.db, {
+      tool_name: "extract_earnings_release.prompt",
+      args: { claim_id: candidate.claimId, accession: candidate.accession, prompt: index + 1, prompts: prompts.length },
+      invoke: async () => {
+        const reply = await deps.llm.complete({ messages: buildMessages(prompt), temperature: 0, maxTokens: 3_000, reasoning: "low" });
+        return { model: reply.deployment.model, text: reply.text };
+      },
+    });
+    model = completion.model;
     const statements = parseReleaseStatements(completion.text);
     if (statements === null) unparseable = true;
     else proposed.push(...statements);

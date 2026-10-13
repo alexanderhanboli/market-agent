@@ -13,7 +13,7 @@
 // Idempotent: enriched_at marks each Item 2.02 claim processed.
 import { Pool } from "pg";
 import { createLlmRouterFromEnv } from "../../llm/src/settings-loader.ts";
-import { runReleaseExtractionDrain } from "./sec-earnings-release-extraction.ts";
+import { runReleaseExtractionDrain, type ExtractReleaseDrainResult } from "./sec-earnings-release-extraction.ts";
 import { SecEdgarClient } from "./sec-edgar.ts";
 
 async function main(): Promise<void> {
@@ -48,8 +48,14 @@ async function main(): Promise<void> {
       `${result.no_exhibits} without exhibits, ${result.noop} already-done, ${result.failed} failed`,
   );
   // Per-filing failures are logged and the drain continues, but automation must
-  // still see a non-zero exit when any filing failed.
-  if (result.failed > 0) process.exitCode = 1;
+  // still see a non-zero exit when any filing is left to retry.
+  if (drainIncomplete(result)) process.exitCode = 1;
+}
+
+// A filing that failed, or that the model answered badly, is left unread for
+// the next run.
+export function drainIncomplete(result: ExtractReleaseDrainResult): boolean {
+  return result.failed > 0 || result.unparseable > 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

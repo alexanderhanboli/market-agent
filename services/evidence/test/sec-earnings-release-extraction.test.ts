@@ -12,6 +12,7 @@ import {
   verifyStatement,
   type ExtractReleaseDeps,
 } from "../src/sec-earnings-release-extraction.ts";
+import { drainIncomplete } from "../src/sec-earnings-release-cli.ts";
 import type { QueryExecutor } from "../src/types.ts";
 import { bootstrapDatabase, connectedClient, dockerAvailable } from "../../../db/test/docker-pg.ts";
 
@@ -155,6 +156,11 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
   assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "due to weaker demand." }, abbreviated), null);
   assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S." }, abbreviated), null);
   assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S. due to weaker demand." }, abbreviated));
+  // A colon or semicolon ends no sentence: what follows it is part of one.
+  const qualified = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance: Revenue is expected to grow 10%.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "Revenue is expected to grow 10%." }, qualified), null);
   // Nor before a capitalized continuation ("the U.S. Data Center market").
   const continued = releaseExhibits(
     "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Revenue did not decline in the U.S. Data Center market due to weaker demand.</div>\n</TEXT>\n</DOCUMENT>",
@@ -277,7 +283,9 @@ test("an earnings release's verified quotes become management claims, once", { s
   const argued = await client.query(`select 1 from claim_arguments where subject_id = $1`, [seeded.issuerId]);
   assert.equal(argued.rowCount, 4);
   const audit = await client.query(`select 1 from tool_call_logs where tool_name = 'extract_earnings_release' and status = 'ok'`);
-  assert.equal(audit.rowCount, 1, "the model call is recorded for audit");
+  assert.equal(audit.rowCount, 1, "the filing's outcome is recorded for audit");
+  const logged = await client.query(`select 1 from tool_call_logs where tool_name = 'extract_earnings_release.prompt' and status = 'ok'`);
+  assert.equal(logged.rowCount, 1, "and each model call");
 
   // Processed once: no longer a candidate, and a second pass over it changes nothing.
   assert.deepEqual(await findReleaseCandidates(client), []);
@@ -298,6 +306,21 @@ test("a release the model answers badly stays a candidate, with nothing stored",
   // The model call is still recorded for audit.
   const audit = await client.query(`select 1 from tool_call_logs where tool_name = 'extract_earnings_release' and status = 'partial'`);
   assert.equal(audit.rowCount, 1);
+  // And a run leaving it unread does not finish clean.
+  assert.equal(drainIncomplete(result), true);
+  assert.equal(drainIncomplete({ extracted: 1, empty: 0, unparseable: 0, no_exhibits: 0, noop: 0, failed: 0 }), false);
+});
+
+test("a model call that fails is recorded for audit, and the filing stays a candidate", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "release-model-error");
+  const client = await connectedClient(t, databaseUrl);
+  await seedItem202(client);
+  const llm: ExtractReleaseDeps["llm"] = { complete: async () => { throw new Error("upstream 503"); } };
+  const result = await runReleaseExtractionDrain({ db: client, llm, secClient: fakeSec(SUBMISSION) });
+  assert.equal(result.failed, 1);
+  const calls = await client.query(`select 1 from tool_call_logs where tool_name = 'extract_earnings_release.prompt' and status = 'error'`);
+  assert.equal(calls.rowCount, 1);
+  assert.equal((await findReleaseCandidates(client)).length, 1);
 });
 
 test("a filing without EX-99 exhibits is marked processed without a model call", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {

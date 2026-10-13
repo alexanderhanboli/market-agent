@@ -108,6 +108,8 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     "What revenue is NVDA expected to report next quarter?",
     "What are management's projections?",
     "What does NVDA project for revenue next quarter?",
+    // Guidance set against guidance is still guidance.
+    "How does NVDA's current revenue guidance compare versus prior guidance?",
     "What is NVDA's gross margin target?",
   ]) {
     assert.equal(fresh(question, [NVDA]).guidance, true, question);
