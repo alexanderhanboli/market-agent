@@ -903,14 +903,14 @@ test("with claims unreadable and nothing else on file, the gap never says there 
   assert.deepEqual(packet.gaps, ["No reported facts or quote are on file for this subject, and its research claims could not be read."]);
 });
 
-test("the answer's assertion list is checked in shadow and never shown (#208)", async () => {
+test("with rendering off, the answer's assertion list is checked in shadow and never shown (#208)", async () => {
   const reports: unknown[] = [];
   const list = JSON.stringify([
     { kind: "observation", text: "NVDA's revenue is shown.", evidence: ["F1"] },
     { kind: "observation", text: "Revenue rose.", evidence: ["F99"] },
   ]);
   const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" },
     context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
@@ -1068,10 +1068,13 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
 });
 
 test("with rendering off, or nothing accepted, the guarded prose stands (#208)", async () => {
-  const list = [{ kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] }];
-  const off = await renderWithReply(withList(list), BASE_ENV);
+  // Both companies' figures, so only the flag keeps the prose.
+  const both = [{ kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] }];
+  const off = await renderWithReply(withList(both), { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
   assert.equal((off.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(off.report.rendered, undefined);
+  // Unset is on.
+  assert.equal((await renderWithReply(withList(both), BASE_ENV)).report.rendered, true);
   const none = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was 99%.", evidence: ["F2"] }]));
   assert.equal((none.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(none.report.rendered, undefined);
@@ -1160,17 +1163,22 @@ test("an inference resting on an observation the guard removed is removed too (#
   ]);
 });
 
-test("a rendered inference states no figures: its observations carry them, sealed (#208)", async () => {
+test("a rendered inference's figures are its supports' fact refs; one it cannot link is not rendered (#208)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", text: "NVDA's 74.6% margin outruns AMD's 49.2%.", evidence: [], supports: [0] },
     { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
+    // 74.6% is NVDA's figure, so it cannot be AMD's: the binding check rejects it.
+    { kind: "analyst_inference", text: "AMD's 74.6% margin stands out.", evidence: [], supports: [0] },
   ]));
-  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
+  const text = segments.map((segment) => segment.text ?? segment.format).join("");
+  assert.match(text, /> \*\*Analyst inference:\*\* NVDA's 74\.6% margin outruns AMD's 49\.2%\./);
   assert.match(text, /> \*\*Analyst inference:\*\* NVDA appears to hold pricing power\.$/);
-  assert.doesNotMatch(text, /outruns/);
+  // The observation's two refs, then the inference's, all sealed facts.
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(2), FACT(4)]);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [1, "a rendered inference states no figures; its observations do"],
+    [3, "74.6% is not a cited figure's value for AMD"],
   ]);
 });
 

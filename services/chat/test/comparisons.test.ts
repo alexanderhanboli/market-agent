@@ -177,3 +177,16 @@ test("comparative wording is recognised so an inference cannot state a ranking o
     assert.equal(statesComparison(text), false, text);
   }
 });
+
+test("segments of one company rank as one metric, apart from the company's own revenue (#208)", () => {
+  const segments = packet(["NVDA"], [
+    fig("R1", "Revenue", "Q42026", "$62.1B", { period_end: "2026-01-25" }),
+    fig("S1", "Revenue", "Q42026", "$55.2B", { segment: "Data Center", period_end: "2026-01-25" }),
+    fig("S2", "Revenue", "Q42026", "$4.3B", { segment: "Gaming", period_end: "2026-01-25" }),
+    fig("S3", "Revenue", "Q42026", "$650.0M", { segment: "Automotive", period_end: "2026-01-25" }),
+  ]);
+  ok(segments, "highest", ["S1", "S2", "S3"], "S1");
+  ok(segments, "order", ["S1", "S2", "S3"], ["S1", "S2", "S3"]);
+  assert.deepEqual(reasons(segments, "highest", ["S1", "S2"], "S1"), ["comparison: leaves out Automotive, which shows revenue too"]);
+  assert.deepEqual(reasons(segments, "highest", ["R1", "S1"], "R1"), ["comparison: a comparison is of one metric"]);
+});

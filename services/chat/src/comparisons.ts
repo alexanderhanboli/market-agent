@@ -47,27 +47,34 @@ export function checkComparison(
   if (!COMPARISON_OPS.includes(item.op as ComparisonOp)) return fail(`unknown op ${JSON.stringify(item.op)}`);
   const op = item.op as ComparisonOp;
   const companyOf = (figure: PacketFigure) => figure.company ?? packet.companies[0] ?? "";
+  // What a cohort ranks: companies, or one company's segments.
+  const memberOf = (figure: PacketFigure) => figure.segment ?? companyOf(figure);
   // The same fact shown in two blocks counts once.
-  const keyOf = (figure: PacketFigure) => figure.fact_id ?? `${companyOf(figure)}|${figure.metric}|${periodKey(figure.period)}`;
+  const keyOf = (figure: PacketFigure) => figure.fact_id ?? `${companyOf(figure)}|${figure.segment ?? ""}|${figure.metric}|${periodKey(figure.period)}`;
   const cited = unique(figureIds.flatMap((id) => packet.figures.filter((figure) => figure.id === id)), keyOf);
   const metric = cited[0]!.metric;
-  if (cited.some((figure) => figure.metric !== metric)) return fail("a comparison is of one metric");
-  const companies = new Set(cited.map(companyOf));
+  // A segment's revenue and the company's are not one metric.
+  const segmented = cited[0]!.segment !== undefined;
+  if (cited.some((figure) => figure.metric !== metric || (figure.segment !== undefined) !== segmented)) return fail("a comparison is of one metric");
+  if (segmented && new Set(cited.map(companyOf)).size > 1) return fail("segments are ranked within one company");
+  const companies = new Set(cited.map(memberOf));
   const axis = companies.size === 1 ? "time" : "cohort";
   if (op === "trend" && axis !== "time") return fail("a trend is one company's metric over time");
-  const sameMetric = packet.figures.filter((figure) => figure.metric === metric);
+  const sameMetric = packet.figures.filter((figure) =>
+    figure.metric === metric && (figure.segment !== undefined) === segmented && (!segmented || companyOf(figure) === companyOf(cited[0]!))
+  );
 
   let eligible: PacketFigure[];
   if (axis === "time") {
     const company = [...companies][0]!;
     if (cited.some((figure) => figure.period === undefined)) return fail("every figure over time names its period");
-    eligible = unique(sameMetric.filter((figure) => companyOf(figure) === company && figure.period !== undefined), keyOf);
+    eligible = unique(sameMetric.filter((figure) => memberOf(figure) === company && figure.period !== undefined), keyOf);
     const order = chronological(eligible);
     if (!order) return fail("the periods shown cannot be put in order");
     eligible = order;
   } else {
     const perCompany = new Map<string, PacketFigure[]>();
-    for (const figure of unique(sameMetric, keyOf)) perCompany.set(companyOf(figure), [...(perCompany.get(companyOf(figure)) ?? []), figure]);
+    for (const figure of unique(sameMetric, keyOf)) perCompany.set(memberOf(figure), [...(perCompany.get(memberOf(figure)) ?? []), figure]);
     if (cited.length !== companies.size) return fail("a ranking compares one figure per company");
     // A company shown for several periods: every company at one period, so
     // no company's best period is picked against another's.
@@ -81,7 +88,7 @@ export function checkComparison(
   const citedKeys = new Set(cited.map(keyOf));
   const omitted = eligible.find((figure) => !citedKeys.has(keyOf(figure)));
   if (omitted) {
-    return fail(`leaves out ${axis === "time" ? periodText(omitted.period!) : companyOf(omitted)}, which shows ${lower(metric)} too`);
+    return fail(`leaves out ${axis === "time" ? periodText(omitted.period!) : memberOf(omitted)}, which shows ${lower(metric)} too`);
   }
   // The cited figure stands for its fact, so the model's id is the one named.
   const figures = eligible.map((figure) => cited.find((entry) => keyOf(entry) === keyOf(figure))!);
@@ -97,7 +104,7 @@ export function checkComparison(
     const named = cited.find((figure) => figure.id === id) ?? packet.figures.find((figure) => figure.id === id && figureIds.includes(figure.id));
     return named && figures.find((figure) => keyOf(figure) === keyOf(named));
   };
-  const not_shown = axis === "cohort"
+  const not_shown = axis === "cohort" && !segmented
     ? packet.companies.filter((company) => !figures.some((figure) => companyOf(figure) === company))
     : [];
   const base = { op, axis, metric, not_shown } as const;

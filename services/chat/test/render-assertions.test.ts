@@ -145,3 +145,42 @@ test("a ranking across companies lists every company's value and period, and nam
   assert.equal(plainText(renderComparison(peers, FACT_BLOCKS, "order", ["F1", "F2"], ["F1", "F2"]).segments),
     "By gross margin, highest first: NVDA 74.6% (FY2026), AMD 49.2% (FY2025). No gross margin is shown for AAPL.");
 });
+
+test("an observation names each period once, and segments and acronyms read as written (#208)", () => {
+  const nvda = (n: number, metric: string, value: string, extra: Record<string, string> = {}) =>
+    ({ id: `F${n}`, metric, period: "Q42026", period_end: "2026-01-25", value, fact_id: uuid(10 + n), source_ids: [], ...extra });
+  const packet: EvidencePacket = { ...PACKET, companies: ["NVDA"], claims: [], figures: [
+    nvda(1, "Gross margin", "74.4%"), nvda(2, "Operating margin", "64.9%"), nvda(3, "Revenue Growth (YoY)", "57.9%"),
+    nvda(4, "Revenue", "$55.2B", { segment: "Data Center" }), nvda(5, "Revenue", "$4.3B", { segment: "Gaming" }),
+  ] };
+  const blocks = [{ id: "n", kind: "metric_row", data_ref: { params: { fact_bindings: [1, 2, 3, 4, 5].map((n) => BINDING(uuid(10 + n))) } } }];
+  const text = (evidence: string[]) => plainText(renderAssertion({ index: 0, kind: "observation", text: "x", evidence }, packet, blocks).segments);
+  assert.equal(text(["F1", "F2", "F3"]), "NVDA's gross margin was 74.4%, operating margin 64.9% and revenue growth (YoY) 57.9% in Q4 2026 (ended Jan 2026).");
+  assert.equal(text(["F4", "F5"]), "NVDA's Data Center revenue was $55.2B and Gaming revenue $4.3B in Q4 2026 (ended Jan 2026).");
+  assert.equal(
+    plainText(renderComparison(packet, blocks, "highest", "F4", ["F4", "F5"]).segments),
+    "Of NVDA's segments, Data Center revenue was highest: Data Center $55.2B, Gaming $4.3B (Q4 2026, ended Jan 2026).",
+  );
+});
+
+test("an inference's numbers render as fact refs when each is one supported figure's (#208)", () => {
+  const inference = (text: string, supported: string[]) =>
+    renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, supported);
+  const linked = inference("NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.", ["F1", "F2"]);
+  assert.equal(plainText(linked.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.");
+  assert.deepEqual(linked.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
+  assert.equal(linked.unsealed, false);
+  // A number no supported figure holds cannot link, so the inference is not rendered.
+  assert.equal(inference("NVDA's 74.6% margin outruns AMD's 49.2%.", ["F1"]).unsealed, true);
+  // Years and periods are not values.
+  assert.equal(inference("NVDA held its edge through FY2026.", ["F1"]).unsealed, false);
+});
+
+test("a year in an inference is a period, never an unlinkable figure (#208)", () => {
+  const rendered = renderAssertion(
+    { index: 1, kind: "analyst_inference", text: "The Q1 2026 dip was a one-quarter event, recovered by Q4 2026 and through 2025.", evidence: [], supports: [0] },
+    PACKET, FACT_BLOCKS, ["F1"],
+  );
+  assert.equal(rendered.unsealed, false);
+  assert.equal(rendered.segments.some((segment) => segment.type === "ref"), false);
+});
