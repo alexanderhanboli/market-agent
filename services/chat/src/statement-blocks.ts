@@ -137,7 +137,7 @@ export function freeCashFlowSpecs(
   fiscalYear?: number,
 ): QuarterMetric[] {
   const loadable = new Map(verifierFacts.map((fact) => [fact.fact_id, fact]));
-  return latestCashFlows(ofYear(facts, fiscalYear), loadable).flatMap(({ ocf, capex }) => {
+  return latestCashFlows(ofYear(facts, fiscalYear), loadable, [...CASH_FLOW, "free_cash_flow"]).flatMap(({ ocf, capex }) => {
     if (!ocf || !capex) return [];
     const period = loadable.get(ocf.fact_id);
     const capexPeriod = loadable.get(capex.fact_id);
@@ -280,17 +280,22 @@ function latestCashFlows(
   loadable: ReadonlyMap<string, VerifierFact>,
   wanted: ReadonlyArray<string> = CASH_FLOW,
 ): Array<{ period: IssuerFundamentalFact; ocf: IssuerFundamentalFact | undefined; capex: IssuerFundamentalFact | undefined }> {
-  const anchors = wanted.includes("free_cash_flow") ? CASH_FLOW : wanted;
+  const forFcf = wanted.includes("free_cash_flow");
+  const anchors = forFcf ? CASH_FLOW : wanted;
   const usable = facts.filter((fact) =>
     loadable.has(fact.fact_id) && fact.value_num !== null && anchors.includes(fact.metric_key)
   );
+  const at = (period: IssuerFundamentalFact, metricKey: string) => usable.find((fact) =>
+    fact.metric_key === metricKey && fact.fiscal_year === period.fiscal_year && fact.fiscal_period === period.fiscal_period
+  );
   return [false, true].flatMap((annual) => {
-    const period = latestPeriod(usable.filter((fact) => (fact.fiscal_period === "FY") === annual));
+    const candidates = usable.filter((fact) => (fact.fiscal_period === "FY") === annual);
+    // Free cash flow reads the latest period with both inputs; with none, the
+    // latest with either, so what is reported still shows.
+    const complete = forFcf ? candidates.filter((fact) => at(fact, "operating_cash_flow") && at(fact, "capex")) : [];
+    const period = latestPeriod(complete.length > 0 ? complete : candidates);
     if (!period) return [];
-    const at = (metricKey: string) => usable.find((fact) =>
-      fact.metric_key === metricKey && fact.fiscal_year === period.fiscal_year && fact.fiscal_period === period.fiscal_period
-    );
-    return [{ period, ocf: at("operating_cash_flow"), capex: at("capex") }];
+    return [{ period, ocf: at(period, "operating_cash_flow"), capex: at(period, "capex") }];
   });
 }
 

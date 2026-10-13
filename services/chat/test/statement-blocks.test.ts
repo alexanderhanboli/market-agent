@@ -169,6 +169,23 @@ test("cash flow shows the latest quarter and fiscal year, free cash flow citing 
   assert.notEqual(quarter!.id, year!.id);
 });
 
+test("free cash flow is shown for the latest period that has both inputs", () => {
+  // Q4 reports operating cash flow but not capex; Q3 reports both.
+  const facts = [
+    fact("operating_cash_flow", 2026, "Q3", 23_751e6, Q3),
+    fact("capex", 2026, "Q3", 1_636e6, Q3),
+    fact("operating_cash_flow", 2026, "Q4", 36_188e6, Q4),
+  ];
+  const specs = freeCashFlowSpecs(facts, verifierFacts(facts));
+  assert.deepEqual(specs.map((spec) => [spec.period.fiscal_period, spec.value_num]), [["Q3", 22_115e6]]);
+  const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false, items: ["free_cash_flow"] });
+  assert.equal(quarter!.title, "Cash flow (Q3 2026)");
+  assert.deepEqual(items(quarter!).map((item) => item.label), ["Operating cash flow", "Capital expenditures", "Free cash flow"]);
+  // Operating cash flow alone still reads its latest quarter.
+  const [ocfOnly] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false, items: ["operating_cash_flow"] });
+  assert.equal(ocfOnly!.title, "Cash flow (Q4 2026)");
+});
+
 test("without operating cash flow, cash flow shows capex alone and no free cash flow", () => {
   const facts = [fact("capex", 2026, "Q4", 1_284e6, Q4)];
   const verifier = verifierFacts(facts);
@@ -273,12 +290,16 @@ test("facts the verifier cannot load are left out rather than rendered unbound",
   const facts = nvdaFacts();
   const verifier = verifierFacts(facts).filter((binding) => binding.fact_id !== facts[2]!.fact_id);
   const blocks = buildStatementBlocks({ facts, verifierFacts: verifier, facets: ALL, snapshotId: SNAPSHOT_ID, asOf: AS_OF });
-  // Q4's operating cash flow cannot be bound: Q4 shows its capex alone, and no
-  // free cash flow is computed from the unbound figure.
-  assert.equal(blocks[0]!.title, "Cash flow (Q4 2026)");
-  assert.deepEqual(items(blocks[0]!).map((item) => item.label), ["Capital expenditures"]);
+  // Q4's operating cash flow cannot be bound, so free cash flow (asked for
+  // with everything else) reads Q3, the latest quarter with both inputs bound.
+  assert.equal(blocks[0]!.title, "Cash flow (Q3 2026)");
   assert.ok(!blocks.flatMap(items).some((item) => item.value_ref === facts[2]!.fact_id));
   assert.equal(freeCashFlowSpecs(facts, verifier).some((spec) => spec.period.fiscal_period === "Q4"), false);
+  // Capex alone still reads Q4, the latest quarter it is bound for.
+  const capexOnly = buildStatementBlocks({
+    facts, verifierFacts: verifier, facets: { ...ALL, items: ["capex"] }, snapshotId: SNAPSHOT_ID, asOf: AS_OF,
+  });
+  assert.equal(capexOnly[0]!.title, "Cash flow (Q4 2026)");
 });
 
 test("a figure derived across filings cites every filing it was computed from", async (t) => {

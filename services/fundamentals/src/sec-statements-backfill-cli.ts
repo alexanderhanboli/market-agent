@@ -5,13 +5,14 @@
 //     npm run backfill:sec-statements [-- <issuer_uuid> ...]
 //
 // With no arguments, backfills every issuer that has SEC income facts. One
-// companyfacts download per issuer, one at a time, within SEC's fair-access
-// rate. A rerun is safe: facts already stored are left as they are.
+// companyfacts download per issuer, paced under SEC's fair-access rate with a
+// backoff on HTTP 429 (withSecFairAccess). A rerun is safe: facts already
+// stored are left as they are.
 
 import { Pool } from "pg";
 
 import { SEC_EDGAR_FILING_SOURCE_ID } from "./provider-sources.ts";
-import { createSecCompanyFactsHttpFetcher } from "./sec-edgar-http.ts";
+import { createSecCompanyFactsHttpFetcher, withSecFairAccess } from "./sec-edgar-http.ts";
 import { backfillSecCompanionStatements } from "./sec-facts-repository.ts";
 
 async function main(): Promise<void> {
@@ -19,7 +20,8 @@ async function main(): Promise<void> {
   const userAgent = process.env.SEC_EDGAR_USER_AGENT;
   if (!databaseUrl || !userAgent) throw new Error("DATABASE_URL and SEC_EDGAR_USER_AGENT are required");
   const pool = new Pool({ connectionString: databaseUrl });
-  const fetcher = createSecCompanyFactsHttpFetcher({ userAgent, baseUrl: process.env.SEC_EDGAR_BASE_URL });
+  // Paced under SEC's fair-access rate, backing off on a 429.
+  const fetcher = withSecFairAccess(createSecCompanyFactsHttpFetcher({ userAgent, baseUrl: process.env.SEC_EDGAR_BASE_URL }));
   const requestedIds = process.argv.slice(2);
   let hadFailures = false;
   try {
