@@ -26,12 +26,13 @@ import { SEC_EDGAR_FILING_SOURCE_ID } from "../../fundamentals/src/provider-sour
 import {
   createSecBackedStatementRepository,
   createSecBackedStatsRepository,
+  SEC_DERIVATION_KIND,
 } from "../../fundamentals/src/sec-facts-repository.ts";
 import type { IssuerSubjectRef } from "../../fundamentals/src/subject-ref.ts";
 import { loadUsableFacts } from "../../fundamentals/src/usable-facts.ts";
 import type { VerifierFact } from "../../snapshot/src/snapshot-verifier.ts";
 import { stableUuid } from "./chat-ids.ts";
-import { unavailableMetrics, type ResearchScope } from "./research-scope.ts";
+import { STATEMENT_METRIC_LABELS, statementMetrics, unavailableMetrics, type ResearchScope } from "./research-scope.ts";
 import { loadPerfComparisonBlocks, type PriceWindow } from "./perf-block.ts";
 import { deriveQuarterMetrics, GROWTH, MARGINS, type QuarterMetric } from "./quarter-metrics.ts";
 
@@ -51,8 +52,8 @@ type QueryExecutor = Parameters<typeof loadRecentIssuerFundamentals>[0] &
   Parameters<typeof loadVerifierFactsForRefs>[0] &
   Parameters<typeof materializePeerMetricFacts>[0] &
   Parameters<typeof createSecBackedStatementRepository>[0];
-type Block = Record<string, unknown>;
-type CitedFact = { fact_id: string; source_id: string };
+export type Block = Record<string, unknown>;
+export type CitedFact = { fact_id: string; source_id: string };
 
 // The fact blocks for a turn's companies (primary first).
 export async function loadTurnFactBlocks(
@@ -522,7 +523,7 @@ export async function companyListings(
 // A derived figure cites the facts it was computed from too, so its block's sources
 // include every input's filing (a margin's numerator may come from another source
 // than revenue's) and the inspector can reach each one.
-function withInputs(
+export function withInputs(
   cited: ReadonlyArray<CitedFact>,
   derived: ReadonlyArray<DerivedQuarterFact>,
   loadable: ReadonlyMap<string, VerifierFact>,
@@ -733,7 +734,7 @@ function percentItem(fact: DerivedQuarterFact): { label: string; value_ref: stri
   return { label: fact.label, value_ref: fact.fact_id, format: formatPercent(fact.value_num) };
 }
 
-function blockBase(
+export function blockBase(
   kind: string,
   input: { snapshotId: string; asOf: string },
   facts: ReadonlyArray<CitedFact>,
@@ -758,6 +759,45 @@ function blockBase(
   };
 }
 
+// A reported fact derived across filings (a cash flow quarter from two years
+// to date, a fourth quarter from the year less three quarters) names each
+// filing in its lineage; its block cites them all, so the inspector reaches
+// every filing the figure is computed from. Unchanged if the lineage cannot be
+// read: the figures still cite their own filings.
+export async function withDerivationSources(
+  db: Pick<QueryExecutor, "query">,
+  blocks: ReadonlyArray<Block>,
+): Promise<ReadonlyArray<Block>> {
+  const factIds = [...new Set(blocks.flatMap((block) => (block.provenance_fact_refs ?? []) as string[]))];
+  if (factIds.length === 0) return blocks;
+  try {
+    const { rows } = await db.query<{ fact_id: string; quality_flags: unknown }>(
+      `select fact_id::text as fact_id, quality_flags from facts where fact_id = any($1::uuid[])`,
+      [factIds],
+    );
+    const sources = new Map(rows.map((row) => [row.fact_id, lineageSources(row.quality_flags)]));
+    return blocks.map((block) => {
+      const extra = ((block.provenance_fact_refs ?? []) as string[]).flatMap((id) => sources.get(id) ?? []);
+      return extra.length === 0
+        ? block
+        : { ...block, source_refs: [...new Set([...((block.source_refs ?? []) as string[]), ...extra])] };
+    });
+  } catch (reason) {
+    console.warn("[chat] derivation sources unavailable; figures cite their own filings", reason);
+    return blocks;
+  }
+}
+
+function lineageSources(flags: unknown): string[] {
+  if (!Array.isArray(flags)) return [];
+  return flags.flatMap((flag) =>
+    flag !== null && typeof flag === "object" && (flag as { kind?: unknown }).kind === SEC_DERIVATION_KIND &&
+      Array.isArray((flag as { input_source_ids?: unknown }).input_source_ids)
+      ? ((flag as { input_source_ids: unknown[] }).input_source_ids.filter((id): id is string => typeof id === "string"))
+      : []
+  );
+}
+
 // The binding is the verifier's view of the fact minus its source, so it
 // matches the row the seal re-loads by construction.
 function bindingFor(fact: VerifierFact): Record<string, unknown> {
@@ -778,6 +818,15 @@ export function scopeGapBlocks(
     `gap:${metric.metric_key}`,
     `${metric.label} is not available for ${names} in this data, so no other figure is shown in its place.`,
   ] as const);
+  // Cash flow, the balance sheet and EPS are shown for one company at a time;
+  // one asked for and not shown has no facts in the data.
+  const comparing = scope.companies.length > 1 || scope.peers;
+  for (const metric of statementMetrics(scope)) {
+    if (!comparing && showsStatementMetric(shown, metric.metric_key)) continue;
+    notes.push([`gap:${metric.metric_key}`, comparing
+      ? `${metric.label} is shown for one company at a time; ask about one company for it.`
+      : `${metric.label} is not available for ${names} in this data, so no other figure is shown in its place.`]);
+  }
   if (scope.reads === "financial_answer") {
     notes.push(["gap:financial_answer", "The previous answer's figures were calculated and verified by the financial engine; each one links to its sources in that answer, and no other figure is shown in their place."]);
   }
@@ -795,7 +844,7 @@ export function scopeGapBlocks(
     const quarter = `fiscal ${scope.fiscal_quarter.fiscal_period} ${scope.fiscal_quarter.fiscal_year}`;
     if (scope.companies.length > 1) {
       notes.push(["gap:quarter", `A single quarter is not compared across companies here; each company is shown for a fiscal year, not ${quarter}.`]);
-    } else if (!showsQuarter(shown) && scope.reads !== "segments" && scope.reads !== "unavailable_metric" && scope.reads !== "financial_answer") {
+    } else if (readsNamedQuarter(scope) && !showsQuarter(shown)) {
       notes.push(["gap:quarter", `No figures for ${quarter} are on file for ${names}.`]);
     }
   }
@@ -825,13 +874,30 @@ export function scopeGapBlocks(
 export function mayOfferOtherFacts(scope: ResearchScope, shown: ReadonlyArray<Block>): boolean {
   if (scope.reads === "unavailable_metric" || scope.reads === "financial_answer") return false;
   // A named quarter with no figures is a gap: no other quarter stands in (#290).
-  if (scope.fiscal_quarter && scope.companies.length === 1 && !showsQuarter(shown)) return false;
+  if (readsNamedQuarter(scope) && !showsQuarter(shown)) return false;
+  if (scope.reads === "statements") return statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key));
   return !(scope.reads === "segments" && !showsSegments(shown));
+}
+
+// A single company's named quarter, on a route that reads the quarterly
+// income figures (#290); segments and statements read their own periods.
+export function readsNamedQuarter(scope: ResearchScope): boolean {
+  return scope.fiscal_quarter !== null && scope.companies.length === 1 &&
+    (scope.reads === "latest_quarter" || scope.reads === "trend" || scope.reads === "derived_margin");
 }
 
 // Whether the blocks show a named fiscal quarter (buildIssuerFactBlocks).
 function showsQuarter(blocks: ReadonlyArray<Block>): boolean {
   return blocks.some((block) => block.kind === "metric_row" && /^Fiscal Q[1-4] \d{4}$/.test(String(block.title)));
+}
+
+// Whether a metric_row shows any of the statement metric's items.
+function showsStatementMetric(blocks: ReadonlyArray<Block>, metricKey: string): boolean {
+  const labels = new Set(STATEMENT_METRIC_LABELS[metricKey] ?? []);
+  return blocks.some((block) =>
+    block.kind === "metric_row" &&
+    ((block.items ?? []) as ReadonlyArray<{ label?: string }>).some((item) => item.label !== undefined && labels.has(item.label))
+  );
 }
 
 // Whether the blocks include a segment breakdown.
@@ -887,9 +953,11 @@ export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[
     const cites = (ref: string | undefined) => (ref ? { fact_id: ref } : {});
     // Each value's period and end date, from the fact it cites (#180, #207).
     const bindings = ((block.data_ref as { params?: { fact_bindings?: unknown } } | undefined)?.params?.fact_bindings ?? []) as
-      ReadonlyArray<Pick<VerifierFact, "fact_id" | "fiscal_year" | "fiscal_period" | "period_end">>;
+      ReadonlyArray<Pick<VerifierFact, "fact_id" | "fiscal_year" | "fiscal_period" | "period_end" | "period_kind">>;
     const periodOf = (factId: string | undefined): { period?: string; period_end?: string } => {
       const binding = bindings.find((candidate) => candidate.fact_id === factId);
+      // A balance is a point at its date; its "FY" label says nothing about which quarter.
+      if (binding?.period_kind === "point" && binding.period_end) return { period: "balance at period end", period_end: binding.period_end };
       return binding?.period_end && typeof binding.fiscal_year === "number"
         ? { period: `${binding.fiscal_period ?? ""}${binding.fiscal_year}`, period_end: binding.period_end }
         : {};

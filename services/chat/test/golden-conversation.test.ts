@@ -472,6 +472,8 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     assert.ok(latest.blocks.some((block) => /^Latest quarter/.test(String(block.title))), `expected the latest quarter's margins; got [${latest.blocks.map((b) => b.title).join(", ")}]`);
   });
 
+  // The frozen dataset has no cash flow facts: the statement route reads none
+  // and names the gap, with no income figures in its place.
   await t.test("'What is AMD's free cash flow?' is a named gap that reads no income-statement facts (#206)", async () => {
     const fcfThread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "AMD FCF" });
     completedTurn(await runTurn(base, fcfThread.thread_id, "What is AMD's free cash flow?"));
@@ -482,7 +484,7 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
       `select research_scope from chat_messages where thread_id = $1::uuid and role = 'assistant'`,
       [fcfThread.thread_id],
     );
-    assert.equal(rows[0]?.research_scope.route, "unavailable_metric");
+    assert.equal(rows[0]?.research_scope.route, "statements");
   });
 
   // #206: a three-company comparison with metrics, a YTD window and a benchmark,

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 import {
+  materializeDerivedFacts,
   materializePeerMetricFacts,
   type MaterializeOptions,
 } from "../src/metrics-comparison-materializer.ts";
@@ -164,6 +165,21 @@ test("metric_ids are resolved once for the whole batch", async () => {
 
   await materializePeerMetricFacts(db, peers, OPTS);
   assert.equal(metricLookupCount(), 1);
+});
+
+test("a monetary derived fact states its currency; a ratio states none", async () => {
+  const FCF_METRIC_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0099";
+  const { db, inserts } = mockDb({ gross_margin: GROSS_MARGIN_METRIC_ID, free_cash_flow: FCF_METRIC_ID });
+  const base = { as_of: AS_OF, source_id: SRC, period: PERIOD, coverage_level: "full" as const, input_fact_ids: [GP_FACT, REV_FACT] };
+
+  await materializeDerivedFacts(db, SUBJECT.id, [
+    { ...base, metric: "free_cash_flow", value_num: 96_676e6, unit: "currency", currency: "USD" },
+    { ...base, metric: "gross_margin", value_num: 0.462, unit: "ratio" },
+  ], OPTS);
+
+  assert.equal(inserts[0]!.values[11], "USD");
+  assert.equal(inserts[0]!.values[COL.unit], "currency");
+  assert.equal(inserts[1]!.values[11], null);
 });
 
 test("throws when a computed metric has no seeded metric_id", async () => {

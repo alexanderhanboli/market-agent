@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  backfillSecCompanionStatements,
   createSecBackedStatementRepository,
   createSecBackedStatsRepository,
 } from "../src/sec-facts-repository.ts";
@@ -55,6 +56,274 @@ test("SEC-backed statements persist companyfacts and repeat reads from facts", a
   assert.equal(second?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
   assert.equal(db.facts.length, factCount);
   assert.equal(fetchCount, 1);
+});
+
+test("SEC-backed statements store the filing's cash flow and balance sheet beside its income statement", async () => {
+  const db = new FakeFundamentalsDb();
+  const facts = companyFacts();
+  const usGaap = facts.facts["us-gaap"] as Record<string, unknown>;
+  usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
+  usGaap.PaymentsToAcquirePropertyPlantAndEquipment = annualUsd(50, 40);
+  usGaap.Assets = annualInstant(5000, 4000);
+  usGaap.CashAndCashEquivalentsAtCarryingValue = annualInstant(700, 600);
+  const statements = createSecBackedStatementRepository(db, {
+    fetcher: async () => facts,
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  });
+
+  const income = await statements.find({
+    issuer_id: ISSUER_ID,
+    family: "income",
+    basis: "as_reported",
+    fiscal_year: 2024,
+    fiscal_period: "FY",
+  });
+
+  assert.equal(income?.family, "income");
+  const stored = (key: string) => db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === key);
+  assert.equal(stored("operating_cash_flow")?.value_num, 300);
+  assert.equal(stored("operating_cash_flow")?.period_kind, "fiscal_y");
+  assert.equal(stored("capex")?.value_num, 50);
+  assert.equal(stored("total_assets")?.value_num, 5000);
+  assert.equal(stored("total_assets")?.period_kind, "point");
+  assert.equal(stored("total_assets")?.period_start, null);
+  assert.equal(stored("total_assets")?.period_end, "2024-12-31");
+  assert.equal(stored("cash_and_equivalents")?.value_num, 700);
+  // One filing, one source, one transaction.
+  assert.equal(db.facts.every((fact) => fact.source_id === income?.source_id), true);
+  assert.deepEqual(db.transactions, ["begin", "commit"]);
+});
+
+// Real NVDA values: Q2 FY2026 cash flow is the Q2 10-Q's six months less the
+// Q1 10-Q's three, so the stored quarter names both filings.
+test("a discrete quarter derived across filings records each filing in its lineage", async () => {
+  const db = new FakeFundamentalsDb();
+  const q1 = { fy: 2026, fp: "Q1", form: "10-Q", accn: "0001045810-25-000116", filed: "2025-05-28" };
+  const q2 = { fy: 2026, fp: "Q2", form: "10-Q", accn: "0001045810-25-000209", filed: "2025-08-27" };
+  const usd = (values: SecConceptValue[]) => ({ label: "", description: "", units: { USD: values } });
+  const facts = {
+    cik: 1045810,
+    entityName: "NVIDIA Corp",
+    facts: {
+      "us-gaap": {
+        Revenues: usd([
+          { ...q1, start: "2025-01-27", end: "2025-04-27", val: 44_062_000_000 },
+          { ...q2, start: "2025-04-28", end: "2025-07-27", val: 46_743_000_000 },
+        ]),
+        NetCashProvidedByUsedInOperatingActivities: usd([
+          { ...q1, start: "2025-01-27", end: "2025-04-27", val: 27_414_000_000 },
+          { ...q2, start: "2025-01-27", end: "2025-07-27", val: 42_779_000_000 },
+        ]),
+      },
+    },
+  };
+  const statements = createSecBackedStatementRepository(db, {
+    fetcher: async () => facts,
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  });
+
+  await statements.find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2026, fiscal_period: "Q2" });
+
+  const ocf = db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === "operating_cash_flow");
+  assert.equal(ocf?.value_num, 15_365_000_000);
+  const [lineage] = ocf!.quality_flags as Array<{ kind: string; input_source_ids: string[]; inputs: Array<{ accn: string; source_id: string }> }>;
+  assert.equal(lineage?.kind, "sec_period_difference");
+  assert.deepEqual(lineage!.inputs.map((input) => input.accn), [q2.accn, q1.accn]);
+  // The fact's own source is the Q2 filing; the Q1 filing is a source too.
+  assert.equal(lineage!.input_source_ids.length, 2);
+  assert.ok(lineage!.input_source_ids.includes(ocf!.source_id));
+  const registered = new Set(db.sources.map((source) => source[0]));
+  for (const id of lineage!.input_source_ids) assert.ok(registered.has(id), `source ${id} is registered`);
+  // A value filed as is carries no lineage.
+  const revenue = db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  assert.deepEqual(revenue?.quality_flags, []);
+});
+
+test("the backfill stores cash flow and balance sheet for income periods already on file", async () => {
+  const db = new FakeFundamentalsDb();
+  // The income statement was stored before the other families were ingested.
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  const stored = (key: string) => db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === key);
+  assert.equal(stored("operating_cash_flow").length, 0);
+
+  const facts = companyFacts();
+  const usGaap = facts.facts["us-gaap"] as Record<string, unknown>;
+  usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
+  usGaap.Assets = annualInstant(5000, 4000);
+  let fetches = 0;
+  const result = await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => {
+      fetches += 1;
+      return facts;
+    },
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+
+  assert.deepEqual(result, { periods: 1 });
+  assert.equal(fetches, 1);
+  assert.equal(stored("operating_cash_flow")[0]?.value_num, 300);
+  assert.equal(stored("total_assets")[0]?.period_end, "2024-12-31");
+  // The income statement is not written again.
+  assert.equal(stored("revenue").length, 1);
+});
+
+// Before the selection fix, an annual lookup stored a 10-K's oldest comparative
+// (AAPL FY2024 read FY2022's revenue). Those facts are read without a download,
+// and a re-ingestion conflicts with them, so the backfill replaces them.
+test("the backfill replaces income facts the old period selector got wrong, keeping the right ones", async () => {
+  const db = new FakeFundamentalsDb();
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  const revenueOf = () => db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  // Simulate the old selector: FY2024 revenue stored with the prior year's value and dates.
+  const [stored] = revenueOf();
+  Object.assign(stored!, { value_num: 800, period_start: "2023-01-01", period_end: "2023-12-31" });
+  const netIncomeBefore = db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === "net_income")!;
+
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+
+  const active = revenueOf().filter((fact) => fact.invalidated_at === null);
+  assert.equal(active.length, 1);
+  assert.equal(active[0]!.value_num, 1000);
+  assert.equal(active[0]!.period_end, "2024-12-31");
+  // The wrong fact is retired, not deleted, and points at its replacement.
+  assert.notEqual(stored!.invalidated_at, null);
+  assert.equal(stored!.superseded_by, active[0]!.fact_id);
+  // A fact that was right is left as it was.
+  assert.equal(netIncomeBefore.invalidated_at, null);
+  assert.equal(db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "net_income").length, 1);
+  // Lookups read the replacement.
+  const reread = await createSecBackedStatementRepository(db, { fetcher: null, sourceId: SOURCE_ID })
+    .find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  assert.equal(reread?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
+});
+
+test("the backfill retires every wrong row of a metric, whichever filing stored it", async () => {
+  const db = new FakeFundamentalsDb();
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  const revenueOf = () => db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  // Two wrong rows for FY2024 revenue: one on the 10-K's own source (the
+  // identity a replacement would conflict with), one on another filing's.
+  const [onTarget] = revenueOf();
+  Object.assign(onTarget!, { value_num: 800, period_start: "2023-01-01", period_end: "2023-12-31" });
+  const otherFiling = { ...onTarget!, fact_id: crypto.randomUUID(), source_id: "33333333-3333-4333-8333-333333333333", value_num: 700 };
+  db.facts.push(otherFiling);
+
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+
+  const active = revenueOf().filter((fact) => fact.invalidated_at === null);
+  assert.deepEqual(active.map((fact) => fact.value_num), [1000]);
+  for (const retired of [onTarget!, otherFiling]) {
+    assert.notEqual(retired.invalidated_at, null);
+    assert.equal(retired.superseded_by, active[0]!.fact_id);
+  }
+});
+
+test("the backfill retires a wrong income fact whose metric the filing no longer yields for the period", async () => {
+  const db = new FakeFundamentalsDb();
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  // companyFacts() reports no operating expenses: rows for them came from the old
+  // selector, one with the prior year's dates and one with this year's.
+  const [revenue] = db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  const opexId = db.metrics.find((metric) => metric.metric_key === "operating_expenses")!.metric_id;
+  const contradicted = { ...revenue!, fact_id: crypto.randomUUID(), metric_id: opexId, value_num: 50, period_start: "2023-01-01", period_end: "2023-12-31" };
+  db.facts.push(contradicted);
+
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+  // Contradicting the period's dates, it is retired, with nothing to supersede it.
+  assert.notEqual(contradicted.invalidated_at, null);
+  assert.equal(contradicted.superseded_by, null);
+
+  // One agreeing with the period's dates is not contradicted, so it stays.
+  const agreeing = { ...revenue!, fact_id: crypto.randomUUID(), metric_id: opexId, value_num: 60, invalidated_at: null, superseded_by: null };
+  db.facts.push(agreeing);
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-10T00:00:00.000Z"),
+  });
+  assert.equal(agreeing.invalidated_at, null);
+});
+
+test("the backfill downloads nothing for an issuer with no income periods on file", async () => {
+  let fetches = 0;
+  const result = await backfillSecCompanionStatements(new FakeFundamentalsDb(), {
+    issuerId: ISSUER_ID,
+    fetcher: async () => {
+      fetches += 1;
+      return companyFacts();
+    },
+    sourceId: SOURCE_ID,
+  });
+  assert.deepEqual(result, { periods: 0 });
+  assert.equal(fetches, 0);
+});
+
+test("SEC-backed statements keep the income statement when another family cannot be extracted", async () => {
+  const db = new FakeFundamentalsDb();
+  const facts = companyFacts();
+  const usGaap = facts.facts["us-gaap"] as Record<string, unknown>;
+  usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
+  // A second concept for another period: the family's periods disagree.
+  const capex = annualUsd(50, 40);
+  capex.units.USD[0] = { ...capex.units.USD[0]!, start: "2023-12-25" };
+  usGaap.PaymentsToAcquirePropertyPlantAndEquipment = capex;
+  const warnings: unknown[][] = [];
+  const statements = createSecBackedStatementRepository(db, {
+    fetcher: async () => facts,
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+    logger: { warn: (...args: unknown[]) => warnings.push(args) },
+  });
+
+  const income = await statements.find({
+    issuer_id: ISSUER_ID,
+    family: "income",
+    basis: "as_reported",
+    fiscal_year: 2024,
+    fiscal_period: "FY",
+  });
+
+  assert.equal(income?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
+  assert.equal(db.facts.some((fact) => metricKeyFor(db.metrics, fact.metric_id) === "operating_cash_flow"), false);
+  assert.equal(warnings.length, 1);
+  assert.match(String((warnings[0]![1] as { error: string }).error), /disagrees/);
+  assert.equal((warnings[0]![1] as { family: string }).family, "cashflow");
 });
 
 test("SEC-backed statements persist quarterly companyfacts as fiscal_q facts", async () => {
@@ -255,6 +524,9 @@ type FactRecord = {
   observed_at: string;
   source_id: string;
   coverage_level: string;
+  quality_flags: Array<Record<string, unknown>>;
+  invalidated_at: string | null;
+  superseded_by: string | null;
 };
 
 class FakeFundamentalsDb {
@@ -300,7 +572,7 @@ class FakeFundamentalsDb {
         this.facts
           .filter(
             (fact) =>
-              fact.subject_id === subjectId &&
+              fact.invalidated_at === null && fact.subject_id === subjectId &&
               fact.period_kind === periodKind &&
               fact.fiscal_year === fiscalYear &&
               fact.fiscal_period === fiscalPeriod &&
@@ -308,6 +580,16 @@ class FakeFundamentalsDb {
           )
           .map((fact) => factRow(this.metrics, fact)),
       );
+    }
+    // The backfill's stored SEC income periods.
+    if (sql.includes("select distinct f.fiscal_year")) {
+      const keys = new Set(values[1] as string[]);
+      const periods = new Map(
+        this.facts
+          .filter((fact) => fact.invalidated_at === null && fact.subject_id === values[0] && keys.has(metricKeyFor(this.metrics, fact.metric_id)))
+          .map((fact) => [`${fact.fiscal_year}|${fact.fiscal_period}`, { fiscal_year: fact.fiscal_year, fiscal_period: fact.fiscal_period }]),
+      );
+      return rows([...periods.values()]);
     }
     if (sql.includes("select fact_id::text as fact_id") && sql.includes("limit 1")) {
       const [subjectId, metricId, periodKind, fiscalYear, fiscalPeriod, sourceId] = values as [
@@ -330,7 +612,41 @@ class FakeFundamentalsDb {
       return rows(fact ? [{ fact_id: fact.fact_id }] : []);
     }
     if (sql.includes("insert into facts")) {
-      this.facts.push(factFromInsert(values));
+      const fact = factFromInsert(values);
+      // The active identity is unique (facts_active_reported_identity_idx): a
+      // conflicting insert does nothing.
+      const conflict = this.facts.some((other) =>
+        other.invalidated_at === null && other.subject_id === fact.subject_id && other.metric_id === fact.metric_id &&
+        other.period_kind === fact.period_kind && other.fiscal_year === fact.fiscal_year &&
+        other.fiscal_period === fact.fiscal_period && other.source_id === fact.source_id
+      );
+      if (conflict) return rows([]);
+      this.facts.push(fact);
+      return rows([{ fact_id: fact.fact_id }]);
+    }
+    // The repair's stored SEC facts for a statement's period.
+    if (sql.includes("as stored_value")) {
+      const [subjectId, periodKind, fiscalYear, fiscalPeriod, metricKeys] = values as [string, string, number, string, string[]];
+      return rows(this.facts
+        .filter((fact) =>
+          fact.invalidated_at === null && fact.subject_id === subjectId && fact.period_kind === periodKind &&
+          fact.fiscal_year === fiscalYear && fact.fiscal_period === fiscalPeriod &&
+          metricKeys.includes(metricKeyFor(this.metrics, fact.metric_id))
+        )
+        .map((fact) => ({
+          fact_id: fact.fact_id,
+          metric_key: metricKeyFor(this.metrics, fact.metric_id),
+          stored_value: fact.value_num === null ? null : String(fact.value_num),
+          period_start: fact.period_start,
+          period_end: fact.period_end,
+        })));
+    }
+    if (sql.includes("update facts") && sql.includes("set invalidated_at")) {
+      for (const fact of this.facts) if ((values[0] as string[]).includes(fact.fact_id)) fact.invalidated_at = "now";
+      return rows([]);
+    }
+    if (sql.includes("update facts") && sql.includes("set superseded_by")) {
+      for (const fact of this.facts) if ((values[0] as string[]).includes(fact.fact_id)) fact.superseded_by = values[1] as string;
       return rows([]);
     }
     if (sql.includes("select max(f.fiscal_year)")) {
@@ -354,11 +670,18 @@ function metricDefinitions(): MetricDefinition[] {
     ["cost_of_revenue", "currency"],
     ["gross_profit", "currency"],
     ["operating_income", "currency"],
+    ["operating_expenses", "currency"],
     ["net_income", "currency"],
     ["eps_basic", "currency"],
     ["eps_diluted", "currency"],
     ["shares_outstanding_basic", "count"],
     ["shares_outstanding_diluted", "count"],
+    ["operating_cash_flow", "currency"],
+    ["capex", "currency"],
+    ["total_assets", "currency"],
+    ["total_liabilities", "currency"],
+    ["total_equity", "currency"],
+    ["cash_and_equivalents", "currency"],
   ] as const;
   return defs.map(([metric_key, unit_class], index) => ({
     metric_id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
@@ -408,6 +731,9 @@ function factFromInsert(values: unknown[]): FactRecord {
     observed_at: values[14] as string,
     source_id: values[15] as string,
     coverage_level: values[16] as string,
+    quality_flags: JSON.parse((values[17] as string | undefined) ?? "[]"),
+    invalidated_at: null,
+    superseded_by: null,
   };
 }
 
@@ -502,6 +828,15 @@ function annualPerShare(current: number, prior: number) {
 
 function annualShares(current: number, prior: number) {
   return { label: "", description: "", units: { shares: annualValues(current, prior) } };
+}
+
+// Balances: instants (no start) at each annual report's year end.
+function annualInstant(current: number, prior: number) {
+  return {
+    label: "",
+    description: "",
+    units: { USD: annualValues(current, prior).map(({ start: _start, ...instant }) => instant) },
+  };
 }
 
 function annualValues(current: number, prior: number): SecConceptValue[] {

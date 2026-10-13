@@ -12,7 +12,7 @@
 // cutoff): repeats already counted once, each placed by its stored polarity,
 // with any stored contradiction between them named.
 
-import { displayedFigures, QUARTERS_SHOWN, type DisplayedFigure } from "./fact-blocks.ts";
+import { displayedFigures, QUARTERS_SHOWN, readsNamedQuarter, type DisplayedFigure } from "./fact-blocks.ts";
 import type { ResearchScope } from "./research-scope.ts";
 
 type Block = Record<string, unknown>;
@@ -85,6 +85,7 @@ const ROUTE_PREDICATES: Partial<Record<ResearchScope["reads"], ReadonlyArray<str
   derived_margin: ["guidance.", "kpi."],
   comparison: ["guidance.", "kpi."],
   segments: ["segment.", "guidance."],
+  statements: ["guidance.", "kpi."],
 };
 const PRICE_PREDICATES = ["material_event.", "guidance."];
 
@@ -253,10 +254,15 @@ function queryBounds(scope: ResearchScope): Record<string, string> {
     trend: `last ${QUARTERS_SHOWN} quarters`,
     derived_margin: `latest quarter, with revenue for the last ${QUARTERS_SHOWN} quarters`,
     segments: "latest quarter's segments",
+    // What statement-blocks.ts reads: EPS is the year once its annual report is
+    // in, and a named fiscal year is the only one read.
+    statements: scope.fiscal_year === null
+      ? "latest quarter and latest fiscal year reported for cash flow; balance sheet at its latest period end; EPS for the latest quarter, or the fiscal year once its annual report is in"
+      : `fiscal year ${scope.fiscal_year} only: its latest quarter and the year for cash flow; balance sheet at its latest period end in that year; EPS for that year`,
     comparison: scope.fiscal_year === null ? "latest fiscal year per company" : `fiscal year ${scope.fiscal_year} per company`,
   };
   // A single company's named quarter replaces its latest (#290).
-  const quarter = scope.fiscal_quarter && scope.companies.length === 1 && scope.reads !== "segments"
+  const quarter = scope.fiscal_quarter && readsNamedQuarter(scope)
     ? `fiscal ${scope.fiscal_quarter.fiscal_period} ${scope.fiscal_quarter.fiscal_year}, with revenue for the ${QUARTERS_SHOWN} quarters around it`
     : undefined;
   return {
