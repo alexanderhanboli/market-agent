@@ -359,3 +359,84 @@ test("a fiscal year's window follows the issuer's fiscal calendar", async (t) =>
   });
   assert.deepEqual(evidence.claim_refs, [FY_Q4]);
 });
+
+// The fiscal-calendar cases below: one issuer, one revenue fact dating its year.
+async function fiscalCalendarDb(
+  t: test.TestContext,
+  name: string,
+  fact: { period_kind: string; period_start: string; period_end: string; fiscal_year: number; fiscal_period: string; observed_at: string },
+): Promise<QueryExecutor> {
+  const { databaseUrl } = await bootstrapDatabase(t, name);
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc')`, [ISSUER]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const { rows: [metric] } = await db.query<{ metric_id: string }>(
+    `insert into metrics (metric_key, display_name, unit_class, aggregation, interpretation, canonical_source_class)
+     values ('revenue', 'Revenue', 'currency', 'sum', 'higher_is_better', 'filing') returning metric_id`,
+  );
+  await db.query(
+    `insert into facts (subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+                        value_num, unit, currency, as_of, observed_at, source_id, method, verification_status,
+                        freshness_class, coverage_level, confidence)
+     values ('issuer', $1, $2, $3, $4, $5, $6, $7, 1, 'currency', 'USD', $8, $8, $9,
+             'reported', 'authoritative', 'filing_time', 'full', 1)`,
+    [ISSUER, metric!.metric_id, fact.period_kind, fact.period_start, fact.period_end, fact.fiscal_year, fact.fiscal_period, fact.observed_at, FILINGS],
+  );
+  return db;
+}
+
+// A year still in progress ends a year after it starts, not with its latest
+// reported quarter: its third-quarter release is about it.
+test("a fiscal year in progress runs a full year from its start", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const db = await fiscalCalendarDb(t, "evidence-selection-fiscal-open", {
+    period_kind: "fiscal_q", period_start: "2025-09-28", period_end: "2025-12-27", fiscal_year: 2026, fiscal_period: "Q1", observed_at: "2026-01-30T00:00:00Z",
+  });
+  const Q3 = "c4000000-0000-4000-8000-0000000000e5";
+  const explanation = { source: FILINGS, predicate: "management.explanation.gross_margin", polarity: "neutral" };
+  await claim(db, { id: INSIDER(1), ...explanation, text: "Gross margin fell in the first quarter.", at: "2026-01-29T00:00:00Z" });
+  await claim(db, { id: Q3, ...explanation, text: "Gross margin rose in the third quarter.", at: "2026-07-30T00:00:00Z" });
+  // Older than both, so recency alone would not pick the third quarter's.
+  await claim(db, { id: INSIDER(2), source: FILINGS, predicate: "insider.transaction", text: "A director sold shares.", polarity: "neutral", at: "2026-08-15T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 1,
+    selection: {
+      predicate_prefixes: ["management.explanation.gross_margin"],
+      effective_from: "2025-01-01T00:00:00.000Z",
+      effective_until: "2026-04-01T00:00:00.000Z",
+      fiscal_year: 2026,
+    },
+  });
+  assert.deepEqual(evidence.claim_refs, [Q3]);
+});
+
+// A fact first observed after the cutoff dates no fiscal year for it: the same
+// historical request reads the same claims whenever it is made.
+test("a fiscal year is dated by the facts known at the cutoff", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const db = await fiscalCalendarDb(t, "evidence-selection-fiscal-cutoff", {
+    period_kind: "fiscal_y", period_start: "2024-09-29", period_end: "2025-09-27", fiscal_year: 2025, fiscal_period: "FY", observed_at: "2026-09-01T00:00:00Z",
+  });
+  const FY_Q4 = "c4000000-0000-4000-8000-0000000000e6";
+  const explanation = { source: FILINGS, predicate: "management.explanation.gross_margin", polarity: "neutral" };
+  await claim(db, { id: FY_Q4, ...explanation, text: "Gross margin rose on mix in the fourth quarter.", at: "2025-10-30T00:00:00Z" });
+  await claim(db, { id: INSIDER(1), ...explanation, text: "Gross margin fell in the first quarter.", at: "2026-01-29T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    as_of: "2026-08-01T00:00:00Z",
+    limit: 1,
+    selection: {
+      predicate_prefixes: ["management.explanation.gross_margin"],
+      effective_from: "2024-01-01T00:00:00.000Z",
+      effective_until: "2026-04-01T00:00:00.000Z",
+      fiscal_year: 2025,
+    },
+  });
+  // Unknown then, the year falls back to the label's calendar bounds: newest first.
+  assert.deepEqual(evidence.claim_refs, [INSIDER(1)]);
+});

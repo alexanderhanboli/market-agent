@@ -132,9 +132,12 @@ export async function loadLocalRuntimeEvidence(
          join instruments ins on ins.instrument_id = ir.subject_id
         where ir.subject_kind = 'instrument'
      ),
-     -- The fiscal year asked about, as each covered issuer's facts date it.
+     -- The fiscal year asked about, as each covered issuer's facts known at the
+     -- cutoff date it: from its start (a quarter's or year-to-date figure's)
+     -- for a year, so one still in progress ends where it will, not with its
+     -- latest quarter. ponytail: a 52/53-week year can end a few days off.
      fiscal_years as (
-       select f.subject_kind, f.subject_id, min(f.period_start) as starts, max(f.period_end) as ends
+       select f.subject_kind, f.subject_id, min(f.period_start) as starts, min(f.period_start) + interval '1 year' as ends
          from subject_refs sr
          join facts f
            on f.subject_kind = sr.subject_kind
@@ -142,8 +145,8 @@ export async function loadLocalRuntimeEvidence(
         where $13::int is not null
           and f.fiscal_year = $13::int
           and f.period_start is not null
-          and f.period_end is not null
-          and ${factActiveSql("f")}
+          and (($7::timestamptz is null and ${factActiveSql("f")})
+               or ($7::timestamptz is not null and ${factKnownAtSql("f", "$7::timestamptz")}))
         group by f.subject_kind, f.subject_id
      ),
      matching_claims as (
