@@ -1073,8 +1073,8 @@ test("with rendering off, or nothing accepted, the guarded prose stands (#208)",
   const off = await renderWithReply(withList(both), { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
   assert.equal((off.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(off.report.rendered, undefined);
-  // Unset is on.
-  assert.equal((await renderWithReply(withList(both), BASE_ENV)).report.rendered, true);
+  // Unset is off.
+  assert.equal((await renderWithReply(withList(both), BASE_ENV)).report.rendered, undefined);
   const none = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was 99%.", evidence: ["F2"] }]));
   assert.equal((none.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(none.report.rendered, undefined);
