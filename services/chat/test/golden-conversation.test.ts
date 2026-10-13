@@ -25,7 +25,8 @@ import { loadEvidenceInspection } from "../../evidence/src/inspector.ts";
 import { createChatServer } from "../src/http.ts";
 import { closeLocalRuntimePoolForTests } from "../src/local-runtime.ts";
 import { loadChatServerOptionsFromEnv } from "../src/runtime.ts";
-import { GOLDEN_COMPANIES, seedGoldenDataset } from "./golden/dataset.ts";
+import { AMD_Q2_2025_RELEASE, GOLDEN_COMPANIES, seedGoldenDataset } from "./golden/dataset.ts";
+import type { Client } from "pg";
 import { parseSseEvents, type ParsedSseEvent } from "./sse-helpers.ts";
 import type { AddressInfo } from "node:net";
 
@@ -397,6 +398,29 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     assert.equal(answer.blocks.some((block) => block.kind === "revenue_bars"), false);
   });
 
+  await t.test("'Why did AMD's operating margin turn negative in Q2 2025?' cites AMD's filed explanation, not a later one (#282)", async () => {
+    // A claim published after the cutoff must never be used.
+    const amd = GOLDEN_COMPANIES.find((company) => company.ticker === "AMD")!;
+    const late = await seedLateClaim(client, amd.issuer_id);
+    const thread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "AMD margin" });
+    const completed = completedTurn(await runTurn(base, thread.thread_id, "Why did AMD's operating margin turn negative in Q2 2025?"));
+    // The cause is the claim's, attributed to management (#208's kind), not the model's.
+    const report = completed.data.assertion_report as { accepted: Array<{ kind: string; evidence: string[] }> };
+    assert.deepEqual(report.accepted.map((entry) => entry.kind), ["management_attribution"]);
+
+    const answer = await latestAssistantMessage(base, thread.thread_id);
+    const { rows: filed } = await client.query<{ claim_id: string }>(
+      `select claim_id::text from claims where text_canonical = $1`, [AMD_Q2_2025_RELEASE.text],
+    );
+    const { rows } = await client.query<{ claim_refs: string[] }>(`select claim_refs from snapshots where snapshot_id = $1::uuid`, [answer.snapshot_id]);
+    const cited = rows[0]?.claim_refs ?? [];
+    assert.ok(cited.includes(filed[0]!.claim_id), `the filed claim is not cited; claim_refs ${JSON.stringify(cited)}; filed ${JSON.stringify(filed)}; blocks ${JSON.stringify(answer.blocks.map((b) => [b.kind, b.title, b.kind === "rich_text" ? JSON.stringify(b.segments).slice(0, 400) : ""]))}`);
+    assert.equal(cited.includes(late), false, "a claim published after the cutoff was cited");
+    const prose = JSON.stringify(answer.blocks.filter((block) => block.kind === "rich_text"));
+    assert.match(prose, /MI308/);
+    assert.match(prose, /\$800 million in inventory and related charges/);
+  });
+
   await t.test("a company with no segment facts gets no breakdown block", async () => {
     const amdThread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "AMD segments" });
     completedTurn(await runTurn(base, amdThread.thread_id, "Break down AMD's revenue by segment"));
@@ -662,3 +686,26 @@ test("golden conversation: a rendered answer seals under strict verification (#2
   const { rows } = await client.query<{ fact_refs: string[] }>(`select fact_refs from snapshots where snapshot_id = $1::uuid`, [answer.snapshot_id]);
   assert.ok((rows[0]?.fact_refs ?? []).includes(factRef.ref_id!), "the rendered value's fact is not in the snapshot");
 });
+
+// An AMD claim published a month after the golden cutoff (#282).
+async function seedLateClaim(client: Client, issuerId: string): Promise<string> {
+  const { rows: [doc] } = await client.query<{ document_id: string }>(
+    `insert into documents (source_id, kind, title, published_at, content_hash, raw_blob_id, parse_status)
+     select source_id, 'press_release', 'A later AMD release', '2026-10-01T00:00:00Z', 'sha256:${"c".repeat(64)}', 'ephemeral:late', 'parsed'
+       from sources where canonical_url = $1
+     returning document_id::text`,
+    [AMD_Q2_2025_RELEASE.url],
+  );
+  const { rows: [claim] } = await client.query<{ claim_id: string }>(
+    `insert into claims (document_id, predicate, text_canonical, polarity, modality, reported_by_source_id, effective_time, confidence, status)
+     select $1::uuid, 'kpi.commentary', 'A later explanation published after the cutoff.', 'negative', 'asserted', d.source_id, '2025-06-28T00:00:00Z', 0.95, 'extracted'
+       from documents d where d.document_id = $1::uuid
+     returning claim_id::text`,
+    [doc!.document_id],
+  );
+  await client.query(
+    `insert into claim_arguments (claim_id, subject_kind, subject_id, role) values ($1::uuid, 'issuer', $2::uuid, 'subject')`,
+    [claim!.claim_id, issuerId],
+  );
+  return claim!.claim_id;
+}

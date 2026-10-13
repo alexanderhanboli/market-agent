@@ -17,7 +17,13 @@ import { join } from "node:path";
 
 import type { Client } from "pg";
 
+import { createClaimArgument } from "../../../evidence/src/claim-argument-repo.ts";
+import { createClaimEvidence } from "../../../evidence/src/claim-evidence-repo.ts";
+import { createClaim } from "../../../evidence/src/claim-repo.ts";
+import { createDocument } from "../../../evidence/src/document-repo.ts";
 import { createFact } from "../../../evidence/src/fact-repo.ts";
+import { ephemeralRawBlobIdForSource } from "../../../evidence/src/object-store.ts";
+import { createSource } from "../../../evidence/src/source-repo.ts";
 import { FROZEN_AS_OF } from "../../src/ytd-hydration.ts";
 
 const SEED_DIR = join(import.meta.dirname, "..", "..", "..", "..", "db", "seed");
@@ -175,6 +181,21 @@ const INCOME_METRICS = ["revenue", "gross_profit", "operating_income", "net_inco
 // (the last 2025 close) and runs to the session before GOLDEN_AS_OF (#192).
 const BARS_FROM = "2025-12-01";
 
+// AMD's own explanation of its Q2 2025 margin drop (#282): two sentences quoted
+// verbatim from its earnings release, filed with the SEC as exhibit 99.1 to a
+// Form 8-K dated August 5, 2025, so a "why" question has a cause in evidence.
+// The other margin moves (NVDA's Q1 FY2026 gross margin) keep none, so "the
+// data does not show why" stays the honest answer there.
+export const AMD_Q2_2025_RELEASE = {
+  url: "https://www.sec.gov/Archives/edgar/data/2488/000000248825000106/q22025991.htm",
+  title: "AMD Reports Second Quarter 2025 Financial Results (Form 8-K, Exhibit 99.1)",
+  // The release's dateline; the hour is not stated, so the date is used.
+  published_at: "2025-08-05T00:00:00.000Z",
+  // The quarter the claim is about: AMD's fiscal Q2 2025, ended 2025-06-28.
+  effective_time: "2025-06-28T00:00:00.000Z",
+  text: "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.",
+} as const;
+
 export async function seedGoldenDataset(client: Client): Promise<void> {
   // The dev seeds provide the metrics registry and the fixed source rows.
   for (const file of ["metrics.sql", "sources.sql"]) {
@@ -258,6 +279,47 @@ export async function seedGoldenDataset(client: Client): Promise<void> {
     await seedQuote(client, company);
     await seedDailyBars(client, company);
   }
+  await seedFiledClaims(client);
+}
+
+// The filed claim, through the same repositories live ingestion uses.
+async function seedFiledClaims(client: Client): Promise<void> {
+  const amd = GOLDEN_COMPANIES.find((company) => company.ticker === "AMD")!;
+  const release = AMD_Q2_2025_RELEASE;
+  const source = await createSource(client, {
+    provider: "sec_edgar",
+    kind: "press_release",
+    canonical_url: release.url,
+    trust_tier: "primary",
+    license_class: "public",
+    retrieved_at: GOLDEN_AS_OF,
+    content_hash: `sha256:${"a".repeat(64)}`,
+  });
+  const document = (await createDocument(client, {
+    source_id: source.source_id,
+    kind: "press_release",
+    title: release.title,
+    published_at: release.published_at,
+    content_hash: `sha256:${"b".repeat(64)}`,
+    raw_blob_id: ephemeralRawBlobIdForSource(source.source_id),
+    parse_status: "parsed",
+  })).document;
+  const claim = await createClaim(client, {
+    document_id: document.document_id,
+    predicate: "kpi.commentary",
+    text_canonical: release.text,
+    polarity: "negative",
+    modality: "asserted",
+    reported_by_source_id: source.source_id,
+    effective_time: release.effective_time,
+    confidence: 0.95,
+    status: "extracted",
+  });
+  // Known by the golden cutoff, as the seeded facts are: a turn reads only
+  // claims ingested by its cutoff.
+  await client.query(`update claims set created_at = $2, updated_at = $2 where claim_id = $1::uuid`, [claim.claim_id, GOLDEN_AS_OF]);
+  await createClaimArgument(client, { claim_id: claim.claim_id, subject_kind: "issuer", subject_id: amd.issuer_id, role: "subject" });
+  await createClaimEvidence(client, { claim_id: claim.claim_id, document_id: document.document_id, locator: { kind: "paragraph", index: 2 }, confidence: 0.95 });
 }
 
 async function seedSegments(client: Client, company: GoldenCompany, revenueMetricId: string): Promise<void> {
