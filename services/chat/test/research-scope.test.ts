@@ -504,3 +504,10 @@ test("asking for the latest quarter also clears the fiscal year its quarter name
   assert.equal(latest.fiscal_quarter, null);
   assert.equal(latest.fiscal_year, null);
 });
+
+test("a new complete quarter with no fiscal year named clears the inherited year (#292 review)", () => {
+  const asked = fresh("What was AMD's EPS in Q1 fiscal 2025?", [AMD]);
+  const next = resolveResearchScope({ question: "What about EPS in Q2 2026?", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q2" });
+  assert.equal(next.fiscal_year, null);
+});

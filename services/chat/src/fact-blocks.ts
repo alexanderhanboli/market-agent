@@ -849,9 +849,14 @@ export function scopeGapBlocks(
     } else if (readsNamedQuarter(scope) && !showsQuarter(shown)) {
       notes.push(["gap:quarter", `No figures for ${quarter} are on file for ${names}.`]);
     } else if (scope.reads === "segments" || scope.reads === "statements") {
-      // Their readers take the latest period: said, never shown silently (#292 review).
+      // Their readers take the latest period: said, never shown silently (#292
+      // review), and only when something is shown; with nothing, their own
+      // gap notes say what is missing.
+      const latestShown = scope.reads === "segments"
+        ? showsSegments(shown)
+        : statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key));
       const what = scope.reads === "segments" ? "this breakdown" : "these statement figures";
-      notes.push(["gap:quarter", `A named quarter is not read for ${what}; the latest available period is shown, not ${quarter}.`]);
+      if (latestShown) notes.push(["gap:quarter", `A named quarter is not read for ${what}; the latest available period is shown, not ${quarter}.`]);
     }
   }
   if (scope.benchmark) {
