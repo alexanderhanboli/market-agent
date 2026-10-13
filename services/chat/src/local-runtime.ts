@@ -30,7 +30,15 @@ import {
 } from "./coordinator.ts";
 import type { AssertionReport } from "./assertions.ts";
 import { claimSelection } from "./evidence-packet.ts";
-import { companyListings, loadTurnFactBlocks, mayOfferOtherFacts, priceListingsForTurn, scopeGapBlocks, turnCompanies } from "./fact-blocks.ts";
+import {
+  companyListings,
+  loadTurnFactBlocks,
+  mayOfferOtherFacts,
+  priceListingsForTurn,
+  scopeGapBlocks,
+  turnCompanies,
+  withDerivationSources,
+} from "./fact-blocks.ts";
 import { resolveResearchScope, type ResearchScope } from "./research-scope.ts";
 import { loadStatementBlocks, statementFacets, wantsStatements } from "./statement-blocks.ts";
 import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin } from "./ytd-hydration.ts";
@@ -219,7 +227,7 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
       : Promise.resolve([]),
     loadRecentConversation(pool(), { threadId: context.threadId, limit: CONVERSATION_MESSAGES }),
   ]);
-  const shownBlocks = [...incomeBlocks, ...statementBlocks];
+  const shownBlocks = await withDerivationSources(pool(), [...incomeBlocks, ...statementBlocks]);
   const factBlocks = [...shownBlocks, ...scopeGapBlocks(scope, shownBlocks, { snapshotId: result.snapshot_id, asOf })];
   let narrativeRemoved: ReadonlyArray<string> = [];
   let assertionReport: AssertionReport | undefined;

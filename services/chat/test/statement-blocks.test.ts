@@ -3,7 +3,13 @@ import test from "node:test";
 
 import type { IssuerFundamentalFact } from "../../fundamentals/src/issuer-fundamentals-reader.ts";
 import type { VerifierFact } from "../../snapshot/src/snapshot-verifier.ts";
-import { displayedFigures, mayOfferOtherFacts, scopeGapBlocks, type DerivedQuarterFact } from "../src/fact-blocks.ts";
+import {
+  displayedFigures,
+  mayOfferOtherFacts,
+  scopeGapBlocks,
+  withDerivationSources,
+  type DerivedQuarterFact,
+} from "../src/fact-blocks.ts";
 import { resolveResearchScope, type ResearchScope } from "../src/research-scope.ts";
 import {
   buildStatementBlocks,
@@ -230,6 +236,28 @@ test("facts the verifier cannot load are left out rather than rendered unbound",
   assert.equal(blocks[0]!.title, "Cash flow (Q3 2026)");
 });
 
+test("a figure derived across filings cites every filing it was computed from", async (t) => {
+  const [quarter] = blocksFor(undefined, { cashFlow: true, balanceSheet: false, eps: false });
+  const ocfId = items(quarter!)[0]!.value_ref;
+  const Q3_FILING = "00000000-0000-4000-a000-000000000003";
+  const query = fakeQuery((_text, values) => ({
+    rows: ((values?.[0] ?? []) as string[]).map((fact_id) => ({
+      fact_id,
+      quality_flags: fact_id === ocfId
+        ? [{ kind: "sec_period_difference", input_source_ids: [SOURCE_ID, Q3_FILING] }]
+        // A derived margin's lineage names facts, not filings: nothing to add.
+        : [{ kind: "derivation", input_fact_ids: ["x"] }],
+    })),
+  }));
+  const [withSources] = await withDerivationSources({ query } as never, [quarter!]);
+  assert.deepEqual([...(withSources!.source_refs as string[])].sort(), [SOURCE_ID, CAPEX_SOURCE_ID, Q3_FILING].sort());
+
+  // Unreadable lineage leaves the block as it was.
+  t.mock.method(console, "warn", () => {});
+  const failing = fakeQuery(() => { throw new Error("database unavailable"); });
+  assert.deepEqual(await withDerivationSources({ query: failing } as never, [quarter!]), [quarter!]);
+});
+
 test("no statement facts means no blocks", () => {
   assert.deepEqual(blocksFor([], ALL), []);
 });
@@ -272,6 +300,19 @@ test("a statement metric not shown, or asked of a comparison, is a named gap", (
   assert.deepEqual(notes(scopeGapBlocks(comparison, [], input)), [
     "Free cash flow is shown for one company at a time; ask about one company for it.",
   ]);
+});
+
+test("a cash question answered without a cash figure is a named gap, whatever else the balance sheet shows", () => {
+  const scope = resolveResearchScope({ question: "How much cash does NVDA have?", companies: [NVDA], prior: null, asOf: AS_OF });
+  assert.equal(scope.reads, "statements");
+  // The filer reports assets but not the mapped cash concept.
+  const facts = [fact("total_assets", 2026, "FY", 206_803e6, point("2026-01-25"))];
+  const shown = blocksFor(facts, statementFacets(scope));
+  assert.deepEqual(items(shown[0]!).map((item) => item.label), ["Total assets"]);
+  const notes = scopeGapBlocks(scope, shown, { snapshotId: SNAPSHOT_ID, asOf: AS_OF })
+    .map((block) => (block.segments as Array<{ text: string }>)[0]!.text);
+  assert.deepEqual(notes, ["Cash and equivalents is not available for NVDA in this data, so no other figure is shown in its place."]);
+  assert.equal(mayOfferOtherFacts(scope, shown), false);
 });
 
 test("a statement request offers other facts only when it shows what it asked for", () => {

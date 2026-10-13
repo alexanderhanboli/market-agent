@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  backfillSecCompanionStatements,
   createSecBackedStatementRepository,
   createSecBackedStatsRepository,
 } from "../src/sec-facts-repository.ts";
@@ -92,6 +93,100 @@ test("SEC-backed statements store the filing's cash flow and balance sheet besid
   // One filing, one source, one transaction.
   assert.equal(db.facts.every((fact) => fact.source_id === income?.source_id), true);
   assert.deepEqual(db.transactions, ["begin", "commit"]);
+});
+
+// Real NVDA values: Q2 FY2026 cash flow is the Q2 10-Q's six months less the
+// Q1 10-Q's three, so the stored quarter names both filings.
+test("a discrete quarter derived across filings records each filing in its lineage", async () => {
+  const db = new FakeFundamentalsDb();
+  const q1 = { fy: 2026, fp: "Q1", form: "10-Q", accn: "0001045810-25-000116", filed: "2025-05-28" };
+  const q2 = { fy: 2026, fp: "Q2", form: "10-Q", accn: "0001045810-25-000209", filed: "2025-08-27" };
+  const usd = (values: SecConceptValue[]) => ({ label: "", description: "", units: { USD: values } });
+  const facts = {
+    cik: 1045810,
+    entityName: "NVIDIA Corp",
+    facts: {
+      "us-gaap": {
+        Revenues: usd([
+          { ...q1, start: "2025-01-27", end: "2025-04-27", val: 44_062_000_000 },
+          { ...q2, start: "2025-04-28", end: "2025-07-27", val: 46_743_000_000 },
+        ]),
+        NetCashProvidedByUsedInOperatingActivities: usd([
+          { ...q1, start: "2025-01-27", end: "2025-04-27", val: 27_414_000_000 },
+          { ...q2, start: "2025-01-27", end: "2025-07-27", val: 42_779_000_000 },
+        ]),
+      },
+    },
+  };
+  const statements = createSecBackedStatementRepository(db, {
+    fetcher: async () => facts,
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  });
+
+  await statements.find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2026, fiscal_period: "Q2" });
+
+  const ocf = db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === "operating_cash_flow");
+  assert.equal(ocf?.value_num, 15_365_000_000);
+  const [lineage] = ocf!.quality_flags as Array<{ kind: string; input_source_ids: string[]; inputs: Array<{ accn: string; source_id: string }> }>;
+  assert.equal(lineage?.kind, "sec_period_difference");
+  assert.deepEqual(lineage!.inputs.map((input) => input.accn), [q2.accn, q1.accn]);
+  // The fact's own source is the Q2 filing; the Q1 filing is a source too.
+  assert.equal(lineage!.input_source_ids.length, 2);
+  assert.ok(lineage!.input_source_ids.includes(ocf!.source_id));
+  const registered = new Set(db.sources.map((source) => source[0]));
+  for (const id of lineage!.input_source_ids) assert.ok(registered.has(id), `source ${id} is registered`);
+  // A value filed as is carries no lineage.
+  const revenue = db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  assert.deepEqual(revenue?.quality_flags, []);
+});
+
+test("the backfill stores cash flow and balance sheet for income periods already on file", async () => {
+  const db = new FakeFundamentalsDb();
+  // The income statement was stored before the other families were ingested.
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  const stored = (key: string) => db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === key);
+  assert.equal(stored("operating_cash_flow").length, 0);
+
+  const facts = companyFacts();
+  const usGaap = facts.facts["us-gaap"] as Record<string, unknown>;
+  usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
+  usGaap.Assets = annualInstant(5000, 4000);
+  let fetches = 0;
+  const result = await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => {
+      fetches += 1;
+      return facts;
+    },
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+
+  assert.deepEqual(result, { periods: 1 });
+  assert.equal(fetches, 1);
+  assert.equal(stored("operating_cash_flow")[0]?.value_num, 300);
+  assert.equal(stored("total_assets")[0]?.period_end, "2024-12-31");
+  // The income statement is not written again.
+  assert.equal(stored("revenue").length, 1);
+});
+
+test("the backfill downloads nothing for an issuer with no income periods on file", async () => {
+  let fetches = 0;
+  const result = await backfillSecCompanionStatements(new FakeFundamentalsDb(), {
+    issuerId: ISSUER_ID,
+    fetcher: async () => {
+      fetches += 1;
+      return companyFacts();
+    },
+    sourceId: SOURCE_ID,
+  });
+  assert.deepEqual(result, { periods: 0 });
+  assert.equal(fetches, 0);
 });
 
 test("SEC-backed statements keep the income statement when another family cannot be extracted", async () => {
@@ -324,6 +419,7 @@ type FactRecord = {
   observed_at: string;
   source_id: string;
   coverage_level: string;
+  quality_flags: Array<Record<string, unknown>>;
 };
 
 class FakeFundamentalsDb {
@@ -377,6 +473,16 @@ class FakeFundamentalsDb {
           )
           .map((fact) => factRow(this.metrics, fact)),
       );
+    }
+    // The backfill's stored SEC income periods.
+    if (sql.includes("select distinct f.fiscal_year")) {
+      const keys = new Set(values[1] as string[]);
+      const periods = new Map(
+        this.facts
+          .filter((fact) => fact.subject_id === values[0] && keys.has(metricKeyFor(this.metrics, fact.metric_id)))
+          .map((fact) => [`${fact.fiscal_year}|${fact.fiscal_period}`, { fiscal_year: fact.fiscal_year, fiscal_period: fact.fiscal_period }]),
+      );
+      return rows([...periods.values()]);
     }
     if (sql.includes("select fact_id::text as fact_id") && sql.includes("limit 1")) {
       const [subjectId, metricId, periodKind, fiscalYear, fiscalPeriod, sourceId] = values as [
@@ -483,6 +589,7 @@ function factFromInsert(values: unknown[]): FactRecord {
     observed_at: values[14] as string,
     source_id: values[15] as string,
     coverage_level: values[16] as string,
+    quality_flags: JSON.parse((values[17] as string | undefined) ?? "[]"),
   };
 }
 

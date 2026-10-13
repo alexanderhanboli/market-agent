@@ -47,7 +47,7 @@ export function statementFacets(scope: ResearchScope): StatementFacets {
   const keys = new Set(statementMetrics(scope).map((metric) => metric.metric_key));
   return {
     cashFlow: [...CASH_FLOW, "free_cash_flow"].some((key) => keys.has(key)),
-    balanceSheet: keys.has("balance_sheet"),
+    balanceSheet: ["balance_sheet", ...BALANCE_ITEMS.map(([key]) => key)].some((key) => keys.has(key)),
     eps: keys.has("eps_diluted"),
   };
 }

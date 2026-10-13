@@ -17,6 +17,7 @@ import {
   type ExtractStatementInput,
   type SecCompanyFacts,
   type SecEdgarFetcher,
+  type SecDerivation,
   type SecSourceToken,
 } from "./sec-edgar.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
@@ -93,45 +94,19 @@ export function createSecBackedStatementRepository(
         return null;
       }
 
-      const asOf = clock().toISOString();
       try {
         const companyFacts = await fetchCompanyFacts(options.fetcher, cikNumber);
-        const accessionNumber = statementAccession(companyFacts, lookup.fiscal_year, lookup.fiscal_period);
-        const sourceId = accessionNumber
-          ? await upsertSecFilingSource(db, {
-              cik: cikNumber,
-              accessionNumber,
-              retrievedAt: asOf,
-            })
-          : options.sourceId;
-        const target = {
-          subject: { kind: "issuer", id: lookup.issuer_id },
-          facts: companyFacts,
+        return await ingestFiling(db, {
+          companyFacts,
+          cik: cikNumber,
+          issuerId: lookup.issuer_id,
           fiscal_year: lookup.fiscal_year,
           fiscal_period: lookup.fiscal_period,
-          accession_number: accessionNumber ?? undefined,
-          source_id: sourceId,
-          as_of: asOf,
-        } as const;
-        const extracted = extractStatementWithTokens({ ...target, family: lookup.family });
-        const statement = normalizedStatement(extracted.statement);
-        // The same filing's cash flow and balance sheet come with the download,
-        // so they are stored beside the income statement.
-        const companions = companionStatements(target, logger);
-        const registry = await loadMetricRegistry(
-          db,
-          [statement, ...companions.map((entry) => entry.statement)].flatMap((entry) => entry.lines.map((line) => line.metric_key)),
-        );
-        const mapped = [
-          { mapped: mapStatement(registry, statement), tokens: extracted.tokens },
-          ...mapCompanions(registry, companions, target, logger),
-        ];
-        await withPinnedTransaction(db, async (client) => {
-          for (const entry of mapped) {
-            await persistStatementFacts(client, entry.mapped, clock, { cik: cikNumber, tokens: entry.tokens });
-          }
+          fallbackSourceId: options.sourceId,
+          withIncome: true,
+          clock,
+          logger,
         });
-        return statement;
       } catch (error) {
         const unavailable = classifySecIngestionError(error);
         logger.warn("sec_edgar fundamentals ingestion failed", {
@@ -147,6 +122,122 @@ export function createSecBackedStatementRepository(
   };
 }
 
+// Stores the cash flow and balance sheet for every SEC income period already
+// on file for an issuer, from one companyfacts download. Periods stored before
+// those families were ingested are otherwise read from facts and never fetched
+// again. Rerunning is safe: an existing fact is left as it is.
+export async function backfillSecCompanionStatements(
+  db: FundamentalsTransactionalQueryExecutor,
+  input: {
+    issuerId: UUID;
+    fetcher: SecEdgarFetcher;
+    sourceId: UUID;
+    clock?: () => Date;
+    logger?: Pick<Console, "warn">;
+  },
+): Promise<{ periods: number }> {
+  const issuer = await loadIssuer(db, input.issuerId);
+  const cik = Number(issuer?.cik);
+  if (!Number.isInteger(cik) || cik <= 0) return { periods: 0 };
+  const { rows } = await db.query<{ fiscal_year: number; fiscal_period: FiscalPeriod }>(
+    `select distinct f.fiscal_year, f.fiscal_period::text as fiscal_period
+       from facts f
+       join metrics m on m.metric_id = f.metric_id
+       join sources s on s.source_id = f.source_id
+      where f.subject_kind = 'issuer'
+        and f.subject_id = $1
+        and f.method = 'reported'
+        and f.period_kind in ('fiscal_q', 'fiscal_y')
+        and s.provider = 'sec_edgar'
+        and ${factActiveSql("f")}
+        and m.metric_key = any($2::text[])
+      order by f.fiscal_year, f.fiscal_period`,
+    [input.issuerId, SEC_INCOME_METRIC_KEYS],
+  );
+  if (rows.length === 0) return { periods: 0 };
+  const companyFacts = await fetchCompanyFacts(input.fetcher, cik);
+  for (const period of rows) {
+    await ingestFiling(db, {
+      companyFacts,
+      cik,
+      issuerId: input.issuerId,
+      fiscal_year: period.fiscal_year,
+      fiscal_period: period.fiscal_period,
+      fallbackSourceId: input.sourceId,
+      withIncome: false,
+      clock: input.clock ?? (() => new Date()),
+      logger: input.logger ?? console,
+    });
+  }
+  return { periods: rows.length };
+}
+
+type Extracted = {
+  statement: NormalizedStatement;
+  tokens: ReadonlyMap<string, SecSourceToken>;
+  derivations: ReadonlyMap<string, SecDerivation>;
+};
+
+// Stores one filing's statements for a fiscal period from a companyfacts
+// download: the income statement (withIncome, which then must extract), and
+// the same filing's cash flow and balance sheet beside it, in one transaction.
+// Returns the income statement, or null without it.
+async function ingestFiling(
+  db: FundamentalsTransactionalQueryExecutor,
+  input: {
+    companyFacts: SecCompanyFacts;
+    cik: number;
+    issuerId: UUID;
+    fiscal_year: number;
+    fiscal_period: FiscalPeriod;
+    fallbackSourceId: UUID;
+    withIncome: boolean;
+    clock: () => Date;
+    logger: Pick<Console, "warn">;
+  },
+): Promise<NormalizedStatement | null> {
+  const asOf = input.clock().toISOString();
+  const accessionNumber = statementAccession(input.companyFacts, input.fiscal_year, input.fiscal_period);
+  const sourceId = accessionNumber
+    ? await upsertSecFilingSource(db, { cik: input.cik, accessionNumber, retrievedAt: asOf })
+    : input.fallbackSourceId;
+  const target = {
+    subject: { kind: "issuer", id: input.issuerId },
+    facts: input.companyFacts,
+    fiscal_year: input.fiscal_year,
+    fiscal_period: input.fiscal_period,
+    accession_number: accessionNumber ?? undefined,
+    source_id: sourceId,
+    as_of: asOf,
+  } as const;
+  const income: Extracted | null = input.withIncome ? extracted(extractStatementWithTokens({ ...target, family: "income" })) : null;
+  const companions = companionStatements(target, input.logger);
+  const registry = await loadMetricRegistry(
+    db,
+    [...(income ? [income] : []), ...companions].flatMap((entry) => entry.statement.lines.map((line) => line.metric_key)),
+  );
+  const mapped = [
+    ...(income ? [{ ...income, mapped: mapStatement(registry, income.statement) }] : []),
+    ...mapCompanions(registry, companions, target, input.logger),
+  ];
+  if (mapped.length === 0) return income?.statement ?? null;
+  await withPinnedTransaction(db, async (client) => {
+    for (const entry of mapped) {
+      await persistStatementFacts(client, entry.mapped, input.clock, {
+        cik: input.cik,
+        tokens: entry.tokens,
+        derivations: entry.derivations,
+        retrievedAt: asOf,
+      });
+    }
+  });
+  return income?.statement ?? null;
+}
+
+function extracted(result: ReturnType<typeof extractStatementWithTokens>): Extracted {
+  return { statement: normalizedStatement(result.statement), tokens: result.tokens, derivations: result.derivations };
+}
+
 // The cash flow and balance sheet for the filing an income lookup ingests. A
 // filer that tags none of a family's concepts has no such statement; any other
 // failure (concepts disagreeing on the period, a second currency) is logged and
@@ -154,11 +245,10 @@ export function createSecBackedStatementRepository(
 function companionStatements(
   target: Omit<ExtractStatementInput, "family">,
   logger: Pick<Console, "warn">,
-): Array<{ statement: NormalizedStatement; tokens: ReadonlyMap<string, SecSourceToken> }> {
+): Extracted[] {
   return COMPANION_FAMILIES.flatMap((family) => {
     try {
-      const extracted = extractStatementWithTokens({ ...target, family });
-      return [{ statement: normalizedStatement(extracted.statement), tokens: extracted.tokens }];
+      return [extracted(extractStatementWithTokens({ ...target, family }))];
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!isMissingCoverage(message)) {
@@ -181,13 +271,13 @@ const COMPANION_FAMILIES = ["cashflow", "balance"] as const;
 // a failed extraction, so it cannot cost the income statement either.
 function mapCompanions(
   registry: MetricRegistry,
-  companions: ReadonlyArray<{ statement: NormalizedStatement; tokens: ReadonlyMap<string, SecSourceToken> }>,
+  companions: ReadonlyArray<Extracted>,
   target: Omit<ExtractStatementInput, "family">,
   logger: Pick<Console, "warn">,
-): Array<{ mapped: MappedStatement; tokens: ReadonlyMap<string, SecSourceToken> }> {
+): Array<Extracted & { mapped: MappedStatement }> {
   return companions.flatMap((entry) => {
     try {
-      return [{ mapped: mapStatement(registry, entry.statement), tokens: entry.tokens }];
+      return [{ ...entry, mapped: mapStatement(registry, entry.statement) }];
     } catch (error) {
       logger.warn("sec_edgar statement mapping failed", {
         issuer_id: target.subject.id,
@@ -582,21 +672,30 @@ async function persistStatementFacts(
   db: FundamentalsQueryExecutor,
   statement: MappedStatement,
   clock: () => Date,
-  provenance: { cik: number; tokens: ReadonlyMap<string, SecSourceToken> },
+  provenance: {
+    cik: number;
+    tokens: ReadonlyMap<string, SecSourceToken>;
+    derivations?: ReadonlyMap<string, SecDerivation>;
+    retrievedAt?: string;
+  },
 ): Promise<void> {
   for (const line of statement.lines) {
     const token = provenance.tokens.get(line.metric_key);
+    const derivation = provenance.derivations?.get(line.metric_key);
+    const qualityFlags = derivation
+      ? [await derivationLineage(db, derivation, provenance.cik, provenance.retrievedAt ?? clock().toISOString())]
+      : [];
     const inserted = await db.query<{ fact_id: string }>(
       `insert into facts (
          subject_kind, subject_id, metric_id, period_kind, period_start,
          period_end, fiscal_year, fiscal_period, value_num, value_text,
          unit, currency, scale, as_of, reported_at, observed_at, source_id,
          method, definition_version, verification_status, freshness_class,
-         coverage_level, confidence
+         coverage_level, confidence, quality_flags
        ) values (
          'issuer', $1, $2, $3, $4, $5, $6, $7, $8, $9,
          $10, $11, $12, $13, $14, $15, $16,
-         'reported', 1, 'authoritative', 'filing_time', $17, 1
+         'reported', 1, 'authoritative', 'filing_time', $17, 1, $18::jsonb
        )
        on conflict do nothing
        returning fact_id::text as fact_id`,
@@ -618,6 +717,7 @@ async function persistStatementFacts(
         clock().toISOString(),
         statement.source_id,
         line.coverage_level,
+        JSON.stringify(qualityFlags),
       ],
     );
     const factId = inserted.rows[0]?.fact_id;
@@ -632,6 +732,31 @@ async function persistStatementFacts(
       });
     }
   }
+}
+
+// A discrete quarter computed from filed values (a cash flow year to date less
+// the previous one, a year less three quarters) usually spans filings: the
+// fact's source is the statement's filing, and its lineage names every input
+// with its own filing source, so a reader can cite each one.
+export const SEC_DERIVATION_KIND = "sec_period_difference";
+
+async function derivationLineage(
+  db: FundamentalsQueryExecutor,
+  derivation: SecDerivation,
+  cik: number,
+  retrievedAt: string,
+): Promise<Record<string, unknown>> {
+  const sources = new Map<string, UUID>();
+  for (const accn of new Set(derivation.inputs.map((input) => input.accn))) {
+    sources.set(accn, await upsertSecFilingSource(db, { cik, accessionNumber: accn, retrievedAt }));
+  }
+  return {
+    kind: SEC_DERIVATION_KIND,
+    concept: derivation.concept,
+    unit: derivation.unit,
+    input_source_ids: [...new Set(sources.values())],
+    inputs: derivation.inputs.map((input) => ({ ...input, source_id: sources.get(input.accn)! })),
+  };
 }
 
 /** Binds the exact token to its location in the SEC response. */

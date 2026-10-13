@@ -123,12 +123,23 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
   // Unqualified "cash flow" means operating cash flow.
   { metric_key: "operating_cash_flow", label: "Operating cash flow", available: true, pattern: /\b(?:operating )?cash[- ]flows?\b/gi },
   { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
-  // Cash on hand is a balance, read after every cash flow phrase is taken.
+  // The whole balance sheet, or one item of it, each its own request: a cash
+  // question is answered by cash, never by assets. Cash on hand is a balance,
+  // read after every cash flow phrase is taken.
+  { metric_key: "balance_sheet", label: "Balance sheet", available: true, pattern: /\bbalance[- ]sheets?\b/gi },
   {
-    metric_key: "balance_sheet",
-    label: "Balance sheet",
+    metric_key: "cash_and_equivalents",
+    label: "Cash and equivalents",
     available: true,
-    pattern: /\bbalance[- ]sheets?\b|\bcash (?:and (?:cash )?equivalents|position|balance|on hand)\b|\bhow much cash\b|\btotal assets\b|\btotal liabilities\b|\b(?:shareholders|stockholders)['’]? equity\b|\bbook value\b/gi,
+    pattern: /\bcash (?:and (?:cash )?equivalents|position|balance|on hand)\b|\bhow much cash\b/gi,
+  },
+  { metric_key: "total_assets", label: "Total assets", available: true, pattern: /\btotal assets\b/gi },
+  { metric_key: "total_liabilities", label: "Total liabilities", available: true, pattern: /\btotal liabilities\b/gi },
+  {
+    metric_key: "total_equity",
+    label: "Total equity",
+    available: true,
+    pattern: /\b(?:total|(?:shareholders|stockholders)['’]?) equity\b|\bbook value\b/gi,
   },
   { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\bEPS\b|\bearnings per share\b/gi },
   { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
@@ -145,6 +156,10 @@ export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<stri
   capex: ["Capital expenditures"],
   free_cash_flow: ["Free cash flow"],
   balance_sheet: ["Cash and equivalents", "Total assets", "Total liabilities", "Total equity"],
+  cash_and_equivalents: ["Cash and equivalents"],
+  total_assets: ["Total assets"],
+  total_liabilities: ["Total liabilities"],
+  total_equity: ["Total equity"],
   eps_diluted: ["EPS (diluted)"],
 };
 

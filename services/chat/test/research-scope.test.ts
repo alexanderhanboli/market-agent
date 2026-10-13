@@ -125,9 +125,13 @@ test("each metric a question names is found once, the most specific first", () =
   assert.deepEqual(keys("NVDA earnings and EPS"), ["eps_diluted", "income_statement"]);
   assert.deepEqual(keys("Compare NVDA with AMD"), []);
   // Cash on hand is a balance, never a cash flow.
-  assert.deepEqual(keys("How much cash does NVDA have?"), ["balance_sheet"]);
-  assert.deepEqual(keys("NVDA cash and equivalents and its operating cash flow"), ["operating_cash_flow", "balance_sheet"]);
-  assert.deepEqual(keys("What is NVDA's book value?"), ["balance_sheet"]);
+  assert.deepEqual(keys("How much cash does NVDA have?"), ["cash_and_equivalents"]);
+  assert.deepEqual(keys("NVDA cash and equivalents and its operating cash flow"), ["operating_cash_flow", "cash_and_equivalents"]);
+  assert.deepEqual(keys("What is NVDA's book value?"), ["total_equity"]);
+  // The whole balance sheet is its own request; an item asked beside it stays named.
+  assert.deepEqual(keys("Show NVDA's balance sheet"), ["balance_sheet"]);
+  assert.deepEqual(keys("How much cash is on NVDA's balance sheet?"), ["balance_sheet", "cash_and_equivalents"]);
+  assert.deepEqual(keys("NVDA total assets and total liabilities"), ["total_assets", "total_liabilities"]);
 });
 
 test("a follow-up naming another metric replaces the metrics; one naming none keeps them", () => {

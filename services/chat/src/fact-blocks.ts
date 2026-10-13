@@ -26,6 +26,7 @@ import { SEC_EDGAR_FILING_SOURCE_ID } from "../../fundamentals/src/provider-sour
 import {
   createSecBackedStatementRepository,
   createSecBackedStatsRepository,
+  SEC_DERIVATION_KIND,
 } from "../../fundamentals/src/sec-facts-repository.ts";
 import type { IssuerSubjectRef } from "../../fundamentals/src/subject-ref.ts";
 import { loadUsableFacts } from "../../fundamentals/src/usable-facts.ts";
@@ -723,6 +724,45 @@ export function blockBase(
     // Promoted to manifest.fact_refs when the answer is sealed.
     provenance_fact_refs: facts.map((fact) => fact.fact_id),
   };
+}
+
+// A reported fact derived across filings (a cash flow quarter from two years
+// to date, a fourth quarter from the year less three quarters) names each
+// filing in its lineage; its block cites them all, so the inspector reaches
+// every filing the figure is computed from. Unchanged if the lineage cannot be
+// read: the figures still cite their own filings.
+export async function withDerivationSources(
+  db: Pick<QueryExecutor, "query">,
+  blocks: ReadonlyArray<Block>,
+): Promise<ReadonlyArray<Block>> {
+  const factIds = [...new Set(blocks.flatMap((block) => (block.provenance_fact_refs ?? []) as string[]))];
+  if (factIds.length === 0) return blocks;
+  try {
+    const { rows } = await db.query<{ fact_id: string; quality_flags: unknown }>(
+      `select fact_id::text as fact_id, quality_flags from facts where fact_id = any($1::uuid[])`,
+      [factIds],
+    );
+    const sources = new Map(rows.map((row) => [row.fact_id, lineageSources(row.quality_flags)]));
+    return blocks.map((block) => {
+      const extra = ((block.provenance_fact_refs ?? []) as string[]).flatMap((id) => sources.get(id) ?? []);
+      return extra.length === 0
+        ? block
+        : { ...block, source_refs: [...new Set([...((block.source_refs ?? []) as string[]), ...extra])] };
+    });
+  } catch (reason) {
+    console.warn("[chat] derivation sources unavailable; figures cite their own filings", reason);
+    return blocks;
+  }
+}
+
+function lineageSources(flags: unknown): string[] {
+  if (!Array.isArray(flags)) return [];
+  return flags.flatMap((flag) =>
+    flag !== null && typeof flag === "object" && (flag as { kind?: unknown }).kind === SEC_DERIVATION_KIND &&
+      Array.isArray((flag as { input_source_ids?: unknown }).input_source_ids)
+      ? ((flag as { input_source_ids: unknown[] }).input_source_ids.filter((id): id is string => typeof id === "string"))
+      : []
+  );
 }
 
 // The binding is the verifier's view of the fact minus its source, so it

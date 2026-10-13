@@ -144,6 +144,11 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
 - **A full year is 350 to 380 days.** A pre-2021 10-K also tags its fourth quarter alone as `fp=FY`, ending the same day.
 - **Cash flow is year to date in a 10-Q:** a quarter is its year to date less the previous one, and Q4 is the year less
   nine months. Derived quarters carry no source token, like a derived income Q4.
+- **A derived quarter names every filing it comes from.** Its source is the statement's filing, but its inputs usually
+  span filings (Q2 cash flow is the Q2 10-Q's six months less the Q1 10-Q's three; an income Q4 is the 10-K's year less
+  three 10-Qs). Its `quality_flags` hold a `sec_period_difference` lineage: each input's accession, period, value and
+  filing `source_id`, every one registered as a source. Chat adds those sources to the block showing the figure
+  (`withDerivationSources`, `services/chat/src/fact-blocks.ts`), so the inspector reaches every filing.
 - **A balance is a point** at the filing's period end. The statement contract labels every point `FY` of its fiscal
   year, so readers date a balance by `period_end`, never by its fiscal label. The chat block's figures tell the model it
   is a "balance at period end" (`displayedFigures`). The model's other facts (`available_data`) leave out cash flow and
@@ -153,16 +158,20 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
 - **Mapped:** operating cash flow, capex (`PaymentsToAcquirePropertyPlantAndEquipment`, else NVDA-style
   `PaymentsToAcquireProductiveAssets`), cash and equivalents, total assets, liabilities and equity. **Not mapped:**
   total debt (filers split it across tags, so it needs a reviewed definition), EBITDA, dividends.
-- **Backfill:** only new ingestions store the extra families. A period whose income facts were stored earlier is read
-  from facts without a download, so it gets cash flow and balance sheet only after a fresh ingestion (reset the dev
-  database).
+- **Backfill:** a period whose income facts were stored earlier is read from facts without a download, so a lookup
+  never adds its other families. `npm run backfill:sec-statements [-- <issuer_uuid> ...]` (in `services/fundamentals`)
+  stores them for every SEC income period on file, one companyfacts download per issuer
+  (`backfillSecCompanionStatements`). A rerun leaves stored facts as they are. Lineage for derived income quarters
+  stored before it existed is not rewritten.
 
-In chat, a single-company question naming cash flow, capex, free cash flow, the balance sheet (or cash on hand) or
-EPS reads them (`services/chat/src/statement-blocks.ts`). A question asking only for them takes the `statements`
+In chat, a single-company question naming cash flow, capex, free cash flow, the balance sheet or one of its items
+(cash, total assets, liabilities, equity or book value), or EPS reads them (`services/chat/src/statement-blocks.ts`). A question asking only for them takes the `statements`
 route and reads nothing else.
 
 - **One company at a time:** a comparison asking now only for them is a named gap (`unavailable_metric`), with no
   income figures in their place. Kept from an earlier turn, they don't stop a comparison asked for now.
+- **A balance item is its own request:** "how much cash" is answered by cash. With no cash figure, the answer names the
+  gap even if the block shows the other balances.
 - **A qualified metric is its own gap:** "free cash flow margin", "EPS growth" or "FCF per share" name a metric no
   reader serves, never the plain figure.
 - **Periods:** cash flow shows the latest quarter and fiscal year; the balance sheet its latest period end; EPS the

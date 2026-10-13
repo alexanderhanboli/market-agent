@@ -37,6 +37,8 @@ export type SecConceptValue = {
   form: string;
   filed: string;
   frame?: string;
+  /** A value computed from others (a discrete quarter): the filed values it came from. */
+  derived_from?: ReadonlyArray<SecConceptValue>;
 };
 
 export type SecConcept = {
@@ -298,6 +300,9 @@ export function extractStatement(input: ExtractStatementInput): NormalizedStatem
 export function extractStatementWithTokens(input: ExtractStatementInput): {
   statement: NormalizedStatementInput;
   tokens: ReadonlyMap<string, SecSourceToken>;
+  // For each derived line, the filed values it was computed from (their
+  // filings may differ from the statement's own).
+  derivations: ReadonlyMap<string, SecDerivation>;
 } {
   const familyKeys = FAMILY_KEYS[input.family];
   const select = FAMILY_SELECTORS[input.family];
@@ -317,6 +322,7 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
   const selectionDescription = statementSelectionDescription(input.fiscal_period);
   const lines: StatementLine[] = [];
   const tokens = new Map<string, SecSourceToken>();
+  const derivations = new Map<string, SecDerivation>();
   const seenKeys = new Set<string>();
   const observedCurrencies = new Set<string>();
   let resolvedPeriodStart: string | null = null;
@@ -375,6 +381,18 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
           end: match.end,
         });
       }
+      if (match.derived_from !== undefined) {
+        derivations.set(metricKey, {
+          concept: conceptName,
+          unit: unitCode,
+          inputs: match.derived_from.map((value) => ({
+            accn: value.accn,
+            start: value.start ?? null,
+            end: value.end,
+            value: value.val_token ?? String(value.val),
+          })),
+        });
+      }
       seenKeys.add(metricKey);
       break; // one unit per concept per period
     }
@@ -415,8 +433,15 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
     source_id: input.source_id,
     lines,
   };
-  return { statement, tokens };
+  return { statement, tokens, derivations };
 }
+
+/** A derived line's inputs: each filed value, by its filing (accession) and period. */
+export type SecDerivation = Readonly<{
+  concept: string;
+  unit: string;
+  inputs: ReadonlyArray<Readonly<{ accn: string; start: string | null; end: string; value: string }>>;
+}>;
 
 export type SecStatementValueSelection = Pick<
   ExtractStatementInput,
@@ -538,6 +563,7 @@ function deriveFourthQuarterConceptValue(
     form: annual.form,
     start: q4Start,
     end: annual.end,
+    derived_from: [annual, q1, q2, q3],
   };
 }
 
@@ -723,7 +749,7 @@ function selectCashFlowConceptValue(
   const days = inclusiveDurationDays(start, ytd.end);
   if (days < 60 || days > 125) return undefined;
   const { val_token: _token, ...rest } = ytd;
-  return { ...rest, val: ytd.val - prior.val, fp: input.fiscal_period, start, end: ytd.end };
+  return { ...rest, val: ytd.val - prior.val, fp: input.fiscal_period, start, end: ytd.end, derived_from: [ytd, prior] };
 }
 
 const PREVIOUS_QUARTER = { Q2: "Q1", Q3: "Q2", Q4: "Q3" } as const;
