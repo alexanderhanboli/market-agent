@@ -14,10 +14,10 @@ export type LocalRuntimeEvidenceInput = {
   // Optional date boundary only; current document visibility always applies.
   as_of?: string;
   // A chat route's selection (#207): claims whose predicate starts with one of
-  // the prefixes, dated from effective_from on, rank ahead of newer others; a
+  // the prefixes, dated from effective_from on (and before effective_until), rank ahead of newer others; a
   // claim repeated (same company, predicate and text) counts once; and stored
   // contradiction relations among the selected are returned.
-  selection?: { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null };
+  selection?: { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null; effective_until?: string | null };
 };
 
 export type LocalRuntimeClaimEvidence = {
@@ -142,6 +142,7 @@ export async function loadLocalRuntimeEvidence(
               sr.subject_id::text as subject_id,
               coalesce(c.predicate like any($8::text[]), false)
                 and ($9::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) >= $9::timestamptz)
+                and ($11::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) < $11::timestamptz)
                 as relevant,
               -- The route's prefixes are a priority: the position of the first
               -- one the predicate matches (management explanations before
@@ -262,6 +263,7 @@ export async function loadLocalRuntimeEvidence(
       input.selection ? [...input.selection.predicate_prefixes].map((prefix) => `${prefix.replace(/[\\%_]/g, "\\$&")}%`) : null,
       input.selection?.effective_from ?? null,
       input.selection !== undefined,
+      input.selection?.effective_until ?? null,
     ],
   );
   const evidence = evidenceFromClaimRows(subjectRefs, rows.slice(0, limit), input.selection !== undefined);

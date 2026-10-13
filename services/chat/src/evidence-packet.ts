@@ -95,15 +95,21 @@ const PRICE_PREDICATES = ["material_event.", "guidance."];
 export function claimSelection(
   scope: ResearchScope | undefined,
   cutoff: string,
-): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null } {
-  if (!scope) return { predicate_prefixes: [], effective_from: null };
+): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null; effective_until: string | null } {
+  if (!scope) return { predicate_prefixes: [], effective_from: null, effective_until: null };
   const route = ROUTE_PREDICATES[scope.reads] ?? [];
   // Management's explanation of what the question asks about comes before its
   // other explanations: one release can hold more of them than the claim limit.
   const explained = route.length > 0 ? explainedMetrics(scope).map((metric) => `management.explanation.${metric}`) : [];
   // A price window adds the events that move a price, whatever else is read.
   const prefixes = [...new Set([...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
-  return { predicate_prefixes: prefixes, effective_from: periodStart(scope, cutoff, route.length > 0) };
+  return {
+    predicate_prefixes: prefixes,
+    effective_from: periodStart(scope, cutoff, route.length > 0),
+    // A fiscal year's window ends a quarter after it (its last release); a
+    // later release's explanation is of another period.
+    effective_until: scope.fiscal_year !== null ? `${scope.fiscal_year + 1}-04-01T00:00:00.000Z` : null,
+  };
 }
 
 // The metrics, in earnings-release terms (sec-earnings-release-extraction.ts),
@@ -117,7 +123,8 @@ const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string>>> = {
   eps_diluted: ["eps"],
   eps_basic: ["eps"],
   non_gaap_income: ["operating_income", "net_income"],
-  income_statement: ["revenue"],
+  // Operating and net income are read as the income statement too.
+  income_statement: ["revenue", "operating_income", "net_income"],
 };
 
 function explainedMetrics(scope: ResearchScope): string[] {
@@ -251,11 +258,11 @@ const STANCE: Readonly<Record<string, PacketClaim["stance"]>> = {
 };
 
 function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
-  const { predicate_prefixes: prefixes, effective_from: from } = claimSelection(scope, cutoff);
+  const { predicate_prefixes: prefixes, effective_from: from, effective_until: until } = claimSelection(scope, cutoff);
   // Named by family ("management", not each metric's explanation).
   const families = [...new Set(prefixes.map((prefix) => prefix.split(".")[0]!))];
   const route = prefixes.length > 0
-    ? `${new Intl.ListFormat("en").format(families)} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
+    ? `${new Intl.ListFormat("en").format(families)} claims${from ? ` from ${from.slice(0, 10)}` : ""}${until ? ` until ${until.slice(0, 10)}` : ""} first, then the most recent others`
     : "the most recent claims";
   return `${route}, published by the ${cutoff.slice(0, 10)} cutoff; a claim repeated by several sources or copies counts once`;
 }

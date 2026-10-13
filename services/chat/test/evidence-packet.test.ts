@@ -163,6 +163,7 @@ test("a route reads its predicate families first, from the start of the period i
   assert.deepEqual(claimSelection(scope("Analyze NVDA's latest quarter"), CUTOFF), {
     predicate_prefixes: ["management.", "guidance.", "kpi."],
     effective_from: "2024-09-01T00:00:00.000Z",
+    effective_until: null,
   });
   assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.", "segment.", "guidance."]);
   // Management's explanation of what the question asks about comes before its
@@ -182,11 +183,22 @@ test("a route reads its predicate families first, from the start of the period i
     "management.",
   ]);
   assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
+  // Operating or net income is read as the income statement: each of its explanations.
+  assert.deepEqual(claimSelection(scope("Why did NVDA's operating income fall?"), CUTOFF).predicate_prefixes.slice(0, 4), [
+    "management.explanation.revenue",
+    "management.explanation.operating_income",
+    "management.explanation.net_income",
+    "management.",
+  ]);
   for (const question of ["How have NVDA's margins trended?", "What is NVDA's free cash flow?", "Compare NVDA with AMD"]) {
     assert.ok(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes[0]!.startsWith("management."), question);
   }
-  assert.equal(claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
-  assert.deepEqual(claimSelection(undefined, CUTOFF), { predicate_prefixes: [], effective_from: null });
+  // A fiscal year's window ends a quarter after the year, when its last release is out.
+  const fiscal = claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF);
+  assert.equal(fiscal.effective_from, "2024-01-01T00:00:00.000Z");
+  assert.equal(fiscal.effective_until, "2026-04-01T00:00:00.000Z");
+  assert.equal(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?"), CUTOFF).effective_until, "2027-04-01T00:00:00.000Z");
+  assert.deepEqual(claimSelection(undefined, CUTOFF), { predicate_prefixes: [], effective_from: null, effective_until: null });
 });
 
 test("claims carry short ids, their company and a stance only their stored polarity gives (#207)", () => {
@@ -266,6 +278,7 @@ test("a price window adds its event predicates to the route's, over the route's 
   assert.deepEqual(claimSelection(ytd, CUTOFF), {
     predicate_prefixes: ["management.", "guidance.", "kpi.", "material_event."],
     effective_from: "2024-09-01T00:00:00.000Z",
+    effective_until: null,
   });
 });
 

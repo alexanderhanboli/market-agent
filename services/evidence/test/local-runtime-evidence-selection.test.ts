@@ -261,3 +261,29 @@ test("a route reads its first predicate family before newer claims of the next",
   assert.equal(evidence.claim_refs[0], EXPLANATION, "the explanation, though older, comes first");
   assert.deepEqual(evidence.claim_refs.slice(1), [INSIDER(6), INSIDER(5), INSIDER(4), INSIDER(3)], "then the guidance, newest first");
 });
+
+// A question about one fiscal year reads that year's explanations, not the
+// newer ones of later releases (the window has an end as well as a start).
+test("a route's window ends where the period it asks about does", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-until");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc')`, [ISSUER]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const IN_YEAR = "c4000000-0000-4000-8000-0000000000e2";
+  const explanation = { source: FILINGS, predicate: "management.explanation.gross_margin", polarity: "neutral" };
+  await claim(db, { id: IN_YEAR, ...explanation, text: "Gross margin decreased due to an inventory charge.", at: "2025-05-28T00:00:00Z" });
+  for (let n = 1; n <= 6; n++) {
+    await claim(db, { id: INSIDER(n), ...explanation, text: `Gross margin moved for reason ${n}.`, at: `2026-0${n + 3}-01T00:00:00Z` });
+  }
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 5,
+    selection: { predicate_prefixes: ["management.explanation.gross_margin"], effective_from: "2025-01-01T00:00:00Z", effective_until: "2026-04-01T00:00:00Z" },
+  });
+  assert.equal(evidence.claim_refs[0], IN_YEAR, "the year's explanation, though older, comes first");
+});

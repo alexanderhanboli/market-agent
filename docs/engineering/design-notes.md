@@ -234,7 +234,9 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
   The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
   metric named), since one release can hold more explanations than the claim limit. The loader ranks claims by the
-  first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`).
+  first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`). A question
+  about a fiscal year reads that year's claims first, up to a quarter after it ends (`effective_until`), so later
+  releases' explanations don't crowd it out. The window is a year, not the quarter asked about.
 - **Run it** after the 8-K crawl: `npm run extract:earnings-releases` (in `services/evidence`). It is a batch step,
   never the crawl: one model call per release, at low reasoning; about 46 s on the dev model in a probe (4 minutes at
   its default reasoning).
