@@ -137,15 +137,17 @@ const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string | ReadonlyArray
   capex: ["capex"],
   eps_diluted: ["eps"],
   eps_basic: ["eps"],
-  non_gaap_income: ["operating_income", "net_income"],
-  // Operating and net income are read as the income statement too, so no one
-  // of its explanations comes before the others.
-  income_statement: [["revenue", "operating_income", "net_income"]],
+  // An adjusted income figure names neither by itself.
+  non_gaap_income: [["operating_income", "net_income"]],
+  // Operating income, net income and expenses are read as the income statement
+  // too, so no one of its explanations comes before the others.
+  income_statement: [["revenue", "gross_margin", "operating_expenses", "operating_income", "net_income"]],
 };
 
 function explainedMetrics(scope: ResearchScope): Array<string | ReadonlyArray<string>> {
   const margins = scope.margins || scope.reads === "derived_margin";
-  const metrics: Array<string | ReadonlyArray<string>> = margins ? ["gross_margin", "operating_income", "net_income"] : [];
+  // The scope records no margin by name, so theirs share one priority.
+  const metrics: Array<string | ReadonlyArray<string>> = margins ? [["gross_margin", "operating_income", "net_income"]] : [];
   for (const requested of scope.metrics) {
     // In a margin question, the income statement it names is the margin.
     if (margins && requested.metric_key === "income_statement") continue;

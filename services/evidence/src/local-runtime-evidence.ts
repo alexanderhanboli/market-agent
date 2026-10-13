@@ -132,10 +132,13 @@ export async function loadLocalRuntimeEvidence(
          join instruments ins on ins.instrument_id = ir.subject_id
         where ir.subject_kind = 'instrument'
      ),
-     -- The fiscal year asked about, as each issuer's facts date it.
+     -- The fiscal year asked about, as each covered issuer's facts date it.
      fiscal_years as (
        select f.subject_kind, f.subject_id, min(f.period_start) as starts, max(f.period_end) as ends
-         from facts f
+         from subject_refs sr
+         join facts f
+           on f.subject_kind = sr.subject_kind
+          and f.subject_id = sr.subject_id
         where $13::int is not null
           and f.fiscal_year = $13::int
           and f.period_start is not null

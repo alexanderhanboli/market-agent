@@ -168,11 +168,12 @@ test("a route reads its predicate families first, from the start of the period i
   });
   assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.", "segment.", "guidance."]);
   // Management's explanation of what the question asks about comes before its
-  // other explanations: one release can hold more than the claim limit.
+  // other explanations: one release can hold more than the claim limit. A
+  // margin question records no margin by name, so their explanations share one
+  // priority: gross margin's never crowd out net margin's.
+  const MARGINS = ["management.explanation.gross_margin", "management.explanation.operating_income", "management.explanation.net_income"];
   assert.deepEqual(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?"), CUTOFF).predicate_prefixes, [
-    "management.explanation.gross_margin",
-    "management.explanation.operating_income",
-    "management.explanation.net_income",
+    MARGINS,
     "management.",
     "guidance.",
     "kpi.",
@@ -184,10 +185,21 @@ test("a route reads its predicate families first, from the start of the period i
     "management.",
   ]);
   assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
+  // An adjusted income figure names neither by itself.
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted net income rise?"), CUTOFF).predicate_prefixes[0], [
+    "management.explanation.operating_income",
+    "management.explanation.net_income",
+  ]);
   // Operating or net income is read as the income statement: its explanations
   // share one priority, so revenue's never crowd out the one named.
   assert.deepEqual(claimSelection(scope("Why did NVDA's operating income fall?"), CUTOFF).predicate_prefixes.slice(0, 2), [
-    ["management.explanation.revenue", "management.explanation.operating_income", "management.explanation.net_income"],
+    [
+      "management.explanation.revenue",
+      "management.explanation.gross_margin",
+      "management.explanation.operating_expenses",
+      "management.explanation.operating_income",
+      "management.explanation.net_income",
+    ],
     "management.",
   ]);
   for (const question of ["How have NVDA's margins trended?", "What is NVDA's free cash flow?", "Compare NVDA with AMD"]) {

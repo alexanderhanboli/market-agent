@@ -235,8 +235,8 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
   metric named), since one release can hold more explanations than the claim limit. The loader ranks claims by the
   first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`); a group of
-  prefixes shares one (an operating or net income question is read as the income statement, so its revenue,
-  operating income and net income explanations rank together). A question about a fiscal year reads the releases
+  prefixes shares one where the scope doesn't record which was named (an operating income, net income or expenses
+  question is read as the income statement, so its explanations rank together; so do the margins'). A question about a fiscal year reads the releases
   about that year first: from the end of its first quarter until a quarter after it ends, by the issuer's own fiscal
   year where its facts date it (calendar bounds from the label otherwise), so later releases don't crowd it out. The
   window is a year, not the quarter asked about.
