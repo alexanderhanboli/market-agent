@@ -210,6 +210,55 @@ shared by `loadUsableFacts`, the SEC statement/stats repositories (comparison in
 `loadVerifierFactsForRefs` (`requireKnownByCutoff`). Derived facts the comparison materializes are stamped at the
 cutoff (`clock`), so they pass the same check (#161). The rules are tested together in `services/fundamentals/test/usable-facts.integration.test.ts`.
 
+## Management's explanations and guidance (#205)
+
+An answer may state a cause only as management's own attribution from a cited claim (`llm-runtime.ts`), and those
+claims used to be keyword hits, so most "why" questions got "the data does not show why". Earnings releases say why:
+an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
+(`services/evidence/src/sec-earnings-release-extraction.ts`).
+
+- **Candidates:** Item 2.02 claims (`material_event.guidance_update`, written by the 8-K handler) whose `enriched_at`
+  is unset. High-severity 8-K enrichment reads other predicates, so the two never share a claim. `enriched_at` marks
+  each processed, rowCount-guarded like the enrichment, so a concurrent run is a no-op.
+- **The model picks, the filing decides.** The model gets the EX-99 exhibits as plain text (tags dropped, entities
+  decoded, typographic quotes and dashes made plain) and returns up to 8 `{kind, metric, quote}`: kind explanation or
+  guidance, metric from a closed list. A quote is kept only if it appears verbatim in an exhibit (in that canonical
+  form) as whole sentences: it starts at a block edge or after a sentence's end, and ends at a block edge or with its
+  own end mark (a full stop counts only before what a sentence starts with, and never an abbreviation's, so neither
+  "the U.S. due to" nor "the U.S. Data Center market" is a boundary). So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
+  to weaker demand") is rejected, while a sentence after a heading block is whole. (A plain-text exhibit's blocks are
+  its paragraphs, with an all-caps heading line its own.) The stored text is the exhibit's own, never the model's
+  string. Paraphrases and invented causes are dropped. A reply that isn't JSON leaves the filing unprocessed, to be
+  read again by the next run.
+- **Claims:** `management.explanation.<metric>` or `guidance.<metric>`, modality `quoted`, attributed to the issuer,
+  dated by the filing, confidence 0.8 (the words are verified; reading them as an explanation is the model's). A
+  `claim_evidence` row locates each one (exhibit, character span, quote hash).
+- **Chat** reads `management.explanation.` claims first (not `management.tone`) on every route that reads figures (latest quarter, trends, margins,
+  segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
+  The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
+  metric named), since one release can hold more explanations than the claim limit. The scope reads revenue, margins
+  and income as the whole income statement, so it also records the items the question names (`income_items`:
+  "operating income"), and theirs come first. A question asking for guidance
+  ("guidance", "outlook", "forecast", "expects", "projections", "target"; not "than expected": the scope's `guidance`,
+  kept by follow-ups until one turns it off) reads guidance claims first instead, for the metrics it names and then
+  any, whatever the figures' route; one asking why as well (`explains`) reads management's explanation of those
+  metrics at the same priority. The loader ranks claims by the
+  first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`); a group of
+  prefixes shares one where the scope doesn't record which was named (an operating income, net income or expenses
+  question is read as the income statement, so its explanations rank together; so do the margins'). Within a
+  priority, each predicate (and each company) takes its turn, newest first, so no one metric fills every slot.
+  A question about a fiscal year reads its guidance as given during the year (the full year's comes with the last
+  year's results) and the releases
+  about that year first: from the end of its first quarter until a quarter after it ends, by the issuer's own fiscal
+  year where its facts date it (calendar bounds from the label otherwise), so later releases don't crowd it out. The
+  window is a year, not the quarter asked about.
+- **Run it** after the 8-K crawl: `npm run extract:earnings-releases` (in `services/evidence`). It is a batch step,
+  never the crawl: one model call per release (more for one over 60,000 characters, split between blocks, so its
+  tail is read too), at low reasoning; about 46 s on the dev model in a probe (4 minutes at
+  its default reasoning).
+- **Not yet:** guidance compared with the reported result once it is in, 10-Q/10-K MD&A, and the frozen golden
+  dataset has no such claims (the eval's "why" question still answers from figures alone).
+
 ## Which metrics a chat turn asks for
 
 A turn's metrics (free cash flow, adjusted EPS, a balance item...) are read by a model, proposed from a fixed catalog

@@ -79,25 +79,127 @@ export type EvidencePacket = {
 
 // The claims a route reads first (#207): its predicate families, from the
 // start of the period it covers. Others still fill any room left, newest first.
+// Management's own explanations (management.explanation.*, verbatim from
+// earnings releases) come first on every route: they are the only causes an
+// answer may state. Not management's other claims (management.tone, from IR
+// pages), which are no explanation.
 const ROUTE_PREDICATES: Partial<Record<ResearchScope["reads"], ReadonlyArray<string>>> = {
-  latest_quarter: ["guidance.", "kpi."],
-  trend: ["guidance.", "kpi."],
-  derived_margin: ["guidance.", "kpi."],
-  comparison: ["guidance.", "kpi."],
-  segments: ["segment.", "guidance."],
-  statements: ["guidance.", "kpi."],
+  latest_quarter: ["management.explanation.", "guidance.", "kpi."],
+  trend: ["management.explanation.", "guidance.", "kpi."],
+  derived_margin: ["management.explanation.", "guidance.", "kpi."],
+  comparison: ["management.explanation.", "guidance.", "kpi."],
+  segments: ["management.explanation.", "segment.", "guidance."],
+  statements: ["management.explanation.", "guidance.", "kpi."],
 };
 const PRICE_PREDICATES = ["material_event.", "guidance."];
 
 export function claimSelection(
   scope: ResearchScope | undefined,
   cutoff: string,
-): { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null } {
-  if (!scope) return { predicate_prefixes: [], effective_from: null };
+): ClaimSelection {
+  if (!scope) return { predicate_prefixes: [], effective_from: null, effective_until: null, fiscal_year: null };
   const route = ROUTE_PREDICATES[scope.reads] ?? [];
+  // Management's explanation of what the question asks about comes before its
+  // other explanations: one release can hold more of them than the claim limit.
+  const metrics = explainedMetrics(scope);
+  const family = (prefix: string) => (entry: string | ReadonlyArray<string>) =>
+    typeof entry === "string" ? `${prefix}${entry}` : entry.map((metric) => `${prefix}${metric}`);
+  // Whatever the figures' route: management's explanation is how a metric no
+  // reader serves is answered.
+  // A route without predicates of its own (a metric no reader serves) reads
+  // every explanation next: one a release files as "other" (EBITDA) too.
+  let explained: Array<string | ReadonlyArray<string>> = [
+    ...metrics.map(family("management.explanation.")),
+    ...(route.length === 0 && scope.metrics.length > 0 ? ["management.explanation."] : []),
+  ];
+  // A question asking for guidance reads it first, before any other
+  // explanation: for the metrics it names, then any; whatever the figures'
+  // route (a metric no reader serves included). A turn asking why as well
+  // ("why did revenue fall, and what guidance?") reads management's
+  // explanation of those metrics at the same priority, so it gets both.
+  let asked: Array<string | ReadonlyArray<string>> = scope.guidance ? [...metrics.map(family("guidance.")), "guidance."] : [];
+  if (scope.guidance && scope.explains && metrics.length > 0) {
+    const [guidance, ...guidanceRest] = asked;
+    const [explanation, ...explanationRest] = explained;
+    asked = [[guidance!, explanation!].flat(), ...guidanceRest];
+    explained = explanationRest;
+  }
   // A price window adds the events that move a price, whatever else is read.
-  const prefixes = [...new Set([...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
-  return { predicate_prefixes: prefixes, effective_from: periodStart(scope, cutoff, route.length > 0) };
+  const prefixes = [...new Set([...asked, ...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
+  return {
+    predicate_prefixes: prefixes,
+    effective_from: periodStart(scope, cutoff, route.length > 0),
+    // A fiscal year's window ends a quarter after it (its last release); a
+    // later release's explanation is of another period. The loader dates it by
+    // the issuer's own fiscal year where its facts do; these calendar bounds
+    // are the fallback.
+    effective_until: scope.fiscal_year !== null ? `${scope.fiscal_year + 1}-04-01T00:00:00.000Z` : null,
+    fiscal_year: scope.fiscal_year,
+  };
+}
+
+type ClaimSelection = {
+  // In priority order; a group's prefixes share one.
+  predicate_prefixes: ReadonlyArray<string | ReadonlyArray<string>>;
+  effective_from: string | null;
+  effective_until: string | null;
+  fiscal_year: number | null;
+};
+
+// The metrics, in earnings-release terms (sec-earnings-release-extraction.ts),
+// whose explanations answer the question: margins first when it asks about
+// them, then each metric it names (a qualified one, "free cash flow margin",
+// by the metric it qualifies).
+// A group shares one priority.
+const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string | ReadonlyArray<string>>>> = {
+  // Its own explanations, then either component's alike.
+  free_cash_flow: ["free_cash_flow", ["operating_cash_flow", "capex"]],
+  operating_cash_flow: ["operating_cash_flow"],
+  capex: ["capex"],
+  eps_diluted: ["eps"],
+  eps_basic: ["eps"],
+  // An adjusted income figure names neither by itself.
+  non_gaap_income: [["operating_income", "net_income"]],
+  // Operating income, net income and expenses are read as the income statement
+  // too, so no one of its explanations comes before the others.
+  income_statement: [["revenue", "gross_margin", "operating_expenses", "operating_income", "net_income"]],
+};
+
+function explainedMetrics(scope: ResearchScope): Array<string | ReadonlyArray<string>> {
+  const margins = scope.margins || scope.reads === "derived_margin";
+  // What the question asks about shares the top priority, so none crowds out
+  // another: the income-statement items it names and each metric's own
+  // explanations. Then what stands in for them: the margins, a metric's
+  // components, and the rest of the income statement.
+  const named = scope.income_items ?? [];
+  const top: string[] = [...named];
+  const after: Array<string | ReadonlyArray<string>> = margins ? [["gross_margin", "operating_income", "net_income"]] : [];
+  for (const requested of scope.metrics) {
+    // In a margin question, the income statement it names is the margin.
+    if (margins && requested.metric_key === "income_statement") continue;
+    const base = Object.keys(EXPLAINED_BY).find((key) => requested.metric_key === key || requested.metric_key.startsWith(`${key}_`));
+    if (!base) continue;
+    const [own, ...components] = EXPLAINED_BY[base]!;
+    // The whole income statement stands in for the items the question names.
+    if (base === "income_statement" && named.length > 0) after.push(own!, ...components);
+    else {
+      top.push(...(typeof own === "string" ? [own] : own!));
+      after.push(...components);
+    }
+  }
+  // Revenue's explanations include its segments' and products' ("Gaming
+  // revenue"), which a release files as "other".
+  if (top.includes("revenue")) top.push("other");
+  const asked = [...new Set(top)];
+  const metrics = [...(asked.length > 1 ? [asked] : asked), ...after];
+  // Each once, at its first and highest priority.
+  const seen = new Set<string>();
+  return metrics.filter((entry) => {
+    const members = typeof entry === "string" ? [entry] : entry;
+    if (members.every((metric) => seen.has(metric))) return false;
+    members.forEach((metric) => seen.add(metric));
+    return true;
+  });
 }
 
 // ponytail: calendar approximations of the readers' periods; a fiscal year is
@@ -221,9 +323,11 @@ const STANCE: Readonly<Record<string, PacketClaim["stance"]>> = {
 };
 
 function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
-  const { predicate_prefixes: prefixes, effective_from: from } = claimSelection(scope, cutoff);
+  const { predicate_prefixes: prefixes, effective_from: from, effective_until: until } = claimSelection(scope, cutoff);
+  // Named by family ("management", not each metric's explanation).
+  const families = [...new Set(prefixes.flat().map((prefix) => prefix.split(".")[0]!))];
   const route = prefixes.length > 0
-    ? `${new Intl.ListFormat("en").format(prefixes.map((prefix) => prefix.replace(/\.$/, "")))} claims${from ? ` from ${from.slice(0, 10)}` : ""} first, then the most recent others`
+    ? `${new Intl.ListFormat("en").format(families)} claims${from ? ` from ${from.slice(0, 10)}` : ""}${until ? ` until ${until.slice(0, 10)}` : ""} first, then the most recent others`
     : "the most recent claims";
   return `${route}, published by the ${cutoff.slice(0, 10)} cutoff; a claim repeated by several sources or copies counts once`;
 }

@@ -70,6 +70,17 @@ export type ResearchScope = {
   price_window: { kind: "ytd"; cutoff: string } | null;
   // A benchmark index asked for: never in this data, so always a named gap.
   benchmark: boolean;
+  // Guidance asked for ("what guidance", "the outlook"), this turn or an
+  // earlier one, until a turn turns it off: its claims are read first. Absent
+  // when not.
+  guidance?: true;
+  // A cause asked for ("why", "what drove"), this turn or an earlier one:
+  // management's explanation is then read with the guidance. Absent when not.
+  explains?: true;
+  // The income-statement items the question names ("operating income"), which
+  // its metrics read as the whole statement: their claims come first. This
+  // turn's, or the answer an evidence follow-up re-reads. Absent when none.
+  income_items?: ReadonlyArray<string>;
   // The fields carried from the previous answer rather than asked for now.
   inherited: ReadonlyArray<ScopeField>;
 };
@@ -110,6 +121,36 @@ const OFF = new RegExp(
   "g",
 );
 const SEGMENTS = /\bsegments?\b/i;
+// Guidance, however it is asked for: guided, an outlook or forecast, what the
+// company expects or is expected to do, its expectations, projections or
+// targets. A result "than expected" or "as expected" is set against past
+// expectations, and asks why (as do the comparisons below).
+// ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
+const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|expect(?:s|ing)?|expected (?:to|for)|expectations?|project(?:s|ed|ing|ions?)?|targets?)\b/i;
+// A result set against guidance, a forecast or a target ("missed its forecast",
+// "below target", "beat guidance", "below the low end of guidance") asks why,
+// not for guidance: the question
+// asks for guidance only if it still names some with those comparisons taken
+// out ("current guidance versus prior guidance" does).
+const AGAINST_GUIDANCE =
+  /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,5}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
+// A cause asked for.
+const EXPLAINS =
+  /\b(?:why|explain\w*|caus(?:e|es|ed)|drove|driv(?:e|es|en|ers?)|reasons?|due to|because|led to|lead(?:s|ing)? to|behind|contribut(?:e|es|ed|ing) to|result(?:s|ed)? (?:in|from)|account(?:s|ed)? for|attribut(?:e|es|ed|able) to)\b/i;
+// Guidance turned off ("without using guidance", "no forecasts") is not asked for.
+const GUIDANCE_OFF =
+  /\b(?:without(?: including)?|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|drop(?:ping)?|remov(?:e|ing)|hid(?:e|ing)|leave out|take out|(?:don['’]t|do not) (?:use|include))\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
+
+// The income-statement items a question names, in earnings-release terms
+// (sec-earnings-release-extraction.ts): the scope reads them all as the income
+// statement, so these say which comes first.
+const INCOME_ITEMS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["revenue", /\b(?:revenues?|sales|top[- ]line)\b/i],
+  ["gross_margin", /\bgross (?:margins?|profits?)\b/i],
+  ["operating_expenses", /\b(?:operating expenses|opex)\b/i],
+  ["operating_income", /\boperating (?:income|profits?|margins?)\b/i],
+  ["net_income", /\bnet (?:income|profits?|margins?|earnings)\b/i],
+];
 const MARGINS = /\b(margins?|profitab\w*)\b/i;
 // A margin asked about over time, not just its latest value.
 const OVER_TIME =
@@ -453,6 +494,12 @@ export function resolveResearchScope(input: {
   const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
     metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
     !SEGMENTS.test(question) && !marginAsked;
+  // The items named now; else the previous answer's, where this turn re-reads
+  // it (an evidence follow-up) or keeps the metrics it named them for ("Why?").
+  const namedItems = INCOME_ITEMS.flatMap(([item, pattern]) => (pattern.test(question) ? [item] : []));
+  const incomeItems = evidence || (namedItems.length === 0 && inherited.includes("metrics"))
+    ? prior?.income_items ?? []
+    : namedItems;
   const reads = evidence && prior !== null
     ? prior.reads
     : input.served
@@ -472,6 +519,18 @@ export function resolveResearchScope(input: {
     fiscal_quarter,
     price_window,
     benchmark,
+    // Asked this turn, or kept from an earlier one, as the other facets are,
+    // unless this one turns it off. Turned off in the question as asked: the
+    // turn-off of a metric ("without revenue guidance") has taken its words out
+    // of `question`. (search: GUIDANCE_OFF is global, and test would keep its
+    // place.)
+    ...(GUIDANCE.test(question.replace(AGAINST_GUIDANCE, " ").replace(GUIDANCE_OFF, " ")) ||
+        (prior?.guidance && input.question.search(GUIDANCE_OFF) < 0)
+      ? { guidance: true as const }
+      : {}),
+    // Asked this turn, or kept from an earlier one, as guidance is.
+    ...(EXPLAINS.test(question) || prior?.explains ? { explains: true as const } : {}),
+    ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };
 }
@@ -580,6 +639,11 @@ export function parseResearchScope(value: unknown): ResearchScope | null {
     price_window: window === null ? null : { kind: "ytd", cutoff: window!.cutoff as string },
     // Absent on scopes saved before benchmarks were recorded.
     benchmark: scope.benchmark === true,
+    ...(scope.guidance === true ? { guidance: true as const } : {}),
+    ...(scope.explains === true ? { explains: true as const } : {}),
+    ...(Array.isArray(scope.income_items) && scope.income_items.length > 0 && scope.income_items.every((item) => typeof item === "string")
+      ? { income_items: scope.income_items as string[] }
+      : {}),
     inherited: [],
   };
 }

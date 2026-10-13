@@ -56,6 +56,8 @@ test("a fresh question records what it asks for and inherits nothing", () => {
     fiscal_quarter: null,
     price_window: { kind: "ytd", cutoff: AS_OF },
     benchmark: false,
+    // Which of the income statement it names.
+    income_items: ["revenue"],
     inherited: [],
   });
 });
@@ -98,9 +100,100 @@ test("a window asked for again is cut off at the new turn", () => {
   assert.deepEqual(next.inherited, []);
 });
 
+test("guidance is asked for in a turn's words, and kept until turned off", () => {
+  const asked = fresh("What revenue guidance did NVDA give?", [NVDA]);
+  assert.equal(asked.guidance, true);
+  // Asked as an expectation, a projection or a target too.
+  for (const question of [
+    "What revenue does NVDA expect next quarter?",
+    "What revenue is NVDA expected to report next quarter?",
+    "What are management's projections?",
+    "What does NVDA project for revenue next quarter?",
+    "What are management's revenue expectations?",
+    "What is NVDA guiding for revenue next quarter?",
+    "What is NVDA expecting for revenue next quarter?",
+    "What revenue is expected for next quarter at NVDA?",
+    "What is NVDA projecting for revenue next quarter?",
+    "What does NVDA's management guide to?",
+    // Guidance set against guidance is still guidance.
+    "How does NVDA's current revenue guidance compare versus prior guidance?",
+    "What is NVDA's gross margin target?",
+  ]) {
+    assert.equal(fresh(question, [NVDA]).guidance, true, question);
+  }
+  // A result set against past expectations asks why, not for guidance.
+  for (const question of [
+    "Why were NVDA's margins lower than expected?",
+    "Did NVDA's revenue come in as expected?",
+    "Why did NVDA's revenue miss its forecast?",
+    "Why were NVDA's margins below target?",
+    "Why did NVDA beat its guidance?",
+    "Why did NVDA's revenue miss the company's guidance?",
+    "Why did NVDA's revenue miss expectations?",
+    "Why did NVDA's revenue come in below the low end of guidance?",
+    "Why was NVDA's gross margin above the high end of its outlook?",
+    // Turned off.
+    "Why did NVDA's revenue fall, without using guidance?",
+    "Explain NVDA's margin decline, no forecasts please",
+    "Why did NVDA's revenue fall? Don't include guidance.",
+  ]) {
+    assert.equal(fresh(question, [NVDA]).guidance, undefined, question);
+  }
+  assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
+  // A follow-up keeps it, as it keeps the scope's other facets ("How about EPS?").
+  const next = resolveResearchScope({ question: "And its gross margin?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(next.guidance, true);
+  const eps = resolveResearchScope({ question: "How about EPS?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(eps.guidance, true);
+  const off = resolveResearchScope({ question: "And its gross margin, without guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(off.guidance, undefined);
+  // Asking why is recorded too: management's explanation then shares guidance's priority.
+  assert.equal(asked.explains, undefined);
+  const both = fresh("Why did NVDA's revenue decline, and what guidance did management give?", [NVDA]);
+  assert.equal(both.explains, true);
+  for (const question of [
+    "What led to NVDA's revenue decline, and what guidance did management give?",
+    "What was behind NVDA's margin drop?",
+    "What contributed to NVDA's revenue growth?",
+    "What accounted for the change in NVDA's gross margin?",
+  ]) {
+    assert.equal(fresh(question, [NVDA]).explains, true, question);
+  }
+  // Kept by a follow-up, as guidance is.
+  const howAbout = resolveResearchScope({ question: "How about operating income?", companies: [NVDA], prior: both, asOf: AS_OF });
+  assert.equal(howAbout.guidance, true);
+  assert.equal(howAbout.explains, true);
+  // An evidence follow-up re-reads the answer it asks about, guidance first too.
+  const sources = resolveResearchScope({ question: "What are your sources?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(sources.route, "evidence_followup");
+  assert.equal(sources.guidance, true);
+  // Unless it turns guidance off.
+  const without = resolveResearchScope({ question: "What are your sources, but without guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(without.route, "evidence_followup");
+  assert.equal(without.guidance, undefined);
+  // Even naming a metric the turn-off reads as its own ("without revenue guidance").
+  const withoutRevenue = resolveResearchScope({ question: "What are your sources, but without revenue guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(withoutRevenue.guidance, undefined);
+  for (const question of ["What are your sources, but drop the guidance?", "And its gross margin, remove the outlook", "Take out the forecasts and show margins"]) {
+    assert.equal(resolveResearchScope({ question, companies: [NVDA], prior: asked, asOf: AS_OF }).guidance, undefined, question);
+  }
+  assert.deepEqual(sources.income_items, ["revenue"]);
+  // Any other turn names its own; one that names none, and keeps the metrics
+  // it asked about, keeps its items too.
+  assert.deepEqual(next.income_items, ["gross_margin"]);
+  const why = resolveResearchScope({ question: "Why?", companies: [NVDA], prior: fresh("How did NVDA's operating income change?", [NVDA]), asOf: AS_OF });
+  assert.ok(why.inherited.includes("metrics"));
+  assert.deepEqual(why.income_items, ["operating_income"]);
+  // Both read back from a saved answer.
+  const saved = JSON.parse(JSON.stringify(asked));
+  assert.deepEqual(parseResearchScope(saved), { ...saved, inherited: [] });
+});
+
 test("a saved scope reads back; anything else starts fresh", () => {
   const saved = JSON.parse(JSON.stringify(fresh("Compare NVDA with AMD YTD", [NVDA, AMD])));
   assert.deepEqual(parseResearchScope(saved), { ...saved, inherited: [] });
+  const guided = JSON.parse(JSON.stringify(fresh("What is NVDA's outlook?", [NVDA])));
+  assert.deepEqual(parseResearchScope(guided), { ...guided, inherited: [] });
   for (const value of [
     null,
     "scope",

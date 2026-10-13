@@ -14,10 +14,17 @@ export type LocalRuntimeEvidenceInput = {
   // Optional date boundary only; current document visibility always applies.
   as_of?: string;
   // A chat route's selection (#207): claims whose predicate starts with one of
-  // the prefixes, dated from effective_from on, rank ahead of newer others; a
+  // the prefixes, dated from effective_from on (and before effective_until; for a
+  // fiscal year, within the issuer's own where its facts date it), rank ahead of newer others; a
   // claim repeated (same company, predicate and text) counts once; and stored
-  // contradiction relations among the selected are returned.
-  selection?: { predicate_prefixes: ReadonlyArray<string>; effective_from: string | null };
+  // contradiction relations among the selected are returned. The prefixes are
+  // a priority, in order; a group of them shares one.
+  selection?: {
+    predicate_prefixes: ReadonlyArray<string | ReadonlyArray<string>>;
+    effective_from: string | null;
+    effective_until?: string | null;
+    fiscal_year?: number | null;
+  };
 };
 
 export type LocalRuntimeClaimEvidence = {
@@ -92,6 +99,10 @@ export async function loadLocalRuntimeEvidence(
   const sourceCategories = input.source_categories ?? null;
   const includeIssuerIr = (sourceCategories ?? []).includes("issuer_ir");
   const includeNonIr = sourceCategories === null || sourceCategories.some((category) => category !== "issuer_ir");
+  // Each prefix with its tier: its position, shared by a group's.
+  const selected = input.selection?.predicate_prefixes.flatMap((entry, tier) =>
+    (typeof entry === "string" ? [entry] : entry).map((prefix) => ({ prefix, tier }))
+  );
   const { rows } = await db.query<ClaimEvidenceRow>(
     `with input_refs as (
        select kind::subject_kind as subject_kind,
@@ -121,6 +132,33 @@ export async function loadLocalRuntimeEvidence(
          join instruments ins on ins.instrument_id = ir.subject_id
         where ir.subject_kind = 'instrument'
      ),
+     -- The fiscal year asked about, as each covered issuer's facts known at the
+     -- cutoff date it. Its end is where any of its figures places it: quarter n
+     -- (discrete or year-to-date) ends 3 * (4 - n) months
+     -- before it, so a year in progress ends where it will, not with its latest
+     -- quarter; it started a year before. ponytail: a 52/53-week year can be a
+     -- few days off.
+     fiscal_years as (
+       select y.subject_kind, y.subject_id, y.ends - interval '1 year' as starts, y.ends
+         from (
+           select f.subject_kind, f.subject_id,
+                  max(f.period_end + make_interval(months => 3 * (4 - coalesce(substring(f.fiscal_period from '^Q([1-4])$')::int, 4))))
+                    as ends
+             from subject_refs sr
+             join facts f
+               on f.subject_kind = sr.subject_kind
+              and f.subject_id = sr.subject_id
+            where $13::int is not null
+              and f.fiscal_year = $13::int
+              and f.fiscal_period in ('Q1', 'Q2', 'Q3', 'Q4', 'FY')
+              -- A balance is a point labelled "FY" whichever quarter it closes.
+              and f.period_kind in ('fiscal_q', 'fiscal_y')
+              and f.period_end is not null
+              and (($7::timestamptz is null and ${factActiveSql("f")})
+                   or ($7::timestamptz is not null and ${factKnownAtSql("f", "$7::timestamptz")}))
+            group by f.subject_kind, f.subject_id
+         ) y
+     ),
      matching_claims as (
        select distinct on (c.claim_id)
               c.claim_id::text as claim_id,
@@ -141,14 +179,36 @@ export async function loadLocalRuntimeEvidence(
               c.created_at as claim_created_at,
               sr.subject_id::text as subject_id,
               coalesce(c.predicate like any($8::text[]), false)
-                and ($9::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) >= $9::timestamptz)
-                as relevant
+                and case
+                  -- The releases about a fiscal year come out from the end of
+                  -- its first quarter until a quarter after it ends. Its
+                  -- guidance is given during it: the full year's with the last
+                  -- year's results, just after it starts; the next year's,
+                  -- after it ends, is not its.
+                  when fy.ends is not null and c.predicate like 'guidance.%' then
+                    coalesce(c.effective_time, d.published_at, c.created_at) >= fy.starts
+                    and coalesce(c.effective_time, d.published_at, c.created_at) < fy.ends
+                  when fy.ends is not null then
+                    coalesce(c.effective_time, d.published_at, c.created_at) >= fy.starts + interval '3 months'
+                    and coalesce(c.effective_time, d.published_at, c.created_at) < fy.ends + interval '3 months'
+                  else ($9::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) >= $9::timestamptz)
+                    and ($11::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) < $11::timestamptz)
+                end
+                as relevant,
+              -- The route's prefixes are a priority: the tier of the first one
+              -- the predicate matches (management explanations before newer
+              -- guidance).
+              (select min(p.tier) from unnest($8::text[], $12::int[]) as p(pattern, tier) where c.predicate like p.pattern)
+                as tier
          from subject_refs sr
          join claim_arguments ca
            on ca.subject_kind = sr.subject_kind
           and ca.subject_id = sr.subject_id
          join claims c
            on c.claim_id = ca.claim_id
+         left join fiscal_years fy
+           on fy.subject_kind = sr.subject_kind
+          and fy.subject_id = sr.subject_id
          join documents d
            on d.document_id = c.document_id
          join sources s
@@ -233,12 +293,15 @@ export async function loadLocalRuntimeEvidence(
             effective_time,
             subject_id
        from selected
-      -- Within each tier, companies take turns (each one's newest first), so a
-      -- comparison's slots are not all one company's.
+      -- Relevant claims first, by their prefix's priority; within each tier,
+      -- companies and predicates take turns (each one's newest first), so a
+      -- comparison's slots are not all one company's, nor a tier's all one
+      -- metric's.
       order by relevant desc,
+               case when relevant then tier end asc nulls last,
                case when $10::boolean
                  then row_number() over (
-                   partition by relevant, subject_id
+                   partition by relevant, case when relevant then tier end, subject_id, case when relevant then predicate end
                    order by coalesce(effective_time, published_at, claim_created_at) desc nulls last, claim_id desc)
                  else 0 end,
                coalesce(effective_time, published_at, claim_created_at) desc nulls last,
@@ -252,9 +315,12 @@ export async function loadLocalRuntimeEvidence(
       includeIssuerIr,
       includeNonIr,
       input.as_of ?? null,
-      input.selection ? [...input.selection.predicate_prefixes].map((prefix) => `${prefix.replace(/[\\%_]/g, "\\$&")}%`) : null,
+      selected ? selected.map(({ prefix }) => `${prefix.replace(/[\\%_]/g, "\\$&")}%`) : null,
       input.selection?.effective_from ?? null,
       input.selection !== undefined,
+      input.selection?.effective_until ?? null,
+      selected ? selected.map(({ tier }) => tier) : null,
+      input.selection?.fiscal_year ?? null,
     ],
   );
   const evidence = evidenceFromClaimRows(subjectRefs, rows.slice(0, limit), input.selection !== undefined);
