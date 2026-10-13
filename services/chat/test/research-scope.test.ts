@@ -112,6 +112,7 @@ test("guidance is asked for in a turn's words, and kept until turned off", () =>
     "What is NVDA guiding for revenue next quarter?",
     "What is NVDA expecting for revenue next quarter?",
     "What revenue is expected for next quarter at NVDA?",
+    "What is NVDA projecting for revenue next quarter?",
     "What does NVDA's management guide to?",
     // Guidance set against guidance is still guidance.
     "How does NVDA's current revenue guidance compare versus prior guidance?",
@@ -149,6 +150,14 @@ test("guidance is asked for in a turn's words, and kept until turned off", () =>
   assert.equal(asked.explains, undefined);
   const both = fresh("Why did NVDA's revenue decline, and what guidance did management give?", [NVDA]);
   assert.equal(both.explains, true);
+  for (const question of [
+    "What led to NVDA's revenue decline, and what guidance did management give?",
+    "What was behind NVDA's margin drop?",
+    "What contributed to NVDA's revenue growth?",
+    "What accounted for the change in NVDA's gross margin?",
+  ]) {
+    assert.equal(fresh(question, [NVDA]).explains, true, question);
+  }
   // Kept by a follow-up, as guidance is.
   const howAbout = resolveResearchScope({ question: "How about operating income?", companies: [NVDA], prior: both, asOf: AS_OF });
   assert.equal(howAbout.guidance, true);
