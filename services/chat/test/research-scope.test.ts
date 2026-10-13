@@ -482,3 +482,17 @@ test("asking for the latest quarter clears an inherited named quarter (#292 revi
     assert.equal(next.fiscal_quarter, null, question);
   }
 });
+
+test("a follow-up naming part of a period updates the inherited quarter, never keeps the old one (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const next = (question: string) => resolveResearchScope({ question, companies: [AMD], prior: asked, asOf: AS_OF });
+  // A quarter without a year keeps the inherited year.
+  assert.deepEqual(next("Now Q3").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q3" });
+  assert.deepEqual(next("What about the third quarter?").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q3" });
+  // A fiscal year without a quarter clears it: the year's figures, not Q2 2025's.
+  const year = next("Now for fiscal 2026");
+  assert.equal(year.fiscal_quarter, null);
+  assert.equal(year.fiscal_year, 2026);
+  // Nothing about the period: the quarter is kept.
+  assert.deepEqual(next("And its gross margin?").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+});

@@ -78,6 +78,9 @@ const PEERS = /\bpeers?\b/i;
 const WINDOW = /\b(?:ytd|year[- ]to[- ]date|(?:price )?window|(?:price )?returns?)\b/i;
 const FISCAL = /\b(?:FY\s?'?\d{2,4}|fiscal(?:\s+year)?(?:\s+\d{2,4})?|\d{4}\s+fiscal)\b/i;
 const QUARTER = /\b(?:Q[1-4]|quarter)\b/i;
+// A quarter named without its year ("Q3", "the third quarter").
+const PARTIAL_QUARTER = /\bQ([1-4])\b|\b(first|second|third|fourth)\s+quarter\b/i;
+const ORDINAL_QUARTERS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4 };
 // The latest quarter asked for again: a named quarter is not inherited (#292 review).
 const LATEST_QUARTER = /\b(?:latest|most recent|current|newest|last reported)\s+quarter\b/i;
 // Where a list of things to remove ends: at the end of the sentence, or where
@@ -350,8 +353,14 @@ export function resolveResearchScope(input: {
   });
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
   const fiscal_year = pick("fiscal_year", requestedFiscalYear(question) ?? null, prior?.fiscal_year);
-  const namedQuarter = requestedFiscalQuarter(question) ?? null;
-  if (namedQuarter === null && LATEST_QUARTER.test(question)) off.fields.add("fiscal_quarter");
+  // A follow-up naming part of a period updates the inherited quarter (#292
+  // review): a quarter alone ("now Q3") takes its year; a fiscal year alone
+  // ("now for fiscal 2026") or the latest quarter replaces it.
+  const partial = PARTIAL_QUARTER.exec(question);
+  const partialPeriod = partial ? `Q${partial[1] ?? ORDINAL_QUARTERS[partial[2]!.toLowerCase()]}` : null;
+  const namedQuarter = requestedFiscalQuarter(question) ??
+    (partialPeriod && prior?.fiscal_quarter ? { fiscal_year: prior.fiscal_quarter.fiscal_year, fiscal_period: partialPeriod } : null);
+  if (namedQuarter === null && (LATEST_QUARTER.test(question) || requestedFiscalYear(question) !== undefined)) off.fields.add("fiscal_quarter");
   const fiscal_quarter = pick("fiscal_quarter", namedQuarter, prior?.fiscal_quarter);
   const asked = requestedPriceWindow(question) === "ytd" ? { kind: "ytd" as const, cutoff: input.asOf } : null;
   const price_window = pick("price_window", asked, prior?.price_window);
