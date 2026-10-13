@@ -577,3 +577,19 @@ test("a named quarter is decided per reader: income honors it on a segment route
     "A named quarter is not read for this breakdown; the latest available period is shown, not fiscal Q1 2025.",
   ]);
 });
+
+test("a year-first quarter is read, fresh or after another quarter (#292 review)", () => {
+  assert.deepEqual(requestedFiscalQuarter("NVDA FY2026 Q3 revenue"), { fiscal_year: 2026, fiscal_period: "Q3" });
+  assert.deepEqual(requestedFiscalQuarter("AMD's fiscal 2025 Q2 margins"), { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.deepEqual(requestedFiscalQuarter("FY26 Q1"), { fiscal_year: 2026, fiscal_period: "Q1" });
+});
+
+test("a peers request keeps its comparison intent when no peer is found: the quarter is said not to be compared (#292 review)", () => {
+  const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
+  const scope = resolveResearchScope({ question: "How does AMD compare with its peers in Q1 2025?", companies: [AMD], prior: null, asOf: "2026-09-01T00:00:00.000Z" });
+  assert.equal(scope.peers, true);
+  assert.equal(readsNamedQuarter(scope), false);
+  const texts = scopeGapBlocks(scope, [], { snapshotId: "11111111-1111-4111-8111-111111111111", asOf: "2026-09-01T00:00:00.000Z" })
+    .map((block) => (block.segments as Array<{ text: string }>)[0]!.text);
+  assert.ok(texts.some((text) => /not compared across companies/.test(text)), JSON.stringify(texts));
+});

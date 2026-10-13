@@ -511,3 +511,9 @@ test("a new complete quarter with no fiscal year named clears the inherited year
   assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q2" });
   assert.equal(next.fiscal_year, null);
 });
+
+test("a follow-up naming the year first takes that year, not the inherited one (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const next = resolveResearchScope({ question: "Now FY2026 Q3", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q3" });
+});

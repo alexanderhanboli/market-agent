@@ -166,8 +166,15 @@ export type FiscalQuarter = { fiscal_year: number; fiscal_period: string };
 const NAMED_QUARTER = /\b(?:fiscal\s+)?Q([1-4])\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?'?)?(\d{4}|\d{2})\b/i;
 const SPELLED_QUARTER = /\b(first|second|third|fourth)\s+(?:fiscal\s+)?quarter\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?)?(\d{4})\b/i;
 const ORDINALS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4 };
+// The year first ("FY2026 Q3", "fiscal 2025 Q2", "FY26 Q1") (#292 review).
+const YEAR_FIRST_QUARTER = /\b(?:FY\s?'?|fiscal\s+(?:year\s+)?)(\d{4}|\d{2})\s+Q([1-4])\b/i;
 
 export function requestedFiscalQuarter(question: string): FiscalQuarter | undefined {
+  const yearFirst = YEAR_FIRST_QUARTER.exec(question);
+  if (yearFirst) {
+    const year = yearFirst[1]!;
+    return { fiscal_year: year.length === 2 ? 2000 + Number(year) : Number(year), fiscal_period: `Q${yearFirst[2]}` };
+  }
   const named = NAMED_QUARTER.exec(question);
   const spelled = named ? null : SPELLED_QUARTER.exec(question);
   const quarter = named ? Number(named[1]) : spelled ? ORDINALS[spelled[1]!.toLowerCase()] : undefined;
@@ -844,7 +851,8 @@ export function scopeGapBlocks(
   // compares fiscal years, so it says the quarter is not compared.
   if (scope.fiscal_quarter) {
     const quarter = `fiscal ${scope.fiscal_quarter.fiscal_period} ${scope.fiscal_quarter.fiscal_year}`;
-    if (scope.companies.length > 1) {
+    // A peers request counts as a comparison even when no peer was found (#292 review).
+    if (scope.companies.length > 1 || scope.peers) {
       notes.push(["gap:quarter", `A single quarter is not compared across companies here; each company is shown for a fiscal year, not ${quarter}.`]);
     } else {
       if (readsNamedQuarter(scope) && !showsQuarter(shown)) {
