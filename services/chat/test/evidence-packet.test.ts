@@ -201,10 +201,21 @@ test("a route reads its predicate families first, from the start of the period i
   assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
   // An adjusted income figure names neither by itself; the items the question
   // names come first.
-  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted operating income rise?"), CUTOFF).predicate_prefixes.slice(0, 3), [
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted operating income rise?"), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",
     "management.explanation.operating_income",
-    ["management.explanation.operating_income", "management.explanation.net_income"],
+    "management.explanation.net_income",
+  ]);
+  // So does each metric it asks about: free cash flow's explanations never
+  // crowd out EPS's; their components follow.
+  assert.deepEqual(claimSelection(scope("What were NVDA's free cash flow and EPS?"), CUTOFF).predicate_prefixes.slice(0, 2), [
+    ["management.explanation.free_cash_flow", "management.explanation.eps"],
+    ["management.explanation.operating_cash_flow", "management.explanation.capex"],
+  ]);
+  // Every item it names shares the top priority: none crowds out another.
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue fall while operating income rose?"), CUTOFF).predicate_prefixes[0], [
+    "management.explanation.revenue",
+    "management.explanation.operating_income",
   ]);
   // Operating or net income is read as the income statement: the item named
   // first, then its other explanations alike.

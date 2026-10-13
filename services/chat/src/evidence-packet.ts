@@ -151,18 +151,28 @@ const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string | ReadonlyArray
 
 function explainedMetrics(scope: ResearchScope): Array<string | ReadonlyArray<string>> {
   const margins = scope.margins || scope.reads === "derived_margin";
-  // The income-statement items the question names first; then the margins,
-  // which share one priority, and the metrics' own.
-  const metrics: Array<string | ReadonlyArray<string>> = [
-    ...(scope.income_items ?? []),
-    ...(margins ? [["gross_margin", "operating_income", "net_income"]] : []),
-  ];
+  // What the question asks about shares the top priority, so none crowds out
+  // another: the income-statement items it names and each metric's own
+  // explanations. Then what stands in for them: the margins, a metric's
+  // components, and the rest of the income statement.
+  const named = scope.income_items ?? [];
+  const top: string[] = [...named];
+  const after: Array<string | ReadonlyArray<string>> = margins ? [["gross_margin", "operating_income", "net_income"]] : [];
   for (const requested of scope.metrics) {
     // In a margin question, the income statement it names is the margin.
     if (margins && requested.metric_key === "income_statement") continue;
     const base = Object.keys(EXPLAINED_BY).find((key) => requested.metric_key === key || requested.metric_key.startsWith(`${key}_`));
-    if (base) metrics.push(...EXPLAINED_BY[base]!);
+    if (!base) continue;
+    const [own, ...components] = EXPLAINED_BY[base]!;
+    // The whole income statement stands in for the items the question names.
+    if (base === "income_statement" && named.length > 0) after.push(own!, ...components);
+    else {
+      top.push(...(typeof own === "string" ? [own] : own!));
+      after.push(...components);
+    }
   }
+  const asked = [...new Set(top)];
+  const metrics = [...(asked.length > 1 ? [asked] : asked), ...after];
   // Each once, at its first and highest priority.
   const seen = new Set<string>();
   return metrics.filter((entry) => {
