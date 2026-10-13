@@ -417,11 +417,17 @@ export function selectSecConceptValue(
       (input.accession_number === undefined || v.accn === input.accession_number),
   );
   if (input.fiscal_period === "FY") {
-    return matches[0];
+    return matches.sort(ownPeriodFirst)[0];
   }
   return matches
     .filter(isDiscreteQuarterDuration)
     .sort(compareQuarterFactQuality)[0];
+}
+
+// A filing repeats prior periods' values under its own fy, fp and accession;
+// its own period is the one ending last.
+function ownPeriodFirst(a: SecConceptValue, b: SecConceptValue): number {
+  return b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed);
 }
 
 function deriveFourthQuarterConceptValue(
@@ -470,13 +476,15 @@ function selectAnnualConceptValue(
   values: ReadonlyArray<SecConceptValue>,
   input: SecStatementValueSelection,
 ): SecConceptValue | undefined {
-  return values.find(
-    (v) =>
-      v.fy === input.fiscal_year &&
-      v.fp === "FY" &&
-      v.form === "10-K" &&
-      (input.accession_number === undefined || v.accn === input.accession_number),
-  );
+  return values
+    .filter(
+      (v) =>
+        v.fy === input.fiscal_year &&
+        v.fp === "FY" &&
+        v.form === "10-K" &&
+        (input.accession_number === undefined || v.accn === input.accession_number),
+    )
+    .sort(ownPeriodFirst)[0];
 }
 
 function selectDiscreteQuarterConceptValue(
@@ -513,6 +521,8 @@ function compareQuarterFactQuality(
   a: SecConceptValue,
   b: SecConceptValue,
 ): number {
+  const ownPeriod = b.end.localeCompare(a.end);
+  if (ownPeriod !== 0) return ownPeriod;
   const scoreDiff = quarterFactScore(b) - quarterFactScore(a);
   if (scoreDiff !== 0) return scoreDiff;
   return b.filed.localeCompare(a.filed);

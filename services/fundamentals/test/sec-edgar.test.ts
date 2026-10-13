@@ -347,6 +347,67 @@ test("quarterly companyfacts extraction rejects impossible dates when checking d
   );
 });
 
+// A filing repeats prior years' values under its own fy/fp/accession; its own
+// period is the one ending last. Real values from AAPL's FY2024 10-K, oldest
+// first as data.sec.gov lists them.
+test("annual companyfacts extraction takes the filing's own year, not a comparative", () => {
+  const facts = aaplCompanyFactsFixture();
+  const fy = { fy: 2024, fp: "FY", form: "10-K", accn: AAPL_FY2024_ACCN, filed: "2024-11-01" };
+  facts.facts["us-gaap"]!.RevenueFromContractWithCustomerExcludingAssessedTax.units.USD = [
+    value({ val: 394_328_000_000, ...fy, start: "2021-09-26", end: "2022-09-24", frame: "CY2022" }),
+    value({ val: 383_285_000_000, ...fy, start: "2022-09-25", end: "2023-09-30" }),
+    value({ val: 391_035_000_000, ...fy, start: "2023-10-01", end: "2024-09-28" }),
+  ];
+  const statement = extractStatement({
+    subject: aaplIssuer,
+    facts,
+    family: "income",
+    fiscal_year: 2024,
+    fiscal_period: "FY",
+    source_id: SEC_SOURCE_ID,
+    as_of: RETRIEVED_AT,
+  });
+  assert.equal(statement.period_end, "2024-09-28");
+  assert.equal(statement.lines.find((line) => line.metric_key === "revenue")?.value_num, 391_035_000_000);
+});
+
+// Real values from NVDA's Q2 FY2026 10-Q: the prior-year quarter carries the
+// calendar frame, the current one does not (a later filing holds its frame).
+test("quarterly companyfacts extraction takes the filing's own quarter over a framed comparative", () => {
+  const nvdaQ2 = { fy: 2026, fp: "Q2", form: "10-Q", accn: "0001045810-25-000209", filed: "2025-08-27" };
+  const facts: SecCompanyFacts = {
+    cik: 1045810,
+    entityName: "NVIDIA Corp",
+    facts: {
+      "us-gaap": {
+        Revenues: {
+          label: "Revenues",
+          description: "Revenues.",
+          units: {
+            USD: [
+              value({ val: 56_084_000_000, ...nvdaQ2, start: "2024-01-29", end: "2024-07-28" }),
+              value({ val: 30_040_000_000, ...nvdaQ2, start: "2024-04-29", end: "2024-07-28", frame: "CY2024Q2" }),
+              value({ val: 90_805_000_000, ...nvdaQ2, start: "2025-01-27", end: "2025-07-27" }),
+              value({ val: 46_743_000_000, ...nvdaQ2, start: "2025-04-28", end: "2025-07-27" }),
+            ],
+          },
+        },
+      },
+    },
+  };
+  const statement = extractStatement({
+    subject: aaplIssuer,
+    facts,
+    family: "income",
+    fiscal_year: 2026,
+    fiscal_period: "Q2",
+    source_id: SEC_SOURCE_ID,
+    as_of: RETRIEVED_AT,
+  });
+  assert.equal(statement.period_start, "2025-04-28");
+  assert.equal(statement.lines.find((line) => line.metric_key === "revenue")?.value_num, 46_743_000_000);
+});
+
 test("Q4 companyfacts extraction derives flow values from FY minus the first three discrete quarters", () => {
   const facts = aaplCompanyFactsFixture();
   const usGaap = facts.facts["us-gaap"]!;
