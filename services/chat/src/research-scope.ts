@@ -221,6 +221,25 @@ const ADJUSTMENTS: Readonly<Record<string, { key: string; label: string }>> = {
   "unlevered": { key: "unlevered", label: "Unlevered" },
 };
 
+// One mention of a statement metric: the metric itself, or with an adjustment
+// before it or a qualifier after it, the named gap it then asks for.
+function classifyStatementMention(metric: RequestedMetric, pattern: RegExp, occurrence: RegExpMatchArray): RequestedMetric {
+  const adjustment = occurrence[1] !== undefined ? ADJUSTMENTS[occurrence[1].toLowerCase().replace(/[- ]/g, " ")] : undefined;
+  const text = occurrence[0];
+  const body = adjustment ? text.slice(text.search(new RegExp(`(?:${pattern.source})`, "i"))) : text;
+  const raw = body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase();
+  const qualifier = raw === "" ? undefined : qualifierParts(raw);
+  if (!adjustment && !qualifier) return metric;
+  return {
+    metric_key: [metric.metric_key, adjustment?.key, qualifier?.key].filter(Boolean).join("_"),
+    label: [
+      adjustment ? `${adjustment.label} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}` : metric.label,
+      qualifier?.label,
+    ].filter(Boolean).join(" "),
+    available: false,
+  };
+}
+
 export function requestedMetrics(question: string): RequestedMetric[] {
   return scanMetrics(question).metrics;
 }
@@ -237,25 +256,16 @@ function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: stri
     const own = metric.metric_key !== "income_statement";
     const statement = metric.metric_key in STATEMENT_METRIC_LABELS;
     const match = new RegExp(`${statement ? ADJUSTMENT : ""}(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
-    const found = new RegExp(match.source, "i").exec(rest);
-    if (!found) continue;
-    // A qualified statement metric ("free cash flow margin", "EPS growth",
+    const found = [...rest.matchAll(match)];
+    if (found.length === 0) continue;
+    // Each mention is classified ("EPS and adjusted EPS" asks for both). A
+    // qualified statement metric ("free cash flow margin", "EPS growth",
     // "adjusted EPS") is another metric no reader serves: a named gap, never
     // the reported figure in its place.
-    const adjustment = statement && found[1] !== undefined ? ADJUSTMENTS[found[1].toLowerCase().replace(/[- ]/g, " ")] : undefined;
-    const body = adjustment ? found[0].slice(found[0].search(new RegExp(`(?:${pattern.source})`, "i"))) : found[0];
-    const raw = own ? body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() : "";
-    const qualifier = raw === "" ? undefined : qualifierParts(raw);
-    metrics.push(statement && (qualifier || adjustment)
-      ? {
-        metric_key: [metric.metric_key, adjustment?.key, qualifier?.key].filter(Boolean).join("_"),
-        label: [
-          adjustment ? `${adjustment.label} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}` : metric.label,
-          qualifier?.label,
-        ].filter(Boolean).join(" "),
-        available: false,
-      }
-      : metric);
+    for (const occurrence of found) {
+      const classified = statement ? classifyStatementMention(metric, pattern, occurrence) : metric;
+      if (!metrics.some((seen) => seen.metric_key === classified.metric_key)) metrics.push(classified);
+    }
     rest = rest.replace(match, " ");
     if (own) withoutOthers = withoutOthers.replace(match, " ");
   }

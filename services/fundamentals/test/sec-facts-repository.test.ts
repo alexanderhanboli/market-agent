@@ -214,6 +214,42 @@ test("the backfill replaces income facts the old period selector got wrong, keep
   assert.equal(reread?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
 });
 
+test("the backfill retires a wrong income fact whose metric the filing no longer yields for the period", async () => {
+  const db = new FakeFundamentalsDb();
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  // companyFacts() reports no operating expenses: rows for them came from the old
+  // selector, one with the prior year's dates and one with this year's.
+  const [revenue] = db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  const opexId = db.metrics.find((metric) => metric.metric_key === "operating_expenses")!.metric_id;
+  const contradicted = { ...revenue!, fact_id: crypto.randomUUID(), metric_id: opexId, value_num: 50, period_start: "2023-01-01", period_end: "2023-12-31" };
+  db.facts.push(contradicted);
+
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+  // Contradicting the period's dates, it is retired, with nothing to supersede it.
+  assert.notEqual(contradicted.invalidated_at, null);
+  assert.equal(contradicted.superseded_by, null);
+
+  // One agreeing with the period's dates is not contradicted, so it stays.
+  const agreeing = { ...revenue!, fact_id: crypto.randomUUID(), metric_id: opexId, value_num: 60, invalidated_at: null, superseded_by: null };
+  db.facts.push(agreeing);
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-10T00:00:00.000Z"),
+  });
+  assert.equal(agreeing.invalidated_at, null);
+});
+
 test("the backfill downloads nothing for an issuer with no income periods on file", async () => {
   let fetches = 0;
   const result = await backfillSecCompanionStatements(new FakeFundamentalsDb(), {
@@ -605,6 +641,7 @@ function metricDefinitions(): MetricDefinition[] {
     ["cost_of_revenue", "currency"],
     ["gross_profit", "currency"],
     ["operating_income", "currency"],
+    ["operating_expenses", "currency"],
     ["net_income", "currency"],
     ["eps_basic", "currency"],
     ["eps_diluted", "currency"],

@@ -263,6 +263,14 @@ test("an adjusted or non-GAAP figure is a named gap, never the GAAP figure in it
   }
   // Unqualified, they are the reported figures.
   assert.deepEqual(metrics("What was NVDA's EPS?"), [["eps_diluted", "Earnings per share", true]]);
+  // Each mention is classified, so a reported figure asked beside its adjusted
+  // or qualified form keeps the gap for the other.
+  assert.deepEqual(metrics("Show NVDA's EPS and adjusted EPS"), [
+    ["eps_diluted", "Earnings per share", true],
+    ["eps_diluted_adjusted", "Adjusted earnings per share", false],
+  ]);
+  assert.deepEqual(metrics("NVDA free cash flow and free cash flow margin").map(([key]) => key), ["free_cash_flow", "free_cash_flow_margin"]);
+  assert.deepEqual(metrics("NVDA EPS and EPS").map(([key]) => key), ["eps_diluted"]);
 });
 
 test("a cash-flow category is that category; unqualified cash flow is operating", () => {

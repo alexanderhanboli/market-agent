@@ -163,7 +163,8 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
   stores them for every SEC income period on file, one companyfacts download per issuer
   (`backfillSecCompanionStatements`), paced under SEC's fair-access rate. It also **repairs** the income statement: a
   stored fact whose value or dates differ from the filing (written by the old selector) is invalidated, the filing's
-  fact is stored, and the old one is `superseded_by` it, in the filing's transaction. A snapshot cut before the repair
+  fact is stored, and the old one is `superseded_by` it, in the filing's transaction. A stored income fact whose metric
+  the filing no longer yields for the period is invalidated too when its dates are another period's. A snapshot cut before the repair
   still reads the old fact (`factActiveSql` judges activity at the cutoff). A rerun leaves matching facts as they are.
   Lineage for derived income quarters stored before it existed is not rewritten.
 

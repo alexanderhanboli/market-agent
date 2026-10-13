@@ -11,6 +11,7 @@ import {
   extractStatementWithTokens,
   SecEdgarFetchError,
   SEC_INCOME_METRIC_KEYS,
+  SEC_METRIC_KEYS_BY_FAMILY,
   US_GAAP_TO_METRIC_KEY,
   secFiscalYearWindow,
   selectSecConceptValue,
@@ -258,8 +259,10 @@ async function ingestFiling(
   return income?.statement ?? null;
 }
 
-// The stored, active SEC facts for a statement's period whose value or dates
-// differ from the statement's lines, by metric_key.
+// The stored, active SEC facts for a statement's period that the filing
+// contradicts, by metric_key: a metric the statement has, with another value
+// or dates; or one of its family the statement lacks, dated for another
+// period (the old selector's comparative, with nothing to replace it).
 async function staleStatementFacts(
   db: FundamentalsQueryExecutor,
   issuerId: UUID,
@@ -288,17 +291,16 @@ async function staleStatementFacts(
         and s.provider = 'sec_edgar'
         and ${factActiveSql("f")}
         and m.metric_key = any($5::text[])`,
-    [issuerId, statement.period_kind, statement.fiscal_year, statement.fiscal_period, statement.lines.map((line) => line.metric_key)],
+    [issuerId, statement.period_kind, statement.fiscal_year, statement.fiscal_period, SEC_METRIC_KEYS_BY_FAMILY[statement.family]],
   );
   const stale = new Map<string, string>();
   for (const row of rows) {
     const line = statement.lines.find((candidate) => candidate.metric_key === row.metric_key);
-    if (!line) continue;
-    const differs =
-      (row.stored_value === null ? null : Number(row.stored_value)) !== line.value_num ||
-      row.period_start !== statement.period_start ||
-      row.period_end !== statement.period_end;
-    if (differs) stale.set(row.metric_key, row.fact_id);
+    const otherDates = row.period_start !== statement.period_start || row.period_end !== statement.period_end;
+    const contradicted = line
+      ? otherDates || (row.stored_value === null ? null : Number(row.stored_value)) !== line.value_num
+      : otherDates;
+    if (contradicted) stale.set(row.metric_key, row.fact_id);
   }
   return stale;
 }
