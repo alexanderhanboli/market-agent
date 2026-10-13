@@ -1,0 +1,105 @@
+{
+  "run": "2026-10-13T041953",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Every figure correct and sealed; 'rose in every period' is right (the old 'lowest QoQ' error is gone). But no takeaway or view: the inference was rejected for omitting evidence, and the unknown cause for citing one figure. No counterpoint."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 1,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Loss quarter shown, low correctly Q2 2025 at -1.7%, 'rose ... though not in every period' correct. The 'data does not show why' sentence was rejected (cited one figure), so the gap goes unstated. No counterpoint, no view."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Low at Q1 FY2026 correct; unknown cause rendered. The recovery after it is not said (the falsely steady 'fell every period' claim was correctly rejected, and nothing replaced it). No counterpoint."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Figures right, but no conclusion at all: the multi-metric comparison and the inference were rejected, and the price returns never render (no fact to seal; 'December 2025 is not a cited date' is a false rejection). Chart and table carry the comparison."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Three correct checked comparisons (AAPL largest revenue, NVDA fastest growth, AMD lowest net margin) plus the calendar note. No synthesis, no industry caveat for AAPL, no counterpoint."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Mismatch stated (rendered note and title). Comparison correct. The inference that said 'imperfect because the fiscal years end eight months apart' was rejected, so no view."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Segment values right but read oddly ('NVDA's data center was $55.2B'). The concentration point is lost: the ranking was rejected as 'a comparison is of one metric' because each segment is its own metric in the packet (a false rejection)."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude). Rendering on. Gap stated honestly; the sentence still appears twice (answer + #270 gap note)."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude). Rendering on. Gap stated honestly; the sentence still appears twice (answer + #270 gap note)."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Turn 2 ('Compare it with AMD YTD') renders no YTD return in the prose: price returns have no fact to seal, and the per-company return observations were falsely rejected ('December 2025 is not a cited date'). The chart still shows them. Turn 3 has correct figures and one comparison, but no explanation: the multi-metric comparison and the inference were rejected."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on (CHAT_ASSERTION_RENDERING=1, #208 3/3). Correct figures and growth comparison; calendar gap in the title. Price returns and the view were not rendered."
+    }
+  }
+}
