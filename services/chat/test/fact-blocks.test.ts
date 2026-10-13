@@ -5,6 +5,8 @@ import type { IssuerFundamentalFact } from "../../fundamentals/src/issuer-fundam
 import type { VerifierFact } from "../../snapshot/src/snapshot-verifier.ts";
 import {
   buildIssuerFactBlocks,
+  readsNamedQuarter,
+  requestedFiscalQuarter,
   loadIssuerFactBlocks,
   comparisonTitle,
   displayedFigures,
@@ -492,4 +494,107 @@ test("other facts are offered only when nothing the turn asked for is a named ga
   assert.equal(mayOfferOtherFacts(scope("What is AMD's free cash flow?"), []), false);
   assert.equal(mayOfferOtherFacts(scope("Break down AMD's revenue by segment"), []), false);
   assert.equal(mayOfferOtherFacts(scope("Break down AMD's revenue by segment"), [{ kind: "metric_row", title: "Revenue by segment (Q2 2026)" }]), true);
+});
+
+test("a question's named fiscal quarter is read in its common spellings (#290)", () => {
+  const q = (fiscal_year: number, fiscal_period: string) => ({ fiscal_year, fiscal_period });
+  assert.deepEqual(requestedFiscalQuarter("Why did AMD's operating margin turn negative in Q2 2025?"), q(2025, "Q2"));
+  assert.deepEqual(requestedFiscalQuarter("What changed in NVDA's gross margin in Q1 fiscal 2026?"), q(2026, "Q1"));
+  assert.deepEqual(requestedFiscalQuarter("NVDA's Q4 FY2026 revenue"), q(2026, "Q4"));
+  assert.deepEqual(requestedFiscalQuarter("AMD in fiscal Q3 2025"), q(2025, "Q3"));
+  assert.deepEqual(requestedFiscalQuarter("Q1 FY26 margins"), q(2026, "Q1"));
+  assert.deepEqual(requestedFiscalQuarter("the second quarter of fiscal 2025"), q(2025, "Q2"));
+  assert.deepEqual(requestedFiscalQuarter("AMD's third quarter of 2025"), q(2025, "Q3"));
+  assert.equal(requestedFiscalQuarter("Analyze NVDA's latest quarter."), undefined);
+  assert.equal(requestedFiscalQuarter("Compare NVDA's and AAPL's fiscal 2025 revenue."), undefined);
+});
+
+function quarterBlocks(facts: ReadonlyArray<IssuerFundamentalFact>, quarter: { fiscal_year: number; fiscal_period: string }, wantsMarginTrend = false) {
+  return buildIssuerFactBlocks({ facts, verifierFacts: verifierFacts(facts), derived: derivedFor(facts), wantsMarginTrend, quarter, snapshotId: SNAPSHOT_ID, asOf: AS_OF });
+}
+
+test("a named quarter is the quarter shown, inside the trend; never the latest in its place (#290)", () => {
+  // quarters(14): Q1 2024 ... Q2 2027. Q2 2025 is the sixth.
+  const facts = quarters(14);
+  const [row, bars] = quarterBlocks(facts, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.equal(row!.title, "Fiscal Q2 2025");
+  assert.equal((row!.items as Array<{ label: string; format: string }>)[0]!.format, "$6.0B");
+  const labels = (bars!.bars as Array<{ label: string }>).map((bar) => bar.label);
+  assert.equal(labels.length, 8);
+  assert.ok(labels.includes("Q2 2025"));
+  // Within the latest eight, the window stays the latest eight.
+  const recent = quarterBlocks(facts, { fiscal_year: 2026, fiscal_period: "Q3" });
+  assert.equal(recent[0]!.title, "Fiscal Q3 2026");
+  assert.equal((recent[1]!.bars as Array<{ label: string }>).at(-1)!.label, "Q2 2027");
+  // A quarter with no facts: no blocks at all, not the latest quarter.
+  assert.deepEqual(quarterBlocks(facts, { fiscal_year: 2019, fiscal_period: "Q2" }), []);
+});
+
+test("a named quarter on the segment or statement route is a named gap, not silently the latest period (#292 review)", () => {
+  const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
+  const scope = (question: string) => resolveResearchScope({ question, companies: [AMD], prior: null, asOf: "2026-09-01T00:00:00.000Z" });
+  const input = { snapshotId: "11111111-1111-4111-8111-111111111111", asOf: "2026-09-01T00:00:00.000Z" };
+  // As each route shows it: a segment breakdown, or an EPS row, for the latest period.
+  const SEGMENTS = [{ kind: "metric_row", title: "Revenue by segment (Q2 2026)", items: [{ label: "Data Center", format: "$4.0B" }] }];
+  const EPS = [{ kind: "metric_row", title: "Statements", items: [{ label: "EPS (diluted)", format: "$0.90" }] }];
+  const notes = (question: string, shown: ReadonlyArray<Record<string, unknown>>) => scopeGapBlocks(scope(question), shown, input)
+    .map((block) => (block.segments as Array<{ text: string }>)[0]!.text).filter((text) => /quarter/.test(text));
+  assert.deepEqual(notes("Break down AMD's revenue by segment in Q1 2025", SEGMENTS), [
+    "A named quarter is not read for this breakdown; the latest available period is shown, not fiscal Q1 2025.",
+  ]);
+  assert.deepEqual(notes("What was AMD's EPS in Q1 2025?", EPS), [
+    "A named quarter is not read for these statement figures; the latest available period is shown, not fiscal Q1 2025.",
+  ]);
+});
+
+test("with nothing shown for a named quarter on those routes, no note claims the latest period is shown (#292 review)", () => {
+  const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
+  const scope = (question: string) => resolveResearchScope({ question, companies: [AMD], prior: null, asOf: "2026-09-01T00:00:00.000Z" });
+  const input = { snapshotId: "11111111-1111-4111-8111-111111111111", asOf: "2026-09-01T00:00:00.000Z" };
+  for (const question of ["Break down AMD's revenue by segment in Q1 2025", "What was AMD's EPS in Q1 2025?"]) {
+    const texts = scopeGapBlocks(scope(question), [], input).map((block) => (block.segments as Array<{ text: string }>)[0]!.text);
+    assert.equal(texts.some((text) => /latest available period is shown/.test(text)), false, question);
+  }
+});
+
+test("a named quarter is decided per reader: income honors it on a segment route; a statement or segment block shown beside it is flagged (#292 review)", () => {
+  const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
+  const scope = (question: string) => resolveResearchScope({ question, companies: [AMD], prior: null, asOf: "2026-09-01T00:00:00.000Z" });
+  const input = { snapshotId: "11111111-1111-4111-8111-111111111111", asOf: "2026-09-01T00:00:00.000Z" };
+  const QUARTER_ROW = { kind: "metric_row", title: "Fiscal Q1 2025", items: [{ label: "Revenue", format: "$7.4B" }] };
+  const EPS_ROW = { kind: "metric_row", title: "Statements", items: [{ label: "EPS (diluted)", format: "$0.90" }] };
+  const SEGMENT_ROW = { kind: "metric_row", title: "Revenue by segment (Q2 2026)", items: [{ label: "Data Center", format: "$4.0B" }] };
+  const notes = (question: string, shown: ReadonlyArray<Record<string, unknown>>) => scopeGapBlocks(scope(question), shown, input)
+    .map((block) => (block.segments as Array<{ text: string }>)[0]!.text).filter((text) => /quarter/.test(text));
+  // Income and EPS together: the income row honors Q1 2025; the EPS beside it is the latest, and says so.
+  assert.deepEqual(notes("AMD revenue and EPS in Q1 2025", [QUARTER_ROW, EPS_ROW]), [
+    "A named quarter is not read for these statement figures; the latest available period is shown, not fiscal Q1 2025.",
+  ]);
+  // Segments with a margin: the income reader takes the quarter; the breakdown is flagged.
+  const mixed = scope("AMD segments and operating margin in Q1 2025");
+  assert.equal(readsNamedQuarter(mixed), true);
+  assert.deepEqual(notes("AMD segments and operating margin in Q1 2025", [QUARTER_ROW, SEGMENT_ROW]), [
+    "A named quarter is not read for this breakdown; the latest available period is shown, not fiscal Q1 2025.",
+  ]);
+});
+
+test("a year-first quarter is read, fresh or after another quarter (#292 review)", () => {
+  assert.deepEqual(requestedFiscalQuarter("NVDA FY2026 Q3 revenue"), { fiscal_year: 2026, fiscal_period: "Q3" });
+  assert.deepEqual(requestedFiscalQuarter("AMD's fiscal 2025 Q2 margins"), { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.deepEqual(requestedFiscalQuarter("FY26 Q1"), { fiscal_year: 2026, fiscal_period: "Q1" });
+});
+
+test("a peers request keeps its comparison intent when no peer is found: the quarter is said not to be compared (#292 review)", () => {
+  const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
+  const scope = resolveResearchScope({ question: "How does AMD compare with its peers in Q1 2025?", companies: [AMD], prior: null, asOf: "2026-09-01T00:00:00.000Z" });
+  assert.equal(scope.peers, true);
+  assert.equal(readsNamedQuarter(scope), false);
+  const texts = scopeGapBlocks(scope, [], { snapshotId: "11111111-1111-4111-8111-111111111111", asOf: "2026-09-01T00:00:00.000Z" })
+    .map((block) => (block.segments as Array<{ text: string }>)[0]!.text);
+  assert.ok(texts.some((text) => /not compared across companies/.test(text)), JSON.stringify(texts));
+});
+
+test("a comma between a quarter and its bare year is read (#292 review)", () => {
+  assert.deepEqual(requestedFiscalQuarter("AMD revenue in Q2, 2026"), { fiscal_year: 2026, fiscal_period: "Q2" });
+  assert.deepEqual(requestedFiscalQuarter("the second quarter, 2025"), { fiscal_year: 2025, fiscal_period: "Q2" });
 });

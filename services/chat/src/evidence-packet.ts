@@ -12,7 +12,7 @@
 // cutoff): repeats already counted once, each placed by its stored polarity,
 // with any stored contradiction between them named.
 
-import { displayedFigures, QUARTERS_SHOWN, type DisplayedFigure } from "./fact-blocks.ts";
+import { displayedFigures, QUARTERS_SHOWN, readsNamedQuarter, type DisplayedFigure } from "./fact-blocks.ts";
 import type { ResearchScope } from "./research-scope.ts";
 
 type Block = Record<string, unknown>;
@@ -104,7 +104,9 @@ export function claimSelection(
 // widened by a year so one ending mid-year still covers its claims. One window
 // for every predicate: the route's period, which covers a year-to-date window.
 function periodStart(scope: ResearchScope, cutoff: string, routed: boolean): string | null {
-  if (scope.fiscal_year !== null) return `${scope.fiscal_year - 1}-01-01T00:00:00.000Z`;
+  // A named quarter's claims from the year before it, as a fiscal year's (#290).
+  const year = scope.fiscal_quarter?.fiscal_year ?? scope.fiscal_year;
+  if (year !== null) return `${year - 1}-01-01T00:00:00.000Z`;
   if (scope.price_window && !routed) return `${cutoff.slice(0, 4)}-01-01T00:00:00.000Z`;
   const start = new Date(cutoff);
   if (Number.isNaN(start.getTime())) return null;
@@ -259,8 +261,12 @@ function queryBounds(scope: ResearchScope): Record<string, string> {
       : `fiscal year ${scope.fiscal_year} only: its latest quarter and the year for cash flow; balance sheet at its latest period end in that year; EPS for that year`,
     comparison: scope.fiscal_year === null ? "latest fiscal year per company" : `fiscal year ${scope.fiscal_year} per company`,
   };
+  // A single company's named quarter replaces its latest (#290).
+  const quarter = scope.fiscal_quarter && readsNamedQuarter(scope)
+    ? `fiscal ${scope.fiscal_quarter.fiscal_period} ${scope.fiscal_quarter.fiscal_year}, with revenue for the ${QUARTERS_SHOWN} quarters around it`
+    : undefined;
   return {
-    ...(periods[scope.reads] ? { periods: periods[scope.reads]! } : {}),
+    ...(quarter ?? periods[scope.reads] ? { periods: quarter ?? periods[scope.reads]! } : {}),
     ...(scope.price_window ? { price_window: `year to date, to the ${scope.price_window.cutoff.slice(0, 10)} cutoff` } : {}),
   };
 }

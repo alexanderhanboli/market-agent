@@ -35,6 +35,7 @@ import {
   loadTurnFactBlocks,
   mayOfferOtherFacts,
   priceListingsForTurn,
+  readsNamedQuarter,
   scopeGapBlocks,
   turnCompanies,
   withDerivationSources,
@@ -207,7 +208,9 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
       issuers: issuersOfScope(scope),
       wantsPeers: false,
       wantsSegments: scope.segments,
-      wantsMarginTrend: scope.margin_trend,
+      // A margin asked about in a named quarter gets the margins around it (#290).
+      wantsMarginTrend: scope.margin_trend || (scope.margins && scope.fiscal_quarter !== null),
+      ...(scope.fiscal_quarter && readsNamedQuarter(scope) ? { fiscalQuarter: scope.fiscal_quarter } : {}),
       // A request for segments alone; one also asking for a margin (its latest
       // value or its trend) reads both.
       segmentsOnly: scope.reads === "segments" && !scope.margins,

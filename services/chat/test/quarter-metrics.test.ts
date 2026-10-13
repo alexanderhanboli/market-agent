@@ -109,3 +109,22 @@ test("no growth without the earlier quarter, or from a zero base", () => {
     [],
   );
 });
+
+test("growth is computed for the quarter named, not the window's last (#292 review)", () => {
+  const facts = [
+    fact("revenue", 2025, "Q1", 100), fact("revenue", 2025, "Q2", 110), fact("revenue", 2025, "Q3", 150),
+    fact("revenue", 2024, "Q2", 80),
+  ];
+  const key = (m: string, y: number, p: string) => `${m}|${y}|${p}`;
+  const byKey = new Map(facts.map((f) => [key(f.metric_key, f.fiscal_year!, f.fiscal_period!), f]));
+  const named = facts[1]!;
+  const specs = deriveQuarterMetrics({
+    shownRevenue: facts.slice(0, 3),
+    growthAt: named,
+    fact: (m, y, p) => byKey.get(key(m, y, p)),
+    period: (id) => ({ fact_id: id, period_kind: "fiscal_q", period_start: "2025-03-30", period_end: "2025-06-28" }),
+  });
+  const growth = specs.filter((spec) => spec.metric.startsWith("revenue_growth"));
+  // Q2 2025: QoQ from Q1 (100 -> 110), YoY from Q2 2024 (80 -> 110).
+  assert.deepEqual(growth.map((spec) => [spec.period.fiscal_period, spec.period.fiscal_year, Number(spec.value_num.toFixed(3))]), [["Q2", 2025, 0.1], ["Q2", 2025, 0.375]]);
+});

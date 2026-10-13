@@ -421,6 +421,31 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     assert.match(prose, /\$800 million in inventory and related charges/);
   });
 
+  await t.test("a named past quarter is the quarter shown, with its margins; a missing one is a named gap (#290)", async () => {
+    const thread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "AMD Q2 2025" });
+    completedTurn(await runTurn(base, thread.thread_id, "Why did AMD's operating margin turn negative in Q2 2025?"));
+    const answer = await latestAssistantMessage(base, thread.thread_id);
+    const row = answer.blocks.find((block) => block.kind === "metric_row" && block.title === "Fiscal Q2 2025");
+    assert.ok(row, `expected the named quarter; got [${answer.blocks.map((b) => `${b.kind}:${b.title}`).join(", ")}]`);
+    const items = new Map((row.items as Array<{ label: string; format: string }>).map((item) => [item.label, item.format]));
+    assert.equal(items.get("Operating margin"), "-1.7%");
+    assert.equal(items.get("Gross margin"), "39.8%");
+    // Growth is the named quarter's, though the margin trend's window runs past it (#292 review).
+    assert.equal(items.get("Revenue growth (QoQ)"), "3.3%");
+    // The margins across the quarters around it, the named quarter among them.
+    const trend = answer.blocks.find((block) => block.title === "Operating margin by quarter");
+    assert.ok((trend?.items as Array<{ label: string }> | undefined)?.some((item) => item.label === "Q2 2025"));
+    const cited = await citedFacts(answer);
+    for (const ref of valueRefs(row)) assert.ok(cited.has(ref), `${ref} is not a cited fact`);
+    assert.equal(answer.blocks.some((block) => /^Latest quarter/.test(String(block.title))), false, "the latest quarter is not shown in its place");
+
+    const missing = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "AMD Q2 2019" });
+    completedTurn(await runTurn(base, missing.thread_id, "What was AMD's revenue in Q2 2019?"));
+    const gap = await latestAssistantMessage(base, missing.thread_id);
+    assert.equal(gap.blocks.some((block) => block.kind === "metric_row" || block.kind === "revenue_bars"), false);
+    assert.match(JSON.stringify(gap.blocks), /No figures for fiscal Q2 2019 are on file for AMD/);
+  });
+
   await t.test("a company with no segment facts gets no breakdown block", async () => {
     const amdThread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "AMD segments" });
     completedTurn(await runTurn(base, amdThread.thread_id, "Break down AMD's revenue by segment"));

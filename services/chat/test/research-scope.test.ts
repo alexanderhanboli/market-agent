@@ -53,6 +53,7 @@ test("a fresh question records what it asks for and inherits nothing", () => {
     margins: false,
     metrics: [{ metric_key: "income_statement", label: "Revenue, profit and margins", available: true }],
     fiscal_year: 2025,
+    fiscal_quarter: null,
     price_window: { kind: "ytd", cutoff: AS_OF },
     benchmark: false,
     inherited: [],
@@ -457,4 +458,93 @@ test("'no' turns a facet off only at the start of a clause", () => {
   assert.equal(next("No segments this time").segments, false);
   assert.equal(next("Same table, no segments").segments, false);
   assert.equal(next("Keep the margins and no segments").segments, false);
+});
+
+test("a named fiscal quarter is scoped, kept by a follow-up and can be turned off (#290)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  assert.deepEqual(asked.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.equal(asked.route, "derived_margin");
+  const next = resolveResearchScope({ question: "And its gross margin?", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.ok(next.inherited.includes("fiscal_quarter"));
+  const latest = resolveResearchScope({ question: "Drop the quarter and show the latest", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.equal(latest.fiscal_quarter, null);
+  // Saved and read back; a scope saved before quarters were recorded has none.
+  assert.deepEqual(parseResearchScope(JSON.parse(JSON.stringify(asked)))!.fiscal_quarter, asked.fiscal_quarter);
+  const { fiscal_quarter: _q, ...older } = asked;
+  assert.equal(parseResearchScope(older)!.fiscal_quarter, null);
+});
+
+test("asking for the latest quarter clears an inherited named quarter (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  for (const question of ["Now show the latest quarter", "What about the most recent quarter?", "and the current quarter", "show the latest reported quarter", "the most recently reported quarter", "show the latest fiscal quarter", "the most recent fiscal quarter reported"]) {
+    const next = resolveResearchScope({ question, companies: [AMD], prior: asked, asOf: AS_OF });
+    assert.equal(next.fiscal_quarter, null, question);
+  }
+});
+
+test("a follow-up naming part of a period updates the inherited quarter, never keeps the old one (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const next = (question: string) => resolveResearchScope({ question, companies: [AMD], prior: asked, asOf: AS_OF });
+  // A quarter without a year keeps the inherited year.
+  assert.deepEqual(next("Now Q3").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q3" });
+  assert.deepEqual(next("What about the third quarter?").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q3" });
+  // A fiscal year without a quarter clears it: the year's figures, not Q2 2025's.
+  const year = next("Now for fiscal 2026");
+  assert.equal(year.fiscal_quarter, null);
+  assert.equal(year.fiscal_year, 2026);
+  // Nothing about the period: the quarter is kept.
+  assert.deepEqual(next("And its gross margin?").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+});
+
+test("asking for the latest quarter also clears the fiscal year its quarter named (#292 review)", () => {
+  const asked = fresh("What was AMD's EPS in Q1 fiscal 2025?", [AMD]);
+  assert.equal(asked.fiscal_year, 2025);
+  const latest = resolveResearchScope({ question: "Show the latest quarter and EPS", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.equal(latest.fiscal_quarter, null);
+  assert.equal(latest.fiscal_year, null);
+});
+
+test("a new complete quarter with no fiscal year named sets the year to its own, not the inherited one (#292 review)", () => {
+  const asked = fresh("What was AMD's EPS in Q1 fiscal 2025?", [AMD]);
+  const next = resolveResearchScope({ question: "What about EPS in Q2 2026?", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q2" });
+  assert.equal(next.fiscal_year, 2026);
+});
+
+test("a follow-up naming the year first takes that year, not the inherited one (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const next = resolveResearchScope({ question: "Now FY2026 Q3", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q3" });
+});
+
+test("a quarter and a fiscal year written apart are paired, fresh or as a follow-up (#292 review)", () => {
+  assert.deepEqual(fresh("AMD revenue in Q3, FY2026", [AMD]).fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q3" });
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const next = resolveResearchScope({ question: "Now Q3, fiscal 2026", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q3" });
+});
+
+test("a named quarter's year is the fiscal year a comparison uses (#292 review)", () => {
+  const NVDA = { issuer_id: "60000000-0000-4000-8000-000000000001", label: "NVDA" };
+  const compared = fresh("Compare AMD and NVDA revenue in Q2 2025", [AMD, NVDA]);
+  assert.deepEqual(compared.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.equal(compared.fiscal_year, 2025);
+});
+
+test("dropping quarter-over-quarter growth keeps the named quarter (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  for (const question of ["Same margins, without quarter-over-quarter growth", "Drop the QoQ growth"]) {
+    const next = resolveResearchScope({ question, companies: [AMD], prior: asked, asOf: AS_OF });
+    assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" }, question);
+  }
+  // Dropping the quarter itself still clears it.
+  assert.equal(resolveResearchScope({ question: "Drop the quarter", companies: [AMD], prior: asked, asOf: AS_OF }).fiscal_quarter, null);
+});
+
+test("a quarter named alone takes an inherited fiscal year when no quarter was inherited (#292 review)", () => {
+  const year = fresh("Show AMD's fiscal 2025 EPS", [AMD]);
+  assert.equal(year.fiscal_quarter, null);
+  const next = resolveResearchScope({ question: "Now show revenue in Q3", companies: [AMD], prior: year, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q3" });
 });
