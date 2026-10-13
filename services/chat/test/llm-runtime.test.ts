@@ -1486,3 +1486,22 @@ test("on a named-gap turn an amount in words is no more allowed than one in digi
   assert.match(text, /Free cash flow is not available for AMD in this data\./);
   assert.doesNotMatch(text, /three billion|twelve percent/);
 });
+
+test("on a named-gap turn zero in words is an amount, and every removal is reported together (#294 review)", async () => {
+  const removed: string[][] = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was zero dollars. Cash fell because of heavy spending." }),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.doesNotMatch(text, /zero dollars|heavy spending/);
+  // One report holding both the cause and the amount, so neither is undercounted.
+  assert.equal(removed.length, 1);
+  assert.equal(removed[0]!.length, 2);
+});

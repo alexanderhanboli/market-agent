@@ -358,7 +358,6 @@ export async function composeAnalystBlocksWithLlm(input: {
     const uncaused = keepUncausedSentences(text);
     if (uncaused.removed.length > 0) {
       console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
-      input.onNarrativeRemoved?.(uncaused.removed);
     }
     // A named gap's turn gives the model no data (availableData false): any
     // number it states is invented (#221). A claim's number is no support
@@ -369,8 +368,10 @@ export async function composeAnalystBlocksWithLlm(input: {
       : { text: uncaused.text, removed: [] as string[] };
     if (unnumbered.removed.length > 0) {
       console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
-      input.onNarrativeRemoved?.(unnumbered.removed);
     }
+    // Both batches in one report: the consumer keeps the last it receives (#294 review).
+    const removedHere = [...uncaused.removed, ...unnumbered.removed];
+    if (removedHere.length > 0) input.onNarrativeRemoved?.(removedHere);
     if (unnumbered.text) answered();
     // No figures are shown here, so the fallback points to none.
     return rewriteFirstRichTextBlock(input.blocks, unnumbered.text || NO_ANSWER_FALLBACK_TEXT);
@@ -428,7 +429,7 @@ export async function composeAnalystBlocksWithLlm(input: {
 // check does not see (#294 review).
 // ponytail: number words before a unit only; "three times" or a bare "three"
 // is not caught.
-const NUMBER_WORD = String.raw`(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|several|a few)`;
+const NUMBER_WORD = String.raw`(?:a|an|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|several|a few)`;
 const WORDED_AMOUNT = new RegExp(
   String.raw`\b${NUMBER_WORD}(?:[\s-]+${NUMBER_WORD})*\s+(?:hundred|thousand|million|billion|trillion|percent|per cent|percentage points?|basis points?|dollars?)\b`,
   "i",
