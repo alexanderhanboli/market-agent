@@ -178,7 +178,9 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
   },
   // Basic EPS is its own figure, taken before any EPS is read as diluted.
   { metric_key: "eps_basic", label: "Basic earnings per share", available: true, pattern: /\bbasic (?:EPS|earnings per share)\b/gi },
-  { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\bEPS\b|\bearnings per share\b/gi },
+  // "Diluted" is part of the name, so an adjustment before it ("adjusted
+  // diluted EPS") still qualifies it.
+  { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\b(?:diluted )?EPS\b|\b(?:diluted )?earnings per share\b/gi },
   { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
   // An adjusted income figure is not the reported one (statement metrics take
   // these adjectives through ADJUSTMENT instead).

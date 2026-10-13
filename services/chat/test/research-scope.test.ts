@@ -255,6 +255,10 @@ test("an adjusted or non-GAAP figure is a named gap, never the GAAP figure in it
   const metrics = (question: string) => requestedMetrics(question).map((metric) => [metric.metric_key, metric.label, metric.available]);
   assert.deepEqual(metrics("What was NVDA's adjusted EPS?"), [["eps_diluted_adjusted", "Adjusted earnings per share", false]]);
   assert.deepEqual(metrics("NVDA non-GAAP EPS"), [["eps_diluted_non_gaap", "Non-GAAP earnings per share", false]]);
+  // The explicit "diluted" form too.
+  assert.deepEqual(metrics("What was NVDA's adjusted diluted EPS?"), [["eps_diluted_adjusted", "Adjusted earnings per share", false]]);
+  assert.deepEqual(metrics("NVDA non-GAAP diluted earnings per share"), [["eps_diluted_non_gaap", "Non-GAAP earnings per share", false]]);
+  assert.deepEqual(metrics("NVDA diluted EPS"), [["eps_diluted", "Earnings per share", true]]);
   assert.deepEqual(metrics("What is NVDA's adjusted free cash flow?"), [["free_cash_flow_adjusted", "Adjusted free cash flow", false]]);
   assert.deepEqual(metrics("What was NVDA's non-GAAP operating income?"), [["non_gaap_income", "Non-GAAP earnings", false]]);
   assert.deepEqual(metrics("NVDA adjusted net income"), [["non_gaap_income", "Non-GAAP earnings", false]]);
