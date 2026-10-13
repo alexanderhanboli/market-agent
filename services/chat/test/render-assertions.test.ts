@@ -184,3 +184,15 @@ test("a year in an inference is a period, never an unlinkable figure (#208)", ()
   assert.equal(rendered.unsealed, false);
   assert.equal(rendered.segments.some((segment) => segment.type === "ref"), false);
 });
+
+test("a comma-grouped four-digit value is a figure to link, not a year (#208 review)", () => {
+  const packet: EvidencePacket = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Employees", period: "FY2026", value: "2,025", fact_id: NVDA_GM, source_ids: [] },
+  ], companies: ["NVDA"] };
+  const render = (text: string) => renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, packet, FACT_BLOCKS, ["F1"]);
+  const linked = render("NVDA's 2,025 employees run a lean operation.");
+  assert.deepEqual(linked.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM]);
+  // Unlinkable four-digit quantities leave the inference unsealed rather than passing as years.
+  assert.equal(render("NVDA's 3,100 contractors run a lean operation.").unsealed, true);
+  assert.equal(render("NVDA ran lean through 2025 and in Q1 2026.").unsealed, false);
+});

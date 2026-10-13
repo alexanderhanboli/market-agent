@@ -195,8 +195,8 @@ export async function composeAnalystBlocksWithLlm(input: {
           "that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\",",
           "\"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated;",
           "evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each",
-          "figure that changed), or \"analyst_inference\" (your conclusion, stating no figures, which its observations state, and",
-          "no ranking or direction unless a comparison it rests on states it; evidence may be omitted; add \"supports\": the array",
+          "figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is",
+          "higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array",
           "indexes of the observations and comparisons it rests on).",
           "The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as",
           "an analyst_inference, and what the data cannot tell about a change as an unknown_cause.",
@@ -263,17 +263,19 @@ export async function composeAnalystBlocksWithLlm(input: {
     // single supported figure) would be unsealed text: not rendered.
     const unsealed = new Set(rendered.filter((entry) => entry.unsealed).map((entry) => entry.index));
     const excluded = new Set(unsealed);
-    // An inference may say who leads or which way a metric moved only when it
-    // rests on a comparison that checked it (comparisons.ts).
-    const comparisons = new Set(report.accepted.filter((assertion) => assertion.kind === "comparison").map((assertion) => assertion.index));
+    // Who leads and which way a metric moved are the comparisons' to say, in
+    // their checked templates; free-form wording could contradict them, so an
+    // inference stating either is not rendered (comparisons.ts).
     const unranked = new Set(rendered.filter((entry) =>
-      entry.kind === "analyst_inference" && !excluded.has(entry.index) &&
-      statesComparison(plainText(entry.segments)) && !entry.supports.some((n) => comparisons.has(n))
+      entry.kind === "analyst_inference" && !excluded.has(entry.index) && statesComparison(plainText(entry.segments))
     ).map((entry) => entry.index));
     for (const index of unranked) excluded.add(index);
     const guarded = new Set(rendered.filter((entry) => !excluded.has(entry.index) && drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
-    // An inference goes with any observation it rests on that the guard removed.
-    const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && !excluded.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
+    // An inference goes with any assertion it rests on that the guard removed
+    // or that was left out (unsealed): its stated support is not on the page.
+    const orphaned = new Set(rendered.filter((entry) =>
+      !guarded.has(entry.index) && !excluded.has(entry.index) && entry.supports.some((n) => guarded.has(n) || excluded.has(n))
+    ).map((entry) => entry.index));
     const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index) && !excluded.has(entry.index));
     renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
@@ -281,8 +283,12 @@ export async function composeAnalystBlocksWithLlm(input: {
       reason: unsealed.has(entry.index)
         ? "its figure has no fact to seal, so it is not rendered"
         : unranked.has(entry.index)
-        ? "a rendered inference states no ranking or direction unless a comparison it rests on checks it"
-        : guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
+        ? "a rendered inference states no ranking or direction; its comparisons do"
+        : guarded.has(entry.index)
+        ? "removed by the narrative guard"
+        : entry.supports.some((n) => guarded.has(n))
+        ? "rests on an observation the narrative guard removed"
+        : "rests on an assertion left out of the answer",
     }));
     if (kept.length === 0) return null;
     // The figures the kept assertions state, and their companies: a comparison

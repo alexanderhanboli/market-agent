@@ -234,10 +234,10 @@ export function linkFigures(
   const masked = withoutCompanies(text, packet.companies);
   const links: Array<{ at: number; length: number; figureId: string }> = [];
   for (const quantity of quantities(masked, prefixes)) {
-    // A period's number ("Q4") or a bare year ("Q1 2026", "through 2025") is a
-    // period, never a value to link.
+    // A period's number ("Q4") or a year said as a time ("Q1 2026", "through
+    // 2025") is never a value to link; a grouped "2,025" is a quantity.
     if (quantity.period) continue;
-    if (/^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency && !quantity.negative && !quantity.positive) continue;
+    if (/^\d{4}$/.test(quantity.raw) && (TIME_BEFORE.test(masked.slice(0, quantity.at)) || /\b(?:Q[1-4]|H[12]|FY)\s*$/.test(masked.slice(0, quantity.at)))) continue;
     const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies) ?? lastCompanyBefore(text, quantity.at, packet.companies);
     const matches = figures.filter((figure) =>
       (named === undefined || companyOf(figure.company) === named) &&
