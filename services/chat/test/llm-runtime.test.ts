@@ -1321,3 +1321,39 @@ test("a comparison renders its checked result through the guard; a ranking in an
   ]);
   assert.equal(wrong.report.rendered, undefined);
 });
+
+test("a single company's checked trend and low render through the guard (#208)", async () => {
+  const quarters = [["Q1 2025", "2025-03-29", "10.8%", 2025, "Q1"], ["Q2 2025", "2025-06-28", "-1.7%", 2025, "Q2"], ["Q3 2025", "2025-09-27", "13.7%", 2025, "Q3"], ["Q4 2025", "2025-12-27", "14.1%", 2025, "Q4"]] as const;
+  const id = (n: number) => `d2080000-0000-4000-8000-00000000000${n}`;
+  const trendRow = {
+    id: "margin-trend", kind: "metric_row", title: "Operating margin by quarter", subjects: [{ kind: "issuer", id: "i-amd" }], subject_labels: ["AMD"],
+    items: quarters.map(([label, , format], n) => ({ label, format, value_ref: id(n) })),
+    source_refs: ["s-amd"],
+    data_ref: { kind: "metric_row", id: "margin-trend", params: { fact_bindings: quarters.map(([, period_end, , fiscal_year, fiscal_period], n) => ({
+      fact_id: id(n), unit: "ratio", period_kind: "fiscal_q", fiscal_year, fiscal_period, period_end, as_of: "2026-02-26T00:00:00.000Z",
+    })) } },
+  };
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "How have AMD's operating margins trended?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [trendRow],
+    subjectLabels: ["AMD"],
+    createClient: () => async () => ({ text: withList([
+      { kind: "comparison", op: "trend", result: "rebounded", text: "AMD's operating margin rebounded.", evidence: ["F1", "F2", "F3", "F4"] },
+      { kind: "comparison", op: "lowest", result: "F2", text: "Q2 2025 was the low.", evidence: ["F1", "F2", "F3", "F4"] },
+      // The convenient endpoint: rejected.
+      { kind: "comparison", op: "lowest", result: "F1", text: "Q1 2025 was the low.", evidence: ["F1", "F3", "F4"] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text,
+    "AMD's operating margin fell from 10.8% in Q1 2025 to a low of -1.7% in Q2 2025, then rebounded to 14.1% in Q4 2025, above where it started." +
+    "\n\nAMD's operating margin was lowest in Q2 2025, at -1.7%, of the periods from Q1 2025 to Q4 2025.");
+  assert.deepEqual((reports[0]!.rejected as Array<{ reason: string }>).map((entry) => entry.reason), [
+    "comparison: leaves out Q2 2025, which shows operating margin too",
+  ]);
+});
