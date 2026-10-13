@@ -9,6 +9,7 @@
 // controlled rendering from validated assertions is #208's second slice.
 
 import type { EvidencePacket } from "./evidence-packet.ts";
+import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "management_attribution", "analyst_inference", "unknown_cause"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
@@ -31,6 +32,8 @@ export type AssertionReport = {
   // Assertions about figures when none were shown (the answer stood on
   // available_data, which carries no packet ids): neither accepted nor rejected.
   unchecked?: number;
+  // The answer was written from the accepted assertions (controlled rendering).
+  rendered?: boolean;
 };
 
 export const MAX_ASSERTIONS = 8;
@@ -130,6 +133,24 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, shape);
       continue;
     }
+    // An unknown cause is a change's: each figure it cites has its company's
+    // same metric in another period with a different value beside it.
+    if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!))) {
+      reject(index, item, "an unknown cause cites a change: one company's metric, two periods, two values");
+      continue;
+    }
+    // A metric the question asked for that no reader serves is a named gap: no
+    // other figure stands in for it ("free cash flow" from net income).
+    // Read with the question's own metric names, so "FCF" is free cash flow.
+    // A management attribution cites its claim, never a figure, so a claim
+    // about the missing metric may be attributed.
+    const gap = kind === "management_attribution"
+      ? undefined
+      : requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label;
+    if (gap !== undefined) {
+      reject(index, item, `${gap} is not in the evidence: it is a named gap`);
+      continue;
+    }
     // An inference's evidence is its own plus that of the observations it rests on.
     const cited = kind === "analyst_inference"
       ? [...evidence, ...accepted.filter((entry) => supports.includes(entry.index)).flatMap((entry) => entry.evidence)]
@@ -150,6 +171,30 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
 // at least one, each an observation that passed every check it could take.
 function restsOnObservations(supports: unknown, observations: ReadonlySet<number>): boolean {
   return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
+}
+
+// A year said as a time: after a preposition of time or a month ("since
+// 2025", "in Feb 2026"); a bare "2025 employees", or one after "to" or "of"
+// ("grew to 2025"), is a figure.
+const TIME_BEFORE = new RegExp(String.raw`(?:\b(?:in|since|from|by|through|until|during|before|after|fiscal(?: year)?|calendar(?: year)?)|\b(?:${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].join("|")})[a-z]*\.?)\s+$`, "i");
+
+// A figure's value in the text: a number other than a year said as a time or
+// a period's ("FY2025", "Q3"). A rendered inference may state none (#208).
+export function statesValue(text: string, companies: ReadonlyArray<string>): boolean {
+  // A company's name is not a value, even with digits in it ("3M").
+  const masked = withoutCompanies(text, companies);
+  return quantities(masked).some((quantity) => !quantity.period && !(
+    /^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency && !quantity.negative && !quantity.positive &&
+    TIME_BEFORE.test(masked.slice(0, quantity.at))
+  ));
+}
+
+function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {
+  // Every cited figure: the template says each cited metric changed.
+  return cited.length > 0 && cited.every((a) => cited.some((b) =>
+    a.company === b.company && a.metric === b.metric && a.period !== undefined && b.period !== undefined &&
+    a.period !== b.period && a.value !== b.value
+  ));
 }
 
 // What each kind must cite.

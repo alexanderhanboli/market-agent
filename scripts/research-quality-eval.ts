@@ -41,6 +41,8 @@ type AssertionReport = {
   rejected: Array<{ index: number; text?: string; reason: string }>;
   // Figure assertions when no figures were shown: neither accepted nor rejected.
   unchecked?: number;
+  // The answer was written from the accepted assertions (CHAT_ASSERTION_RENDERING).
+  rendered?: boolean;
 };
 
 // --- report ----------------------------------------------------------------------
@@ -97,7 +99,7 @@ export function renderReport(run: string, model: string, base: string, answered:
     "",
     `Guard drops: ${removedSummary(answered)}.`,
     "",
-    `Assertions (shadow): ${assertionSummary(answered)}.`,
+    `Assertions: ${assertionSummary(answered)}.`,
     "",
     `Model: \`${model}\`. Data: frozen golden dataset. Score each question in \`${run}.scores.json\` (rubric below),`,
     "then run `node --experimental-strip-types scripts/research-quality-eval.ts summary`.",
@@ -132,7 +134,7 @@ export function renderReport(run: string, model: string, base: string, answered:
 function renderAssertions(report: AssertionReport): string[] {
   if (report.status !== "checked") return [`_Assertions (shadow): ${report.status}._`];
   return [
-    `_Assertions (shadow): ${report.accepted.length} accepted, ${report.rejected.length} rejected${report.unchecked ? `, ${report.unchecked} unchecked (no figures shown)` : ""}:_`,
+    `_Assertions (${report.rendered ? "rendered" : "shadow"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected${report.unchecked ? `, ${report.unchecked} unchecked (no figures shown)` : ""}:_`,
     "",
     ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]: ${entry.text}`),
     ...report.rejected.map((entry) => `- ✗ ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
@@ -149,7 +151,8 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   const accepted = reports.reduce((sum, report) => sum + report.accepted.length, 0);
   const rejected = reports.reduce((sum, report) => sum + report.rejected.length, 0);
   const unchecked = reports.reduce((sum, report) => sum + (report.unchecked ?? 0), 0);
-  return `${accepted} accepted, ${rejected} rejected, ${unchecked} unchecked over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures`;
+  const rendered = reports.filter((report) => report.rendered).length;
+  return `${accepted} accepted, ${rejected} rejected, ${unchecked} unchecked over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
 }
 
 // Sentences the narrative guard dropped, in total and per answered turn.

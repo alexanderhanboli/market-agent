@@ -10,7 +10,8 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionReport } from "./assertions.ts";
+import { checkAssertions, MAX_ASSERTIONS, splitAssertions, statesValue, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
 
@@ -189,7 +190,8 @@ export async function composeAnalystBlocksWithLlm(input: {
           `a JSON array of at most ${MAX_ASSERTIONS} objects {"kind", "text", "evidence"}. kind is "observation" (what figures`,
           "show; evidence lists their F ids only), \"management_attribution\" (what a claim says management stated; evidence",
           "lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the figures' F ids), or",
-          "\"analyst_inference\" (your conclusion; add \"supports\": the array indexes of the observations it rests on).",
+          "\"analyst_inference\" (your conclusion, stating no figures, which its observations state; add \"supports\": the array",
+          "indexes of the observations it rests on).",
           "text restates the assertion in one sentence, with only numbers and companies its evidence holds.",
           "When evidence_packet has neither figures nor claims, omit the block.",
         ].join(" "),
@@ -222,11 +224,92 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }
-  input.onAssertions?.(report);
+  // Assertions rendering left out, with why: on the report whether or not the
+  // answer was rendered, so evals see them either way.
+  let renderRemovals: AssertionReport["rejected"] = [];
+  const reportAssertions = (rendered = false) =>
+    input.onAssertions?.(renderRemovals.length > 0 || rendered
+      ? {
+        ...report,
+        accepted: report.accepted.filter((entry) => !renderRemovals.some((removed) => removed.index === entry.index)),
+        rejected: [...report.rejected, ...renderRemovals].sort((a, b) => a.index - b.index),
+        ...(rendered ? { rendered: true } : {}),
+      }
+      : report);
+  // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
+  // written from the accepted assertions, with the turn's guard still the
+  // backstop on each (its drops reported as narrative removals). Null when
+  // there is nothing to render, so the guarded prose stands, as with the flag
+  // off.
+  const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
+    if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
+    const rendered = report.accepted.map((assertion) => ({
+      ...renderAssertion(assertion, packet, input.factBlocks ?? []),
+      kind: assertion.kind,
+      supports: assertion.supports ?? [],
+    }));
+    // A rendered inference's figures would be unsealed text: its observations
+    // state them, as fact refs, so one quoting a value is not rendered.
+    const quoting = new Set(rendered.filter((entry) => entry.kind === "analyst_inference" && statesValue(plainText(entry.segments), packet.companies)).map((entry) => entry.index));
+    // A value with no fact behind it would be unsealed text: not rendered.
+    const unsealed = new Set(rendered.filter((entry) => entry.unsealed).map((entry) => entry.index));
+    for (const index of unsealed) quoting.add(index);
+    const guarded = new Set(rendered.filter((entry) => !quoting.has(entry.index) && drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
+    // An inference goes with any observation it rests on that the guard removed.
+    const orphaned = new Set(rendered.filter((entry) => !guarded.has(entry.index) && !quoting.has(entry.index) && entry.supports.some((n) => guarded.has(n))).map((entry) => entry.index));
+    const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index) && !quoting.has(entry.index));
+    renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
+      index: entry.index,
+      text: plainText(entry.segments),
+      reason: unsealed.has(entry.index)
+        ? "its figure has no fact to seal, so it is not rendered"
+        : quoting.has(entry.index)
+        ? "a rendered inference states no figures; its observations do"
+        : guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
+    }));
+    if (kept.length === 0) return null;
+    // The figures the kept assertions state, and their companies: a comparison
+    // rendered for only some of the companies it shows figures for would read
+    // one-sided, so its prose stands instead.
+    const keptAssertions = kept.flatMap((entry) => report.accepted.filter((assertion) => assertion.index === entry.index));
+    const keptFigures = keptAssertions.flatMap((assertion) => packet.figures.filter((figure) => assertion.evidence.includes(figure.id)));
+    const covered = new Set([
+      ...keptFigures.map((figure) => figure.company ?? packet.companies[0]),
+      ...keptAssertions.flatMap((assertion) => packet.claims.filter((claim) => assertion.evidence.includes(claim.id)).map((claim) => claim.company)),
+    ]);
+    if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) return null;
+    // The guard's own drops; an inference removed with its observation is on the report.
+    const dropped = renderRemovals.filter((entry) => guarded.has(entry.index));
+    if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.flatMap((entry) => (entry.text ? [entry.text] : [])));
+    reportAssertions(true);
+    answered();
+    // A stored disagreement keeps both sides: a claim rendered without the
+    // claim that contradicts it brings that claim along, said as such.
+    const shownClaims = new Set(kept.filter((entry) => entry.kind === "management_attribution")
+      .flatMap((entry) => report.accepted.find((assertion) => assertion.index === entry.index)?.evidence ?? []));
+    const otherSides = [...new Set(packet.disagreements.flatMap(({ claims: [a, b] }) =>
+      shownClaims.has(a) && !shownClaims.has(b) ? [b] : shownClaims.has(b) && !shownClaims.has(a) ? [a] : []
+    ))].map((id, i) => {
+      const side = renderAssertion({ index: -1 - i, kind: "management_attribution", text: "", evidence: [id] }, packet, input.factBlocks ?? []);
+      return { ...side, segments: [{ type: "text" as const, text: "A source disagrees. " }, ...side.segments] };
+    });
+    // What the rendered assertions cannot say themselves: a compared company
+    // with no figures shown, and stale data.
+    const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
+    return rewriteFirstRichTextBlockWith(input.blocks, [...kept, ...otherSides], [
+      ...(calendarsDiffer(keptFigures) ? ["The same fiscal year ends in different months for each company, so the periods do not line up."] : []),
+      ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
+      // The claims as selected: more matched than were read, or none could be.
+      ...(packet.claims_truncated ? ["More sources matched than are shown here."] : []),
+      ...(packet.claims_status === "unavailable" ? ["Research claims could not be read for this answer."] : []),
+      ...stalenessNotes(input.toolCalls),
+    ]);
+  };
   const text = prose.trim();
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
   // Cut off inside the assertion list, the prose before it is whole.
   if ((result.truncated && !open) || text.length === 0) {
+    reportAssertions();
     console.warn(`[chat] model answer was ${result.truncated ? "cut off at the token limit" : "empty"}; showing the fallback sentence`);
     // Pointing to "the reported figures below" needs figures shown, not a gap note.
     return rewriteFirstRichTextBlock(
@@ -240,6 +323,15 @@ export async function composeAnalystBlocksWithLlm(input: {
   // a labelled hypothesis either (#263). One condition decides both.
   const shown = displayedFigures(input.factBlocks ?? []);
   if (shown.length === 0) {
+    // A claim-only answer renders; one also standing on available_data (its
+    // figure assertions unchecked, with no fact to render) keeps its prose.
+    // An attribution quotes its sourced claim word for word, so a cause the
+    // claim states is the claim's, not the model's.
+    const claimOnly = report.unchecked ? null : renderAccepted((text, kind) =>
+      kind === "management_attribution" ? [] : keepUncausedSentences(text).removed
+    );
+    if (claimOnly) return claimOnly;
+    reportAssertions();
     const uncaused = keepUncausedSentences(text);
     if (uncaused.removed.length > 0) {
       console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
@@ -251,9 +343,14 @@ export async function composeAnalystBlocksWithLlm(input: {
   }
 
   const displayTexts = displayTextsForBlocks(input.factBlocks ?? []);
-  const guarded = keepSupportedSentences(
+  const guard = (text: string) => keepSupportedSentences(
     text,
-    [...displayTexts.map(withoutDays), ...claimTextsFromToolCalls(input.toolCalls)],
+    [
+      ...displayTexts.map(withoutDays),
+      ...claimTextsFromToolCalls(input.toolCalls),
+      // Each figure's period end, as a rendered observation names it ("ended Jan 2026", #208).
+      ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
+    ],
     shown.flatMap((figure) =>
       figure.company === undefined ? [] : [
         { company: figure.company, value: figure.value, metric: figure.metric },
@@ -268,6 +365,10 @@ export async function composeAnalystBlocksWithLlm(input: {
     shown.flatMap((figure) => figure.metric ?? []),
     input.subjectLabels ?? [],
   );
+  const rendered = renderAccepted((text) => guard(text).removed);
+  if (rendered) return rendered;
+  reportAssertions();
+  const guarded = guard(text);
   if (guarded.removed.length > 0) {
     console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) quoting figures not shown to the user`);
     input.onNarrativeRemoved?.(guarded.removed);
@@ -291,6 +392,11 @@ function claimTextsFromToolCalls(toolCalls: ReadonlyArray<ChatAnalystToolRuntime
 // guard reads them as month and year, so a day ("31") never passes as a return.
 function withoutDays(text: string): string {
   return text.replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date));
+}
+
+function shortMonthYear(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 function monthYear(iso: string): string {
@@ -440,6 +546,59 @@ function availableData(structured: ReadonlyArray<Record<string, unknown>>): Reco
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// The narrative block as rendered assertions: their segments, paragraph by
+// paragraph, with the fact bindings and sources their refs seal with.
+function rewriteFirstRichTextBlockWith(
+  blocks: ReadonlyArray<Record<string, unknown>>,
+  rendered: ReadonlyArray<ReturnType<typeof renderAssertion>>,
+  notes: ReadonlyArray<string>,
+): ReadonlyArray<Record<string, unknown>> {
+  const segments = [
+    ...rendered.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]),
+    ...(notes.length > 0 ? [{ type: "text", text: `\n\n${notes.join(" ")}` }] : []),
+  ];
+  const factBindings = [...new Map(rendered.flatMap((entry) => entry.fact_bindings).map((binding) => [binding.fact_id, binding])).values()];
+  let rewritten = false;
+  return Object.freeze(blocks.map((block) => {
+    if (rewritten || block.kind !== "rich_text") return block;
+    rewritten = true;
+    const dataRef = (block.data_ref ?? {}) as Record<string, unknown>;
+    return Object.freeze({
+      ...block,
+      segments: Object.freeze(segments.map((segment) => Object.freeze({ ...segment }))),
+      ...(factBindings.length > 0 ? { data_ref: { ...dataRef, params: { fact_bindings: factBindings } } } : {}),
+      source_refs: [...new Set(rendered.flatMap((entry) => entry.source_refs))],
+    });
+  }));
+}
+
+// What the prompt asks the model to say about stale data, said by the rendered
+// answer itself: the reported figures' age, and a quote's date.
+function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>): string[] {
+  const structured = toolCalls.flatMap((toolCall) => {
+    const result = isRecord(toolCall.result) ? toolCall.result.structured_context : undefined;
+    return isRecord(result) ? [result] : [];
+  });
+  const ages = structured.flatMap((context) =>
+    isRecord(context.fact_recency) && context.fact_recency.stale === true && typeof context.fact_recency.age_days === "number"
+      ? [context.fact_recency.age_days]
+      : []
+  );
+  const quotes = structured.flatMap((context) =>
+    isRecord(context.quote) && context.quote.stale === true && typeof context.quote.as_of === "string" ? [context.quote.as_of] : []
+  );
+  return [
+    ...(ages.length > 0 ? [`The latest reported figures are ${Math.max(...ages)} days old and may be out of date.`] : []),
+    ...[...new Set(quotes)].map((asOf) =>
+      `The quote, as of ${new Date(asOf).toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}, may be out of date.`
+    ),
+  ];
+}
+
+function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
+  return /^(?:1|true|yes|on)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
 }
 
 function rewriteFirstRichTextBlock(

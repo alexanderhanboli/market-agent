@@ -72,6 +72,9 @@ export type EvidencePacket = {
   disagreements: ReadonlyArray<{ claims: readonly [string, string]; basis: string }>;
   claims_status: "available" | "none" | "unavailable";
   claims_truncated: boolean;
+  // Metrics the question asked for that no reader serves (#206): named gaps
+  // no other figure may stand in for (#208).
+  unavailable_metrics?: ReadonlyArray<string>;
 };
 
 // The claims a route reads first (#207): its predicate families, from the
@@ -163,6 +166,9 @@ export function buildEvidencePacket(input: {
     // A claim names its company as coverage does; one matched outside the
     // scope by the block's label.
     ...packetClaims(input.claims, (issuer) => scopeLabels.get(issuer) ?? blockLabels.get(issuer)),
+    ...(input.scope?.metrics.some((metric) => !metric.available)
+      ? { unavailable_metrics: input.scope.metrics.filter((metric) => !metric.available).map((metric) => metric.label) }
+      : {}),
   };
 }
 

@@ -245,7 +245,14 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   return {
     ...result,
     blocks: [
-      ...llmBlocks.map((block) => normalize(block, defaultRefs)),
+      // A rendered narrative (#208) names the sources its refs cite; the turn's
+      // default sources still apply alongside them.
+      ...llmBlocks.map((block) => normalize(
+        Array.isArray(block.source_refs)
+          ? { ...block, source_refs: [...new Set([...(block.source_refs as string[]), ...defaultRefs.source_refs])] }
+          : block,
+        defaultRefs,
+      )),
       // Fact blocks cite exactly their own facts and sources; the narrative's
       // default claim/document refs would demand sources they do not show.
       ...factBlocks.map((block) => normalize(block, NO_DEFAULT_REFS)),

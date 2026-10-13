@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkAssertions, splitAssertions } from "../src/assertions.ts";
+import { checkAssertions, splitAssertions, statesValue } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const PACKET: EvidencePacket = {
@@ -438,4 +438,68 @@ test("a multiplication sign is a multiple; spaced accounting parentheses are neg
     { kind: "observation", text: "NVDA's net income was ( $3.1B ).", evidence: ["F2"] },
   ], packet);
   assert.deepEqual(report.rejected.map((entry) => entry.index), [0, 1]);
+});
+
+test("a requested metric no reader serves is a named gap: no other figure stands in for it (#208)", () => {
+  const report = checkAssertions([
+    { kind: "observation", text: "NVDA's free cash flow was 75.0%.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's FCF margin was 75.0%.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F1"] },
+  ], { ...PACKET, unavailable_metrics: ["Free cash flow"] });
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "Free cash flow is not in the evidence: it is a named gap"],
+    [1, "Free cash flow is not in the evidence: it is a named gap"],
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+});
+
+test("an unknown cause needs a change: one company's metric in two periods (#208)", () => {
+  const report = check([
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] },
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F3"] },
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "an unknown cause cites a change: one company's metric, two periods, two values"],
+    [1, "an unknown cause cites a change: one company's metric, two periods, two values"],
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+});
+
+test("an unchanged value is no change; a claim about a missing metric may be attributed (#208)", () => {
+  const flat = { ...PACKET, figures: [
+    { id: "F1", company: "NVDA", metric: "Gross margin", period: "FY2026", value: "75.0%", source_ids: [] },
+    { id: "F2", company: "NVDA", metric: "Gross margin", period: "FY2025", value: "75.0%", source_ids: [] },
+  ], claims: [{ id: "C1", text: "NVDA management expects free cash flow to grow.", predicate: "guidance.change", stance: "supporting" as const, company: "NVDA", claim_id: "c", source_id: "s" }],
+  unavailable_metrics: ["Free cash flow"] };
+  const report = checkAssertions([
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2"] },
+    { kind: "management_attribution", text: "NVDA management expects free cash flow to grow.", evidence: ["C1"] },
+  ], flat);
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [0]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
+});
+
+test("every figure an unknown cause cites is part of a change (#208)", () => {
+  const report = check([
+    // NVDA's margin changed; AMD's single value did not.
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2", "F3"] },
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [0]);
+});
+
+test("a company's digits are not a figure an inference states (#208)", () => {
+  assert.equal(statesValue("3M Company appears stronger.", ["3M Company"]), false);
+  assert.equal(statesValue("3M Company's 49.2% margin leads.", ["3M Company"]), true);
+  assert.equal(statesValue("NVDA leads since FY2025.", ["NVDA"]), false);
+});
+
+test("only a year said as a time is not a figure (#208)", () => {
+  assert.equal(statesValue("NVDA has 2025 employees.", ["NVDA"]), true);
+  assert.equal(statesValue("NVDA has led since 2025.", ["NVDA"]), false);
+  assert.equal(statesValue("NVDA led in Feb 2026.", ["NVDA"]), false);
+});
+
+test("\"to\" or \"of\" before a number does not make it a year (#208)", () => {
+  assert.equal(statesValue("NVDA's headcount grew to 2025 employees.", ["NVDA"]), true);
 });
