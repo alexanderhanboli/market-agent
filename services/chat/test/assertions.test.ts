@@ -613,3 +613,9 @@ test("active causal verbs are causes too; descriptive wording still isn't (#294 
     assert.deepEqual(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected, [], text);
   }
 });
+
+test("contributed to and stemmed from are causes (#294 review)", () => {
+  for (const text of ["Charges contributed to NVDA's gross margin of 75.0% in FY2026.", "NVDA's gross margin of 75.0% in FY2026 stemmed from a richer mix."]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+});

@@ -365,7 +365,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // either: prose cannot bind it to the claim's metric (#294 review), so a
     // claim is given as an attribution, which renders it whole.
     const unnumbered = input.availableData === false
-      ? keepSupportedSentences(uncaused.text, [], [], [], [], input.subjectLabels ?? [])
+      ? withoutWordedAmounts(keepSupportedSentences(uncaused.text, [], [], [], [], input.subjectLabels ?? []))
       : { text: uncaused.text, removed: [] as string[] };
     if (unnumbered.removed.length > 0) {
       console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
@@ -421,6 +421,31 @@ export async function composeAnalystBlocksWithLlm(input: {
   }
   if (guarded.text) answered();
   return rewriteFirstRichTextBlock(input.blocks, guarded.text || FACT_BLOCKS_FALLBACK_TEXT);
+}
+
+// An amount in words: a number word with a magnitude or unit ("three billion
+// dollars", "twelve percent", "a billion"), which the guard's digit-based
+// check does not see (#294 review).
+// ponytail: number words before a unit only; "three times" or a bare "three"
+// is not caught.
+const NUMBER_WORD = String.raw`(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|several|a few)`;
+const WORDED_AMOUNT = new RegExp(
+  String.raw`\b${NUMBER_WORD}(?:[\s-]+${NUMBER_WORD})*\s+(?:hundred|thousand|million|billion|trillion|percent|per cent|percentage points?|basis points?|dollars?)\b`,
+  "i",
+);
+
+// On a turn with no data, a sentence stating an amount in words goes as one
+// in digits does.
+function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { text: string; removed: string[] } {
+  const removed = [...guarded.removed];
+  const text = guarded.text.split("\n").map((line) =>
+    line.split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
+      if (!WORDED_AMOUNT.test(sentence)) return true;
+      removed.push(sentence.trim());
+      return false;
+    }).join(" ")
+  ).join("\n").trim();
+  return { text, removed };
 }
 
 // Claim text the answer cites; a figure a claim states is supported.

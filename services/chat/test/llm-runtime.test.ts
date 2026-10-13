@@ -1471,3 +1471,18 @@ test("on a named-gap turn a claim's number is no support for another metric (#29
   assert.match(text, /Free cash flow is not available for AMD in this data\./);
   assert.doesNotMatch(text, /\$800 million/);
 });
+
+test("on a named-gap turn an amount in words is no more allowed than one in digits (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was three billion dollars. Its margin rose twelve percent." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.match(text, /Free cash flow is not available for AMD in this data\./);
+  assert.doesNotMatch(text, /three billion|twelve percent/);
+});

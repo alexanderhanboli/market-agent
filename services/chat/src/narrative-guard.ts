@@ -144,7 +144,7 @@ const CAUSAL = new RegExp(
 // from FY2025"), so they are left to the guard's wider check on prose.
 // Active verbs too ("charges caused", "led to", "drove", "resulted in", #294
 // review): unlike "reflects", these only ever say why.
-const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:e|es|ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|s|ing)? in)\b/i;
+const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:e|es|ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|s|ing)? in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from)\b/i;
 export function statesCause(text: string): boolean {
   return STRICT_CAUSAL.test(text);
 }
