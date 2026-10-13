@@ -152,7 +152,7 @@ test("free cash flow is not computed across different dates, currencies or witho
 });
 
 test("cash flow shows the latest quarter and fiscal year, free cash flow citing both inputs and their sources", () => {
-  const [quarter, year] = blocksFor(undefined, { cashFlow: true, balanceSheet: false, eps: false });
+  const [quarter, year] = blocksFor(undefined, { cashFlow: true, balanceSheet: false, eps: false, epsBasic: false });
   assert.equal(quarter!.title, "Cash flow (Q4 2026)");
   assert.deepEqual(items(quarter!).map((item) => [item.label, item.format]), [
     ["Operating cash flow", "$36.2B"],
@@ -172,14 +172,14 @@ test("without operating cash flow, cash flow shows capex alone and no free cash 
   const facts = [fact("capex", 2026, "Q4", 1_284e6, Q4)];
   const verifier = verifierFacts(facts);
   assert.deepEqual(freeCashFlowSpecs(facts, verifier), []);
-  const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false });
+  const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false, epsBasic: false });
   assert.equal(quarter!.title, "Cash flow (Q4 2026)");
   assert.deepEqual(items(quarter!).map((item) => [item.label, item.format]), [["Capital expenditures", "$1.3B"]]);
 });
 
 test("without capex, cash flow shows operating cash flow alone and no free cash flow", () => {
   const facts = [fact("operating_cash_flow", 2026, "Q4", 36_188e6, Q4)];
-  const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false });
+  const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false, epsBasic: false });
   assert.deepEqual(items(quarter!).map((item) => item.label), ["Operating cash flow"]);
 });
 
@@ -200,9 +200,23 @@ test("the balance sheet shows its latest period end, dated by month, never as a 
 });
 
 test("EPS shows the latest quarter's diluted EPS to the cent", () => {
-  const blocks = blocksFor(undefined, { cashFlow: false, balanceSheet: false, eps: true });
+  const blocks = blocksFor(undefined, { cashFlow: false, balanceSheet: false, eps: true, epsBasic: false });
   assert.equal(blocks[0]!.title, "Earnings per share (Q4 2026)");
   assert.deepEqual(items(blocks[0]!).map((item) => [item.label, item.format]), [["EPS (diluted)", "$1.76"]]);
+});
+
+test("basic EPS asked for shows basic EPS, not diluted", () => {
+  const scope = resolveResearchScope({ question: "What was NVDA's basic EPS?", companies: [NVDA], prior: null, asOf: AS_OF });
+  const facts = [
+    fact("eps_diluted", 2026, "Q4", 1.76, Q4),
+    fact("eps_basic", 2026, "Q4", 1.77, Q4),
+  ];
+  const [block] = blocksFor(facts, statementFacets(scope));
+  assert.equal(block!.title, "Earnings per share (Q4 2026)");
+  assert.deepEqual(items(block!).map((item) => [item.label, item.format]), [["EPS (basic)", "$1.77"]]);
+  // Both asked for: both shown, for the same period.
+  const both = statementFacets(resolveResearchScope({ question: "NVDA basic EPS and diluted EPS", companies: [NVDA], prior: null, asOf: AS_OF }));
+  assert.deepEqual(items(blocksFor(facts, both)[0]!).map((item) => item.label), ["EPS (diluted)", "EPS (basic)"]);
 });
 
 test("once the annual report is in, the year's EPS is the latest (no fourth quarter EPS is derived)", () => {
@@ -210,7 +224,7 @@ test("once the annual report is in, the year's EPS is the latest (no fourth quar
     fact("eps_diluted", 2026, "Q3", 1.3, Q3),
     fact("eps_diluted", 2026, "FY", 4.9, FY),
   ];
-  const [block] = blocksFor(facts, { cashFlow: false, balanceSheet: false, eps: true });
+  const [block] = blocksFor(facts, { cashFlow: false, balanceSheet: false, eps: true, epsBasic: false });
   assert.equal(block!.title, "Earnings per share (FY2026)");
   assert.deepEqual(items(block!).map((item) => item.format), ["$4.90"]);
 });
@@ -250,7 +264,7 @@ test("facts the verifier cannot load are left out rather than rendered unbound",
 });
 
 test("a figure derived across filings cites every filing it was computed from", async (t) => {
-  const [quarter] = blocksFor(undefined, { cashFlow: true, balanceSheet: false, eps: false });
+  const [quarter] = blocksFor(undefined, { cashFlow: true, balanceSheet: false, eps: false, epsBasic: false });
   const ocfId = items(quarter!)[0]!.value_ref;
   const Q3_FILING = "00000000-0000-4000-a000-000000000003";
   const query = fakeQuery((_text, values) => ({
@@ -291,10 +305,10 @@ test("a read failure costs only these blocks, and the reads are full-coverage at
 test("a turn's statement facets follow the metrics it names", () => {
   const facets = (question: string) =>
     statementFacets(resolveResearchScope({ question, companies: [NVDA], prior: null, asOf: AS_OF }));
-  assert.deepEqual(facets("What is NVDA's free cash flow?"), { cashFlow: true, balanceSheet: false, eps: false });
-  assert.deepEqual(facets("Show NVDA's capex and balance sheet"), { cashFlow: true, balanceSheet: true, eps: false });
-  assert.deepEqual(facets("What was NVDA's EPS?"), { cashFlow: false, balanceSheet: false, eps: true });
-  assert.deepEqual(facets("Analyze NVDA"), { cashFlow: false, balanceSheet: false, eps: false });
+  assert.deepEqual(facets("What is NVDA's free cash flow?"), { cashFlow: true, balanceSheet: false, eps: false, epsBasic: false });
+  assert.deepEqual(facets("Show NVDA's capex and balance sheet"), { cashFlow: true, balanceSheet: true, eps: false, epsBasic: false });
+  assert.deepEqual(facets("What was NVDA's EPS?"), { cashFlow: false, balanceSheet: false, eps: true, epsBasic: false });
+  assert.deepEqual(facets("Analyze NVDA"), { cashFlow: false, balanceSheet: false, eps: false, epsBasic: false });
 });
 
 test("a statement metric not shown, or asked of a comparison, is a named gap", () => {

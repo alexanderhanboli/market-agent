@@ -124,6 +124,9 @@ test("each metric a question names is found once, the most specific first", () =
   assert.deepEqual(keys("What are NVDA's earnings per share?"), ["eps_diluted"]);
   assert.deepEqual(keys("NVDA earnings and EPS"), ["eps_diluted", "income_statement"]);
   assert.deepEqual(keys("Compare NVDA with AMD"), []);
+  // Basic EPS is its own figure, never answered with diluted EPS.
+  assert.deepEqual(keys("What was NVDA's basic EPS?"), ["eps_basic"]);
+  assert.deepEqual(keys("NVDA basic earnings per share and diluted EPS"), ["eps_basic", "eps_diluted"]);
   // Cash on hand is a balance, never a cash flow.
   assert.deepEqual(keys("How much cash does NVDA have?"), ["cash_and_equivalents"]);
   assert.deepEqual(keys("NVDA cash and equivalents and its operating cash flow"), ["operating_cash_flow", "cash_and_equivalents"]);

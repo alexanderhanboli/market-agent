@@ -174,8 +174,9 @@ route and reads nothing else.
   gap even if the block shows the other balances.
 - **A qualified metric is its own gap:** "free cash flow margin", "EPS growth" or "FCF per share" name a metric no
   reader serves, never the plain figure.
-- **Periods:** cash flow shows the latest quarter and fiscal year; the balance sheet its latest period end; EPS the
-  latest quarter or, once the 10-K is in, the year (a fourth quarter's EPS is never derived). A fiscal year the question
+- **Periods:** cash flow shows the latest quarter and fiscal year; the balance sheet its latest period end; EPS (diluted;
+  basic only when asked for by name, never diluted in its place) the latest quarter or, once the 10-K is in, the year
+  (a fourth quarter's EPS is never derived). A fiscal year the question
   names limits each to that year. "Drop the cash flow" drops capex and free cash flow too.
 - Free cash flow is operating cash flow less capex, for the same dates in one currency. It is minted as a derived fact
   that states its currency and cites both inputs.

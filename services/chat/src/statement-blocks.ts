@@ -31,7 +31,8 @@ type QueryExecutor = Parameters<typeof loadRecentIssuerFundamentals>[0] &
   Parameters<typeof loadVerifierFactsForRefs>[0] &
   Parameters<typeof materializeDerivedFacts>[0];
 
-export type StatementFacets = { cashFlow: boolean; balanceSheet: boolean; eps: boolean };
+// eps is diluted EPS; basic EPS only when asked for by name.
+export type StatementFacets = { cashFlow: boolean; balanceSheet: boolean; eps: boolean; epsBasic?: boolean };
 
 const CASH_FLOW = ["operating_cash_flow", "capex"];
 const BALANCE_ITEMS = [
@@ -49,11 +50,17 @@ export function statementFacets(scope: ResearchScope): StatementFacets {
     cashFlow: [...CASH_FLOW, "free_cash_flow"].some((key) => keys.has(key)),
     balanceSheet: ["balance_sheet", ...BALANCE_ITEMS.map(([key]) => key)].some((key) => keys.has(key)),
     eps: keys.has("eps_diluted"),
+    epsBasic: keys.has("eps_basic"),
   };
 }
 
 export function wantsStatements(facets: StatementFacets): boolean {
-  return facets.cashFlow || facets.balanceSheet || facets.eps;
+  return facets.cashFlow || facets.balanceSheet || facets.eps || facets.epsBasic === true;
+}
+
+// The EPS figures a turn asks for, diluted first.
+function epsKeys(facets: StatementFacets): string[] {
+  return [...(facets.eps ? ["eps_diluted"] : []), ...(facets.epsBasic ? ["eps_basic"] : [])];
 }
 
 // Reads the facts, mints free cash flow, and builds the blocks. Empty on
@@ -75,8 +82,8 @@ export async function loadStatementBlocks(
         numericOnly: true,
         fullCoverageOnly: true,
       });
-    const { cashFlow, balanceSheet, eps } = input.facets;
-    const perPeriod = [...(cashFlow ? CASH_FLOW : []), ...(eps ? ["eps_diluted"] : [])];
+    const { cashFlow, balanceSheet } = input.facets;
+    const perPeriod = [...(cashFlow ? CASH_FLOW : []), ...epsKeys(input.facets)];
     const groups = await Promise.all([
       read("fiscal_q", perPeriod),
       read("fiscal_y", perPeriod),
@@ -216,15 +223,20 @@ export function buildStatementBlocks(input: {
     }
   }
 
-  if (input.facets.eps) {
+  const eps = epsKeys(input.facets);
+  if (eps.length > 0) {
     // A fourth quarter's EPS is never derived (a per-share figure is not a sum),
-    // so once the annual report is in, its year is the latest EPS.
-    const latest = latestPeriod(facts.filter((fact) => fact.metric_key === "eps_diluted"));
-    if (latest) {
+    // so once the annual report is in, its year is the latest EPS. Each EPS
+    // asked for is shown for that one period.
+    const latest = latestPeriod(facts.filter((fact) => eps.includes(fact.metric_key)));
+    const shown = latest === undefined ? [] : eps.flatMap((key) => facts.filter((fact) =>
+      fact.metric_key === key && fact.fiscal_year === latest.fiscal_year && fact.fiscal_period === latest.fiscal_period
+    ).slice(0, 1));
+    if (latest && shown.length > 0) {
       blocks.push({
-        ...blockBase("metric_row", input, [latest], loadable, "eps"),
+        ...blockBase("metric_row", input, shown, loadable, "eps"),
         title: `Earnings per share (${periodLabel(latest)})`,
-        items: [{ label: label("eps_diluted"), value_ref: latest.fact_id, format: formatCurrency(native(latest), latest.currency ?? "USD") }],
+        items: shown.map((fact) => ({ label: label(fact.metric_key), value_ref: fact.fact_id, format: formatCurrency(native(fact), fact.currency ?? "USD") })),
       });
     }
   }

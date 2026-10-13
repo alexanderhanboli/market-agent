@@ -141,6 +141,8 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
     available: true,
     pattern: /\b(?:total|(?:shareholders|stockholders)['’]?) equity\b|\bbook value\b/gi,
   },
+  // Basic EPS is its own figure, taken before any EPS is read as diluted.
+  { metric_key: "eps_basic", label: "Basic earnings per share", available: true, pattern: /\bbasic (?:EPS|earnings per share)\b/gi },
   { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\bEPS\b|\bearnings per share\b/gi },
   { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
   { metric_key: "total_debt", label: "Debt", available: false, pattern: /\bdebt\b/gi },
@@ -161,6 +163,7 @@ export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<stri
   total_liabilities: ["Total liabilities"],
   total_equity: ["Total equity"],
   eps_diluted: ["EPS (diluted)"],
+  eps_basic: ["EPS (basic)"],
 };
 
 // The statement metrics a turn asks for (or kept from the previous one).
