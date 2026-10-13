@@ -282,10 +282,14 @@ export async function seedGoldenDataset(client: Client): Promise<void> {
   await seedFiledClaims(client);
 }
 
-// The filed claim, through the same repositories live ingestion uses.
-async function seedFiledClaims(client: Client): Promise<void> {
+// The filed claim, through the same repositories live ingestion uses. Once:
+// a database that already holds the release's source is left as it is, so a
+// dev database seeded before #282 can be backfilled (seed-golden-dev.ts).
+export async function seedFiledClaims(client: Client): Promise<void> {
   const amd = GOLDEN_COMPANIES.find((company) => company.ticker === "AMD")!;
   const release = AMD_Q2_2025_RELEASE;
+  const { rowCount } = await client.query(`select 1 from sources where canonical_url = $1`, [release.url]);
+  if (rowCount) return;
   const source = await createSource(client, {
     provider: "sec_edgar",
     kind: "press_release",
