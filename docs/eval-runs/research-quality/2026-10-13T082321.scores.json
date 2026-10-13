@@ -1,0 +1,114 @@
+{
+  "run": "2026-10-13T082321",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Grounded takeaway, correct every-quarter rise, and a specific counterpoint (57.9% YoY and margins intact). Two hypothesis sentences dropped by the guard."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). The loss quarter now has its cause: management's MI308 export-control attribution, dated August 2025, linked to the 39.8% gross margin that quarter. Specific counterpoint (recovery mostly one step). Note: 'the underlying trajectory would have been flat or slightly down' is an unlabelled counterfactual computed in words."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Still says plainly the cause isn't in the data ('No management commentary or claims are available'), as it should. The recovery counterpoint was dropped by the guard."
+    },
+    "cause-in-evidence": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Gives the cause as AMD's attribution, quoted and dated August 2025 (the expected answer). But the turn shows only the latest quarter (Q2 2026) and revenue bars, not Q2 2025's margins, so it can't confirm the -1.7% and says so; the requested past quarter isn't served. The 'revenue flat vs Q4 2024' point compares a non-adjacent quarter. Shadow check rejected the attribution: 'Q2 2025' isn't bound to the claim's effective date."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Correct comparisons and fiscal-calendar note. The counterpoint uses the AMD claim, but 'may understate underlying demand' stretches it."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Takeaway says AMD 'trails on both scale and margins', but AMD's gross margin (49.9%) is above AAPL's (46.9%); the body gets it right. Grounded counterpoint (AAPL's net margin, the AMD charge)."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Eight-month mismatch stated in the takeaway and the counterpoint; NVDA's missing growth figure stated as a gap."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Concentration in Data Center stated and ranked; the counterpoint is a limitation rather than a counterargument."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Gap stated; the AMD claim is offered as context, labelled, without inventing a breakdown. The gap sentence repeats (#272)."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Gap stated; no figure in its place. The sentence repeats (#272)."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). Turn 3 keeps both companies, the YTD window and the fiscal-calendar note; the counterpoint cites the AMD claim as a partial explanation of the margin gap, hedged."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering off (default); golden dataset with AMD's filed Q2 2025 claim (#282). 'The market has already priced in' is an unlabelled market interpretation; the takeaway carries the returns counterpoint (the explicit counterpoint sentence was dropped by the guard)."
+    }
+  }
+}
