@@ -634,3 +634,10 @@ test("common financial causatives (lifted, boosted, pressured, weighed on) are c
 test("the noun \"results in\" is not a cause (#294 review)", () => {
   assert.deepEqual(check([{ kind: "observation", text: "The results in FY2026 include NVDA's gross margin of 75.0%.", evidence: ["F1"] }]).rejected, []);
 });
+
+test("a base-form causative after a modal or \"to\" is a cause; the noun \"pressure\" is not (#294 review)", () => {
+  for (const text of ["AI demand could lift NVDA's gross margin of 75.0% in FY2026.", "Demand may drive NVDA's gross margin of 75.0% in FY2026."]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin of 75.0% in FY2026 shows no pressure.", evidence: ["F1"] }]).rejected, []);
+});

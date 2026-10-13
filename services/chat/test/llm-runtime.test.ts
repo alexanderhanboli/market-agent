@@ -1533,3 +1533,17 @@ test("on a named-gap turn other currency units are amounts too (#294 review)", a
   const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
   assert.equal(text, "Free cash flow is not available for AMD in this data.");
 });
+
+test("on a named-gap turn a bare number word is a value; ordinary \"one of\" wording is not (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is one of the metrics not available for AMD in this data. AMD's P/E ratio was twenty. Its current ratio was three." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "Free cash flow is one of the metrics not available for AMD in this data.");
+});

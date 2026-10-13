@@ -956,3 +956,8 @@ test("a passive financial causative is a cause; the noun \"results in\" is not (
   // FY2026 shown, as a comparison title would show it.
   assert.deepEqual(keepSupportedSentences("The results in FY2026 include NVDA's revenue of $209.9B.", ["FY2026"], figures, [], ["Revenue"], ["NVDA"]).removed, []);
 });
+
+test("a base-form causative after a modal is checked in prose too (#294 review)", () => {
+  const figures = [{ company: "NVDA", value: "$209.9B", metric: "Revenue" }];
+  assert.equal(keepSupportedSentences("AI demand could lift NVDA's revenue to $209.9B.", [], figures, [], ["Revenue"], ["NVDA"]).removed.length, 1);
+});
