@@ -496,3 +496,11 @@ test("a follow-up naming part of a period updates the inherited quarter, never k
   // Nothing about the period: the quarter is kept.
   assert.deepEqual(next("And its gross margin?").fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
 });
+
+test("asking for the latest quarter also clears the fiscal year its quarter named (#292 review)", () => {
+  const asked = fresh("What was AMD's EPS in Q1 fiscal 2025?", [AMD]);
+  assert.equal(asked.fiscal_year, 2025);
+  const latest = resolveResearchScope({ question: "Show the latest quarter and EPS", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.equal(latest.fiscal_quarter, null);
+  assert.equal(latest.fiscal_year, null);
+});

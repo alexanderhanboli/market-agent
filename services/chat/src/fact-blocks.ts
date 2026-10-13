@@ -848,6 +848,10 @@ export function scopeGapBlocks(
       notes.push(["gap:quarter", `A single quarter is not compared across companies here; each company is shown for a fiscal year, not ${quarter}.`]);
     } else if (readsNamedQuarter(scope) && !showsQuarter(shown)) {
       notes.push(["gap:quarter", `No figures for ${quarter} are on file for ${names}.`]);
+    } else if (scope.reads === "segments" || scope.reads === "statements") {
+      // Their readers take the latest period: said, never shown silently (#292 review).
+      const what = scope.reads === "segments" ? "this breakdown" : "these statement figures";
+      notes.push(["gap:quarter", `A named quarter is not read for ${what}; the latest available period is shown, not ${quarter}.`]);
     }
   }
   if (scope.benchmark) {

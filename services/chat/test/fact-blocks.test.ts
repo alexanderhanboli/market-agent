@@ -528,3 +528,17 @@ test("a named quarter is the quarter shown, inside the trend; never the latest i
   // A quarter with no facts: no blocks at all, not the latest quarter.
   assert.deepEqual(quarterBlocks(facts, { fiscal_year: 2019, fiscal_period: "Q2" }), []);
 });
+
+test("a named quarter on the segment or statement route is a named gap, not silently the latest period (#292 review)", () => {
+  const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
+  const scope = (question: string) => resolveResearchScope({ question, companies: [AMD], prior: null, asOf: "2026-09-01T00:00:00.000Z" });
+  const input = { snapshotId: "11111111-1111-4111-8111-111111111111", asOf: "2026-09-01T00:00:00.000Z" };
+  const notes = (question: string) => scopeGapBlocks(scope(question), [], input)
+    .map((block) => (block.segments as Array<{ text: string }>)[0]!.text).filter((text) => /quarter/.test(text));
+  assert.deepEqual(notes("Break down AMD's revenue by segment in Q1 2025"), [
+    "A named quarter is not read for this breakdown; the latest available period is shown, not fiscal Q1 2025.",
+  ]);
+  assert.deepEqual(notes("What was AMD's EPS in Q1 2025?"), [
+    "A named quarter is not read for these statement figures; the latest available period is shown, not fiscal Q1 2025.",
+  ]);
+});
