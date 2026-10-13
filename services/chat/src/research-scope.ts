@@ -166,6 +166,13 @@ export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<stri
   eps_basic: ["EPS (basic)"],
 };
 
+const BALANCE_SHEET_ITEMS = ["cash_and_equivalents", "total_assets", "total_liabilities", "total_equity"];
+
+function metricByKey(key: string): RequestedMetric {
+  const { pattern: _pattern, ...metric } = METRICS.find((candidate) => candidate.metric_key === key)!;
+  return metric;
+}
+
 // The statement metrics a turn asks for (or kept from the previous one).
 export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedMetric> {
   return scope.metrics.filter((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS);
@@ -248,7 +255,13 @@ export function resolveResearchScope(input: {
       : metric
   );
   // A metric turned off leaves the ones kept; none left keeps none.
-  const kept = prior?.metrics.filter((metric) => !off.metrics.has(metric.metric_key)) ?? [];
+  // Dropping one item of the whole balance sheet keeps the others, named.
+  const kept = (prior?.metrics ?? []).flatMap((metric): RequestedMetric[] => {
+    if (off.metrics.has(metric.metric_key)) return [];
+    const parts = metric.metric_key === "balance_sheet" ? BALANCE_SHEET_ITEMS : [];
+    if (!parts.some((key) => off.metrics.has(key))) return [metric];
+    return parts.filter((key) => !off.metrics.has(key)).map(metricByKey);
+  });
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
   const fiscal_year = pick("fiscal_year", requestedFiscalYear(question) ?? null, prior?.fiscal_year);
   const asked = requestedPriceWindow(question) === "ytd" ? { kind: "ytd" as const, cutoff: input.asOf } : null;

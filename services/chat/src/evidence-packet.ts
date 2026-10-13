@@ -252,7 +252,11 @@ function queryBounds(scope: ResearchScope): Record<string, string> {
     trend: `last ${QUARTERS_SHOWN} quarters`,
     derived_margin: `latest quarter, with revenue for the last ${QUARTERS_SHOWN} quarters`,
     segments: "latest quarter's segments",
-    statements: "latest quarter and latest fiscal year of cash flow; balance sheet at its latest period end; latest quarter's EPS",
+    // What statement-blocks.ts reads: EPS is the year once its annual report is
+    // in, and a named fiscal year is the only one read.
+    statements: scope.fiscal_year === null
+      ? "latest quarter and latest fiscal year reported for cash flow; balance sheet at its latest period end; EPS for the latest quarter, or the fiscal year once its annual report is in"
+      : `fiscal year ${scope.fiscal_year} only: its latest quarter and the year for cash flow; balance sheet at its latest period end in that year; EPS for that year`,
     comparison: scope.fiscal_year === null ? "latest fiscal year per company" : `fiscal year ${scope.fiscal_year} per company`,
   };
   return {

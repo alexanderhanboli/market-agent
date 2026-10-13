@@ -170,8 +170,9 @@ route and reads nothing else.
 
 - **One company at a time:** a comparison asking now only for them is a named gap (`unavailable_metric`), with no
   income figures in their place. Kept from an earlier turn, they don't stop a comparison asked for now.
-- **A balance item is its own request:** "how much cash" is answered by cash. With no cash figure, the answer names the
-  gap even if the block shows the other balances.
+- **A block shows the items asked for**, not its whole family: "how much cash" shows cash, and with no cash figure
+  names the gap rather than showing another balance. Free cash flow comes with the two figures it is computed from.
+  An item dropped later stays dropped; dropping one item of the whole balance sheet keeps the others, named.
 - **A qualified metric is its own gap:** "free cash flow margin", "EPS growth" or "FCF per share" name a metric no
   reader serves, never the plain figure.
 - **Periods:** cash flow shows the latest quarter and fiscal year; the balance sheet its latest period end; EPS (diluted;

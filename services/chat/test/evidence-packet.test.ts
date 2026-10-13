@@ -87,7 +87,16 @@ test("a metric no reader serves is a gap with no figure in its place (#207)", ()
 test("a cash flow question names the periods its readers cover", () => {
   const packet = buildEvidencePacket({ scope: scope("What is AMD's free cash flow?", [AMD]), factBlocks: [], cutoff: CUTOFF });
   assert.equal(packet.route, "statements");
-  assert.match(packet.query_bounds.periods ?? "", /latest quarter and latest fiscal year of cash flow/);
+  assert.equal(
+    packet.query_bounds.periods,
+    "latest quarter and latest fiscal year reported for cash flow; balance sheet at its latest period end; EPS for the latest quarter, or the fiscal year once its annual report is in",
+  );
+  // A named fiscal year is the only period read.
+  const year = buildEvidencePacket({ scope: scope("What was AMD's free cash flow in fiscal 2024?", [AMD]), factBlocks: [], cutoff: CUTOFF });
+  assert.equal(
+    year.query_bounds.periods,
+    "fiscal year 2024 only: its latest quarter and the year for cash flow; balance sheet at its latest period end in that year; EPS for that year",
+  );
 });
 
 test("an inherited YTD window is bounded at its own cutoff (#207)", () => {

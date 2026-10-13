@@ -206,6 +206,23 @@ test("EPS shows the latest quarter's diluted EPS to the cent", () => {
   assert.deepEqual(items(blocks[0]!).map((item) => [item.label, item.format]), [["EPS (diluted)", "$1.76"]]);
 });
 
+test("a block shows the statement items asked for, and a dropped item stays dropped", () => {
+  const ask = (question: string, prior: ResearchScope | null = null) =>
+    resolveResearchScope({ question, companies: [NVDA], prior, asOf: AS_OF });
+  const labels = (scope: ResearchScope) => blocksFor(undefined, statementFacets(scope)).flatMap(items).map((item) => item.label);
+
+  const ocf = ask("Show NVDA's operating cash flow");
+  assert.deepEqual(labels(ocf), ["Operating cash flow", "Operating cash flow"]);
+  assert.deepEqual(labels(ask("Drop capex", ocf)), ["Operating cash flow", "Operating cash flow"]);
+  // Free cash flow comes with the two figures it is computed from.
+  assert.deepEqual(labels(ask("What is NVDA's free cash flow?")).slice(0, 3), ["Operating cash flow", "Capital expenditures", "Free cash flow"]);
+
+  const balance = ask("Show NVDA's balance sheet");
+  assert.deepEqual(labels(balance), ["Cash and equivalents", "Total assets", "Total liabilities", "Total equity"]);
+  assert.deepEqual(labels(ask("Drop total assets", balance)), ["Cash and equivalents", "Total liabilities", "Total equity"]);
+  assert.deepEqual(labels(ask("How much cash does NVDA have?")), ["Cash and equivalents"]);
+});
+
 test("basic EPS asked for shows basic EPS, not diluted", () => {
   const scope = resolveResearchScope({ question: "What was NVDA's basic EPS?", companies: [NVDA], prior: null, asOf: AS_OF });
   const facts = [
@@ -304,8 +321,10 @@ test("a read failure costs only these blocks, and the reads are full-coverage at
 });
 
 test("a turn's statement facets follow the metrics it names", () => {
-  const facets = (question: string) =>
-    statementFacets(resolveResearchScope({ question, companies: [NVDA], prior: null, asOf: AS_OF }));
+  const facets = (question: string) => {
+    const { items: _items, ...families } = statementFacets(resolveResearchScope({ question, companies: [NVDA], prior: null, asOf: AS_OF }));
+    return families;
+  };
   assert.deepEqual(facets("What is NVDA's free cash flow?"), { cashFlow: true, balanceSheet: false, eps: false, epsBasic: false });
   assert.deepEqual(facets("Show NVDA's capex and balance sheet"), { cashFlow: true, balanceSheet: true, eps: false, epsBasic: false });
   assert.deepEqual(facets("What was NVDA's EPS?"), { cashFlow: false, balanceSheet: false, eps: true, epsBasic: false });
@@ -330,13 +349,13 @@ test("a statement metric not shown, or asked of a comparison, is a named gap", (
   ]);
 });
 
-test("a cash question answered without a cash figure is a named gap, whatever else the balance sheet shows", () => {
+test("a cash question with no cash figure is a named gap, never another balance in its place", () => {
   const scope = resolveResearchScope({ question: "How much cash does NVDA have?", companies: [NVDA], prior: null, asOf: AS_OF });
   assert.equal(scope.reads, "statements");
   // The filer reports assets but not the mapped cash concept.
   const facts = [fact("total_assets", 2026, "FY", 206_803e6, point("2026-01-25"))];
   const shown = blocksFor(facts, statementFacets(scope));
-  assert.deepEqual(items(shown[0]!).map((item) => item.label), ["Total assets"]);
+  assert.deepEqual(shown, []);
   const notes = scopeGapBlocks(scope, shown, { snapshotId: SNAPSHOT_ID, asOf: AS_OF })
     .map((block) => (block.segments as Array<{ text: string }>)[0]!.text);
   assert.deepEqual(notes, ["Cash and equivalents is not available for NVDA in this data, so no other figure is shown in its place."]);

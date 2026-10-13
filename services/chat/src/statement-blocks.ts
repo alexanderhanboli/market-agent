@@ -31,8 +31,30 @@ type QueryExecutor = Parameters<typeof loadRecentIssuerFundamentals>[0] &
   Parameters<typeof loadVerifierFactsForRefs>[0] &
   Parameters<typeof materializeDerivedFacts>[0];
 
-// eps is diluted EPS; basic EPS only when asked for by name.
-export type StatementFacets = { cashFlow: boolean; balanceSheet: boolean; eps: boolean; epsBasic?: boolean };
+// eps is diluted EPS; basic EPS only when asked for by name. items, when set,
+// are the statement metrics asked for: a block shows those, not its whole
+// family, so an item dropped later stays dropped. Unset: every item.
+export type StatementFacets = {
+  cashFlow: boolean;
+  balanceSheet: boolean;
+  eps: boolean;
+  epsBasic?: boolean;
+  items?: ReadonlyArray<string>;
+};
+
+// The cash flow items to show. Free cash flow comes with the two figures it
+// is computed from.
+function cashFlowItems(facets: StatementFacets): ReadonlyArray<string> {
+  const asked = facets.items === undefined ? null : new Set(facets.items);
+  if (asked === null || asked.has("free_cash_flow")) return [...CASH_FLOW, "free_cash_flow"];
+  return CASH_FLOW.filter((key) => asked.has(key));
+}
+
+// The balance items to show: the whole balance sheet, or the items named.
+function balanceItems(facets: StatementFacets): typeof BALANCE_ITEMS[number][] {
+  const asked = facets.items === undefined ? null : new Set(facets.items);
+  return BALANCE_ITEMS.filter(([key]) => asked === null || asked.has("balance_sheet") || asked.has(key));
+}
 
 const CASH_FLOW = ["operating_cash_flow", "capex"];
 const BALANCE_ITEMS = [
@@ -51,6 +73,7 @@ export function statementFacets(scope: ResearchScope): StatementFacets {
     balanceSheet: ["balance_sheet", ...BALANCE_ITEMS.map(([key]) => key)].some((key) => keys.has(key)),
     eps: keys.has("eps_diluted"),
     epsBasic: keys.has("eps_basic"),
+    items: [...keys],
   };
 }
 
@@ -95,7 +118,7 @@ export async function loadStatementBlocks(
       cutoff: input.asOf,
       requireKnownByCutoff: true,
     });
-    const derived = cashFlow
+    const derived = cashFlow && cashFlowItems(input.facets).includes("free_cash_flow")
       ? await mintFreeCashFlow(db, input.issuer, freeCashFlowSpecs(facts, verifierFacts, input.fiscalYear), input.asOf)
       : [];
     return buildStatementBlocks({ ...input, facts, verifierFacts, derived });
@@ -189,10 +212,15 @@ export function buildStatementBlocks(input: {
   for (const fact of derived) loadable.set(fact.fact_id, fact.binding);
   const blocks: Block[] = [];
 
-  if (input.facets.cashFlow) {
-    for (const { period, ocf, capex } of latestCashFlows(facts, loadable)) {
-      const fcf = ocf && derived.find((fact) => fact.input_fact_ids.includes(ocf.fact_id));
-      const reported = [ocf, capex].filter((fact): fact is IssuerFundamentalFact => fact !== undefined);
+  const wantedCashFlow = cashFlowItems(input.facets);
+  if (input.facets.cashFlow && wantedCashFlow.length > 0) {
+    for (const { period, ocf, capex } of latestCashFlows(facts, loadable, wantedCashFlow)) {
+      const fcf = ocf && wantedCashFlow.includes("free_cash_flow")
+        ? derived.find((fact) => fact.input_fact_ids.includes(ocf.fact_id))
+        : undefined;
+      const reported = [ocf, capex].filter((fact): fact is IssuerFundamentalFact =>
+        fact !== undefined && wantedCashFlow.includes(fact.metric_key)
+      );
       const shown = fcf ? [fcf] : [];
       blocks.push({
         ...blockBase("metric_row", input, withInputs([...reported, ...shown], shown, loadable), loadable, `cash_flow_${period.fiscal_period === "FY" ? "year" : "quarter"}`),
@@ -206,11 +234,12 @@ export function buildStatementBlocks(input: {
   }
 
   if (input.facets.balanceSheet) {
-    // The balances at the latest period end any of them has.
+    // The balances asked for, at the latest period end any of them has.
+    const wanted = balanceItems(input.facets);
     const endOf = (fact: IssuerFundamentalFact) => loadable.get(fact.fact_id)?.period_end ?? "";
-    const balances = facts.filter((fact) => BALANCE_ITEMS.some(([key]) => key === fact.metric_key) && endOf(fact) !== "");
+    const balances = facts.filter((fact) => wanted.some(([key]) => key === fact.metric_key) && endOf(fact) !== "");
     const end = balances.map(endOf).sort().at(-1);
-    const items = end === undefined ? [] : BALANCE_ITEMS.flatMap(([key, itemLabel]) => {
+    const items = end === undefined ? [] : wanted.flatMap(([key, itemLabel]) => {
       const fact = balances.find((row) => row.metric_key === key && endOf(row) === end);
       return fact ? [{ fact, itemLabel }] : [];
     });
@@ -243,15 +272,17 @@ export function buildStatementBlocks(input: {
   return Object.freeze(blocks);
 }
 
-// The latest quarter and the latest fiscal year that report operating cash
-// flow or capex, each with whichever of the two that period has. Free cash
-// flow needs both; either alone is still shown.
+// The latest quarter and the latest fiscal year that report a cash flow
+// figure asked for (operating cash flow or capex; free cash flow needs both),
+// each with whichever of the two that period has.
 function latestCashFlows(
   facts: ReadonlyArray<IssuerFundamentalFact>,
   loadable: ReadonlyMap<string, VerifierFact>,
+  wanted: ReadonlyArray<string> = CASH_FLOW,
 ): Array<{ period: IssuerFundamentalFact; ocf: IssuerFundamentalFact | undefined; capex: IssuerFundamentalFact | undefined }> {
+  const anchors = wanted.includes("free_cash_flow") ? CASH_FLOW : wanted;
   const usable = facts.filter((fact) =>
-    loadable.has(fact.fact_id) && fact.value_num !== null && CASH_FLOW.includes(fact.metric_key)
+    loadable.has(fact.fact_id) && fact.value_num !== null && anchors.includes(fact.metric_key)
   );
   return [false, true].flatMap((annual) => {
     const period = latestPeriod(usable.filter((fact) => (fact.fiscal_period === "FY") === annual));
