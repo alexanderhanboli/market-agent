@@ -91,3 +91,57 @@ test("an observation names each period's end month; calendars that end months ap
   assert.equal(calendarsDiffer(ended.figures), true);
   assert.equal(calendarsDiffer(PACKET.figures), false);
 });
+
+// Comparisons (#208, slice 3): the derived result in a template, every value a fact ref.
+const uuid = (n: number) => `b1000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const quarter = (n: number, period: string, period_end: string, value: string, metric = "Operating margin") =>
+  ({ id: `T${n}`, metric, period, period_end, value, fact_id: uuid(n), source_ids: [`s${n}`] });
+const AMD_QUARTERS: EvidencePacket = {
+  ...PACKET,
+  companies: ["AMD"],
+  claims: [],
+  figures: [
+    quarter(1, "Q1 2025", "2025-03-29", "10.8%"),
+    quarter(2, "Q2 2025", "2025-06-28", "-1.7%"),
+    quarter(3, "Q3 2025", "2025-09-27", "13.7%"),
+    quarter(4, "Q4 2025", "2025-12-27", "14.1%"),
+  ],
+};
+const QUARTER_BLOCKS = [{ id: "q", kind: "metric_row", data_ref: { params: { fact_bindings: [1, 2, 3, 4].map((n) => BINDING(uuid(n))) } } }];
+const renderComparison = (packet: EvidencePacket, blocks: ReadonlyArray<Record<string, unknown>>, op: string, result: unknown, evidence: string[]) =>
+  renderAssertion({ index: 0, kind: "comparison", op: op as "trend", result: result as string, text: "ignored", evidence }, packet, blocks);
+const ALL = ["T1", "T2", "T3", "T4"];
+
+test("a comparison over time renders its derived high, low or trend, values as fact refs (#208)", () => {
+  const low = renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "lowest", "T2", ALL);
+  assert.equal(plainText(low.segments), "AMD's operating margin was lowest in Q2 2025, at -1.7%, of the periods from Q1 2025 to Q4 2025.");
+  assert.deepEqual(low.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [uuid(2)]);
+  assert.equal(low.unsealed, false);
+  assert.equal(
+    plainText(renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "trend", "rebounded", ALL).segments),
+    "AMD's operating margin fell from 10.8% in Q1 2025 to a low of -1.7% in Q2 2025, then rebounded to 14.1% in Q4 2025, above where it started.",
+  );
+  assert.equal(
+    plainText(renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "trend", "rose", ALL).segments),
+    "AMD's operating margin rose from 10.8% in Q1 2025 to 14.1% in Q4 2025, though not in every period.",
+  );
+  // A subset of the window fails the check, so it renders nothing (and never reaches rendering).
+  assert.equal(plainText(renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "trend", "rose_throughout", ["T3", "T4"]).segments), "");
+  assert.equal(
+    plainText(renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "order", ["T4", "T3", "T1", "T2"], ALL).segments),
+    "AMD's operating margin, highest first: Q4 2025 14.1%, Q3 2025 13.7%, Q1 2025 10.8%, Q2 2025 -1.7%.",
+  );
+});
+
+test("a ranking across companies lists every company's value and period, and names those not shown (#208)", () => {
+  const peers: EvidencePacket = { ...PACKET, companies: ["NVDA", "AMD", "AAPL"], figures: PACKET.figures.slice(0, 2) };
+  const rendered = renderComparison(peers, FACT_BLOCKS, "highest", "F1", ["F1", "F2"]);
+  assert.equal(
+    plainText(rendered.segments),
+    "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026), AMD 49.2% (FY2025). No gross margin is shown for AAPL.",
+  );
+  assert.deepEqual(rendered.fact_bindings.map((binding) => binding.fact_id), [NVDA_GM, AMD_GM]);
+  assert.deepEqual(rendered.source_refs, ["s-nvda", "s-amd"]);
+  assert.equal(plainText(renderComparison(peers, FACT_BLOCKS, "order", ["F1", "F2"], ["F1", "F2"]).segments),
+    "By gross margin, highest first: NVDA 74.6% (FY2026), AMD 49.2% (FY2025). No gross margin is shown for AAPL.");
+});

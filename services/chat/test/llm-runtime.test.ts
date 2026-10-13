@@ -1151,7 +1151,7 @@ test("an inference resting on an observation the guard removed is removed too (#
   const { text, report } = await renderA([
     { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
     { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
-    { kind: "analyst_inference", text: "A appears stronger.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "A appears well run.", evidence: [], supports: [0] },
   ]);
   assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.");
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
@@ -1164,10 +1164,10 @@ test("a rendered inference states no figures: its observations carry them, seale
   const { block, report } = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", text: "NVDA's 74.6% margin outruns AMD's 49.2%.", evidence: [], supports: [0] },
-    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
   ]));
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.match(text, /> \*\*Analyst inference:\*\* NVDA keeps more of each sale than AMD\.$/);
+  assert.match(text, /> \*\*Analyst inference:\*\* NVDA appears to hold pricing power\.$/);
   assert.doesNotMatch(text, /outruns/);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
     [1, "a rendered inference states no figures; its observations do"],
@@ -1289,4 +1289,35 @@ test("an observation whose value cannot be sealed is not rendered (#208)", async
     (reports[0]!.rejected as Array<{ reason: string }>).map((entry) => entry.reason),
     ["its figure has no fact to seal, so it is not rendered"],
   );
+});
+
+test("a comparison renders its checked result through the guard; a ranking in an inference needs one (#208)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [0] },
+    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "AMD trails NVDA on profitability.", evidence: [], supports: [2] },
+  ]));
+  const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
+  assert.equal(
+    segments.map((segment) => segment.text ?? segment.format).join(""),
+    "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026, ended Jan 2026), AMD 49.2% (FY2025, ended Dec 2025)." +
+      "\n\n> **Analyst inference:** NVDA keeps more of each sale than AMD." +
+      "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).",
+  );
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(2), FACT(4)]);
+  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [3, "a rendered inference states no ranking or direction unless a comparison it rests on checks it"],
+  ]);
+
+  // The wrong winner, every number right: rejected, and the inference with it.
+  const wrong = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "AMD keeps more of each sale than NVDA.", evidence: [], supports: [0] },
+  ]));
+  assert.deepEqual((wrong.report.rejected as Array<{ index: number; reason: string }>).map((entry) => entry.reason), [
+    "comparison: F2 (74.6%) is higher than F4 (49.2%)",
+    "an inference binds the accepted observations it rests on",
+  ]);
+  assert.equal(wrong.report.rendered, undefined);
 });

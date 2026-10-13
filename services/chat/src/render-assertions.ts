@@ -5,9 +5,11 @@
 // the packet); a management attribution quotes its claim, dated; an unknown
 // cause says the figures do not show why; an inference is labelled. The model's
 // own wording survives only in an inference, which the check has bound to the
-// observations it rests on.
+// observations it rests on. A comparison states the high or low, ranking or
+// trend its check derived, never the model's wording of it.
 
 import type { Assertion } from "./assertions.ts";
+import { checkComparison, periodText, type CheckedComparison } from "./comparisons.ts";
 import type { EvidencePacket, PacketClaim, PacketFigure } from "./evidence-packet.ts";
 
 type Segment =
@@ -90,6 +92,12 @@ export function renderAssertion(
         segments.push(quote(claim));
       });
       break;
+    case "comparison": {
+      const checked = checkComparison(assertion, assertion.evidence, packet);
+      // Accepted assertions passed this check; a failure here renders nothing.
+      if ("comparison" in checked) comparisonSegments(checked.comparison, { text, value, owner, push: (segment) => segments.push(segment) });
+      break;
+    }
     case "unknown_cause": {
       const changed = [...new Set(figures.map((figure) => `${owner(figure)}${metricLabel(figure.metric)}`))];
       text(`The figures do not show why ${changed.join(" and ")} changed.`);
@@ -100,6 +108,80 @@ export function renderAssertion(
       break;
   }
   return { index: assertion.index, segments, fact_bindings, source_refs: [...source_refs], unsealed };
+}
+
+type Writer = {
+  text: (value: string) => void;
+  value: (figure: PacketFigure) => Segment;
+  owner: (figure: PacketFigure) => string;
+  push: (segment: Segment) => void;
+};
+
+// A comparison in its template: the derived result, with every value it
+// names a fact ref. Across companies, every company's value and period is
+// listed, so the basis (and any period mismatch) is on the page.
+function comparisonSegments(comparison: CheckedComparison, out: Writer): void {
+  const { figures, metric } = comparison;
+  const first = figures[0]!;
+  const last = figures.at(-1)!;
+  const subject = (figure: PacketFigure) => capitalize(`${out.owner(figure)}${metricLabel(metric)}`);
+  const at = (figure: PacketFigure) => {
+    out.push(out.value(figure));
+    if (figure.period) out.text(` in ${periodText(figure.period)}`);
+  };
+  const list = (label: (figure: PacketFigure) => string) =>
+    figures.forEach((figure, i) => {
+      out.text(`${i === 0 ? "" : ", "}${label(figure)} `);
+      out.push(out.value(figure));
+      if (comparison.axis === "cohort" && figure.period) {
+        out.text(` (${periodText(figure.period)}${figure.period_end ? `, ended ${monthYear(figure.period_end)}` : ""})`);
+      }
+    });
+  const companyOf = (figure: PacketFigure) => figure.company ?? "";
+  if (comparison.op === "highest" || comparison.op === "lowest") {
+    if (comparison.axis === "time") {
+      out.text(`${subject(comparison.winner!)} was ${comparison.op} in ${periodText(comparison.winner!.period!)}, at `);
+      out.push(out.value(comparison.winner!));
+      out.text(`, of the periods from ${periodText(first.period!)} to ${periodText(last.period!)}.`);
+    } else {
+      out.text(`Of ${new Intl.ListFormat("en").format(figures.map(companyOf))}, ${subject(comparison.winner!)} was ${comparison.op}: `);
+      list(companyOf);
+      out.text(".");
+    }
+  } else if (comparison.op === "order") {
+    out.text(comparison.axis === "time" ? `${subject(first)}, highest first: ` : `By ${metricLabel(metric)}, highest first: `);
+    list((figure) => (comparison.axis === "time" ? periodText(figure.period!) : companyOf(figure)));
+    out.text(".");
+  } else {
+    const { result, net, every_step, turn } = comparison.trend!;
+    const where = net === 1 ? "above where it started" : net === -1 ? "below where it started" : "about where it started";
+    out.text(`${subject(first)} `);
+    if (result === "rose_throughout" || result === "fell_throughout") {
+      out.text(`${result === "rose_throughout" ? "rose" : "fell"} in every period from ${periodText(first.period!)} (`);
+      out.push(out.value(first));
+      out.text(`) to ${periodText(last.period!)} (`);
+      out.push(out.value(last));
+      out.text(").");
+    } else if (result === "rebounded" || result === "pulled_back") {
+      const rebound = result === "rebounded";
+      out.text(`${rebound ? "fell" : "rose"} from `);
+      at(first);
+      out.text(` to a ${rebound ? "low" : "high"} of `);
+      at(turn!);
+      out.text(`, then ${rebound ? "rebounded" : "pulled back"} to `);
+      at(last);
+      out.text(`, ${(rebound ? net === -1 : net === 1) ? "still " : ""}${where}.`);
+    } else {
+      out.text(result === "flat" ? "was little changed, from " : `${result} from `);
+      at(first);
+      out.text(" to ");
+      at(last);
+      out.text(result !== "flat" && !every_step ? ", though not in every period." : ".");
+    }
+  }
+  if (comparison.not_shown.length > 0) {
+    out.text(` No ${metricLabel(metric)} is shown for ${new Intl.ListFormat("en").format(comparison.not_shown)}.`);
+  }
 }
 
 // Companies whose same-named periods end in different months: said once for

@@ -8,18 +8,23 @@
 // Shadow: the report goes to evals and logs; the prose shown is unchanged. The
 // controlled rendering from validated assertions is #208's second slice.
 
+import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
-export const ASSERTION_KINDS = ["observation", "management_attribution", "analyst_inference", "unknown_cause"] as const;
+export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
 
 export type Assertion = {
   kind: AssertionKind;
   text: string;
   evidence: ReadonlyArray<string>;
-  // An inference's supporting observations, by their index in the list.
+  // An inference's supporting observations and comparisons, by their index in the list.
   supports?: ReadonlyArray<number>;
+  // A comparison's operation and claimed result (comparisons.ts): the high or
+  // low's id, the ids highest first, or a trend's result.
+  op?: ComparisonOp;
+  result?: string | ReadonlyArray<string>;
 };
 
 export type AssertionReport = {
@@ -102,6 +107,10 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, "only an analyst inference lists supports");
       continue;
     }
+    if ((item.op !== undefined || item.result !== undefined) && kind !== "comparison") {
+      reject(index, item, "only a comparison has an op and a result");
+      continue;
+    }
     if (item.supports !== undefined && (!Array.isArray(item.supports) || !item.supports.every((n) => Number.isInteger(n)))) {
       reject(index, item, "supports is not a list of assertion indexes");
       continue;
@@ -117,7 +126,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     // About figures when none were shown: nothing to bind, unless it cites a
     // claim where only figures may stand.
     if (packet.figures.length === 0 && kind !== "management_attribution") {
-      if ((kind === "observation" || kind === "unknown_cause") && claimIds.length > 0) {
+      if ((kind === "observation" || kind === "comparison" || kind === "unknown_cause") && claimIds.length > 0) {
         reject(index, item, shapeError(kind, [], claimIds, [], accepted)!);
       } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, uncheckedObservations)) {
         reject(index, item, "an inference binds the accepted observations it rests on");
@@ -160,7 +169,21 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, binding);
       continue;
     }
-    accepted.push({ index, kind, text: item.text, evidence, ...(kind === "analyst_inference" ? { supports } : {}) });
+    // A comparison's claimed result is derived from its complete eligible
+    // evidence before it may stand (comparisons.ts).
+    const comparison = kind === "comparison" ? checkComparison(item, figureIds, packet) : undefined;
+    if (comparison && "error" in comparison) {
+      reject(index, item, comparison.error);
+      continue;
+    }
+    accepted.push({
+      index,
+      kind,
+      text: item.text,
+      evidence,
+      ...(kind === "analyst_inference" ? { supports } : {}),
+      ...(kind === "comparison" ? { op: item.op as ComparisonOp, result: item.result as string | string[] } : {}),
+    });
   }
   accepted.sort((a, b) => a.index - b.index);
   rejected.sort((a, b) => a.index - b.index);
@@ -210,12 +233,14 @@ function shapeError(
   switch (kind) {
     case "observation":
       return figureIds.length === 0 || claimIds.length > 0 ? "an observation cites figures, and only figures" : null;
+    case "comparison":
+      return figureIds.length < 2 || claimIds.length > 0 ? "a comparison cites two or more figures, and only figures" : null;
     case "unknown_cause":
       return figureIds.length === 0 || claimIds.length > 0 ? "an unknown cause cites the figures that changed, and no claim" : null;
     case "management_attribution":
       return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
     case "analyst_inference": {
-      const observations = new Set(accepted.filter((entry) => entry.kind === "observation").map((entry) => entry.index));
+      const observations = new Set(accepted.filter((entry) => entry.kind === "observation" || entry.kind === "comparison").map((entry) => entry.index));
       return supports.length === 0 || !supports.every((n) => observations.has(n))
         ? "an inference binds the accepted observations it rests on"
         : null;
