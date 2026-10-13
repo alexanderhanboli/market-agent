@@ -12,7 +12,7 @@
 // keeps its cutoff, so its baseline and end are the ones already charted, not
 // recomputed from the current date.
 //
-// A metric the question names that no reader here serves (free cash flow, EPS)
+// A metric the question names that no reader here serves (EBITDA, debt)
 // is a named gap: it is never answered with another metric in its place, so a
 // question asking only for such metrics reads no income-statement facts at all.
 //
@@ -30,6 +30,8 @@ const ROUTES = [
   "trend",
   "derived_margin",
   "segments",
+  // Cash flow, balance sheet or EPS, for one company.
+  "statements",
   "comparison",
   "unavailable_metric",
   "evidence_followup",
@@ -115,18 +117,41 @@ const EVIDENCE =
 // before the next is tried, so "free cash flow" is not also "cash flow" and
 // "earnings per share" is not also "earnings".
 const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
-  { metric_key: "free_cash_flow", label: "Free cash flow", available: false, pattern: /\bfree[- ]cash[- ]flows?\b|\bFCF\b/gi },
+  { metric_key: "free_cash_flow", label: "Free cash flow", available: true, pattern: /\bfree[- ]cash[- ]flows?\b|\bFCF\b/gi },
   { metric_key: "financing_cash_flow", label: "Financing cash flow", available: false, pattern: /\bfinancing cash[- ]flows?\b/gi },
   { metric_key: "investing_cash_flow", label: "Investing cash flow", available: false, pattern: /\binvesting cash[- ]flows?\b/gi },
   // Unqualified "cash flow" means operating cash flow.
-  { metric_key: "operating_cash_flow", label: "Operating cash flow", available: false, pattern: /\b(?:operating )?cash[- ]flows?\b/gi },
-  { metric_key: "capex", label: "Capital expenditures", available: false, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
-  { metric_key: "eps_diluted", label: "Earnings per share", available: false, pattern: /\bEPS\b|\bearnings per share\b/gi },
+  { metric_key: "operating_cash_flow", label: "Operating cash flow", available: true, pattern: /\b(?:operating )?cash[- ]flows?\b/gi },
+  { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
+  // Cash on hand is a balance, read after every cash flow phrase is taken.
+  {
+    metric_key: "balance_sheet",
+    label: "Balance sheet",
+    available: true,
+    pattern: /\bbalance[- ]sheets?\b|\bcash (?:and (?:cash )?equivalents|position|balance|on hand)\b|\bhow much cash\b|\btotal assets\b|\btotal liabilities\b|\b(?:shareholders|stockholders)['’]? equity\b|\bbook value\b/gi,
+  },
+  { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\bEPS\b|\bearnings per share\b/gi },
   { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
   { metric_key: "total_debt", label: "Debt", available: false, pattern: /\bdebt\b/gi },
   { metric_key: "dividends", label: "Dividends", available: false, pattern: /\bdividends?\b/gi },
   { metric_key: "income_statement", label: "Revenue, profit and margins", available: true, pattern: /\b(revenue|sales|income|profits?|profitab\w*|margins?|growth|earnings)\b/gi },
 ];
+
+// The cash flow, balance sheet and EPS a question can name, each with the item
+// labels its block shows (statement-blocks.ts). One company at a time: a
+// comparison names them as a gap.
+export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  operating_cash_flow: ["Operating cash flow"],
+  capex: ["Capital expenditures"],
+  free_cash_flow: ["Free cash flow"],
+  balance_sheet: ["Cash and equivalents", "Total assets", "Total liabilities", "Total equity"],
+  eps_diluted: ["EPS (diluted)"],
+};
+
+// The statement metrics a turn asks for (or kept from the previous one).
+export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedMetric> {
+  return scope.metrics.filter((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS);
+}
 
 export function requestedMetrics(question: string): RequestedMetric[] {
   return scanMetrics(question).metrics;
@@ -136,18 +161,19 @@ export function requestedMetrics(question: string): RequestedMetric[] {
 // and their qualifiers: "free cash flow margin" asks for no (available) margin.
 function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: string } {
   let rest = question.replace(NOT_METRICS, " ");
-  let withoutUnavailable = question;
+  let withoutOthers = question;
   const metrics: RequestedMetric[] = [];
   for (const { pattern, ...metric } of METRICS) {
-    // An unavailable metric takes its qualifier with it, so "free cash flow
-    // growth" does not also ask for (available) growth.
-    const match = new RegExp(`(?:${pattern.source})${metric.available ? "" : QUALIFIER}`, "gi");
+    // A metric other than the income statement takes its qualifier with it, so
+    // "free cash flow growth" or "EBITDA margin" asks for no income figures.
+    const own = metric.metric_key !== "income_statement";
+    const match = new RegExp(`(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
     if (!new RegExp(match.source, "i").test(rest)) continue;
     metrics.push(metric);
     rest = rest.replace(match, " ");
-    if (!metric.available) withoutUnavailable = withoutUnavailable.replace(match, " ");
+    if (own) withoutOthers = withoutOthers.replace(match, " ");
   }
-  return { metrics, rest: withoutUnavailable };
+  return { metrics, rest: withoutOthers };
 }
 
 export function resolveResearchScope(input: {
@@ -203,11 +229,16 @@ export function resolveResearchScope(input: {
   // single company's answer does not.
   const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !metric.available) &&
     (asked === null || input.companies.length < 2) && !PEERS.test(question) && !SEGMENTS.test(question) && !marginAsked;
+  // Only cash flow, balance sheet or EPS (and any named gaps beside them): the
+  // statement figures alone, as a segment request reads segments alone.
+  const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
+    metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
+    !SEGMENTS.test(question) && !marginAsked;
   const reads = evidence && prior !== null
     ? prior.reads
     : input.served
     ? "financial_answer"
-    : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable });
+    : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable, onlyStatements });
   return {
     route: evidence ? "evidence_followup" : reads,
     reads,
@@ -260,12 +291,14 @@ function routeOf(
     margin_trend: boolean;
     marginAsked: boolean;
     onlyUnavailable: boolean;
+    onlyStatements: boolean;
   },
 ): ResearchRoute {
   if (companies === 0) return "unknown";
   if (facets.onlyUnavailable) return "unavailable_metric";
   if (companies > 1 || facets.peers) return "comparison";
   if (facets.segments) return "segments";
+  if (facets.onlyStatements) return "statements";
   if (facets.margin_trend) return "trend";
   if (facets.marginAsked) return "derived_margin";
   return "latest_quarter";

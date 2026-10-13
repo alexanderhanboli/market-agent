@@ -74,14 +74,20 @@ test("a comparison packet binds each figure to its company and period; a company
   assert.deepEqual(packet.query_bounds, { periods: "fiscal year 2025 per company" });
 });
 
-test("missing cash flow is a gap with no figure in its place (#207)", () => {
-  const gap = { id: "b-gap", kind: "rich_text", segments: [{ type: "text", text: "Free cash flow is not available for AMD in this data, so no other figure is shown in its place." }] };
-  const packet = buildEvidencePacket({ scope: scope("What is AMD's free cash flow?", [AMD]), factBlocks: [gap], cutoff: CUTOFF });
+test("a metric no reader serves is a gap with no figure in its place (#207)", () => {
+  const gap = { id: "b-gap", kind: "rich_text", segments: [{ type: "text", text: "EBITDA is not available for AMD in this data, so no other figure is shown in its place." }] };
+  const packet = buildEvidencePacket({ scope: scope("What is AMD's EBITDA?", [AMD]), factBlocks: [gap], cutoff: CUTOFF });
   assert.equal(packet.route, "unavailable_metric");
   assert.deepEqual(packet.figures, []);
   assert.deepEqual(packet.gaps, [gap.segments[0]!.text]);
   assert.deepEqual(packet.coverage, [{ company: "AMD", status: "not_shown" }]);
   assert.deepEqual(packet.query_bounds, {});
+});
+
+test("a cash flow question names the periods its readers cover", () => {
+  const packet = buildEvidencePacket({ scope: scope("What is AMD's free cash flow?", [AMD]), factBlocks: [], cutoff: CUTOFF });
+  assert.equal(packet.route, "statements");
+  assert.match(packet.query_bounds.periods ?? "", /latest quarter and latest fiscal year of cash flow/);
 });
 
 test("an inherited YTD window is bounded at its own cutoff (#207)", () => {

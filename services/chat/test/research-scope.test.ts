@@ -19,9 +19,15 @@ test("each recurring question takes its own route", () => {
     // A comparison with an earlier period needs the margins over time.
     ["Show AMD operating margins QoQ", [AMD], "trend"],
     ["Compare AMD gross margin with last quarter", [AMD], "trend"],
-    ["What is AMD's free cash flow?", [AMD], "unavailable_metric"],
+    ["What is AMD's EBITDA?", [AMD], "unavailable_metric"],
+    // Cash flow, the balance sheet and EPS, for one company.
+    ["What is AMD's free cash flow?", [AMD], "statements"],
+    ["How much cash does AMD have on its balance sheet?", [AMD], "statements"],
+    ["What was NVDA's EPS?", [NVDA], "statements"],
+    ["What are AMD's free cash flow and EBITDA?", [AMD], "statements"],
     // A request that is partly available takes its usual route; the rest is a named gap.
     ["Compare NVDA and AMD revenue and free cash flow", [NVDA, AMD], "comparison"],
+    ["What is NVDA's revenue and free cash flow?", [NVDA], "latest_quarter"],
     ["Break down NVDA's revenue by segment.", [NVDA], "segments"],
     ["Compare NVDA with AMD.", [NVDA, AMD], "comparison"],
     ["How does NVDA compare with its peers?", [NVDA], "comparison"],
@@ -114,10 +120,14 @@ test("each metric a question names is found once, the most specific first", () =
   assert.deepEqual(keys("What are NVDA's earnings per share?"), ["eps_diluted"]);
   assert.deepEqual(keys("NVDA earnings and EPS"), ["eps_diluted", "income_statement"]);
   assert.deepEqual(keys("Compare NVDA with AMD"), []);
+  // Cash on hand is a balance, never a cash flow.
+  assert.deepEqual(keys("How much cash does NVDA have?"), ["balance_sheet"]);
+  assert.deepEqual(keys("NVDA cash and equivalents and its operating cash flow"), ["operating_cash_flow", "balance_sheet"]);
+  assert.deepEqual(keys("What is NVDA's book value?"), ["balance_sheet"]);
 });
 
 test("a follow-up naming another metric replaces the metrics; one naming none keeps them", () => {
-  const prior = fresh("What is AMD's free cash flow?", [AMD]);
+  const prior = fresh("What is AMD's EBITDA?", [AMD]);
   const next = (question: string) => resolveResearchScope({ question, companies: [AMD], prior, asOf: AS_OF });
   assert.equal(next("And why is that?").route, "unavailable_metric");
   assert.deepEqual(next("And why is that?").inherited, ["metrics"]);
@@ -147,7 +157,9 @@ test("a metric's context or qualifier is not another metric", () => {
   const keys = (question: string) => requestedMetrics(question).map((metric) => metric.metric_key);
   assert.deepEqual(keys("What did AMD say about free cash flow on its earnings call?"), ["free_cash_flow"]);
   assert.deepEqual(keys("What is AMD's free cash flow growth?"), ["free_cash_flow"]);
-  assert.equal(fresh("What is AMD's free cash flow growth?", [AMD]).route, "unavailable_metric");
+  assert.equal(fresh("What is AMD's free cash flow growth?", [AMD]).route, "statements");
+  assert.deepEqual(keys("What is AMD's EBITDA growth?"), ["ebitda"]);
+  assert.equal(fresh("What is AMD's EBITDA growth?", [AMD]).route, "unavailable_metric");
   assert.deepEqual(keys("What is its profitability?"), ["income_statement"]);
 });
 
@@ -168,8 +180,10 @@ test("an evidence follow-up re-reads what the previous answer read", () => {
   const scope = resolveResearchScope({ question: "Show the evidence", companies: [AMD], prior, asOf: AS_OF });
   assert.equal(scope.route, "evidence_followup");
   assert.equal(scope.reads, "segments");
-  const gapPrior = fresh("What is AMD's free cash flow?", [AMD]);
+  const gapPrior = fresh("What is AMD's EBITDA?", [AMD]);
   assert.equal(resolveResearchScope({ question: "Show the evidence", companies: [AMD], prior: gapPrior, asOf: AS_OF }).reads, "unavailable_metric");
+  const statementPrior = fresh("What is AMD's free cash flow?", [AMD]);
+  assert.equal(resolveResearchScope({ question: "Show the evidence", companies: [AMD], prior: statementPrior, asOf: AS_OF }).reads, "statements");
 });
 
 test("metrics the financial engine served are not gaps", () => {
@@ -203,8 +217,11 @@ test("a company's sources of revenue are not a request for evidence", () => {
   assert.notEqual(ask("What are the sources of NVDA's revenue?"), "evidence_followup");
 });
 
-test("an unavailable metric's margin is part of that metric, not a margin question", () => {
-  assert.equal(fresh("What is AMD's free cash flow margin?", [AMD]).route, "unavailable_metric");
+test("a named metric's margin is part of that metric, not a margin question", () => {
+  assert.equal(fresh("What is AMD's EBITDA margin?", [AMD]).route, "unavailable_metric");
+  assert.equal(fresh("What is AMD's EBITDA margin trend?", [AMD]).margin_trend, false);
+  assert.equal(fresh("What is AMD's EBITDA and gross margin?", [AMD]).route, "derived_margin");
+  assert.equal(fresh("What is AMD's free cash flow margin?", [AMD]).route, "statements");
   assert.equal(fresh("What is AMD's free cash flow margin trend?", [AMD]).margin_trend, false);
   assert.equal(fresh("What is AMD's free cash flow and gross margin?", [AMD]).route, "derived_margin");
 });
@@ -227,9 +244,9 @@ test("segments asked with any margin record the margin, so both are read", () =>
 });
 
 test("a single company's YTD gap stays a gap: its answer has no price chart", () => {
-  assert.equal(fresh("What was AMD's free cash flow YTD?", [AMD]).route, "unavailable_metric");
+  assert.equal(fresh("What was AMD's EBITDA YTD?", [AMD]).route, "unavailable_metric");
   // A comparison does chart the window, so it is read beside the gap.
-  assert.equal(fresh("What is AMD's free cash flow YTD versus NVDA?", [AMD, NVDA]).route, "comparison");
+  assert.equal(fresh("What is AMD's EBITDA YTD versus NVDA?", [AMD, NVDA]).route, "comparison");
 });
 
 // #206: a follow-up can turn a facet off; it then stays off.

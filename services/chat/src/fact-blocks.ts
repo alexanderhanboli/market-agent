@@ -31,7 +31,7 @@ import type { IssuerSubjectRef } from "../../fundamentals/src/subject-ref.ts";
 import { loadUsableFacts } from "../../fundamentals/src/usable-facts.ts";
 import type { VerifierFact } from "../../snapshot/src/snapshot-verifier.ts";
 import { stableUuid } from "./chat-ids.ts";
-import { unavailableMetrics, type ResearchScope } from "./research-scope.ts";
+import { STATEMENT_METRIC_LABELS, statementMetrics, unavailableMetrics, type ResearchScope } from "./research-scope.ts";
 import { loadPerfComparisonBlocks, type PriceWindow } from "./perf-block.ts";
 import { deriveQuarterMetrics, GROWTH, MARGINS, type QuarterMetric } from "./quarter-metrics.ts";
 
@@ -51,8 +51,8 @@ type QueryExecutor = Parameters<typeof loadRecentIssuerFundamentals>[0] &
   Parameters<typeof loadVerifierFactsForRefs>[0] &
   Parameters<typeof materializePeerMetricFacts>[0] &
   Parameters<typeof createSecBackedStatementRepository>[0];
-type Block = Record<string, unknown>;
-type CitedFact = { fact_id: string; source_id: string };
+export type Block = Record<string, unknown>;
+export type CitedFact = { fact_id: string; source_id: string };
 
 // The fact blocks for a turn's companies (primary first).
 export async function loadTurnFactBlocks(
@@ -502,7 +502,7 @@ export async function companyListings(
 // A derived figure cites the facts it was computed from too, so its block's sources
 // include every input's filing (a margin's numerator may come from another source
 // than revenue's) and the inspector can reach each one.
-function withInputs(
+export function withInputs(
   cited: ReadonlyArray<CitedFact>,
   derived: ReadonlyArray<DerivedQuarterFact>,
   loadable: ReadonlyMap<string, VerifierFact>,
@@ -700,7 +700,7 @@ function percentItem(fact: DerivedQuarterFact): { label: string; value_ref: stri
   return { label: fact.label, value_ref: fact.fact_id, format: formatPercent(fact.value_num) };
 }
 
-function blockBase(
+export function blockBase(
   kind: string,
   input: { snapshotId: string; asOf: string },
   facts: ReadonlyArray<CitedFact>,
@@ -745,6 +745,15 @@ export function scopeGapBlocks(
     `gap:${metric.metric_key}`,
     `${metric.label} is not available for ${names} in this data, so no other figure is shown in its place.`,
   ] as const);
+  // Cash flow, the balance sheet and EPS are shown for one company at a time;
+  // one asked for and not shown has no facts in the data.
+  const comparing = scope.companies.length > 1 || scope.peers;
+  for (const metric of statementMetrics(scope)) {
+    if (!comparing && showsStatementMetric(shown, metric.metric_key)) continue;
+    notes.push([`gap:${metric.metric_key}`, comparing
+      ? `${metric.label} is shown for one company at a time; ask about one company for it.`
+      : `${metric.label} is not available for ${names} in this data, so no other figure is shown in its place.`]);
+  }
   if (scope.reads === "financial_answer") {
     notes.push(["gap:financial_answer", "The previous answer's figures were calculated and verified by the financial engine; each one links to its sources in that answer, and no other figure is shown in their place."]);
   }
@@ -781,7 +790,17 @@ export function scopeGapBlocks(
 // breakdown with none to show), so nothing stands in for what it asked.
 export function mayOfferOtherFacts(scope: ResearchScope, shown: ReadonlyArray<Block>): boolean {
   if (scope.reads === "unavailable_metric" || scope.reads === "financial_answer") return false;
+  if (scope.reads === "statements") return statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key));
   return !(scope.reads === "segments" && !showsSegments(shown));
+}
+
+// Whether a metric_row shows any of the statement metric's items.
+function showsStatementMetric(blocks: ReadonlyArray<Block>, metricKey: string): boolean {
+  const labels = new Set(STATEMENT_METRIC_LABELS[metricKey] ?? []);
+  return blocks.some((block) =>
+    block.kind === "metric_row" &&
+    ((block.items ?? []) as ReadonlyArray<{ label?: string }>).some((item) => item.label !== undefined && labels.has(item.label))
+  );
 }
 
 // Whether the blocks include a segment breakdown.
@@ -835,9 +854,11 @@ export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[
     const cites = (ref: string | undefined) => (ref ? { fact_id: ref } : {});
     // Each value's period and end date, from the fact it cites (#180, #207).
     const bindings = ((block.data_ref as { params?: { fact_bindings?: unknown } } | undefined)?.params?.fact_bindings ?? []) as
-      ReadonlyArray<Pick<VerifierFact, "fact_id" | "fiscal_year" | "fiscal_period" | "period_end">>;
+      ReadonlyArray<Pick<VerifierFact, "fact_id" | "fiscal_year" | "fiscal_period" | "period_end" | "period_kind">>;
     const periodOf = (factId: string | undefined): { period?: string; period_end?: string } => {
       const binding = bindings.find((candidate) => candidate.fact_id === factId);
+      // A balance is a point at its date; its "FY" label says nothing about which quarter.
+      if (binding?.period_kind === "point" && binding.period_end) return { period: "balance at period end", period_end: binding.period_end };
       return binding?.period_end && typeof binding.fiscal_year === "number"
         ? { period: `${binding.fiscal_period ?? ""}${binding.fiscal_year}`, period_end: binding.period_end }
         : {};

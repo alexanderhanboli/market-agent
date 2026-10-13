@@ -128,6 +128,36 @@ fixed rule, not a tool loop.
   a one-letter ticker; digits inside a label are not figures.
 - A failure while building fact blocks degrades to a narrative-only answer; it never costs the user the answer.
 
+## Cash flow, balance sheet and EPS (#205)
+
+SEC ingestion stores three statement families. An income lookup downloads the issuer's companyfacts, and the same
+filing's cash flow and balance sheet are extracted from it and stored in the same transaction
+(`companionStatements`, `services/fundamentals/src/sec-facts-repository.ts`).
+
+- **Which value is the filing's:** a 10-K or 10-Q repeats prior periods under its own `fy`, `fp` and accession. Its own
+  period is the one ending last (`ownPeriodFirst`, `services/fundamentals/src/sec-edgar.ts`). Before this, annual
+  selection took the oldest comparative and quarterly selection preferred a framed prior-year quarter.
+- **Cash flow is year to date in a 10-Q:** a quarter is its year to date less the previous one, and Q4 is the year less
+  nine months. Derived quarters carry no source token, like a derived income Q4.
+- **A balance is a point** at the filing's period end. The statement contract labels every point `FY` of its fiscal
+  year, so readers date a balance by `period_end`, never by its fiscal label. Chat tells the model it is a "balance at
+  period end".
+- **Mapped:** operating cash flow, capex (`PaymentsToAcquirePropertyPlantAndEquipment`, else NVDA-style
+  `PaymentsToAcquireProductiveAssets`), cash and equivalents, total assets, liabilities and equity. **Not mapped:**
+  total debt (filers split it across tags, so it needs a reviewed definition), EBITDA, dividends.
+- **Backfill:** only new ingestions store the extra families. A period whose income facts were stored earlier is read
+  from facts without a download, so it gets cash flow and balance sheet only after a fresh ingestion (reset the dev
+  database).
+
+In chat, a single-company question naming cash flow, capex, free cash flow, the balance sheet (or cash on hand) or
+EPS reads them (`services/chat/src/statement-blocks.ts`). A question asking only for them takes the `statements`
+route and reads nothing else. A comparison names them as a gap: they are shown for one company at a time.
+
+- Free cash flow is operating cash flow less capex, for the same dates in one currency. It is minted as a derived fact
+  that states its currency and cites both inputs.
+- The blocks are ordinary fact-bound `metric_row`s, so they read "Source-linked". Like every other chat figure they are
+  not "Verified calculation": that label still needs the financial engine's certificate (#200, #211).
+
 ## Which facts may ground an answer
 
 `loadUsableFacts` (`services/fundamentals/src/usable-facts.ts`) is the one definition (#159). Every reader that shows

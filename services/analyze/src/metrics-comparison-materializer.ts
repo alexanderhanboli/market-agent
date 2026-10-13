@@ -91,7 +91,11 @@ export async function materializePeerMetricFacts(
 export type DerivedFactSpec = Pick<
   DerivedPeerMetric,
   "value_num" | "unit" | "as_of" | "source_id" | "period" | "coverage_level" | "input_fact_ids"
-> & { metric: string };
+> & {
+  metric: string;
+  // A monetary derived value (free cash flow) states its currency; ratios have none.
+  currency?: string;
+};
 
 // Mints one derived fact per spec, in order (or reuses an identical one already
 // known, #134), and returns their fact ids.
@@ -157,6 +161,7 @@ function derivedFactInput(
     fiscal_period: value.period.fiscal_period,
     value_num: value.value_num,
     unit: value.unit,
+    ...(value.currency === undefined ? {} : { currency: value.currency }),
     as_of: value.as_of,
     observed_at: clock().toISOString(),
     source_id: value.source_id,
