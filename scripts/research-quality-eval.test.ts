@@ -197,13 +197,13 @@ test("the report shows each turn's assertion check and the run's totals (#208)",
       { message: "q4", outcome: "turn.completed", blocks: [], assertions: { status: "checked" as const, accepted: [{ kind: "observation", text: "x", evidence: ["F1"] }], rejected: [], rendered: true } },
     ] },
   ];
-  assert.equal(assertionSummary(answered), "2 accepted, 1 rejected, 2 unchecked over 4 answered turns; 1 missing, 0 malformed, 0 with no figures; 1 rendered");
+  assert.equal(assertionSummary(answered), "2 accepted, 1 rejected (kind 1), 2 unchecked over 4 answered turns; 1 missing, 0 malformed, 0 with no figures; 1 rendered");
   const report = renderReport("r", "a/m", "http://app", answered);
-  assert.match(report, /Assertions: 2 accepted, 1 rejected, 2 unchecked over 4 answered turns; 1 missing, 0 malformed, 0 with no figures; 1 rendered\./);
+  assert.match(report, /Assertions: 2 accepted, 1 rejected \(kind 1\), 2 unchecked over 4 answered turns; 1 missing, 0 malformed, 0 with no figures; 1 rendered\./);
   assert.match(report, /_Assertions \(shadow\): 0 accepted, 0 rejected, 2 unchecked \(no figures shown\):_/);
   assert.match(report, /_Assertions \(rendered\): 1 accepted, 0 rejected:_/);
   assert.match(report, /_Assertions \(rendered\): 1 accepted, 0 rejected:_/);
-  assert.match(report, /- ✓ observation \[F1\]: NVDA's margin was 75\.0%\.\n- ✗ a management attribution cites the claim that makes it: Mix lifted margins\./);
+  assert.match(report, /- ✓ observation \[F1\]: NVDA's margin was 75\.0%\.\n- ✗ \[kind\] a management attribution cites the claim that makes it: Mix lifted margins\./);
   assert.match(report, /_Assertions \(shadow\): missing\._/);
   assert.equal(assertionSummary([]), "not reported");
 });

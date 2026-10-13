@@ -196,7 +196,8 @@ test("a comparison needs two distinct facts, however its evidence repeats them (
     fig("A1", "Revenue", "Q42026", "$62.1B", { fact_id: "f1" }),
     fig("A2", "Revenue", "Q4 2026", "$62.1B", { fact_id: "f1" }),
   ]);
-  assert.deepEqual(reasons(one, "highest", ["A1", "A1"], "A1"), ["comparison: a comparison needs two or more distinct figures"]);
+  // A repeated id is a duplicate reference, caught before the comparison (#221).
+  assert.deepEqual(reasons(one, "highest", ["A1", "A1"], "A1"), ['evidence lists "A1" twice']);
   assert.deepEqual(reasons(one, "lowest", ["A1", "A2"], "A1"), ["comparison: a comparison needs two or more distinct figures"]);
 });
 

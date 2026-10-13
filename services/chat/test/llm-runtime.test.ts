@@ -1435,3 +1435,158 @@ test("with rendering on, a comparison rejected for its shape also keeps the pros
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.doesNotMatch(text, /AMD has the highest/);
 });
+
+test("on a named-gap turn the model sees no data, so a number in its prose is never shown (#221)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was $3.1B in fiscal 2025." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.match(text, /Free cash flow is not available for AMD in this data\./);
+  assert.doesNotMatch(text, /\$3\.1B/);
+});
+
+test("on a named-gap turn a claim's number is no support for another metric (#294 review)", async () => {
+  const claim = {
+    tool_call_id: "tc-claim",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence: { claims: [{ claim_id: "c2210000-0000-4000-8000-000000000001", source_id: "s", text_canonical: "The restrictions led to approximately $800 million in inventory and related charges.", predicate: "kpi.commentary", polarity: "negative", published_at: "2025-08-05T00:00:00.000Z" }] } },
+  } as never;
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [claim],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was approximately $800 million." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.match(text, /Free cash flow is not available for AMD in this data\./);
+  assert.doesNotMatch(text, /\$800 million/);
+});
+
+test("on a named-gap turn an amount in words is no more allowed than one in digits (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was three billion dollars. Its margin rose twelve percent." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.match(text, /Free cash flow is not available for AMD in this data\./);
+  assert.doesNotMatch(text, /three billion|twelve percent/);
+});
+
+test("on a named-gap turn zero in words is an amount, and every removal is reported together (#294 review)", async () => {
+  const removed: string[][] = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was zero dollars. Cash fell because of heavy spending." }),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.doesNotMatch(text, /zero dollars|heavy spending/);
+  // One report holding both the cause and the amount, so neither is undercounted.
+  assert.equal(removed.length, 1);
+  assert.equal(removed[0]!.length, 2);
+});
+
+test("on a named-gap turn any magnitude or unit word is an amount, however it is quantified (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. It was a quarter billion dollars. Capex ran to hundreds of millions of dollars." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "Free cash flow is not available for AMD in this data.");
+});
+
+test("on a named-gap turn other currency units are amounts too (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. Adjusted EPS was fifty cents. It was one euro. It was zero pounds." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "Free cash flow is not available for AMD in this data.");
+});
+
+test("on a named-gap turn a bare number word is a value; ordinary \"one of\" wording is not (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is one of the metrics not available for AMD in this data. AMD's P/E ratio was twenty. Its current ratio was three." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "Free cash flow is one of the metrics not available for AMD in this data.");
+});
+
+test("on a named-gap turn \"won't\" is not the won currency (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "The available data won't support a free-cash-flow estimate for AMD." }),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join(""), "The available data won't support a free-cash-flow estimate for AMD.");
+});
+
+test("on a named-gap turn a heading left with no content goes too, and the fallback shows (#294 review)", async () => {
+  const answered: string[] = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "## Free cash flow\nAMD's free cash flow was three billion dollars." }),
+    onAnswered: (deployment) => answered.push(deployment),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "No written answer is available for this question; try asking again.");
+  assert.deepEqual(answered, [], "no model prose was shown, so no deployment answered");
+});
+
+test("on a named-gap turn a list marker left with no content goes too (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "1. AMD's free cash flow was three billion dollars.\n- Its capex was twenty billion dollars." }),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join(""), "No written answer is available for this question; try asking again.");
+});

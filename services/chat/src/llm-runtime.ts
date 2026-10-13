@@ -14,7 +14,7 @@ import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, t
 import { statesComparison } from "./comparisons.ts";
 import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
-import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
+import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
@@ -358,11 +358,23 @@ export async function composeAnalystBlocksWithLlm(input: {
     const uncaused = keepUncausedSentences(text);
     if (uncaused.removed.length > 0) {
       console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
-      input.onNarrativeRemoved?.(uncaused.removed);
     }
-    if (uncaused.text) answered();
+    // A named gap's turn gives the model no data (availableData false): any
+    // number it states is invented (#221). A claim's number is no support
+    // either: prose cannot bind it to the claim's metric (#294 review), so a
+    // claim is given as an attribution, which renders it whole.
+    const unnumbered = input.availableData === false
+      ? withoutWordedAmounts(keepSupportedSentences(uncaused.text, [], [], [], [], input.subjectLabels ?? []))
+      : { text: uncaused.text, removed: [] as string[] };
+    if (unnumbered.removed.length > 0) {
+      console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
+    }
+    // Both batches in one report: the consumer keeps the last it receives (#294 review).
+    const removedHere = [...uncaused.removed, ...unnumbered.removed];
+    if (removedHere.length > 0) input.onNarrativeRemoved?.(removedHere);
+    if (unnumbered.text) answered();
     // No figures are shown here, so the fallback points to none.
-    return rewriteFirstRichTextBlock(input.blocks, uncaused.text || NO_ANSWER_FALLBACK_TEXT);
+    return rewriteFirstRichTextBlock(input.blocks, unnumbered.text || NO_ANSWER_FALLBACK_TEXT);
   }
 
   const displayTexts = displayTextsForBlocks(input.factBlocks ?? []);
@@ -410,6 +422,34 @@ export async function composeAnalystBlocksWithLlm(input: {
   }
   if (guarded.text) answered();
   return rewriteFirstRichTextBlock(input.blocks, guarded.text || FACT_BLOCKS_FALLBACK_TEXT);
+}
+
+// An amount in words: any magnitude or unit word ("three billion dollars",
+// "a quarter billion", "hundreds of millions", "twelve percent", "zero
+// dollars"), which the guard's digit-based check does not see (#294 review).
+// On a turn with no data there is nothing such a word could measure.
+// A bare number word is a value too ("a P/E of twenty", #294 review); "one"
+// and "a" are left out, as ordinary wording ("one of the metrics").
+const WORDED_AMOUNT = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|dozens?|hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?)\b/i;
+
+// On a turn with no data, a sentence stating an amount in words goes as one
+// in digits does.
+function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { text: string; removed: string[] } {
+  const removed = [...guarded.removed];
+  // A line that lost every sentence is dropped (null), so a heading left with
+  // nothing under it goes too, as in the guard (#294 review).
+  const lines = guarded.text.split("\n").map((line) => {
+    if (line.trim() === "") return line;
+    // A list marker leads the line, not a sentence of it, as in the guard.
+    const lead = line.match(LIST_MARKER)?.[0] ?? "";
+    const kept = line.slice(lead.length).split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
+      if (!WORDED_AMOUNT.test(sentence)) return true;
+      removed.push(sentence.trim());
+      return false;
+    });
+    return kept.length === 0 ? null : `${lead}${kept.join(" ")}`;
+  });
+  return { text: withoutEmptySections(lines), removed };
 }
 
 // Claim text the answer cites; a figure a claim states is supported.

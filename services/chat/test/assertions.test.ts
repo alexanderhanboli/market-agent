@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkAssertions, splitAssertions, statesValue } from "../src/assertions.ts";
+import { checkAssertions, rejectionCheck, splitAssertions, statesValue } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const PACKET: EvidencePacket = {
@@ -548,4 +548,108 @@ test("a parenthesized percentage is an aside, not an accounting negative (#208)"
   assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin (75.0%) was its highest.", evidence: ["F1"] }]).rejected, []);
   // Money in parentheses stays negative.
   assert.equal(check([{ kind: "observation", text: "AMD's revenue was ($75.0B).", evidence: ["F4"] }]).rejected.length, 1);
+});
+
+test("an evidence id listed twice is a duplicate reference (#221)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1", "F1"] }]).rejected.map((entry) => entry.reason),
+    ['evidence lists "F1" twice']);
+  assert.deepEqual(check([{ kind: "management_attribution", text: "Management credited a richer data-center mix.", evidence: ["C1", "C1"] }]).rejected.map((entry) => entry.reason),
+    ['evidence lists "C1" twice']);
+});
+
+test("an observation or comparison states no cause: a cause is attributed or unknown (#221)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026, driven by a richer mix.", evidence: ["F1"] }]).rejected.map((entry) => entry.reason),
+    ["an observation states no cause: give it as a management attribution or an unknown cause"]);
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] }]).rejected, []);
+});
+
+test("each rejection names the check that failed, so binding and comparative failures are told apart (#221)", () => {
+  const cases: Array<[string, string]> = [
+    ["99% is not a cited figure's value", "binding"],
+    ["75.0% names no company, and its evidence spans several", "binding"],
+    ["names AMD, which its evidence does not", "binding"],
+    ["March 2026 is not a cited date", "binding"],
+    ["comparison: F2 (74.6%) is higher than F4 (49.2%)", "comparative"],
+    ["comparison: leaves out AAPL, which shows gross margin too", "comparative"],
+    ['unknown evidence id "F99"', "reference"],
+    ['evidence lists "C1" twice', "reference"],
+    ["an observation cites figures, and only figures", "kind"],
+    ["an unknown cause cites a change: one company's metric, two periods, two values", "kind"],
+    ["an observation states no cause: give it as a management attribution or an unknown cause", "cause"],
+    ["an inference binds the accepted observations it rests on", "support"],
+    ["Free cash flow is not in the evidence: it is a named gap", "gap"],
+    ["more than 12 assertions", "limit"],
+    ['unknown kind "guess"', "format"],
+    ["its figure has no fact to seal, so it is not rendered", "rendering"],
+  ];
+  for (const [reason, check] of cases) assert.equal(rejectionCheck(reason), check, reason);
+});
+
+test("descriptive wording is not a cause; causal connectives are (#294 review)", () => {
+  for (const text of ["The table reflects NVDA's gross margin of 75.0% in FY2026.", "The results from FY2026 include NVDA's gross margin of 75.0%."]) {
+    assert.deepEqual(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected, [], text);
+  }
+  for (const text of ["NVDA's gross margin was 75.0% in FY2026 because of a richer mix.", "NVDA's gross margin of 75.0% in FY2026 resulted from a richer mix."]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+});
+
+test("a cause is caught on an answer with no figures too, not left unchecked (#294 review)", () => {
+  const report = checkAssertions([{ kind: "observation", text: "AMD's margin fell, driven by inventory charges.", evidence: [] }], { ...PACKET, figures: [] });
+  assert.equal(rejectionCheck(report.rejected[0]?.reason ?? ""), "cause");
+  assert.equal(report.unchecked, undefined);
+});
+
+test("active causal verbs are causes too; descriptive wording still isn't (#294 review)", () => {
+  for (const text of [
+    "Inventory charges caused NVDA's gross margin to fall to 75.0% in FY2026.",
+    "A richer mix led to NVDA's gross margin of 75.0% in FY2026.",
+    "Data center demand drove NVDA's gross margin to 75.0% in FY2026.",
+    "Pricing resulted in NVDA's gross margin of 75.0% in FY2026.",
+  ]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+  for (const text of ["The table reflects NVDA's gross margin of 75.0% in FY2026.", "The results from FY2026 include NVDA's gross margin of 75.0%."]) {
+    assert.deepEqual(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected, [], text);
+  }
+});
+
+test("contributed to and stemmed from are causes (#294 review)", () => {
+  for (const text of ["Charges contributed to NVDA's gross margin of 75.0% in FY2026.", "NVDA's gross margin of 75.0% in FY2026 stemmed from a richer mix."]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+});
+
+test("common financial causatives (lifted, boosted, pressured, weighed on) are causes (#294 review)", () => {
+  for (const text of [
+    "AI demand lifted NVDA's gross margin to 75.0% in FY2026.",
+    "Pricing boosted NVDA's gross margin to 75.0% in FY2026.",
+    "Costs pressured NVDA's gross margin of 75.0% in FY2026.",
+    "Charges weighed on NVDA's gross margin of 75.0% in FY2026.",
+  ]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+});
+
+test("the noun \"results in\" is not a cause (#294 review)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "The results in FY2026 include NVDA's gross margin of 75.0%.", evidence: ["F1"] }]).rejected, []);
+});
+
+test("a base-form causative after a modal or \"to\" is a cause; the noun \"pressure\" is not (#294 review)", () => {
+  for (const text of ["AI demand could lift NVDA's gross margin of 75.0% in FY2026.", "Demand may drive NVDA's gross margin of 75.0% in FY2026."]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin of 75.0% in FY2026 shows no pressure.", evidence: ["F1"] }]).rejected, []);
+});
+
+test("the noun \"cause\" is not a stated cause (#294 review)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "The cause is not shown; NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] }]).rejected, []);
+  assert.equal(rejectionCheck(check([{ kind: "observation", text: "Charges caused NVDA's gross margin of 75.0% in FY2026.", evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause");
+});
+
+test("noun forms (drives, pressures, boosts, lifts) are not causes (#294 review)", () => {
+  const packet = { ...PACKET, figures: [{ id: "F1", company: "NVDA", metric: "Revenue", period: "FY2026", value: "$3.1B", source_ids: [] }] };
+  for (const text of ["NVDA's hard drives generated $3.1B in revenue in FY2026.", "NVDA's revenue of $3.1B in FY2026 came with cost pressures and price boosts."]) {
+    assert.deepEqual(checkAssertions([{ kind: "observation", text, evidence: ["F1"] }], packet).rejected, [], text);
+  }
 });

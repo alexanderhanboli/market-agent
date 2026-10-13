@@ -9,6 +9,7 @@
 // controlled rendering from validated assertions is #208's second slice.
 
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
+import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
@@ -45,6 +46,9 @@ export type AssertionReport = {
 // answer's observations, a comparison per metric, the takeaway and the
 // counterpoint; at 8, counterpoints fell past the cap (2026-10-13 eval).
 export const MAX_ASSERTIONS = 12;
+
+// The check a rejection failed (rejection-check.ts, #221).
+export { rejectionCheck, type RejectionCheck } from "./rejection-check.ts";
 
 // The list closes the answer in a fenced block the reader never sees. Wherever
 // it is, and closed or not, it is cut from the prose. open: the list never
@@ -121,6 +125,11 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       continue;
     }
     const evidence = listed as string[];
+    const twice = evidence.find((id, i) => evidence.indexOf(id) !== i);
+    if (twice !== undefined) {
+      reject(index, item, `evidence lists ${JSON.stringify(twice)} twice`);
+      continue;
+    }
     const unknown = evidence.find((id) => !figures.has(id) && !claims.has(id));
     if (unknown !== undefined) {
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
@@ -128,6 +137,12 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     }
     const figureIds = evidence.filter((id) => figures.has(id));
     const claimIds = evidence.filter((id) => claims.has(id));
+    // What figures show is not why: a cause is a cited claim's or unknown, on
+    // an answer with figures or without (#294 review).
+    if ((kind === "observation" || kind === "comparison") && statesCause(item.text)) {
+      reject(index, item, `an ${kind === "observation" ? "observation" : "comparison"} states no cause: give it as a management attribution or an unknown cause`);
+      continue;
+    }
     // About figures when none were shown: nothing to bind, unless it cites a
     // claim where only figures may stand.
     if (packet.figures.length === 0 && kind !== "management_attribution") {
