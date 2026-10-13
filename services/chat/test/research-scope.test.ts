@@ -100,6 +100,10 @@ test("a window asked for again is cut off at the new turn", () => {
 test("guidance is asked for by the turn's own words, not carried to the next", () => {
   const asked = fresh("What revenue guidance did NVDA give?", [NVDA]);
   assert.equal(asked.guidance, true);
+  // Asked as an expectation, a projection or a target too.
+  for (const question of ["What revenue does NVDA expect next quarter?", "What are management's projections?", "What is NVDA's gross margin target?"]) {
+    assert.equal(fresh(question, [NVDA]).guidance, true, question);
+  }
   assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
   const next = resolveResearchScope({ question: "And its gross margin?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(next.guidance, undefined);

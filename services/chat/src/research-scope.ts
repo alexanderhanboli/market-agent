@@ -102,7 +102,9 @@ const OFF = new RegExp(
   "g",
 );
 const SEGMENTS = /\bsegments?\b/i;
-const GUIDANCE = /\b(?:guidance|guided|outlook|forecasts?)\b/i;
+// Guidance, however it is asked for: guided, an outlook or forecast, what the
+// company expects, its projections or its targets.
+const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expect(?:s|ed|ations?)?|project(?:ed|ions?)|targets?)\b/i;
 const MARGINS = /\b(margins?|profitab\w*)\b/i;
 // A margin asked about over time, not just its latest value.
 const OVER_TIME =

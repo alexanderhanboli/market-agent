@@ -184,14 +184,17 @@ test("a route reads its predicate families first, from the start of the period i
     ["management.explanation.operating_cash_flow", "management.explanation.capex"],
     "management.",
   ]);
-  // A question asking for guidance reads it first.
-  // Whatever the figures' route, a metric no reader serves included: guidance
-  // is how management answers it.
+  // A question asking for guidance reads it first: for the metric it names,
+  // then any. Whatever the figures' route, a metric no reader serves included:
+  // guidance is how management answers it.
   assert.equal(scope("What adjusted EPS guidance did NVDA give?").reads, "unavailable_metric");
-  for (const question of ["What revenue guidance did NVDA give?", "What is NVDA's outlook for next quarter?", "What adjusted EPS guidance did NVDA give?"]) {
-    assert.equal(claimSelection(scope(question), CUTOFF).predicate_prefixes[0], "guidance.", question);
-  }
-  assert.notEqual(claimSelection(scope("What was NVDA's revenue?"), CUTOFF).predicate_prefixes[0], "guidance.");
+  assert.deepEqual(claimSelection(scope("What adjusted EPS guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 2), ["guidance.eps", "guidance."]);
+  assert.deepEqual(claimSelection(scope("What revenue guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 2), [
+    ["guidance.revenue", "guidance.gross_margin", "guidance.operating_expenses", "guidance.operating_income", "guidance.net_income"],
+    "guidance.",
+  ]);
+  assert.equal(claimSelection(scope("What is NVDA's outlook for next quarter?"), CUTOFF).predicate_prefixes[0], "guidance.");
+  assert.ok(!claimSelection(scope("What was NVDA's revenue?"), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("guidance."));
   assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
   // An adjusted income figure names neither by itself.
   assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted net income rise?"), CUTOFF).predicate_prefixes[0], [
