@@ -18,6 +18,7 @@ import { join } from "node:path";
 import type { Client } from "pg";
 
 import { createFact } from "../../../evidence/src/fact-repo.ts";
+import { FROZEN_AS_OF } from "../../src/ytd-hydration.ts";
 
 const SEED_DIR = join(import.meta.dirname, "..", "..", "..", "..", "db", "seed");
 
@@ -25,7 +26,8 @@ const SEED_DIR = join(import.meta.dirname, "..", "..", "..", "..", "db", "seed")
 export const SEC_FILING_SOURCE_ID = "00000000-0000-4000-a000-000000000001";
 export const MARKET_SOURCE_ID = "00000000-0000-4000-a000-000000000009";
 
-export const GOLDEN_AS_OF = "2026-09-01T00:00:00.000Z";
+// The frozen modes answer at this cutoff (src/ytd-hydration.ts, #259).
+export const GOLDEN_AS_OF = FROZEN_AS_OF;
 
 type Quarter = {
   fiscal_year: number;

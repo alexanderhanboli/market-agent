@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { hydrateYtdBars, marketHydrationOrigin } from "../src/ytd-hydration.ts";
+import { FROZEN_AS_OF, hydrateYtdBars, marketHydrationOrigin, turnNow } from "../src/ytd-hydration.ts";
+import { GOLDEN_AS_OF } from "./golden/dataset.ts";
 
 const NY = "America/New_York";
 const LISTINGS = [
@@ -106,4 +107,14 @@ test("a market failure or a hung market never fails the turn", async (t) => {
     new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason)))) as typeof fetch;
   await hydrateYtdBars({ origin: "http://market.test", listings: LISTINGS, now: NOW, fetchImpl: hung, timeoutMs: 20 });
   assert.equal(warn.mock.callCount(), 2);
+});
+
+test("frozen data modes answer at the golden dataset's cutoff, whatever the year; live modes at the wall clock (#259)", () => {
+  assert.equal(FROZEN_AS_OF, GOLDEN_AS_OF);
+  assert.equal(turnNow({ DEV_NO_KEYS: "true" }), GOLDEN_AS_OF);
+  assert.equal(turnNow({ DEV_MODE: "analyst" }), GOLDEN_AS_OF);
+  for (const env of [{}, { DEV_MODE: "data" }]) {
+    const now = Date.parse(turnNow(env));
+    assert.ok(Math.abs(now - Date.now()) < 5_000, JSON.stringify(env));
+  }
 });

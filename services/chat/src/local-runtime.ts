@@ -32,7 +32,7 @@ import type { AssertionReport } from "./assertions.ts";
 import { claimSelection } from "./evidence-packet.ts";
 import { companyListings, loadTurnFactBlocks, mayOfferOtherFacts, priceListingsForTurn, scopeGapBlocks, turnCompanies } from "./fact-blocks.ts";
 import { resolveResearchScope, type ResearchScope } from "./research-scope.ts";
-import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin } from "./ytd-hydration.ts";
+import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin, turnNow } from "./ytd-hydration.ts";
 import { listingTimeZones } from "./perf-block.ts";
 import { loadPriorScope, loadPriorSubjects as loadThreadPriorSubjects, loadRecentConversation } from "./thread-context.ts";
 import type { IssuerSubjectRef } from "../../fundamentals/src/subject-ref.ts";
@@ -100,8 +100,8 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   // window asked for now is cut off at the turn's asOf, which a follow-up keeps.
   const scopeAt = await turnScope(context.threadId, context.userIntent ?? "", carriedSubjects);
   // A live YTD request fetches its prices first, so the cutoff below covers them (#232).
-  await hydrateYtdWindow(scopeAt(new Date().toISOString()), carriedSubjects);
-  const asOf = new Date().toISOString();
+  await hydrateYtdWindow(scopeAt(turnNow(process.env)), carriedSubjects);
+  const asOf = turnNow(process.env);
   const scope = scopeAt(asOf);
   // A carried-forward company the scope dropped (an auto-selected peer turned
   // off) is not covered either, so the next follow-up does not bring it back.
@@ -307,10 +307,10 @@ async function turnScope(
   const dropped = new Set([...autoPeers].filter((id) => !carriedIds.has(id)));
   const allDropped = autoPeers.size > 0 && dropped.size === autoPeers.size;
   const peersOff = autoPeers.size > 0 && (allDropped ||
-    !resolveResearchScope({ question, companies: carried, prior, asOf: new Date().toISOString(), served }).peers);
+    !resolveResearchScope({ question, companies: carried, prior, asOf: turnNow(process.env), served }).peers);
   const named = peersOff ? carried.filter((company) => !autoPeers.has(company.issuer_id)) : carried;
   const resolve = (cutoff: string) => resolveResearchScope({ question, companies: named, prior, asOf: cutoff, served, peersOff: allDropped });
-  const base = resolve(new Date().toISOString());
+  const base = resolve(turnNow(process.env));
   // An evidence follow-up keeps the previous answer's companies as they were; a
   // financial answer covers exactly the companies its plan requested.
   const compared = (base.route === "evidence_followup" || served ? base.companies : await comparedCompanies(named, base.peers))
@@ -444,7 +444,7 @@ export const financialRuntime: ChatFinancialRuntime = createChatFinancialRuntime
     const covered = context.subjectPreResolutions ??
       (context.subjectPreResolution?.status === "resolved" ? [context.subjectPreResolution] : []);
     // The engine answered the metrics it published, so they are not gaps.
-    return (await turnScope(context.threadId, context.userIntent ?? "", covered, true))(new Date().toISOString());
+    return (await turnScope(context.threadId, context.userIntent ?? "", covered, true))(turnNow(process.env));
   },
 });
 
@@ -463,7 +463,7 @@ export const generateThreadTitle: ChatThreadTitleGenerator = async (job) =>
 async function sealAssistantMessageSnapshot(input: ChatAssistantMessagePersistenceInput) {
   const blocks = input.blocks as ReadonlyArray<Record<string, unknown>>;
   const snapshotId = snapshotIdFromBlocks(blocks);
-  const asOf = maxBlockAsOf(blocks) ?? new Date().toISOString();
+  const asOf = maxBlockAsOf(blocks) ?? turnNow(process.env);
   const userId = await threadUserId(input.threadId);
   const manifest = await manifestFromBlockRefs({
     subjectRefs: subjectRefsFromBlocks(blocks, input.threadId),
