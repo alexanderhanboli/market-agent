@@ -133,21 +133,29 @@ export async function loadLocalRuntimeEvidence(
         where ir.subject_kind = 'instrument'
      ),
      -- The fiscal year asked about, as each covered issuer's facts known at the
-     -- cutoff date it: from its start (a quarter's or year-to-date figure's)
-     -- for a year, so one still in progress ends where it will, not with its
-     -- latest quarter. ponytail: a 52/53-week year can end a few days off.
+     -- cutoff date it. Its end is where any of its figures places it: quarter n
+     -- (discrete, year-to-date or a balance at its end) ends 3 * (4 - n) months
+     -- before it, so a year in progress ends where it will, not with its latest
+     -- quarter; it started a year before. ponytail: a 52/53-week year can be a
+     -- few days off.
      fiscal_years as (
-       select f.subject_kind, f.subject_id, min(f.period_start) as starts, min(f.period_start) + interval '1 year' as ends
-         from subject_refs sr
-         join facts f
-           on f.subject_kind = sr.subject_kind
-          and f.subject_id = sr.subject_id
-        where $13::int is not null
-          and f.fiscal_year = $13::int
-          and f.period_start is not null
-          and (($7::timestamptz is null and ${factActiveSql("f")})
-               or ($7::timestamptz is not null and ${factKnownAtSql("f", "$7::timestamptz")}))
-        group by f.subject_kind, f.subject_id
+       select y.subject_kind, y.subject_id, y.ends - interval '1 year' as starts, y.ends
+         from (
+           select f.subject_kind, f.subject_id,
+                  max(f.period_end + make_interval(months => 3 * (4 - coalesce(substring(f.fiscal_period from '^Q([1-4])$')::int, 4))))
+                    as ends
+             from subject_refs sr
+             join facts f
+               on f.subject_kind = sr.subject_kind
+              and f.subject_id = sr.subject_id
+            where $13::int is not null
+              and f.fiscal_year = $13::int
+              and f.fiscal_period in ('Q1', 'Q2', 'Q3', 'Q4', 'FY')
+              and f.period_end is not null
+              and (($7::timestamptz is null and ${factActiveSql("f")})
+                   or ($7::timestamptz is not null and ${factKnownAtSql("f", "$7::timestamptz")}))
+            group by f.subject_kind, f.subject_id
+         ) y
      ),
      matching_claims as (
        select distinct on (c.claim_id)

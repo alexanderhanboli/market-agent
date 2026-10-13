@@ -440,3 +440,29 @@ test("a fiscal year is dated by the facts known at the cutoff", async (t) => {
   // Unknown then, the year falls back to the label's calendar bounds: newest first.
   assert.deepEqual(evidence.claim_refs, [INSIDER(1)]);
 });
+
+// A later quarter's own figure starts mid-year: the year is dated from where
+// that quarter ends, not from where it starts.
+test("a fiscal year known only by a later quarter ends where that quarter places it", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  // NVDA-like: FY2026 runs 2025-01-27 to 2026-01-25; its discrete Q2 starts 2025-04-28.
+  const db = await fiscalCalendarDb(t, "evidence-selection-fiscal-q2", {
+    period_kind: "fiscal_q", period_start: "2025-04-28", period_end: "2025-07-27", fiscal_year: 2026, fiscal_period: "Q2", observed_at: "2025-08-28T00:00:00Z",
+  });
+  const FY_Q4 = "c4000000-0000-4000-8000-0000000000e7";
+  const explanation = { source: FILINGS, predicate: "management.explanation.gross_margin", polarity: "neutral" };
+  await claim(db, { id: FY_Q4, ...explanation, text: "Gross margin rose in the fourth quarter.", at: "2026-02-25T00:00:00Z" });
+  // The next year's first-quarter release.
+  await claim(db, { id: INSIDER(1), ...explanation, text: "Gross margin fell in the first quarter.", at: "2026-05-28T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 1,
+    selection: {
+      predicate_prefixes: ["management.explanation.gross_margin"],
+      effective_from: "2025-01-01T00:00:00.000Z",
+      effective_until: "2027-04-01T00:00:00.000Z",
+      fiscal_year: 2026,
+    },
+  });
+  assert.deepEqual(evidence.claim_refs, [FY_Q4]);
+});
