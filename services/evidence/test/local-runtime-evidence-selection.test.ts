@@ -364,7 +364,7 @@ test("a fiscal year's window follows the issuer's fiscal calendar", async (t) =>
 async function fiscalCalendarDb(
   t: test.TestContext,
   name: string,
-  fact: { period_kind: string; period_start: string; period_end: string; fiscal_year: number; fiscal_period: string; observed_at: string },
+  fact: { period_kind: string; period_start: string | null; period_end: string; fiscal_year: number; fiscal_period: string; observed_at: string },
 ): Promise<QueryExecutor> {
   const { databaseUrl } = await bootstrapDatabase(t, name);
   const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
@@ -465,4 +465,29 @@ test("a fiscal year known only by a later quarter ends where that quarter places
     },
   });
   assert.deepEqual(evidence.claim_refs, [FY_Q4]);
+});
+
+// A balance is a point labelled "FY" of its year, whichever quarter it closes:
+// it dates no year end.
+test("a fiscal year's balance points do not date its end", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const db = await fiscalCalendarDb(t, "evidence-selection-fiscal-point", {
+    period_kind: "point", period_start: null, period_end: "2025-07-27", fiscal_year: 2026, fiscal_period: "FY", observed_at: "2025-08-28T00:00:00Z",
+  });
+  const Q3 = "c4000000-0000-4000-8000-0000000000e8";
+  const explanation = { source: FILINGS, predicate: "management.explanation.gross_margin", polarity: "neutral" };
+  await claim(db, { id: INSIDER(1), ...explanation, text: "Gross margin fell in the first quarter.", at: "2025-05-28T00:00:00Z" });
+  await claim(db, { id: Q3, ...explanation, text: "Gross margin rose in the third quarter.", at: "2025-11-19T00:00:00Z" });
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 1,
+    selection: {
+      predicate_prefixes: ["management.explanation.gross_margin"],
+      effective_from: "2025-01-01T00:00:00.000Z",
+      effective_until: "2027-04-01T00:00:00.000Z",
+      fiscal_year: 2026,
+    },
+  });
+  // No year dated by its facts: the label's calendar bounds hold both, newest first.
+  assert.deepEqual(evidence.claim_refs, [Q3]);
 });

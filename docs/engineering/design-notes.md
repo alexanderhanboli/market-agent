@@ -241,7 +241,8 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   year where its facts date it (calendar bounds from the label otherwise), so later releases don't crowd it out. The
   window is a year, not the quarter asked about.
 - **Run it** after the 8-K crawl: `npm run extract:earnings-releases` (in `services/evidence`). It is a batch step,
-  never the crawl: one model call per release, at low reasoning; about 46 s on the dev model in a probe (4 minutes at
+  never the crawl: one model call per release (more for one over 60,000 characters, split between blocks, so its
+  tail is read too), at low reasoning; about 46 s on the dev model in a probe (4 minutes at
   its default reasoning).
 - **Not yet:** guidance compared with the reported result once it is in, 10-Q/10-K MD&A, and the frozen golden
   dataset has no such claims (the eval's "why" question still answers from figures alone).

@@ -255,8 +255,34 @@ function endsSentence(exhibit: ReleaseExhibit, end: number): boolean {
   return /[.!?]["')]?$/.test(exhibit.text.slice(Math.max(0, end - 2), end)) && (next === undefined || next === " ");
 }
 
-function buildMessages(exhibits: ReadonlyArray<ReleaseExhibit>): LlmChatMessage[] {
-  const text = exhibits.map((exhibit) => `[${exhibit.type}]\n${exhibit.text}`).join("\n\n").slice(0, MAX_PROMPT_CHARS);
+// The exhibits as prompts of at most MAX_PROMPT_CHARS each, so a long release
+// is read whole across several calls rather than losing its tail. An exhibit
+// longer than one is split between blocks (ponytail: a single block longer than
+// a prompt is cut where the prompt ends).
+export function releasePrompts(exhibits: ReadonlyArray<ReleaseExhibit>): string[] {
+  const pieces = exhibits.flatMap((exhibit) => {
+    const label = `[${exhibit.type}]\n`;
+    const budget = MAX_PROMPT_CHARS - label.length;
+    const edges = [...exhibit.edges].sort((a, b) => a - b);
+    const parts: string[] = [];
+    for (let from = 0; from < exhibit.text.length;) {
+      let to = Math.min(exhibit.text.length, from + budget);
+      if (to < exhibit.text.length) to = edges.findLast((edge) => edge > from && edge <= to) ?? to;
+      parts.push(label + exhibit.text.slice(from, to).trim());
+      from = to;
+    }
+    return parts;
+  });
+  const prompts: string[] = [];
+  for (const piece of pieces) {
+    const last = prompts.length - 1;
+    if (last >= 0 && prompts[last]!.length + 2 + piece.length <= MAX_PROMPT_CHARS) prompts[last] += `\n\n${piece}`;
+    else prompts.push(piece);
+  }
+  return prompts;
+}
+
+function buildMessages(text: string): LlmChatMessage[] {
   return [
     {
       role: "system",
@@ -291,22 +317,31 @@ export async function extractReleaseStatements(
   });
   const exhibits = releaseExhibits(new TextDecoder("utf-8").decode(fetched.bytes));
   let model: string | null = null;
-  let parsed: ReleaseStatement[] | null = [];
-  if (exhibits.length > 0) {
+  // Every prompt is read; one the model answers badly leaves the others'
+  // statements standing.
+  const proposed: ReleaseStatement[] = [];
+  let unparseable = false;
+  for (const prompt of releasePrompts(exhibits)) {
     // Low reasoning: it picks sentences, and the quote check does the rest. A
     // large model's default reasoning took 4 minutes on one release in a probe.
-    const completion = await deps.llm.complete({ messages: buildMessages(exhibits), temperature: 0, maxTokens: 3_000, reasoning: "low" });
+    const completion = await deps.llm.complete({ messages: buildMessages(prompt), temperature: 0, maxTokens: 3_000, reasoning: "low" });
     model = completion.deployment.model;
-    parsed = parseReleaseStatements(completion.text);
+    const statements = parseReleaseStatements(completion.text);
+    if (statements === null) unparseable = true;
+    else proposed.push(...statements);
   }
-  const verified = (parsed ?? []).flatMap((statement) => verifyStatement(statement, exhibits) ?? []);
+  // A sentence picked in two prompts (or twice) is one claim.
+  const verified = [...new Map(proposed.flatMap((statement) => {
+    const found = verifyStatement(statement, exhibits);
+    return found ? [[`${found.kind}:${found.exhibit}:${found.start}`, found] as const] : [];
+  })).values()];
   const outcome: ExtractReleaseOutcome = exhibits.length === 0
     ? "no_exhibits"
-    : parsed === null
+    : verified.length > 0
+    ? "extracted"
+    : unparseable
     ? "unparseable"
-    : verified.length === 0
-    ? "empty"
-    : "extracted";
+    : "empty";
 
   let applied = false;
   await withTransaction(deps.db, async (tx) => {
@@ -349,7 +384,7 @@ export async function extractReleaseStatements(
       result: {
         outcome,
         exhibits: exhibits.map((exhibit) => exhibit.type),
-        proposed: parsed?.length ?? 0,
+        proposed: proposed.length,
         verified: verified.length,
         claim_ids: claimIds,
       },

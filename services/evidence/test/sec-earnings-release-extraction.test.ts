@@ -7,6 +7,7 @@ import {
   findReleaseCandidates,
   parseReleaseStatements,
   releaseExhibits,
+  releasePrompts,
   runReleaseExtractionDrain,
   verifyStatement,
   type ExtractReleaseDeps,
@@ -54,6 +55,24 @@ test("an 8-K's EX-99 exhibits are read as plain text; the 8-K and XBRL documents
   assert.ok(commentary.includes("NVIDIA's gross margin was 60.5%, reflecting the H20 charge."));
   assert.ok(!commentary.includes("<font"));
   assert.equal(canonicalText("a&nbsp;&nbsp;b &#x2014; c&rsquo;s"), "a b - c's");
+});
+
+test("a release longer than one prompt is read whole, across prompts split between blocks", () => {
+  const filler = Array.from({ length: 1_500 }, (_, n) => `Paragraph ${n} restates a figure from the quarter.`);
+  const commentary = "Gross margin decreased primarily due to a charge associated with excess inventory.";
+  const exhibits = releaseExhibits([
+    `<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<html><body>${filler.map((sentence) => `<p>${sentence}</p>`).join("")}</body></html>\n</TEXT>\n</DOCUMENT>`,
+    `<DOCUMENT>\n<TYPE>EX-99.2\n<TEXT>\n<html><body><p>${commentary}</p></body></html>\n</TEXT>\n</DOCUMENT>`,
+  ].join("\n"));
+  const prompts = releasePrompts(exhibits);
+  assert.ok(prompts.length > 1, "more than one prompt");
+  assert.ok(prompts.every((prompt) => prompt.length <= 60_000), "each within the cap");
+  // Every block whole in some prompt, the commentary after the long release too.
+  for (const sentence of [...filler, commentary]) {
+    assert.ok(prompts.some((prompt) => prompt.includes(sentence)), sentence);
+  }
+  // A short release is one prompt.
+  assert.equal(releasePrompts(releaseExhibits(SUBMISSION)).length, 1);
 });
 
 test("the model's statements are read when well formed; unknown kinds or metrics are left out", () => {

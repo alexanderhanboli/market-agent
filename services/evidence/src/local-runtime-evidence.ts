@@ -134,7 +134,7 @@ export async function loadLocalRuntimeEvidence(
      ),
      -- The fiscal year asked about, as each covered issuer's facts known at the
      -- cutoff date it. Its end is where any of its figures places it: quarter n
-     -- (discrete, year-to-date or a balance at its end) ends 3 * (4 - n) months
+     -- (discrete or year-to-date) ends 3 * (4 - n) months
      -- before it, so a year in progress ends where it will, not with its latest
      -- quarter; it started a year before. ponytail: a 52/53-week year can be a
      -- few days off.
@@ -151,6 +151,8 @@ export async function loadLocalRuntimeEvidence(
             where $13::int is not null
               and f.fiscal_year = $13::int
               and f.fiscal_period in ('Q1', 'Q2', 'Q3', 'Q4', 'FY')
+              -- A balance is a point labelled "FY" whichever quarter it closes.
+              and f.period_kind in ('fiscal_q', 'fiscal_y')
               and f.period_end is not null
               and (($7::timestamptz is null and ${factActiveSql("f")})
                    or ($7::timestamptz is not null and ${factKnownAtSql("f", "$7::timestamptz")}))
