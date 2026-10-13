@@ -118,8 +118,19 @@ const EVIDENCE =
 // "earnings per share" is not also "earnings".
 const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
   { metric_key: "free_cash_flow", label: "Free cash flow", available: true, pattern: /\bfree[- ]cash[- ]flows?\b|\bFCF\b/gi },
-  { metric_key: "financing_cash_flow", label: "Financing cash flow", available: false, pattern: /\bfinancing cash[- ]flows?\b/gi },
-  { metric_key: "investing_cash_flow", label: "Investing cash flow", available: false, pattern: /\binvesting cash[- ]flows?\b/gi },
+  // Named before or after "cash flow" ("cash flow from investing activities").
+  {
+    metric_key: "financing_cash_flow",
+    label: "Financing cash flow",
+    available: false,
+    pattern: /\bfinancing cash[- ]flows?\b|\bcash[- ]flows? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) financing(?: activities)?\b/gi,
+  },
+  {
+    metric_key: "investing_cash_flow",
+    label: "Investing cash flow",
+    available: false,
+    pattern: /\binvesting cash[- ]flows?\b|\bcash[- ]flows? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) investing(?: activities)?\b/gi,
+  },
   // Unqualified "cash flow" means operating cash flow.
   { metric_key: "operating_cash_flow", label: "Operating cash flow", available: true, pattern: /\b(?:operating )?cash[- ]flows?\b/gi },
   { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
@@ -145,6 +156,14 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
   { metric_key: "eps_basic", label: "Basic earnings per share", available: true, pattern: /\bbasic (?:EPS|earnings per share)\b/gi },
   { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\bEPS\b|\bearnings per share\b/gi },
   { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
+  // An adjusted income figure is not the reported one (statement metrics take
+  // these adjectives through ADJUSTMENT instead).
+  {
+    metric_key: "non_gaap_income",
+    label: "Non-GAAP earnings",
+    available: false,
+    pattern: /\b(?:adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed) (?:operating income|net income|income|earnings|profits?|margins?|EBIT)\b/gi,
+  },
   { metric_key: "total_debt", label: "Debt", available: false, pattern: /\bdebt\b/gi },
   { metric_key: "dividends", label: "Dividends", available: false, pattern: /\bdividends?\b/gi },
   { metric_key: "income_statement", label: "Revenue, profit and margins", available: true, pattern: /\b(revenue|sales|income|profits?|profitab\w*|margins?|growth|earnings)\b/gi },
@@ -178,6 +197,20 @@ export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedM
   return scope.metrics.filter((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS);
 }
 
+// Adjectives that make a statement metric another, unreported figure
+// ("adjusted EPS", "non-GAAP free cash flow"), captured before it.
+const ADJUSTMENT = String.raw`(?:\b(adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed|levered|unlevered)\s+)?`;
+const ADJUSTMENTS: Readonly<Record<string, { key: string; label: string }>> = {
+  "adjusted": { key: "adjusted", label: "Adjusted" },
+  "non gaap": { key: "non_gaap", label: "Non-GAAP" },
+  "pro forma": { key: "pro_forma", label: "Pro forma" },
+  "core": { key: "core", label: "Core" },
+  "normalized": { key: "normalized", label: "Normalized" },
+  "normalised": { key: "normalized", label: "Normalized" },
+  "levered": { key: "levered", label: "Levered" },
+  "unlevered": { key: "unlevered", label: "Unlevered" },
+};
+
 export function requestedMetrics(question: string): RequestedMetric[] {
   return scanMetrics(question).metrics;
 }
@@ -192,14 +225,25 @@ function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: stri
     // A metric other than the income statement takes its qualifier with it, so
     // "free cash flow growth" or "EBITDA margin" asks for no income figures.
     const own = metric.metric_key !== "income_statement";
-    const match = new RegExp(`(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
+    const statement = metric.metric_key in STATEMENT_METRIC_LABELS;
+    const match = new RegExp(`${statement ? ADJUSTMENT : ""}(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
     const found = new RegExp(match.source, "i").exec(rest);
     if (!found) continue;
-    // A qualified statement metric ("free cash flow margin", "EPS growth") is
-    // another metric no reader serves: a named gap, never the plain figure.
-    const qualifier = own ? found[0].replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() : "";
-    metrics.push(qualifier !== "" && metric.metric_key in STATEMENT_METRIC_LABELS
-      ? { metric_key: `${metric.metric_key}_${qualifier.replace(/\s+/g, "_")}`, label: `${metric.label} ${qualifier}`, available: false }
+    // A qualified statement metric ("free cash flow margin", "EPS growth",
+    // "adjusted EPS") is another metric no reader serves: a named gap, never
+    // the reported figure in its place.
+    const adjustment = statement && found[1] !== undefined ? ADJUSTMENTS[found[1].toLowerCase().replace(/[- ]/, " ")] : undefined;
+    const body = adjustment ? found[0].slice(found[0].search(new RegExp(`(?:${pattern.source})`, "i"))) : found[0];
+    const qualifier = own ? body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() : "";
+    metrics.push(statement && (qualifier !== "" || adjustment)
+      ? {
+        metric_key: [metric.metric_key, adjustment?.key, qualifier.replace(/\s+/g, "_")].filter(Boolean).join("_"),
+        label: [
+          adjustment ? `${adjustment.label} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}` : metric.label,
+          qualifier,
+        ].filter(Boolean).join(" "),
+        available: false,
+      }
       : metric);
     rest = rest.replace(match, " ");
     if (own) withoutOthers = withoutOthers.replace(match, " ");

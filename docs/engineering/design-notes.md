@@ -174,7 +174,9 @@ route and reads nothing else.
   names the gap rather than showing another balance. Free cash flow comes with the two figures it is computed from.
   An item dropped later stays dropped; dropping one item of the whole balance sheet keeps the others, named.
 - **A qualified metric is its own gap:** "free cash flow margin", "EPS growth" or "FCF per share" name a metric no
-  reader serves, never the plain figure.
+  reader serves, never the plain figure. So do adjusted figures ("adjusted EPS", "non-GAAP free cash flow", "non-GAAP
+  operating income"): the reported GAAP figure never stands in for them. "Cash flow from investing (or financing)
+  activities" is that category, a gap, never operating cash flow.
 - **Periods:** cash flow shows the latest quarter and fiscal year; the balance sheet its latest period end; EPS (diluted;
   basic only when asked for by name, never diluted in its place) the latest quarter or, once the 10-K is in, the year
   (a fourth quarter's EPS is never derived). A fiscal year the question

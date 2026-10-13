@@ -242,6 +242,29 @@ test("a named metric's margin is part of that metric, not a margin question", ()
   assert.equal(fresh("What is AMD's free cash flow and gross margin?", [AMD]).route, "derived_margin");
 });
 
+test("a cash flow category named after 'cash flow from' is that category, never operating cash flow", () => {
+  const keys = (question: string) => requestedMetrics(question).map((metric) => metric.metric_key);
+  assert.deepEqual(keys("What was AMD's cash flow from investing activities?"), ["investing_cash_flow"]);
+  assert.deepEqual(keys("Show AMD's cash flows used in financing activities"), ["financing_cash_flow"]);
+  assert.equal(fresh("What was AMD's cash flow from investing activities?", [AMD]).route, "unavailable_metric");
+  // Cash flow from operations is operating cash flow.
+  assert.deepEqual(keys("What was AMD's cash flow from operations?"), ["operating_cash_flow"]);
+});
+
+test("an adjusted or non-GAAP figure is a named gap, never the GAAP figure in its place", () => {
+  const metrics = (question: string) => requestedMetrics(question).map((metric) => [metric.metric_key, metric.label, metric.available]);
+  assert.deepEqual(metrics("What was NVDA's adjusted EPS?"), [["eps_diluted_adjusted", "Adjusted earnings per share", false]]);
+  assert.deepEqual(metrics("NVDA non-GAAP EPS"), [["eps_diluted_non_gaap", "Non-GAAP earnings per share", false]]);
+  assert.deepEqual(metrics("What is NVDA's adjusted free cash flow?"), [["free_cash_flow_adjusted", "Adjusted free cash flow", false]]);
+  assert.deepEqual(metrics("What was NVDA's non-GAAP operating income?"), [["non_gaap_income", "Non-GAAP earnings", false]]);
+  assert.deepEqual(metrics("NVDA adjusted net income"), [["non_gaap_income", "Non-GAAP earnings", false]]);
+  for (const question of ["What was NVDA's adjusted EPS?", "What was NVDA's non-GAAP operating income?"]) {
+    assert.equal(fresh(question, [NVDA]).route, "unavailable_metric", question);
+  }
+  // Unqualified, they are the reported figures.
+  assert.deepEqual(metrics("What was NVDA's EPS?"), [["eps_diluted", "Earnings per share", true]]);
+});
+
 test("a cash-flow category is that category; unqualified cash flow is operating", () => {
   const keys = (question: string) => requestedMetrics(question).map((metric) => metric.metric_key);
   assert.deepEqual(keys("What was AMD's financing cash flow?"), ["financing_cash_flow"]);
