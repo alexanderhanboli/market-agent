@@ -442,15 +442,17 @@ test("a multiplication sign is a multiple; spaced accounting parentheses are neg
 
 test("a requested metric no reader serves is a named gap: no other figure stands in for it (#208)", () => {
   const report = checkAssertions([
-    { kind: "observation", text: "NVDA's free cash flow was 75.0%.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's free cash flow margin was 75.0%.", evidence: ["F1"] },
     { kind: "observation", text: "NVDA's FCF margin was 75.0%.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's EBITDA was 75.0%.", evidence: ["F1"] },
     { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F1"] },
-  ], { ...PACKET, unavailable_metrics: ["Free cash flow"] });
+  ], { ...PACKET, unavailable_metrics: ["Free cash flow margin", "EBITDA"] });
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
-    [0, "Free cash flow is not in the evidence: it is a named gap"],
-    [1, "Free cash flow is not in the evidence: it is a named gap"],
+    [0, "Free cash flow margin is not in the evidence: it is a named gap"],
+    [1, "Free cash flow margin is not in the evidence: it is a named gap"],
+    [2, "EBITDA is not in the evidence: it is a named gap"],
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [3]);
 });
 
 test("an unknown cause needs a change: one company's metric in two periods (#208)", () => {

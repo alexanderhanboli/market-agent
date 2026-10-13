@@ -9,7 +9,8 @@
 // - cash flow (operating, capex or free): the latest quarter and the latest
 //   fiscal year, each a metric_row of all three;
 // - the balance sheet: its latest period end;
-// - EPS: diluted EPS for the latest quarter.
+// - EPS: diluted EPS for the latest quarter or fiscal year.
+// A fiscal year the question names limits each to that year.
 
 import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
 import { materializeDerivedFacts } from "../../analyze/src/metrics-comparison-materializer.ts";
@@ -59,7 +60,7 @@ export function wantsStatements(facets: StatementFacets): boolean {
 // failure: a figure must never cost the user the answer.
 export async function loadStatementBlocks(
   db: QueryExecutor,
-  input: { issuer: IssuerSubjectRef; facets: StatementFacets; snapshotId: string; asOf: string },
+  input: { issuer: IssuerSubjectRef; facets: StatementFacets; fiscalYear?: number; snapshotId: string; asOf: string },
 ): Promise<ReadonlyArray<Block>> {
   if (!wantsStatements(input.facets)) return [];
   try {
@@ -75,9 +76,10 @@ export async function loadStatementBlocks(
         fullCoverageOnly: true,
       });
     const { cashFlow, balanceSheet, eps } = input.facets;
+    const perPeriod = [...(cashFlow ? CASH_FLOW : []), ...(eps ? ["eps_diluted"] : [])];
     const groups = await Promise.all([
-      read("fiscal_q", [...(cashFlow ? CASH_FLOW : []), ...(eps ? ["eps_diluted"] : [])]),
-      read("fiscal_y", cashFlow ? CASH_FLOW : []),
+      read("fiscal_q", perPeriod),
+      read("fiscal_y", perPeriod),
       read("point", balanceSheet ? BALANCE_ITEMS.map(([key]) => key) : []),
     ]);
     const facts = groups.flat();
@@ -86,8 +88,10 @@ export async function loadStatementBlocks(
       cutoff: input.asOf,
       requireKnownByCutoff: true,
     });
-    const derived = cashFlow ? await mintFreeCashFlow(db, input.issuer, freeCashFlowSpecs(facts, verifierFacts), input.asOf) : [];
-    return buildStatementBlocks({ facts, verifierFacts, derived, facets: input.facets, snapshotId: input.snapshotId, asOf: input.asOf });
+    const derived = cashFlow
+      ? await mintFreeCashFlow(db, input.issuer, freeCashFlowSpecs(facts, verifierFacts, input.fiscalYear), input.asOf)
+      : [];
+    return buildStatementBlocks({ ...input, facts, verifierFacts, derived });
   } catch (reason) {
     console.warn("[chat] cash flow and balance sheet unavailable; answering without them", reason);
     return [];
@@ -100,9 +104,10 @@ export async function loadStatementBlocks(
 export function freeCashFlowSpecs(
   facts: ReadonlyArray<IssuerFundamentalFact>,
   verifierFacts: ReadonlyArray<VerifierFact>,
+  fiscalYear?: number,
 ): QuarterMetric[] {
   const loadable = new Map(verifierFacts.map((fact) => [fact.fact_id, fact]));
-  return latestCashFlows(facts, loadable).flatMap(({ ocf, capex }) => {
+  return latestCashFlows(ofYear(facts, fiscalYear), loadable).flatMap(({ ocf, capex }) => {
     const period = loadable.get(ocf.fact_id);
     const capexPeriod = capex && loadable.get(capex.fact_id);
     if (
@@ -165,12 +170,13 @@ export function buildStatementBlocks(input: {
   // Free cash flow minted from these facts (freeCashFlowSpecs); none, none shown.
   derived?: ReadonlyArray<DerivedQuarterFact>;
   facets: StatementFacets;
+  fiscalYear?: number;
   snapshotId: string;
   asOf: string;
 }): ReadonlyArray<Block> {
   // Only facts the seal can load and bind may render.
   const loadable = new Map(input.verifierFacts.map((fact) => [fact.fact_id, fact]));
-  const facts = input.facts.filter((fact) => loadable.has(fact.fact_id) && fact.value_num !== null);
+  const facts = ofYear(input.facts, input.fiscalYear).filter((fact) => loadable.has(fact.fact_id) && fact.value_num !== null);
   const derived = input.derived ?? [];
   for (const fact of derived) loadable.set(fact.fact_id, fact.binding);
   const blocks: Block[] = [];
@@ -210,7 +216,9 @@ export function buildStatementBlocks(input: {
   }
 
   if (input.facets.eps) {
-    const latest = latestPeriod(facts.filter((fact) => fact.metric_key === "eps_diluted" && fact.fiscal_period !== "FY"));
+    // A fourth quarter's EPS is never derived (a per-share figure is not a sum),
+    // so once the annual report is in, its year is the latest EPS.
+    const latest = latestPeriod(facts.filter((fact) => fact.metric_key === "eps_diluted"));
     if (latest) {
       blocks.push({
         ...blockBase("metric_row", input, [latest], loadable, "eps"),
@@ -237,6 +245,12 @@ function latestCashFlows(
     );
     return [{ ocf, capex }];
   });
+}
+
+// A fiscal year the question names (#180): that year's figures only. A balance
+// carries the fiscal year its date falls in.
+function ofYear(facts: ReadonlyArray<IssuerFundamentalFact>, fiscalYear: number | undefined): IssuerFundamentalFact[] {
+  return facts.filter((fact) => fiscalYear === undefined || fact.fiscal_year === fiscalYear);
 }
 
 function latestPeriod(rows: ReadonlyArray<IssuerFundamentalFact>): IssuerFundamentalFact | undefined {

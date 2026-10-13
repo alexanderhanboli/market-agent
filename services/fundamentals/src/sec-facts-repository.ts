@@ -12,6 +12,7 @@ import {
   SecEdgarFetchError,
   SEC_INCOME_METRIC_KEYS,
   US_GAAP_TO_METRIC_KEY,
+  secFiscalYearWindow,
   selectSecConceptValue,
   type ExtractStatementInput,
   type SecCompanyFacts,
@@ -116,13 +117,15 @@ export function createSecBackedStatementRepository(
         const statement = normalizedStatement(extracted.statement);
         // The same filing's cash flow and balance sheet come with the download,
         // so they are stored beside the income statement.
-        const all = [
-          { statement, tokens: extracted.tokens },
-          ...companionStatements(target, logger),
+        const companions = companionStatements(target, logger);
+        const registry = await loadMetricRegistry(
+          db,
+          [statement, ...companions.map((entry) => entry.statement)].flatMap((entry) => entry.lines.map((line) => line.metric_key)),
+        );
+        const mapped = [
+          { mapped: mapStatement(registry, statement), tokens: extracted.tokens },
+          ...mapCompanions(registry, companions, target, logger),
         ];
-
-        const registry = await loadMetricRegistry(db, all.flatMap((entry) => entry.statement.lines.map((line) => line.metric_key)));
-        const mapped = all.map((entry) => ({ mapped: mapStatement(registry, entry.statement), tokens: entry.tokens }));
         await withPinnedTransaction(db, async (client) => {
           for (const entry of mapped) {
             await persistStatementFacts(client, entry.mapped, clock, { cik: cikNumber, tokens: entry.tokens });
@@ -173,6 +176,30 @@ function companionStatements(
 }
 
 const COMPANION_FAMILIES = ["cashflow", "balance"] as const;
+
+// A companion whose metrics the registry lacks is logged and left out, like
+// a failed extraction, so it cannot cost the income statement either.
+function mapCompanions(
+  registry: MetricRegistry,
+  companions: ReadonlyArray<{ statement: NormalizedStatement; tokens: ReadonlyMap<string, SecSourceToken> }>,
+  target: Omit<ExtractStatementInput, "family">,
+  logger: Pick<Console, "warn">,
+): Array<{ mapped: MappedStatement; tokens: ReadonlyMap<string, SecSourceToken> }> {
+  return companions.flatMap((entry) => {
+    try {
+      return [{ mapped: mapStatement(registry, entry.statement), tokens: entry.tokens }];
+    } catch (error) {
+      logger.warn("sec_edgar statement mapping failed", {
+        issuer_id: target.subject.id,
+        family: entry.statement.family,
+        fiscal_year: target.fiscal_year,
+        fiscal_period: target.fiscal_period,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  });
+}
 
 function isMissingCoverage(message: string): boolean {
   return message.includes("no us-gaap values") ||
@@ -234,6 +261,7 @@ function statementAccession(
   const counts = new Map<string, number>();
   const usGaap = facts.facts["us-gaap"];
   if (!usGaap) return null;
+  const fiscalWindow = secFiscalYearWindow(facts, fiscalYear);
   for (const [conceptName, metricKey] of Object.entries(US_GAAP_TO_METRIC_KEY)) {
     if (!SEC_INCOME_METRIC_KEYS.includes(metricKey)) continue;
     const concept = usGaap[conceptName];
@@ -242,6 +270,7 @@ function statementAccession(
       const match = selectSecConceptValue(values, {
         fiscal_year: fiscalYear,
         fiscal_period: fiscalPeriod,
+        fiscal_window: fiscalWindow,
       }, unitCode);
       if (!match) continue;
       counts.set(match.accn, (counts.get(match.accn) ?? 0) + 1);

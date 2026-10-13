@@ -190,6 +190,38 @@ test("EPS shows the latest quarter's diluted EPS to the cent", () => {
   assert.deepEqual(items(blocks[0]!).map((item) => [item.label, item.format]), [["EPS (diluted)", "$1.76"]]);
 });
 
+test("once the annual report is in, the year's EPS is the latest (no fourth quarter EPS is derived)", () => {
+  const facts = [
+    fact("eps_diluted", 2026, "Q3", 1.3, Q3),
+    fact("eps_diluted", 2026, "FY", 4.9, FY),
+  ];
+  const [block] = blocksFor(facts, { cashFlow: false, balanceSheet: false, eps: true });
+  assert.equal(block!.title, "Earnings per share (FY2026)");
+  assert.deepEqual(items(block!).map((item) => item.format), ["$4.90"]);
+});
+
+test("a fiscal year the question names limits every figure to that year", () => {
+  const FY25 = { period_kind: "fiscal_y", period_start: "2024-01-29", period_end: "2025-01-26" };
+  const facts = [
+    ...nvdaFacts(),
+    fact("operating_cash_flow", 2025, "FY", 64_089e6, FY25),
+    fact("capex", 2025, "FY", 3_236e6, FY25),
+    fact("total_assets", 2025, "FY", 111_601e6, point("2025-01-26")),
+  ];
+  const verifier = verifierFacts(facts);
+  const blocks = buildStatementBlocks({
+    facts,
+    verifierFacts: verifier,
+    derived: minted(freeCashFlowSpecs(facts, verifier, 2025)),
+    facets: ALL,
+    fiscalYear: 2025,
+    snapshotId: SNAPSHOT_ID,
+    asOf: AS_OF,
+  });
+  assert.deepEqual(blocks.map((block) => block.title), ["Cash flow (FY2025)", "Balance sheet (Jan 2025)"]);
+  assert.deepEqual(items(blocks[0]!).map((item) => item.format), ["$64.1B", "$3.2B", "$60.9B"]);
+});
+
 test("facts the verifier cannot load are left out rather than rendered unbound", () => {
   const facts = nvdaFacts();
   const verifier = verifierFacts(facts).filter((binding) => binding.fact_id !== facts[2]!.fact_id);

@@ -43,6 +43,8 @@ export type LoadRecentIssuerFundamentalsOptions = {
   periodKind?: PeriodKind;
   // Restrict to a metric-key set. Omit ⇒ all metrics.
   metricKeys?: ReadonlyArray<string>;
+  // Leave these metrics out, before the row cap.
+  excludeMetricKeys?: ReadonlyArray<string>;
   // Row cap. Omit ⇒ no LIMIT clause (the caller bounds the query another way,
   // e.g. the screener's periodKind + metricKeys filters).
   limit?: number;
@@ -71,6 +73,7 @@ export async function loadRecentIssuerFundamentals(
     ...(options.cutoff === undefined ? {} : { cutoff: options.cutoff }),
     ...(options.periodKind === undefined ? {} : { periodKind: options.periodKind }),
     ...(options.metricKeys === undefined ? {} : { metricKeys: options.metricKeys }),
+    ...(options.excludeMetricKeys === undefined ? {} : { excludeMetricKeys: options.excludeMetricKeys }),
     ...(options.limit === undefined ? {} : { limit: options.limit }),
   });
   return facts.map((fact) => Object.freeze({

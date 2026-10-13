@@ -209,7 +209,13 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
       asOf,
     }) : Promise.resolve([]),
     readsStatements && statementIssuer
-      ? loadStatementBlocks(pool(), { issuer: statementIssuer, facets: statements, snapshotId: result.snapshot_id, asOf })
+      ? loadStatementBlocks(pool(), {
+        issuer: statementIssuer,
+        facets: statements,
+        fiscalYear: scope.fiscal_year ?? undefined,
+        snapshotId: result.snapshot_id,
+        asOf,
+      })
       : Promise.resolve([]),
     loadRecentConversation(pool(), { threadId: context.threadId, limit: CONVERSATION_MESSAGES }),
   ]);

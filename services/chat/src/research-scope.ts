@@ -168,8 +168,14 @@ function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: stri
     // "free cash flow growth" or "EBITDA margin" asks for no income figures.
     const own = metric.metric_key !== "income_statement";
     const match = new RegExp(`(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
-    if (!new RegExp(match.source, "i").test(rest)) continue;
-    metrics.push(metric);
+    const found = new RegExp(match.source, "i").exec(rest);
+    if (!found) continue;
+    // A qualified statement metric ("free cash flow margin", "EPS growth") is
+    // another metric no reader serves: a named gap, never the plain figure.
+    const qualifier = own ? found[0].replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() : "";
+    metrics.push(qualifier !== "" && metric.metric_key in STATEMENT_METRIC_LABELS
+      ? { metric_key: `${metric.metric_key}_${qualifier.replace(/\s+/g, "_")}`, label: `${metric.label} ${qualifier}`, available: false }
+      : metric);
     rest = rest.replace(match, " ");
     if (own) withoutOthers = withoutOthers.replace(match, " ");
   }
@@ -227,7 +233,13 @@ export function resolveResearchScope(input: {
   // beside such a gap are still read, with the gap named.
   // A price window counts only where it can be shown: a comparison charts it, a
   // single company's answer does not.
-  const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !metric.available) &&
+  // Statement figures are read for one company at a time: a comparison asking
+  // now only for them is a named gap too. Kept from an earlier turn, they do
+  // not stop a comparison asked for now ("compare it with AMD").
+  const comparing = input.companies.length > 1 || peers;
+  const readable = (metric: RequestedMetric) =>
+    metric.available && !(comparing && named.length > 0 && metric.metric_key in STATEMENT_METRIC_LABELS);
+  const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !readable(metric)) &&
     (asked === null || input.companies.length < 2) && !PEERS.test(question) && !SEGMENTS.test(question) && !marginAsked;
   // Only cash flow, balance sheet or EPS (and any named gaps beside them): the
   // statement figures alone, as a segment request reads segments alone.
@@ -278,6 +290,9 @@ function turnedOff(question: string): { fields: Set<ScopeField>; metrics: Set<st
     if (WINDOW.test(object)) fields.add("price_window");
     if (FISCAL.test(object)) fields.add("fiscal_year");
     for (const metric of scanMetrics(object).metrics) metrics.add(metric.metric_key);
+    // Unqualified "cash flow" is operating cash flow; dropping it drops the
+    // cash flow figures with it ("drop the cash flow").
+    if (metrics.has("operating_cash_flow")) for (const key of ["capex", "free_cash_flow"]) metrics.add(key);
     return fields.size + metrics.size > before ? " " : phrase;
   });
   return { fields, metrics, rest };

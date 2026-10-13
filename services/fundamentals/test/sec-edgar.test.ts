@@ -8,6 +8,7 @@ import {
   fetchCompanyFacts,
   SEC_INCOME_METRIC_KEYS,
   SEC_METRIC_KEYS_BY_FAMILY,
+  secFiscalYearWindow,
   US_GAAP_TO_METRIC_KEY,
   type SecCompanyFacts,
   type SecConceptValue,
@@ -407,6 +408,65 @@ test("quarterly companyfacts extraction takes the filing's own quarter over a fr
   });
   assert.equal(statement.period_start, "2025-04-28");
   assert.equal(statement.lines.find((line) => line.metric_key === "revenue")?.value_num, 46_743_000_000);
+});
+
+// Real values: NVDA tagged its FY2021 Q1 10-Q (quarter ending 2020-04-26) fy=2020,
+// so fy=2020 Q1 holds two filings' quarters and the wrong one ends last. The
+// FY2020 10-K's own year (2019-01-28..2020-01-26) bounds it.
+test("a quarter outside its fiscal year is another year's, whatever its fy says", () => {
+  const revenues = (values: SecConceptValue[]) => ({ label: "", description: "", units: { USD: values } });
+  const fy2020 = { fy: 2020, fp: "FY", form: "10-K", accn: "0001045810-20-000010", filed: "2020-02-20" };
+  const q1Fy2020 = { fy: 2020, fp: "Q1", form: "10-Q", accn: "0001045810-19-000079", filed: "2019-05-23" };
+  const q1Fy2021 = { fy: 2020, fp: "Q1", form: "10-Q", accn: "0001045810-20-000065", filed: "2020-05-22" };
+  const facts: SecCompanyFacts = {
+    cik: 1045810,
+    entityName: "NVIDIA Corp",
+    facts: {
+      "us-gaap": {
+        Revenues: revenues([
+          value({ val: 10_918_000_000, ...fy2020, start: "2019-01-28", end: "2020-01-26" }),
+          value({ val: 2_220_000_000, ...q1Fy2020, start: "2019-01-28", end: "2019-04-28" }),
+          value({ val: 3_080_000_000, ...q1Fy2021, start: "2020-01-27", end: "2020-04-26" }),
+        ]),
+      },
+    },
+  };
+  const statement = extractStatement({
+    subject: aaplIssuer,
+    facts,
+    family: "income",
+    fiscal_year: 2020,
+    fiscal_period: "Q1",
+    source_id: SEC_SOURCE_ID,
+    as_of: RETRIEVED_AT,
+  });
+  assert.equal(statement.period_end, "2019-04-28");
+  assert.equal(statement.lines.find((line) => line.metric_key === "revenue")?.value_num, 2_220_000_000);
+  // Before the year's 10-K is filed, the year runs up to 53 weeks past the previous one.
+  assert.deepEqual(secFiscalYearWindow(facts, 2021), { start: "2020-01-27", end: "2021-01-31" });
+  assert.equal(secFiscalYearWindow(facts, 2022), null);
+});
+
+// A pre-2021 10-K also tags its fourth quarter alone as fp=FY, ending the same
+// day as the year; the year is the full-length one, in any listing order.
+test("annual extraction takes the full year, not a fourth quarter tagged FY", () => {
+  const facts = aaplCompanyFactsFixture();
+  const fy = { fy: 2024, fp: "FY", form: "10-K", accn: AAPL_FY2024_ACCN, filed: "2024-11-01" };
+  facts.facts["us-gaap"]!.RevenueFromContractWithCustomerExcludingAssessedTax.units.USD = [
+    value({ val: 391_035_000_000, ...fy, start: "2023-10-01", end: "2024-09-28" }),
+    value({ val: 94_930_000_000, ...fy, start: "2024-06-30", end: "2024-09-28" }),
+  ];
+  const statement = extractStatement({
+    subject: aaplIssuer,
+    facts,
+    family: "income",
+    fiscal_year: 2024,
+    fiscal_period: "FY",
+    source_id: SEC_SOURCE_ID,
+    as_of: RETRIEVED_AT,
+  });
+  assert.equal(statement.period_start, "2023-10-01");
+  assert.equal(statement.lines.find((line) => line.metric_key === "revenue")?.value_num, 391_035_000_000);
 });
 
 test("Q4 companyfacts extraction derives flow values from FY minus the first three discrete quarters", () => {

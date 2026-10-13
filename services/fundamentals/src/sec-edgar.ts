@@ -307,6 +307,12 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
       `extractStatement: companyfacts has no "us-gaap" taxonomy for ${input.facts.entityName}`,
     );
   }
+  const selection: SecStatementValueSelection = {
+    fiscal_year: input.fiscal_year,
+    fiscal_period: input.fiscal_period,
+    accession_number: input.accession_number,
+    fiscal_window: secFiscalYearWindow(input.facts, input.fiscal_year),
+  };
 
   const selectionDescription = statementSelectionDescription(input.fiscal_period);
   const lines: StatementLine[] = [];
@@ -329,7 +335,7 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
       const lineUnit = UNIT_TO_LINE_UNIT[unitCode];
       if (!lineUnit) continue;
 
-      const match = select(values, input, unitCode);
+      const match = select(values, selection, unitCode);
       if (!match) continue;
 
       // Period agreement: every matched value must share the same
@@ -415,7 +421,13 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
 export type SecStatementValueSelection = Pick<
   ExtractStatementInput,
   "fiscal_year" | "fiscal_period" | "accession_number"
->;
+> & {
+  // The dates the fiscal year covers (secFiscalYearWindow); a value ending
+  // outside them is another year's, whatever its fy says. Omitted: no bound.
+  fiscal_window?: SecFiscalWindow | null;
+};
+
+export type SecFiscalWindow = { start: string; end: string };
 
 export function selectSecConceptValue(
   values: ReadonlyArray<SecConceptValue>,
@@ -425,18 +437,18 @@ export function selectSecConceptValue(
   if (input.fiscal_period === "Q4") {
     return deriveFourthQuarterConceptValue(values, input, unitCode);
   }
-  const expectedForm = input.fiscal_period === "FY" ? "10-K" : "10-Q";
-  const matches = values.filter(
-    (v) =>
-      v.fy === input.fiscal_year &&
-      v.fp === input.fiscal_period &&
-      v.form === expectedForm &&
-      (input.accession_number === undefined || v.accn === input.accession_number),
-  );
   if (input.fiscal_period === "FY") {
-    return matches.sort(ownPeriodFirst)[0];
+    return selectAnnualConceptValue(values, input);
   }
-  return matches
+  return values
+    .filter(
+      (v) =>
+        v.fy === input.fiscal_year &&
+        v.fp === input.fiscal_period &&
+        v.form === "10-Q" &&
+        inFiscalWindow(v, input.fiscal_window) &&
+        (input.accession_number === undefined || v.accn === input.accession_number),
+    )
     .filter(isDiscreteQuarterDuration)
     .sort(compareQuarterFactQuality)[0];
 }
@@ -445,6 +457,46 @@ export function selectSecConceptValue(
 // its own period is the one ending last.
 function ownPeriodFirst(a: SecConceptValue, b: SecConceptValue): number {
   return b.end.localeCompare(a.end) || b.filed.localeCompare(a.filed);
+}
+
+// A filer's fy can be wrong: NVDA tagged its FY2021 Q1 and Q2 10-Qs fy=2020, so
+// fy=2020 Q1 also holds the next year's quarter, and it ends last. The year's
+// dates bound its periods: the 10-K's own year, or before that 10-K is filed,
+// up to 53 weeks after the previous one. Null when neither is reported.
+export function secFiscalYearWindow(facts: SecCompanyFacts, fiscalYear: number): SecFiscalWindow | null {
+  const own = annualPeriod(facts, fiscalYear);
+  if (own) return own;
+  const prior = annualPeriod(facts, fiscalYear - 1);
+  const start = prior && nextIsoDate(prior.end);
+  const end = prior && addDays(prior.end, 371);
+  return start && end ? { start, end } : null;
+}
+
+// The fiscal year's own full-year period in its 10-K, across every concept.
+function annualPeriod(facts: SecCompanyFacts, fiscalYear: number): SecFiscalWindow | null {
+  let best: SecConceptValue | undefined;
+  for (const concept of Object.values(facts.facts["us-gaap"] ?? {})) {
+    for (const values of Object.values(concept?.units ?? {})) {
+      if (!Array.isArray(values)) continue;
+      for (const v of values) {
+        if (v.fy !== fiscalYear || v.fp !== "FY" || v.form !== "10-K" || !isAnnualDuration(v)) continue;
+        if (!best || ownPeriodFirst(v, best) < 0) best = v;
+      }
+    }
+  }
+  return best?.start ? { start: best.start, end: best.end } : null;
+}
+
+function inFiscalWindow(value: SecConceptValue, window: SecFiscalWindow | null | undefined): boolean {
+  return !window || (value.end >= window.start && value.end <= window.end);
+}
+
+// A full fiscal year, 52 or 53 weeks. A pre-2021 10-K also tags its fourth
+// quarter alone as fp=FY, ending the same day.
+function isAnnualDuration(value: SecConceptValue): boolean {
+  if (value.start === undefined) return false;
+  const days = inclusiveDurationDays(value.start, value.end);
+  return days >= 350 && days <= 380;
 }
 
 function deriveFourthQuarterConceptValue(
@@ -457,9 +509,9 @@ function deriveFourthQuarterConceptValue(
   const annual = selectAnnualConceptValue(values, input);
   if (!annual?.start) return undefined;
 
-  const q1 = selectDiscreteQuarterConceptValue(values, input.fiscal_year, "Q1");
-  const q2 = selectDiscreteQuarterConceptValue(values, input.fiscal_year, "Q2");
-  const q3 = selectDiscreteQuarterConceptValue(values, input.fiscal_year, "Q3");
+  const q1 = selectDiscreteQuarterConceptValue(values, input.fiscal_year, "Q1", input.fiscal_window);
+  const q2 = selectDiscreteQuarterConceptValue(values, input.fiscal_year, "Q2", input.fiscal_window);
+  const q3 = selectDiscreteQuarterConceptValue(values, input.fiscal_year, "Q3", input.fiscal_window);
   if (!q1?.start || !q2?.start || !q3?.start) return undefined;
 
   const q2ExpectedStart = nextIsoDate(q1.end);
@@ -499,22 +551,26 @@ function selectAnnualConceptValue(
         v.fy === input.fiscal_year &&
         v.fp === "FY" &&
         v.form === "10-K" &&
+        isAnnualDuration(v) &&
+        inFiscalWindow(v, input.fiscal_window) &&
         (input.accession_number === undefined || v.accn === input.accession_number),
     )
-    .sort(ownPeriodFirst)[0];
+    .sort((a, b) => ownPeriodFirst(a, b) || a.start!.localeCompare(b.start!))[0];
 }
 
 function selectDiscreteQuarterConceptValue(
   values: ReadonlyArray<SecConceptValue>,
   fiscalYear: number,
   fiscalPeriod: "Q1" | "Q2" | "Q3",
+  window: SecFiscalWindow | null | undefined,
 ): SecConceptValue | undefined {
   return values
     .filter(
       (v) =>
         v.fy === fiscalYear &&
         v.fp === fiscalPeriod &&
-        v.form === "10-Q",
+        v.form === "10-Q" &&
+        inFiscalWindow(v, window),
     )
     .filter(isDiscreteQuarterDuration)
     .sort(compareQuarterFactQuality)[0];
@@ -583,9 +639,13 @@ function parseSecDateMs(value: string): number {
 }
 
 function nextIsoDate(value: string): string | null {
+  return addDays(value, 1);
+}
+
+function addDays(value: string, days: number): string | null {
   const ms = parseSecDateMs(value);
   if (Number.isNaN(ms)) return null;
-  return new Date(ms + 86_400_000).toISOString().slice(0, 10);
+  return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 // metric_keys this module emits for income-family extraction. Used by
@@ -654,9 +714,9 @@ function selectCashFlowConceptValue(
   if (unitCode !== "USD") return undefined;
   const ytd = input.fiscal_period === "Q4"
     ? selectAnnualConceptValue(values, input)
-    : selectYearToDateConceptValue(values, input.fiscal_year, input.fiscal_period, input.accession_number);
+    : selectYearToDateConceptValue(values, input.fiscal_year, input.fiscal_period, input.fiscal_window, input.accession_number);
   const before = PREVIOUS_QUARTER[input.fiscal_period];
-  const prior = selectYearToDateConceptValue(values, input.fiscal_year, before);
+  const prior = selectYearToDateConceptValue(values, input.fiscal_year, before, input.fiscal_window);
   if (!ytd?.start || !prior?.start || prior.start !== ytd.start) return undefined;
   const start = nextIsoDate(prior.end);
   if (start === null) return undefined;
@@ -674,6 +734,7 @@ function selectYearToDateConceptValue(
   values: ReadonlyArray<SecConceptValue>,
   fiscalYear: number,
   fiscalPeriod: "Q1" | "Q2" | "Q3",
+  window: SecFiscalWindow | null | undefined,
   accessionNumber?: string,
 ): SecConceptValue | undefined {
   return values
@@ -683,6 +744,7 @@ function selectYearToDateConceptValue(
         v.fp === fiscalPeriod &&
         v.form === "10-Q" &&
         v.start !== undefined &&
+        inFiscalWindow(v, window) &&
         (accessionNumber === undefined || v.accn === accessionNumber),
     )
     .sort((a, b) => ownPeriodFirst(a, b) || a.start!.localeCompare(b.start!))[0];
@@ -702,6 +764,7 @@ function selectBalanceConceptValue(
         v.fy === input.fiscal_year &&
         v.fp === (annual ? "FY" : input.fiscal_period) &&
         v.form === (annual ? "10-K" : "10-Q") &&
+        inFiscalWindow(v, input.fiscal_window) &&
         (input.accession_number === undefined || v.accn === input.accession_number),
     )
     .sort(ownPeriodFirst)[0];

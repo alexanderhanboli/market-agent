@@ -101,7 +101,7 @@ test("SEC-backed statements keep the income statement when another family cannot
   usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
   // A second concept for another period: the family's periods disagree.
   const capex = annualUsd(50, 40);
-  capex.units.USD[0] = { ...capex.units.USD[0]!, start: "2024-02-01" };
+  capex.units.USD[0] = { ...capex.units.USD[0]!, start: "2023-12-25" };
   usGaap.PaymentsToAcquirePropertyPlantAndEquipment = capex;
   const warnings: unknown[][] = [];
   const statements = createSecBackedStatementRepository(db, {

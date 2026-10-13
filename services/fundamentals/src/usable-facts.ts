@@ -35,6 +35,8 @@ export type UsableFactsQuery = {
   cutoff?: string;
   periodKind?: PeriodKind;
   metricKeys?: ReadonlyArray<string>;
+  // Metrics left out, applied before the row cap.
+  excludeMetricKeys?: ReadonlyArray<string>;
   // Default true. False keeps text-only facts (e.g. for model context).
   numericOnly?: boolean;
   // Only fully covered facts, chosen before canonicalization so a newer partial
@@ -95,6 +97,10 @@ export async function loadUsableFacts(db: QueryExecutor, query: UsableFactsQuery
   if (query.metricKeys !== undefined) {
     params.push([...query.metricKeys]);
     filters += `\n        and m.metric_key = any($${params.length}::text[])`;
+  }
+  if (query.excludeMetricKeys !== undefined && query.excludeMetricKeys.length > 0) {
+    params.push([...query.excludeMetricKeys]);
+    filters += `\n        and m.metric_key <> all($${params.length}::text[])`;
   }
   if (query.cutoff !== undefined) {
     params.push(query.cutoff);

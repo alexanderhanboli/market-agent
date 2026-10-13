@@ -137,11 +137,19 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
 - **Which value is the filing's:** a 10-K or 10-Q repeats prior periods under its own `fy`, `fp` and accession. Its own
   period is the one ending last (`ownPeriodFirst`, `services/fundamentals/src/sec-edgar.ts`). Before this, annual
   selection took the oldest comparative and quarterly selection preferred a framed prior-year quarter.
+- **A filer's `fy` can be wrong:** NVDA tagged its FY2021 Q1 and Q2 10-Qs `fy=2020`. Every period is bounded by its
+  fiscal year's dates (`secFiscalYearWindow`): the year's own 10-K period, or before that 10-K is filed, up to 53 weeks
+  after the previous one. A value ending outside is another year's; a mislabelled quarter is then a gap, not a wrong
+  year.
+- **A full year is 350 to 380 days.** A pre-2021 10-K also tags its fourth quarter alone as `fp=FY`, ending the same day.
 - **Cash flow is year to date in a 10-Q:** a quarter is its year to date less the previous one, and Q4 is the year less
   nine months. Derived quarters carry no source token, like a derived income Q4.
 - **A balance is a point** at the filing's period end. The statement contract labels every point `FY` of its fiscal
-  year, so readers date a balance by `period_end`, never by its fiscal label. Chat tells the model it is a "balance at
-  period end".
+  year, so readers date a balance by `period_end`, never by its fiscal label. The chat block's figures tell the model it
+  is a "balance at period end" (`displayedFigures`). The model's other facts (`available_data`) leave out cash flow and
+  balances altogether (`excludeMetricKeys`, `local-runtime-structured.ts`): there a balance would read as its fiscal
+  label, and the extra rows would crowd income facts out of the 24-row cap.
+- A family that cannot be extracted or mapped is logged and left out; only a database failure fails the ingestion.
 - **Mapped:** operating cash flow, capex (`PaymentsToAcquirePropertyPlantAndEquipment`, else NVDA-style
   `PaymentsToAcquireProductiveAssets`), cash and equivalents, total assets, liabilities and equity. **Not mapped:**
   total debt (filers split it across tags, so it needs a reviewed definition), EBITDA, dividends.
@@ -151,8 +159,15 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
 
 In chat, a single-company question naming cash flow, capex, free cash flow, the balance sheet (or cash on hand) or
 EPS reads them (`services/chat/src/statement-blocks.ts`). A question asking only for them takes the `statements`
-route and reads nothing else. A comparison names them as a gap: they are shown for one company at a time.
+route and reads nothing else.
 
+- **One company at a time:** a comparison asking now only for them is a named gap (`unavailable_metric`), with no
+  income figures in their place. Kept from an earlier turn, they don't stop a comparison asked for now.
+- **A qualified metric is its own gap:** "free cash flow margin", "EPS growth" or "FCF per share" name a metric no
+  reader serves, never the plain figure.
+- **Periods:** cash flow shows the latest quarter and fiscal year; the balance sheet its latest period end; EPS the
+  latest quarter or, once the 10-K is in, the year (a fourth quarter's EPS is never derived). A fiscal year the question
+  names limits each to that year. "Drop the cash flow" drops capex and free cash flow too.
 - Free cash flow is operating cash flow less capex, for the same dates in one currency. It is minted as a derived fact
   that states its currency and cites both inputs.
 - The blocks are ordinary fact-bound `metric_row`s, so they read "Source-linked". Like every other chat figure they are
