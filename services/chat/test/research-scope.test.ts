@@ -111,6 +111,7 @@ test("guidance is asked for in a turn's words, and kept until turned off", () =>
     "What are management's revenue expectations?",
     "What is NVDA guiding for revenue next quarter?",
     "What is NVDA expecting for revenue next quarter?",
+    "What revenue is expected for next quarter at NVDA?",
     "What does NVDA's management guide to?",
     // Guidance set against guidance is still guidance.
     "How does NVDA's current revenue guidance compare versus prior guidance?",

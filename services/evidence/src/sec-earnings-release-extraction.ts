@@ -409,8 +409,12 @@ export async function extractReleaseStatements(
     });
     model = completion.model;
     const statements = parseReleaseStatements(completion.text);
-    if (statements === null) unparseable = true;
-    else proposed.push(...statements);
+    // A prompt none of whose quotes is in the filing has its text unread, as
+    // one answered badly does, whatever the others found.
+    if (statements === null || (statements.length > 0 && !statements.some((statement) => verifyStatement(statement, exhibits)))) {
+      unparseable = true;
+    }
+    proposed.push(...(statements ?? []));
   }
   // A sentence picked twice for the same metric is one claim; for two metrics,
   // a claim for each.
@@ -418,12 +422,12 @@ export async function extractReleaseStatements(
     const found = verifyStatement(statement, exhibits);
     return found ? [[`${found.kind}:${found.metric}:${found.exhibit}:${found.start}`, found] as const] : [];
   })).values()];
-  // A prompt answered badly, or a reply none of whose quotes is in the filing,
-  // leaves its text unread: nothing is stored or stamped, so the next drain
-  // reads the filing again (as after a transport error); the attempt is still
-  // recorded for audit. Only a reply of no statements is "empty". ponytail: one
-  // the model always answers badly is retried every run.
-  if (unparseable || (proposed.length > 0 && verified.length === 0)) {
+  // A prompt answered badly, or with no quote that is in the filing, leaves its
+  // text unread: nothing is stored or stamped, so the next drain reads the
+  // filing again (as after a transport error); the attempt is still recorded
+  // for audit. Only replies of no statements make it "empty". ponytail: one the
+  // model always answers badly is retried every run.
+  if (unparseable) {
     await writeToolCallLog(deps.db, {
       tool_name: "extract_earnings_release",
       args: { claim_id: candidate.claimId, accession: candidate.accession, model },

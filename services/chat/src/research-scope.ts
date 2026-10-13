@@ -114,7 +114,7 @@ const SEGMENTS = /\bsegments?\b/i;
 // targets. A result "than expected" or "as expected" is set against past
 // expectations, and asks why (as do the comparisons below).
 // ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
-const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|expect(?:s|ing)?|expected to|expectations?|project(?:s|ed|ions?)?|targets?)\b/i;
+const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|expect(?:s|ing)?|expected (?:to|for)|expectations?|project(?:s|ed|ions?)?|targets?)\b/i;
 // A result set against guidance, a forecast or a target ("missed its forecast",
 // "below target", "beat guidance", "below the low end of guidance") asks why,
 // not for guidance: the question

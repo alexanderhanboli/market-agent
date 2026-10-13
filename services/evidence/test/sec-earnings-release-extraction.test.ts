@@ -361,6 +361,29 @@ test("a reply whose every quote fails verification is read again, not marked emp
   assert.deepEqual((await findReleaseCandidates(client)).map((candidate) => candidate.claimId), [seeded.claimId]);
 });
 
+test("a prompt whose every quote fails verification leaves the filing to read again, whatever the others found", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "release-unverified-prompt");
+  const client = await connectedClient(t, databaseUrl);
+  const seeded = await seedItem202(client);
+  // A third exhibit long enough to need prompts of its own.
+  const long = Array.from({ length: 1_500 }, (_, n) => `<p>Paragraph ${n} restates a figure from the quarter.</p>`).join("");
+  const submission = SUBMISSION.replace("</SEC-DOCUMENT>", "") +
+    `\n<DOCUMENT>\n<TYPE>EX-99.3\n<TEXT>\n<html><body>${long}</body></html>\n</TEXT>\n</DOCUMENT>\n`;
+  let calls = 0;
+  const llm: ExtractReleaseDeps["llm"] = {
+    complete: async () => {
+      calls += 1;
+      // The first prompt's quote is in the filing; the others' are invented.
+      const quote = calls === 1 ? H20_EXPLANATION : "Revenue grew because every hyperscaler doubled its orders.";
+      return { text: JSON.stringify({ statements: [{ kind: "explanation", metric: "gross_margin", quote }] }), deployment: { channel: "test", model: "test-model" } };
+    },
+  };
+  const result = await runReleaseExtractionDrain({ db: client, llm, secClient: fakeSec(submission) });
+  assert.ok(calls > 1, "the release took several prompts");
+  assert.equal(result.unparseable, 1);
+  assert.deepEqual((await findReleaseCandidates(client)).map((candidate) => candidate.claimId), [seeded.claimId]);
+});
+
 test("a model call that fails is recorded for audit, and the filing stays a candidate", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "release-model-error");
   const client = await connectedClient(t, databaseUrl);
