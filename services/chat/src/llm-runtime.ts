@@ -33,7 +33,7 @@ export type ModelDeadlines = { attemptMs: number; totalMs: number };
 export const ANSWER_DEADLINES: ModelDeadlines = { attemptMs: 80_000, totalMs: 180_000 };
 export const TITLE_DEADLINES: ModelDeadlines = { attemptMs: 20_000, totalMs: 45_000 };
 
-function withDeadlines(deadlines: ModelDeadlines): LlmExecutionControls {
+export function withDeadlines(deadlines: ModelDeadlines): LlmExecutionControls {
   const { attemptMs, totalMs } = deadlines;
   if (!Number.isInteger(attemptMs) || !Number.isInteger(totalMs) || attemptMs <= 0 || attemptMs >= totalMs) {
     throw new RangeError(`model deadlines need 0 < attemptMs < totalMs (integers); got ${attemptMs} and ${totalMs}`);

@@ -39,7 +39,8 @@ import {
   turnCompanies,
   withDerivationSources,
 } from "./fact-blocks.ts";
-import { resolveResearchScope, type ResearchScope } from "./research-scope.ts";
+import { requestedMetrics, resolveResearchScope, type RequestedMetric, type ResearchScope } from "./research-scope.ts";
+import { proposeQuestionMetrics } from "./scope-proposal.ts";
 import { loadStatementBlocks, statementFacets, wantsStatements } from "./statement-blocks.ts";
 import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin, turnNow } from "./ytd-hydration.ts";
 import { listingTimeZones } from "./perf-block.ts";
@@ -107,7 +108,10 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   const carriedSubjects = context.subjectPreResolutions ?? (resolved ? [resolved] : []);
   // What the turn asks for, keeping a follow-up's unchanged scope (#206). A
   // window asked for now is cut off at the turn's asOf, which a follow-up keeps.
-  const scopeAt = await turnScope(context.threadId, context.userIntent ?? "", carriedSubjects);
+  // The question's metrics as a model reads them from the catalog
+  // (scope-proposal.ts); the patterns read them when it does not.
+  const proposal = proposeQuestionMetrics({ question: context.userIntent ?? "" });
+  const scopeAt = await turnScope(context.threadId, context.userIntent ?? "", carriedSubjects, false, proposal);
   // A live YTD request fetches its prices first, so the cutoff below covers them (#232).
   await hydrateYtdWindow(scopeAt(turnNow(process.env)), carriedSubjects);
   const asOf = turnNow(process.env);
@@ -310,6 +314,17 @@ async function withCompanyLabels(scope: ResearchScope, asOf: string): Promise<Re
   };
 }
 
+// Where the model's reading and the patterns' differ, one log line, so an eval
+// or the logs show the phrasings each misses.
+function logMetricReadings(question: string, proposed: ReadonlyArray<RequestedMetric> | null): void {
+  if (proposed === null) return;
+  const byModel = proposed.map((metric) => metric.metric_key);
+  const byPattern = requestedMetrics(question).map((metric) => metric.metric_key);
+  if (byModel.join() !== byPattern.join()) {
+    console.info(`[scope] metrics read differently: model=[${byModel.join(", ")}] patterns=[${byPattern.join(", ")}]`);
+  }
+}
+
 // The turn's research scope at a cutoff (research-scope.ts): what it asks for,
 // keeping the previous answer's scope where it continues it. The companies are
 // the ones the answer compares, auto-selected peers included, so the price
@@ -319,9 +334,13 @@ async function turnScope(
   question: string,
   covered: ReadonlyArray<ChatResolvedSubjectPreResolution>,
   served = false,
+  // The model's reading of the question's metrics, awaited beside the
+  // previous scope; null leaves them to the patterns.
+  proposal: Promise<ReadonlyArray<RequestedMetric> | null> = Promise.resolve(null),
 ): Promise<(cutoff: string) => ResearchScope> {
   const carried = companiesOf(covered);
-  const prior = await continuedScope(threadId, carried);
+  const [prior, proposedMetrics] = await Promise.all([continuedScope(threadId, carried), proposal]);
+  logMetricReadings(question, proposedMetrics);
   // Peers turned off: the previous answer's auto-selected peers (saved with no
   // label) go with them, though the follow-up carried them forward.
   const autoPeers = new Set(prior?.peers ? prior.companies.flatMap((company) => company.label === undefined ? [company.issuer_id] : []) : []);
@@ -331,9 +350,10 @@ async function turnScope(
   const dropped = new Set([...autoPeers].filter((id) => !carriedIds.has(id)));
   const allDropped = autoPeers.size > 0 && dropped.size === autoPeers.size;
   const peersOff = autoPeers.size > 0 && (allDropped ||
-    !resolveResearchScope({ question, companies: carried, prior, asOf: turnNow(process.env), served }).peers);
+    !resolveResearchScope({ question, companies: carried, prior, asOf: turnNow(process.env), served, proposedMetrics }).peers);
   const named = peersOff ? carried.filter((company) => !autoPeers.has(company.issuer_id)) : carried;
-  const resolve = (cutoff: string) => resolveResearchScope({ question, companies: named, prior, asOf: cutoff, served, peersOff: allDropped });
+  const resolve = (cutoff: string) =>
+    resolveResearchScope({ question, companies: named, prior, asOf: cutoff, served, peersOff: allDropped, proposedMetrics });
   const base = resolve(turnNow(process.env));
   // An evidence follow-up keeps the previous answer's companies as they were; a
   // financial answer covers exactly the companies its plan requested.

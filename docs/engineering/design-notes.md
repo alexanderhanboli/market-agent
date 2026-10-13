@@ -210,6 +210,25 @@ shared by `loadUsableFacts`, the SEC statement/stats repositories (comparison in
 `loadVerifierFactsForRefs` (`requireKnownByCutoff`). Derived facts the comparison materializes are stamped at the
 cutoff (`clock`), so they pass the same check (#161). The rules are tested together in `services/fundamentals/test/usable-facts.integration.test.ts`.
 
+## Which metrics a chat turn asks for
+
+A turn's metrics (free cash flow, adjusted EPS, a balance item...) are read by a model, proposed from a fixed catalog
+(`services/chat/src/scope-proposal.ts`). The patterns in `research-scope.ts` missed phrasings one review at a time
+("cash used in operating activities", "growth in EPS", "adjusted diluted EPS").
+
+- **The model only proposes.** It returns JSON naming catalog keys (`PROPOSABLE_METRICS`), each with an optional
+  adjustment (adjusted, non-GAAP...) and qualifier (growth, margin, YTD...). Every key and qualifier is checked;
+  anything outside the catalog, malformed or cut off rejects the whole proposal. The metric is then built by the same
+  function the patterns use (`proposedMetric` / `qualifiedMetric`), so either reader names a gap identically.
+- **It decides only the metrics.** Companies, facets (segments, peers, windows, fiscal years) and turning things off
+  ("drop capex") keep their rules. It never picks data or figures, and nothing it writes reaches the answer.
+- **The patterns stand in** when there is no model, the call fails or takes longer than one 12 s attempt
+  (`SCOPE_DEADLINES`), the proposal is invalid, recorded replies are in use (`LLM_REPLAY_FILE`: the golden runs stay
+  deterministic), or `CHAT_SCOPE_PROPOSAL=off`.
+- **Cost:** one short call per turn, awaited beside the previous scope's read; 3-9 s on the dev model in a probe.
+- Where the model's reading and the patterns' differ, one `[scope] metrics read differently` log line names both, so
+  misses on either side show in logs and evals.
+
 ## Which companies a chat turn covers
 
 `resolveTurnSubjects` (`services/chat/src/coordinator.ts`) decides a turn's companies, primary first:
