@@ -355,13 +355,14 @@ export function resolveResearchScope(input: {
     return parts.filter((key) => !off.metrics.has(key)).map(metricByKey);
   });
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
-  // A new period replaces an inherited fiscal year ("Q1 fiscal 2025" named
-  // both): the latest quarter, or a complete quarter named without one ("Q2
-  // 2026"), so a reader that takes no quarter isn't held to the old year.
-  if (requestedFiscalYear(question) === undefined && (LATEST_QUARTER.test(question) || requestedFiscalQuarter(question) !== undefined)) {
+  // The latest quarter replaces an inherited fiscal year ("Q1 fiscal 2025"
+  // named both), so a reader that takes no quarter isn't held to the old year.
+  if (requestedFiscalYear(question) === undefined && requestedFiscalQuarter(question) === undefined && LATEST_QUARTER.test(question)) {
     off.fields.add("fiscal_year");
   }
-  const fiscal_year = pick("fiscal_year", requestedFiscalYear(question) ?? null, prior?.fiscal_year);
+  // A complete quarter named without a fiscal year sets its year (#292
+  // review): a comparison then compares that fiscal year, not the latest.
+  const fiscal_year = pick("fiscal_year", requestedFiscalYear(question) ?? requestedFiscalQuarter(question)?.fiscal_year ?? null, prior?.fiscal_year);
   // A follow-up naming part of a period updates the inherited quarter (#292
   // review): a quarter alone ("now Q3") takes its year; a fiscal year alone
   // ("now for fiscal 2026") or the latest quarter replaces it.

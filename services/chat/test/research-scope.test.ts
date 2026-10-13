@@ -505,11 +505,11 @@ test("asking for the latest quarter also clears the fiscal year its quarter name
   assert.equal(latest.fiscal_year, null);
 });
 
-test("a new complete quarter with no fiscal year named clears the inherited year (#292 review)", () => {
+test("a new complete quarter with no fiscal year named sets the year to its own, not the inherited one (#292 review)", () => {
   const asked = fresh("What was AMD's EPS in Q1 fiscal 2025?", [AMD]);
   const next = resolveResearchScope({ question: "What about EPS in Q2 2026?", companies: [AMD], prior: asked, asOf: AS_OF });
   assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q2" });
-  assert.equal(next.fiscal_year, null);
+  assert.equal(next.fiscal_year, 2026);
 });
 
 test("a follow-up naming the year first takes that year, not the inherited one (#292 review)", () => {
@@ -523,4 +523,11 @@ test("a quarter and a fiscal year written apart are paired, fresh or as a follow
   const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
   const next = resolveResearchScope({ question: "Now Q3, fiscal 2026", companies: [AMD], prior: asked, asOf: AS_OF });
   assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2026, fiscal_period: "Q3" });
+});
+
+test("a named quarter's year is the fiscal year a comparison uses (#292 review)", () => {
+  const NVDA = { issuer_id: "60000000-0000-4000-8000-000000000001", label: "NVDA" };
+  const compared = fresh("Compare AMD and NVDA revenue in Q2 2025", [AMD, NVDA]);
+  assert.deepEqual(compared.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.equal(compared.fiscal_year, 2025);
 });
