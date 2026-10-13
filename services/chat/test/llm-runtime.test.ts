@@ -1505,3 +1505,17 @@ test("on a named-gap turn zero in words is an amount, and every removal is repor
   assert.equal(removed.length, 1);
   assert.equal(removed[0]!.length, 2);
 });
+
+test("on a named-gap turn any magnitude or unit word is an amount, however it is quantified (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. It was a quarter billion dollars. Capex ran to hundreds of millions of dollars." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "Free cash flow is not available for AMD in this data.");
+});

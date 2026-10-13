@@ -147,6 +147,15 @@ const CAUSAL = new RegExp(
 // review): unlike "reflects", these only ever say why.
 // ponytail: a vocabulary, not a parser; checked takeaways and causes are #288.
 const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:e|es|ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|s|ing)? in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down))\b/i;
+// An active causal verb in prose ("AI demand lifted revenue"): its cause is
+// the few words before it, held to the same grounding as a connective's
+// (#294 review). Not a passive "caused by", which CAUSAL reads.
+// ponytail: up to four words before the verb are taken as its cause.
+// "Cause" and "causes" are nouns as often ("does not show a cause"): only
+// "caused" and "causing" count.
+const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|s|ing)? in|contribut(?:e|es|ed|ing) to|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down))`;
+const ACTIVE_CAUSAL = new RegExp(String.raw`((?:[^\s,;:.]+\s+){1,4}?)${ACTIVE_VERB}\b(?!\s+by\b)`, "gi");
+
 export function statesCause(text: string): boolean {
   return STRICT_CAUSAL.test(text);
 }
@@ -285,7 +294,8 @@ export function keepSupportedSentences(
     attributedFigures.filter((figure) => figure.company === company && figure.metric).map((figure) => metricName(figure.metric!));
   const known = (word: string) => CAUSE_STOP.has(word) || CAUSE_DATA_WORDS.has(word) || vocabulary.has(word);
   const groundedCause = (sentence: string) =>
-    [...sentence.matchAll(CAUSAL)].every((match) => causeWords(match[1]).every(known));
+    [...sentence.matchAll(CAUSAL)].every((match) => causeWords(match[1]).every(known)) &&
+    [...sentence.matchAll(ACTIVE_CAUSAL)].every((match) => causeWords(match[1]).every(known));
   // A hypothesis's one explanation (a single causal clause), resting on an
   // observation of the answer's own: it names a displayed metric ("given its
   // gross margin of 70.8%"); not generic words ("given the data shown above"),
@@ -489,7 +499,7 @@ export function keepUncausedSentences(text: string): { text: string; removed: st
     const sentences = line.slice(lead.length).trim().split(SENTENCE_BREAK);
     const keeps = sentences.map((written, index) => {
       const sentence = written.replace(/[*_`]+/g, "");
-      const causes = [...sentence.matchAll(CAUSAL)].length;
+      const causes = [...sentence.matchAll(CAUSAL)].length + [...sentence.matchAll(ACTIVE_CAUSAL)].length;
       const keep = label !== undefined && index === 0
         ? withinCap && causes <= 1 && /[a-z0-9]/i.test(sentence.match(BASIS)?.[1] ?? "")
         : causes === 0;

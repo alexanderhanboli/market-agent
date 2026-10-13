@@ -424,16 +424,11 @@ export async function composeAnalystBlocksWithLlm(input: {
   return rewriteFirstRichTextBlock(input.blocks, guarded.text || FACT_BLOCKS_FALLBACK_TEXT);
 }
 
-// An amount in words: a number word with a magnitude or unit ("three billion
-// dollars", "twelve percent", "a billion"), which the guard's digit-based
-// check does not see (#294 review).
-// ponytail: number words before a unit only; "three times" or a bare "three"
-// is not caught.
-const NUMBER_WORD = String.raw`(?:a|an|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|several|a few)`;
-const WORDED_AMOUNT = new RegExp(
-  String.raw`\b${NUMBER_WORD}(?:[\s-]+${NUMBER_WORD})*\s+(?:hundred|thousand|million|billion|trillion|percent|per cent|percentage points?|basis points?|dollars?)\b`,
-  "i",
-);
+// An amount in words: any magnitude or unit word ("three billion dollars",
+// "a quarter billion", "hundreds of millions", "twelve percent", "zero
+// dollars"), which the guard's digit-based check does not see (#294 review).
+// On a turn with no data there is nothing such a word could measure.
+const WORDED_AMOUNT = /\b(?:hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?)\b/i;
 
 // On a turn with no data, a sentence stating an amount in words goes as one
 // in digits does.
