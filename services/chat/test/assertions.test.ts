@@ -599,3 +599,17 @@ test("a cause is caught on an answer with no figures too, not left unchecked (#2
   assert.equal(rejectionCheck(report.rejected[0]?.reason ?? ""), "cause");
   assert.equal(report.unchecked, undefined);
 });
+
+test("active causal verbs are causes too; descriptive wording still isn't (#294 review)", () => {
+  for (const text of [
+    "Inventory charges caused NVDA's gross margin to fall to 75.0% in FY2026.",
+    "A richer mix led to NVDA's gross margin of 75.0% in FY2026.",
+    "Data center demand drove NVDA's gross margin to 75.0% in FY2026.",
+    "Pricing resulted in NVDA's gross margin of 75.0% in FY2026.",
+  ]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+  for (const text of ["The table reflects NVDA's gross margin of 75.0% in FY2026.", "The results from FY2026 include NVDA's gross margin of 75.0%."]) {
+    assert.deepEqual(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected, [], text);
+  }
+});
