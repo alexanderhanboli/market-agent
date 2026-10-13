@@ -175,6 +175,45 @@ test("the backfill stores cash flow and balance sheet for income periods already
   assert.equal(stored("revenue").length, 1);
 });
 
+// Before the selection fix, an annual lookup stored a 10-K's oldest comparative
+// (AAPL FY2024 read FY2022's revenue). Those facts are read without a download,
+// and a re-ingestion conflicts with them, so the backfill replaces them.
+test("the backfill replaces income facts the old period selector got wrong, keeping the right ones", async () => {
+  const db = new FakeFundamentalsDb();
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  const revenueOf = () => db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  // Simulate the old selector: FY2024 revenue stored with the prior year's value and dates.
+  const [stored] = revenueOf();
+  Object.assign(stored!, { value_num: 800, period_start: "2023-01-01", period_end: "2023-12-31" });
+  const netIncomeBefore = db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === "net_income")!;
+
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+
+  const active = revenueOf().filter((fact) => fact.invalidated_at === null);
+  assert.equal(active.length, 1);
+  assert.equal(active[0]!.value_num, 1000);
+  assert.equal(active[0]!.period_end, "2024-12-31");
+  // The wrong fact is retired, not deleted, and points at its replacement.
+  assert.notEqual(stored!.invalidated_at, null);
+  assert.equal(stored!.superseded_by, active[0]!.fact_id);
+  // A fact that was right is left as it was.
+  assert.equal(netIncomeBefore.invalidated_at, null);
+  assert.equal(db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "net_income").length, 1);
+  // Lookups read the replacement.
+  const reread = await createSecBackedStatementRepository(db, { fetcher: null, sourceId: SOURCE_ID })
+    .find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  assert.equal(reread?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
+});
+
 test("the backfill downloads nothing for an issuer with no income periods on file", async () => {
   let fetches = 0;
   const result = await backfillSecCompanionStatements(new FakeFundamentalsDb(), {
@@ -420,6 +459,8 @@ type FactRecord = {
   source_id: string;
   coverage_level: string;
   quality_flags: Array<Record<string, unknown>>;
+  invalidated_at: string | null;
+  superseded_by: string | null;
 };
 
 class FakeFundamentalsDb {
@@ -465,7 +506,7 @@ class FakeFundamentalsDb {
         this.facts
           .filter(
             (fact) =>
-              fact.subject_id === subjectId &&
+              fact.invalidated_at === null && fact.subject_id === subjectId &&
               fact.period_kind === periodKind &&
               fact.fiscal_year === fiscalYear &&
               fact.fiscal_period === fiscalPeriod &&
@@ -479,7 +520,7 @@ class FakeFundamentalsDb {
       const keys = new Set(values[1] as string[]);
       const periods = new Map(
         this.facts
-          .filter((fact) => fact.subject_id === values[0] && keys.has(metricKeyFor(this.metrics, fact.metric_id)))
+          .filter((fact) => fact.invalidated_at === null && fact.subject_id === values[0] && keys.has(metricKeyFor(this.metrics, fact.metric_id)))
           .map((fact) => [`${fact.fiscal_year}|${fact.fiscal_period}`, { fiscal_year: fact.fiscal_year, fiscal_period: fact.fiscal_period }]),
       );
       return rows([...periods.values()]);
@@ -505,7 +546,42 @@ class FakeFundamentalsDb {
       return rows(fact ? [{ fact_id: fact.fact_id }] : []);
     }
     if (sql.includes("insert into facts")) {
-      this.facts.push(factFromInsert(values));
+      const fact = factFromInsert(values);
+      // The active identity is unique (facts_active_reported_identity_idx): a
+      // conflicting insert does nothing.
+      const conflict = this.facts.some((other) =>
+        other.invalidated_at === null && other.subject_id === fact.subject_id && other.metric_id === fact.metric_id &&
+        other.period_kind === fact.period_kind && other.fiscal_year === fact.fiscal_year &&
+        other.fiscal_period === fact.fiscal_period && other.source_id === fact.source_id
+      );
+      if (conflict) return rows([]);
+      this.facts.push(fact);
+      return rows([{ fact_id: fact.fact_id }]);
+    }
+    // The repair's stored SEC facts for a statement's period.
+    if (sql.includes("as stored_value")) {
+      const [subjectId, periodKind, fiscalYear, fiscalPeriod, metricKeys] = values as [string, string, number, string, string[]];
+      return rows(this.facts
+        .filter((fact) =>
+          fact.invalidated_at === null && fact.subject_id === subjectId && fact.period_kind === periodKind &&
+          fact.fiscal_year === fiscalYear && fact.fiscal_period === fiscalPeriod &&
+          metricKeys.includes(metricKeyFor(this.metrics, fact.metric_id))
+        )
+        .map((fact) => ({
+          fact_id: fact.fact_id,
+          metric_key: metricKeyFor(this.metrics, fact.metric_id),
+          stored_value: fact.value_num === null ? null : String(fact.value_num),
+          period_start: fact.period_start,
+          period_end: fact.period_end,
+        })));
+    }
+    if (sql.includes("update facts") && sql.includes("set invalidated_at")) {
+      for (const fact of this.facts) if ((values[0] as string[]).includes(fact.fact_id)) fact.invalidated_at = "now";
+      return rows([]);
+    }
+    if (sql.includes("update facts") && sql.includes("set superseded_by")) {
+      const fact = this.facts.find((candidate) => candidate.fact_id === values[0]);
+      if (fact) fact.superseded_by = values[1] as string;
       return rows([]);
     }
     if (sql.includes("select max(f.fiscal_year)")) {
@@ -590,6 +666,8 @@ function factFromInsert(values: unknown[]): FactRecord {
     source_id: values[15] as string,
     coverage_level: values[16] as string,
     quality_flags: JSON.parse((values[17] as string | undefined) ?? "[]"),
+    invalidated_at: null,
+    superseded_by: null,
   };
 }
 

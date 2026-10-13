@@ -293,6 +293,10 @@ test("a statement metric asked year to date is a named gap, never the latest qua
   ]);
   // A comparison charts the window; its statement metrics are already one company at a time.
   assert.equal(fresh("Compare NVDA and AMD free cash flow YTD", [NVDA, AMD]).route, "comparison");
+  // A YTD that qualifies something else leaves the statement metric as asked.
+  const eps = fresh("Show NVDA EPS and YTD stock return", [NVDA]);
+  assert.deepEqual(eps.metrics.map((metric) => [metric.metric_key, metric.available]), [["eps_diluted", true]]);
+  assert.equal(eps.route, "statements");
 });
 
 test("a single company's YTD gap stays a gap: its answer has no price chart", () => {

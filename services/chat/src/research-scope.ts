@@ -104,9 +104,16 @@ const OVER_TIME =
   /\b(trend\w*|over (?:the )?(?:last|past)\b|histor\w*|chang\w*|since|evolv\w*|quarters|years|qoq|yoy|quarter[- ]over[- ]quarter|year[- ]over[- ]year|(?:last|prior|previous) (?:quarter|year)|a year ago)\b/i;
 // Phrases that name a context, not a metric: "earnings" in "earnings call".
 const NOT_METRICS = /\bearnings (?:calls?|releases?|reports?|dates?|season)\b/gi;
-// Words that qualify a metric just named ("free cash flow growth") rather than
-// asking for another one.
-const QUALIFIER = String.raw`(?:\s+(?:growth|margins?|yields?|trends?|per share))?`;
+// Words that qualify a metric just named ("free cash flow growth", "free cash
+// flow YTD") rather than asking for another one. A YTD attached to a metric
+// qualifies it; one elsewhere ("EPS and YTD stock return") does not.
+const QUALIFIER = String.raw`(?:\s+(?:growth|margins?|yields?|trends?|per share|ytd|year[- ]to[- ]date))?`;
+// A qualifier's key and label: YTD is written out.
+function qualifierParts(qualifier: string): { key: string; label: string } {
+  return /^(?:ytd|year[- ]to[- ]date)$/.test(qualifier)
+    ? { key: "ytd", label: "year to date" }
+    : { key: qualifier.replace(/\s+/g, "_"), label: qualifier };
+}
 // Asking for an answer's evidence, not about a company's sources of revenue:
 // a source counts only as the answer's ("your source", "the sources for this"),
 // never one "of" something else ("the sources of NVDA's revenue").
@@ -199,8 +206,11 @@ export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedM
 
 // Adjectives that make a statement metric another, unreported figure
 // ("adjusted EPS", "non-GAAP free cash flow"), captured before it.
-const ADJUSTMENT = String.raw`(?:\b(adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed|levered|unlevered)\s+)?`;
+const ADJUSTMENT = String.raw`(?:\b(adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed|levered|unlevered|ytd|year[- ]to[- ]date)\s+)?`;
 const ADJUSTMENTS: Readonly<Record<string, { key: string; label: string }>> = {
+  // Year to date, before the metric ("year-to-date EPS"): a figure no reader serves.
+  "ytd": { key: "ytd", label: "Year-to-date" },
+  "year to date": { key: "ytd", label: "Year-to-date" },
   "adjusted": { key: "adjusted", label: "Adjusted" },
   "non gaap": { key: "non_gaap", label: "Non-GAAP" },
   "pro forma": { key: "pro_forma", label: "Pro forma" },
@@ -232,15 +242,16 @@ function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: stri
     // A qualified statement metric ("free cash flow margin", "EPS growth",
     // "adjusted EPS") is another metric no reader serves: a named gap, never
     // the reported figure in its place.
-    const adjustment = statement && found[1] !== undefined ? ADJUSTMENTS[found[1].toLowerCase().replace(/[- ]/, " ")] : undefined;
+    const adjustment = statement && found[1] !== undefined ? ADJUSTMENTS[found[1].toLowerCase().replace(/[- ]/g, " ")] : undefined;
     const body = adjustment ? found[0].slice(found[0].search(new RegExp(`(?:${pattern.source})`, "i"))) : found[0];
-    const qualifier = own ? body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() : "";
-    metrics.push(statement && (qualifier !== "" || adjustment)
+    const raw = own ? body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() : "";
+    const qualifier = raw === "" ? undefined : qualifierParts(raw);
+    metrics.push(statement && (qualifier || adjustment)
       ? {
-        metric_key: [metric.metric_key, adjustment?.key, qualifier.replace(/\s+/g, "_")].filter(Boolean).join("_"),
+        metric_key: [metric.metric_key, adjustment?.key, qualifier?.key].filter(Boolean).join("_"),
         label: [
           adjustment ? `${adjustment.label} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}` : metric.label,
-          qualifier,
+          qualifier?.label,
         ].filter(Boolean).join(" "),
         available: false,
       }
@@ -286,18 +297,7 @@ export function resolveResearchScope(input: {
   const scanned = scanMetrics(question);
   const marginAsked = MARGINS.test(scanned.rest);
   const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
-  // A statement metric asked year to date ("free cash flow YTD") is another
-  // figure no reader serves, like a qualified one: a named gap, never the
-  // latest quarter or year in its place. A comparison charts the window and
-  // names its statement metrics as gaps anyway.
-  const ytdOfOne = requestedPriceWindow(question) === "ytd" && input.companies.length < 2;
-  const named = scanned.metrics.map((metric) =>
-    input.served
-      ? { ...metric, available: true }
-      : ytdOfOne && metric.available && metric.metric_key in STATEMENT_METRIC_LABELS
-      ? { metric_key: `${metric.metric_key}_ytd`, label: `${metric.label} year to date`, available: false }
-      : metric
-  );
+  const named = scanned.metrics.map((metric) => (input.served ? { ...metric, available: true } : metric));
   // A metric turned off leaves the ones kept; none left keeps none.
   // Dropping one item of the whole balance sheet keeps the others, named.
   const kept = (prior?.metrics ?? []).flatMap((metric): RequestedMetric[] => {

@@ -161,8 +161,11 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
 - **Backfill:** a period whose income facts were stored earlier is read from facts without a download, so a lookup
   never adds its other families. `npm run backfill:sec-statements [-- <issuer_uuid> ...]` (in `services/fundamentals`)
   stores them for every SEC income period on file, one companyfacts download per issuer
-  (`backfillSecCompanionStatements`). A rerun leaves stored facts as they are. Lineage for derived income quarters
-  stored before it existed is not rewritten.
+  (`backfillSecCompanionStatements`), paced under SEC's fair-access rate. It also **repairs** the income statement: a
+  stored fact whose value or dates differ from the filing (written by the old selector) is invalidated, the filing's
+  fact is stored, and the old one is `superseded_by` it, in the filing's transaction. A snapshot cut before the repair
+  still reads the old fact (`factActiveSql` judges activity at the cutoff). A rerun leaves matching facts as they are.
+  Lineage for derived income quarters stored before it existed is not rewritten.
 
 In chat, a single-company question naming cash flow, capex, free cash flow, the balance sheet or one of its items
 (cash, total assets, liabilities, equity or book value), or EPS reads them (`services/chat/src/statement-blocks.ts`). A question asking only for them takes the `statements`

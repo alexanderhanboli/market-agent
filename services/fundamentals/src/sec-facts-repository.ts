@@ -29,6 +29,7 @@ import {
   normalizedStatement,
   type CoverageLevel,
   type FiscalPeriod,
+  type StatementFamily,
   type NormalizedStatement,
   type StatementLine,
   type PeriodKind,
@@ -103,7 +104,7 @@ export function createSecBackedStatementRepository(
           fiscal_year: lookup.fiscal_year,
           fiscal_period: lookup.fiscal_period,
           fallbackSourceId: options.sourceId,
-          withIncome: true,
+          income: "require",
           clock,
           logger,
         });
@@ -122,10 +123,13 @@ export function createSecBackedStatementRepository(
   };
 }
 
-// Stores the cash flow and balance sheet for every SEC income period already
-// on file for an issuer, from one companyfacts download. Periods stored before
-// those families were ingested are otherwise read from facts and never fetched
-// again. Rerunning is safe: an existing fact is left as it is.
+// For every SEC income period already on file for an issuer, from one
+// companyfacts download: stores the cash flow and balance sheet, and repairs
+// the income statement. Those periods are otherwise read from facts and never
+// fetched again, so this is how they gain the families ingested since, and how
+// facts the old period selector got wrong (a 10-K's oldest comparative, a
+// framed prior-year quarter) are replaced. Rerunning is safe: a stored fact that
+// matches the filing is left as it is.
 export async function backfillSecCompanionStatements(
   db: FundamentalsTransactionalQueryExecutor,
   input: {
@@ -164,7 +168,7 @@ export async function backfillSecCompanionStatements(
       fiscal_year: period.fiscal_year,
       fiscal_period: period.fiscal_period,
       fallbackSourceId: input.sourceId,
-      withIncome: false,
+      income: "repair",
       clock: input.clock ?? (() => new Date()),
       logger: input.logger ?? console,
     });
@@ -179,9 +183,11 @@ type Extracted = {
 };
 
 // Stores one filing's statements for a fiscal period from a companyfacts
-// download: the income statement (withIncome, which then must extract), and
-// the same filing's cash flow and balance sheet beside it, in one transaction.
-// Returns the income statement, or null without it.
+// download, in one transaction: the income statement, and the same filing's
+// cash flow and balance sheet beside it. Income is "require" (a lookup: it must
+// extract) or "repair" (a backfill: stored income facts that differ from the
+// filing are replaced; a period it cannot extract is left as it is). Returns
+// the income statement, or null without it.
 async function ingestFiling(
   db: FundamentalsTransactionalQueryExecutor,
   input: {
@@ -191,7 +197,7 @@ async function ingestFiling(
     fiscal_year: number;
     fiscal_period: FiscalPeriod;
     fallbackSourceId: UUID;
-    withIncome: boolean;
+    income: "require" | "repair";
     clock: () => Date;
     logger: Pick<Console, "warn">;
   },
@@ -210,8 +216,10 @@ async function ingestFiling(
     source_id: sourceId,
     as_of: asOf,
   } as const;
-  const income: Extracted | null = input.withIncome ? extracted(extractStatementWithTokens({ ...target, family: "income" })) : null;
-  const companions = companionStatements(target, input.logger);
+  const income: Extracted | null = input.income === "require"
+    ? extracted(extractStatementWithTokens({ ...target, family: "income" }))
+    : statementsOf(target, ["income"], input.logger)[0] ?? null;
+  const companions = statementsOf(target, COMPANION_FAMILIES, input.logger);
   const registry = await loadMetricRegistry(
     db,
     [...(income ? [income] : []), ...companions].flatMap((entry) => entry.statement.lines.map((line) => line.metric_key)),
@@ -222,31 +230,93 @@ async function ingestFiling(
   ];
   if (mapped.length === 0) return income?.statement ?? null;
   await withPinnedTransaction(db, async (client) => {
+    // The repair retires stored income facts the filing contradicts, then
+    // stores the filing's in their place (the active identity is unique).
+    const stale = input.income === "repair" && income
+      ? await staleStatementFacts(client, input.issuerId, income.statement)
+      : new Map<string, string>();
+    if (stale.size > 0) {
+      await client.query(
+        `update facts set invalidated_at = now(), updated_at = now() where fact_id = any($1::uuid[])`,
+        [[...stale.values()]],
+      );
+    }
     for (const entry of mapped) {
-      await persistStatementFacts(client, entry.mapped, input.clock, {
+      const inserted = await persistStatementFacts(client, entry.mapped, input.clock, {
         cik: input.cik,
         tokens: entry.tokens,
         derivations: entry.derivations,
         retrievedAt: asOf,
       });
+      if (entry.statement !== income?.statement) continue;
+      for (const [metricKey, oldId] of stale) {
+        const newId = inserted.get(metricKey);
+        if (newId) await client.query(`update facts set superseded_by = $2, updated_at = now() where fact_id = $1`, [oldId, newId]);
+      }
     }
   });
   return income?.statement ?? null;
+}
+
+// The stored, active SEC facts for a statement's period whose value or dates
+// differ from the statement's lines, by metric_key.
+async function staleStatementFacts(
+  db: FundamentalsQueryExecutor,
+  issuerId: UUID,
+  statement: NormalizedStatement,
+): Promise<Map<string, string>> {
+  const { rows } = await db.query<{
+    fact_id: string;
+    metric_key: string;
+    stored_value: string | null;
+    period_start: string | null;
+    period_end: string;
+  }>(
+    // Dates as text: pg reads a date column as a local-time Date, which can
+    // shift a day when written back as ISO.
+    `select f.fact_id::text as fact_id, m.metric_key, f.value_num::text as stored_value,
+            f.period_start::text as period_start, f.period_end::text as period_end
+       from facts f
+       join metrics m on m.metric_id = f.metric_id
+       join sources s on s.source_id = f.source_id
+      where f.subject_kind = 'issuer'
+        and f.subject_id = $1
+        and f.period_kind = $2
+        and f.fiscal_year = $3
+        and f.fiscal_period = $4
+        and f.method = 'reported'
+        and s.provider = 'sec_edgar'
+        and ${factActiveSql("f")}
+        and m.metric_key = any($5::text[])`,
+    [issuerId, statement.period_kind, statement.fiscal_year, statement.fiscal_period, statement.lines.map((line) => line.metric_key)],
+  );
+  const stale = new Map<string, string>();
+  for (const row of rows) {
+    const line = statement.lines.find((candidate) => candidate.metric_key === row.metric_key);
+    if (!line) continue;
+    const differs =
+      (row.stored_value === null ? null : Number(row.stored_value)) !== line.value_num ||
+      row.period_start !== statement.period_start ||
+      row.period_end !== statement.period_end;
+    if (differs) stale.set(row.metric_key, row.fact_id);
+  }
+  return stale;
 }
 
 function extracted(result: ReturnType<typeof extractStatementWithTokens>): Extracted {
   return { statement: normalizedStatement(result.statement), tokens: result.tokens, derivations: result.derivations };
 }
 
-// The cash flow and balance sheet for the filing an income lookup ingests. A
-// filer that tags none of a family's concepts has no such statement; any other
-// failure (concepts disagreeing on the period, a second currency) is logged and
-// costs only that family, never the income statement the caller asked for.
-function companionStatements(
+// The statements of these families for the filing being ingested. A filer that
+// tags none of a family's concepts has no such statement; any other failure
+// (concepts disagreeing on the period, a second currency) is logged and costs
+// only that family, never the statement a lookup asked for.
+function statementsOf(
   target: Omit<ExtractStatementInput, "family">,
+  families: ReadonlyArray<StatementFamily>,
   logger: Pick<Console, "warn">,
 ): Extracted[] {
-  return COMPANION_FAMILIES.flatMap((family) => {
+  return families.flatMap((family) => {
     try {
       return [extracted(extractStatementWithTokens({ ...target, family }))];
     } catch (error) {
@@ -678,7 +748,9 @@ async function persistStatementFacts(
     derivations?: ReadonlyMap<string, SecDerivation>;
     retrievedAt?: string;
   },
-): Promise<void> {
+): Promise<Map<string, string>> {
+  // The facts this call inserted, by metric_key (a conflicting line inserts none).
+  const insertedIds = new Map<string, string>();
   for (const line of statement.lines) {
     const token = provenance.tokens.get(line.metric_key);
     const derivation = provenance.derivations?.get(line.metric_key);
@@ -731,7 +803,9 @@ async function persistStatementFacts(
         validation_method: "sec_companyfacts_lossless_json.v1",
       });
     }
+    if (factId) insertedIds.set(line.metric_key, factId);
   }
+  return insertedIds;
 }
 
 // A discrete quarter computed from filed values (a cash flow year to date less
@@ -792,9 +866,14 @@ function periodKindFor(fiscalPeriod: FiscalPeriod): PeriodKind {
   return fiscalPeriod === "FY" ? "fiscal_y" : "fiscal_q";
 }
 
+// pg reads a date column as local midnight, so its calendar date is the local
+// one: toISOString would shift it a day east of UTC.
 function dateString(value: Date | string | null): string | null {
   if (value === null) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
   return value.slice(0, 10);
 }
 
