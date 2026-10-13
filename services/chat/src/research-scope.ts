@@ -254,7 +254,17 @@ function classifyStatementMention(metric: RequestedMetric, pattern: RegExp, occu
   const text = occurrence[0];
   const body = before || adjustment ? text.slice(text.search(new RegExp(`(?:${pattern.source})`, "i"))) : text;
   const raw = body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() || before || "";
-  const qualifier = raw === "" ? undefined : qualifierParts(raw);
+  return qualifiedMetric(metric, adjustment, raw === "" ? undefined : qualifierParts(raw));
+}
+
+// A statement metric with an adjustment and/or a qualifier is another figure
+// no reader serves: a named gap. The regex reader and a model's proposal
+// (scope-proposal.ts) both build it here, so they name it identically.
+function qualifiedMetric(
+  metric: RequestedMetric,
+  adjustment: { key: string; label: string } | undefined,
+  qualifier: { key: string; label: string } | undefined,
+): RequestedMetric {
   if (!adjustment && !qualifier) return metric;
   return {
     metric_key: [metric.metric_key, adjustment?.key, qualifier?.key].filter(Boolean).join("_"),
@@ -264,6 +274,37 @@ function classifyStatementMention(metric: RequestedMetric, pattern: RegExp, occu
     ].filter(Boolean).join(" "),
     available: false,
   };
+}
+
+// What a model may propose a question asks for (scope-proposal.ts): a metric
+// from this catalog, with qualifiers from these. Nothing else is accepted.
+export const PROPOSABLE_METRICS: ReadonlyArray<RequestedMetric> = Object.freeze(
+  METRICS.map(({ pattern: _pattern, ...metric }) => Object.freeze(metric)),
+);
+export const PROPOSABLE_ADJUSTMENTS = ["adjusted", "non_gaap", "pro_forma", "core", "normalized", "levered", "unlevered"] as const;
+export const PROPOSABLE_QUALIFIERS = ["growth", "margin", "yield", "trend", "per_share", "ytd"] as const;
+
+// The metric a validated proposal names: a catalog metric, qualified only if
+// it is a statement metric (an unavailable one is a named gap already).
+// Undefined for anything outside the catalog.
+export function proposedMetric(
+  key: string,
+  adjustment: string | null,
+  qualifier: string | null,
+): RequestedMetric | undefined {
+  const metric = PROPOSABLE_METRICS.find((candidate) => candidate.metric_key === key);
+  if (!metric) return undefined;
+  if (adjustment !== null && !(PROPOSABLE_ADJUSTMENTS as ReadonlyArray<string>).includes(adjustment)) return undefined;
+  if (qualifier !== null && !(PROPOSABLE_QUALIFIERS as ReadonlyArray<string>).includes(qualifier)) return undefined;
+  // Adjusted income ("adjusted profit") is not the reported income statement:
+  // the non-GAAP gap, as the patterns read it.
+  if (metric.metric_key === "income_statement" && adjustment !== null) return proposedMetric("non_gaap_income", null, null);
+  if (!(metric.metric_key in STATEMENT_METRIC_LABELS)) return metric;
+  return qualifiedMetric(
+    metric,
+    adjustment === null ? undefined : ADJUSTMENTS[adjustment.replace(/_/g, " ")],
+    qualifier === null ? undefined : qualifierParts(qualifier.replace(/_/g, " ")),
+  );
 }
 
 export function requestedMetrics(question: string): RequestedMetric[] {
@@ -309,6 +350,10 @@ export function resolveResearchScope(input: {
   served?: boolean;
   // Every auto-selected peer was dropped by name: peers are off (local-runtime).
   peersOff?: boolean;
+  // The metrics a model proposed the question names, validated against the
+  // catalog (scope-proposal.ts); null or absent: the patterns read them. Only
+  // the metrics: facets, companies and turning things off keep their rules.
+  proposedMetrics?: ReadonlyArray<RequestedMetric> | null;
 }): ResearchScope {
   const { prior } = input;
   // What the turn turns off, and the question without those phrases, so a facet
@@ -331,9 +376,18 @@ export function resolveResearchScope(input: {
   // Margins asked about in their own right, not as an unavailable metric's
   // qualifier ("free cash flow margin").
   const scanned = scanMetrics(question);
-  const marginAsked = MARGINS.test(scanned.rest);
+  // The metrics a model proposed from the catalog (scope-proposal.ts), when it
+  // did; else the ones the patterns found. A metric the turn turns off ("drop
+  // capex") is not asked for, though the model read the question with the
+  // words still in it.
+  const requested = input.proposedMetrics?.filter((metric) => !off.metrics.has(metric.metric_key)) ?? scanned.metrics;
+  // With a proposal, a margin word is an income margin only if the model read
+  // income figures: else it qualifies a metric it proposed ("the margin on the
+  // cash the business threw off"), in words the patterns did not take out.
+  const marginAsked = MARGINS.test(scanned.rest) &&
+    (input.proposedMetrics == null || requested.some((metric) => metric.metric_key === "income_statement"));
   const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
-  const named = scanned.metrics.map((metric) => (input.served ? { ...metric, available: true } : metric));
+  const named = requested.map((metric) => (input.served ? { ...metric, available: true } : metric));
   // A metric turned off leaves the ones kept; none left keeps none.
   // Dropping one item of the whole balance sheet keeps the others, named.
   const kept = (prior?.metrics ?? []).flatMap((metric): RequestedMetric[] => {
