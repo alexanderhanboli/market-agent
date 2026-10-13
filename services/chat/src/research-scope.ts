@@ -376,13 +376,17 @@ export function resolveResearchScope(input: {
   // Margins asked about in their own right, not as an unavailable metric's
   // qualifier ("free cash flow margin").
   const scanned = scanMetrics(question);
-  const marginAsked = MARGINS.test(scanned.rest);
-  const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
   // The metrics a model proposed from the catalog (scope-proposal.ts), when it
-  // did; else the ones the patterns found.
-  // A metric the turn turns off ("drop capex") is not asked for, though the
-  // model read the question with the words still in it.
+  // did; else the ones the patterns found. A metric the turn turns off ("drop
+  // capex") is not asked for, though the model read the question with the
+  // words still in it.
   const requested = input.proposedMetrics?.filter((metric) => !off.metrics.has(metric.metric_key)) ?? scanned.metrics;
+  // With a proposal, a margin word is an income margin only if the model read
+  // income figures: else it qualifies a metric it proposed ("the margin on the
+  // cash the business threw off"), in words the patterns did not take out.
+  const marginAsked = MARGINS.test(scanned.rest) &&
+    (input.proposedMetrics == null || requested.some((metric) => metric.metric_key === "income_statement"));
+  const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
   const named = requested.map((metric) => (input.served ? { ...metric, available: true } : metric));
   // A metric turned off leaves the ones kept; none left keeps none.
   // Dropping one item of the whole balance sheet keeps the others, named.

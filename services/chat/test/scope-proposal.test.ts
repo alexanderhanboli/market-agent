@@ -55,6 +55,29 @@ test("an adjusted income figure is the non-GAAP gap, never the reported income s
   assert.deepEqual(parseProposal('{"metrics":[{"metric":"income_statement","qualifier":"growth"}]}'), requestedMetrics("revenue"));
 });
 
+test("a margin the model reads as a metric's qualifier asks for no income margins", () => {
+  const question = "What was the margin on the cash NVDA's business threw off?";
+  const scope = resolveResearchScope({
+    question,
+    companies: [NVDA],
+    prior: null,
+    asOf: AS_OF,
+    proposedMetrics: parseProposal('{"metrics":[{"metric":"operating_cash_flow","qualifier":"margin"}]}'),
+  });
+  assert.equal(scope.route, "unavailable_metric");
+  assert.equal(scope.margins, false);
+  // Margins the model reads as income figures are still income margins.
+  const both = resolveResearchScope({
+    question: "Show NVDA's free cash flow margin and its gross margin trend",
+    companies: [NVDA],
+    prior: null,
+    asOf: AS_OF,
+    proposedMetrics: parseProposal('{"metrics":[{"metric":"free_cash_flow","qualifier":"margin"},{"metric":"income_statement"}]}'),
+  });
+  assert.equal(both.margins, true);
+  assert.equal(both.margin_trend, true);
+});
+
 test("a metric the turn turns off stays off, even when the model names it", () => {
   const prior = resolveResearchScope({ question: "Show NVDA's operating cash flow and capex", companies: [NVDA], prior: null, asOf: AS_OF });
   const next = resolveResearchScope({
