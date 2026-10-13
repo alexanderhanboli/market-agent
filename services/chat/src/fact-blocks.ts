@@ -163,8 +163,9 @@ export function requestedFiscalYear(question: string): number | undefined {
 // "fiscal Q3 2025", "the second quarter of 2025") (#290). The quarter is each
 // company's own fiscal quarter, as its facts are filed.
 export type FiscalQuarter = { fiscal_year: number; fiscal_period: string };
-const NAMED_QUARTER = /\b(?:fiscal\s+)?Q([1-4])\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?'?)?(\d{4}|\d{2})\b/i;
-const SPELLED_QUARTER = /\b(first|second|third|fourth)\s+(?:fiscal\s+)?quarter\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?)?(\d{4})\b/i;
+// A comma may sit between the quarter and its year ("Q2, 2026", #292 review).
+const NAMED_QUARTER = /\b(?:fiscal\s+)?Q([1-4]),?\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?'?)?(\d{4}|\d{2})\b/i;
+const SPELLED_QUARTER = /\b(first|second|third|fourth)\s+(?:fiscal\s+)?quarter,?\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?)?(\d{4})\b/i;
 const ORDINALS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4 };
 // The year first ("FY2026 Q3", "fiscal 2025 Q2", "FY26 Q1") (#292 review).
 const YEAR_FIRST_QUARTER = /\b(?:FY\s?'?|fiscal\s+(?:year\s+)?)(\d{4}|\d{2})\s+Q([1-4])\b/i;

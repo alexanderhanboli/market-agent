@@ -593,3 +593,8 @@ test("a peers request keeps its comparison intent when no peer is found: the qua
     .map((block) => (block.segments as Array<{ text: string }>)[0]!.text);
   assert.ok(texts.some((text) => /not compared across companies/.test(text)), JSON.stringify(texts));
 });
+
+test("a comma between a quarter and its bare year is read (#292 review)", () => {
+  assert.deepEqual(requestedFiscalQuarter("AMD revenue in Q2, 2026"), { fiscal_year: 2026, fiscal_period: "Q2" });
+  assert.deepEqual(requestedFiscalQuarter("the second quarter, 2025"), { fiscal_year: 2025, fiscal_period: "Q2" });
+});
