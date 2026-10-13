@@ -82,7 +82,10 @@ const QUARTER = /\b(?:Q[1-4]|quarter)\b/i;
 const PARTIAL_QUARTER = /\bQ([1-4])\b|\b(first|second|third|fourth)\s+quarter\b/i;
 const ORDINAL_QUARTERS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4 };
 // The latest quarter asked for again: a named quarter is not inherited (#292 review).
-const LATEST_QUARTER = /\b(?:latest|most recent|current|newest|last reported)\s+quarter\b/i;
+// "Reported" may follow any of them ("the latest reported quarter").
+// A bare "last quarter" often means the one before, so "last" counts only as
+// "last reported".
+const LATEST_QUARTER = /\b(?:(?:latest|most recent(?:ly)?|current|newest)\s+(?:reported\s+)?|last\s+reported\s+)quarter\b/i;
 // Where a list of things to remove ends: at the end of the sentence, or where
 // the next request starts ("drop AMD and AAPL, and add TSLA"). Commas and "and"
 // inside the list ("segments, margins and the window") are part of it.

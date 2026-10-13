@@ -477,7 +477,7 @@ test("a named fiscal quarter is scoped, kept by a follow-up and can be turned of
 
 test("asking for the latest quarter clears an inherited named quarter (#292 review)", () => {
   const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
-  for (const question of ["Now show the latest quarter", "What about the most recent quarter?", "and the current quarter"]) {
+  for (const question of ["Now show the latest quarter", "What about the most recent quarter?", "and the current quarter", "show the latest reported quarter", "the most recently reported quarter"]) {
     const next = resolveResearchScope({ question, companies: [AMD], prior: asked, asOf: AS_OF });
     assert.equal(next.fiscal_quarter, null, question);
   }
