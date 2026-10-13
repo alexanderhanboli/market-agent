@@ -179,6 +179,12 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
   assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "revenue is expected to grow 10% next year." }, runOn), null);
   assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "This is not company guidance but" }, runOn), null);
   assert.ok(verifyStatement({ kind: "guidance", metric: "revenue", quote: "This is not company guidance but revenue is expected to grow 10% next year." }, runOn));
+  // A block ending in a joining word ("but", "and", "of") runs on whatever the
+  // next starts with.
+  const runOnCapital = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance but</div><div>NVIDIA expects revenue to grow next year.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "NVIDIA expects revenue to grow next year." }, runOnCapital), null);
   // Nor when the colon (or a dash or comma) ends the block before it.
   for (const mark of [":", " &mdash;", ","]) {
     const split = releaseExhibits(

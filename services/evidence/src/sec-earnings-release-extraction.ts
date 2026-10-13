@@ -273,16 +273,17 @@ export function verifyStatement(statement: ReleaseStatement, exhibits: ReadonlyA
 // counts only at a block edge.
 const SENTENCE_START = /^["'($•[0-9A-Z]/;
 
-// A block ending in a colon, semicolon, comma or dash runs on into the next
-// ("This is not company guidance -", "due to stronger demand,"): no sentence
-// ends at it, or starts after it.
-const CONTINUES = /[:;,-]\s*$/;
+// A block ending in a colon, semicolon, comma or dash, or in a word that joins
+// it to more ("but", "and", "of"), runs on into the next ("This is not company
+// guidance -", "due to stronger demand,", "This is not company guidance but"):
+// no sentence ends at it, or starts after it.
+const CONTINUES = /(?:[:;,-]|\b(?:and|but|or|nor|yet|so|while|whereas|although|though|because|as|than|that|which|with|without|of|to|for|from|in|on|at|by|the|a|an))\s*$/i;
 
 // Whether a block edge (the block before ending at `before`, the next starting
 // at `after`) is between sentences: not after a block that runs on, nor before
 // one that starts as no sentence does ("... guidance but" / "revenue is ...").
 function blockBreak(text: string, before: number, after: number): boolean {
-  return !CONTINUES.test(text.slice(Math.max(0, before - 3), before)) &&
+  return !CONTINUES.test(text.slice(Math.max(0, before - 16), before)) &&
     (after >= text.length || SENTENCE_START.test(text.slice(after)));
 }
 

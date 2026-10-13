@@ -110,6 +110,7 @@ test("guidance is asked for in a turn's words, and kept until turned off", () =>
     "What does NVDA project for revenue next quarter?",
     "What are management's revenue expectations?",
     "What is NVDA guiding for revenue next quarter?",
+    "What is NVDA expecting for revenue next quarter?",
     "What does NVDA's management guide to?",
     // Guidance set against guidance is still guidance.
     "How does NVDA's current revenue guidance compare versus prior guidance?",
@@ -162,6 +163,9 @@ test("guidance is asked for in a turn's words, and kept until turned off", () =>
   // Even naming a metric the turn-off reads as its own ("without revenue guidance").
   const withoutRevenue = resolveResearchScope({ question: "What are your sources, but without revenue guidance?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(withoutRevenue.guidance, undefined);
+  for (const question of ["What are your sources, but drop the guidance?", "And its gross margin, remove the outlook", "Take out the forecasts and show margins"]) {
+    assert.equal(resolveResearchScope({ question, companies: [NVDA], prior: asked, asOf: AS_OF }).guidance, undefined, question);
+  }
   assert.deepEqual(sources.income_items, ["revenue"]);
   // Any other turn names its own; one that names none, and keeps the metrics
   // it asked about, keeps its items too.

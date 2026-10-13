@@ -114,7 +114,7 @@ const SEGMENTS = /\bsegments?\b/i;
 // targets. A result "than expected" or "as expected" is set against past
 // expectations, and asks why (as do the comparisons below).
 // ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
-const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|expects?|expected to|expectations?|project(?:s|ed|ions?)?|targets?)\b/i;
+const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|expect(?:s|ing)?|expected to|expectations?|project(?:s|ed|ions?)?|targets?)\b/i;
 // A result set against guidance, a forecast or a target ("missed its forecast",
 // "below target", "beat guidance", "below the low end of guidance") asks why,
 // not for guidance: the question
@@ -126,7 +126,7 @@ const AGAINST_GUIDANCE =
 const EXPLAINS = /\b(?:why|explain\w*|caus(?:e|es|ed)|drove|driv(?:e|es|en|ers?)|reasons?|due to|because)\b/i;
 // Guidance turned off ("without using guidance", "no forecasts") is not asked for.
 const GUIDANCE_OFF =
-  /\b(?:without(?: including)?|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|leave out|(?:don['’]t|do not) (?:use|include))\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
+  /\b(?:without(?: including)?|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|drop(?:ping)?|remov(?:e|ing)|hid(?:e|ing)|leave out|take out|(?:don['’]t|do not) (?:use|include))\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
 
 // The income-statement items a question names, in earnings-release terms
 // (sec-earnings-release-extraction.ts): the scope reads them all as the income
