@@ -57,6 +57,24 @@ test("an 8-K's EX-99 exhibits are read as plain text; the 8-K and XBRL documents
   assert.equal(canonicalText("a&nbsp;&nbsp;b &#x2014; c&rsquo;s"), "a b - c's");
 });
 
+test("a plain-text exhibit's headings and paragraphs are blocks, so the sentence under a heading verifies", () => {
+  const exhibits = releaseExhibits([
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>",
+    "NVIDIA ANNOUNCES FINANCIAL RESULTS",
+    "",
+    "OUTLOOK",
+    REVENUE_GUIDANCE,
+    "Gross margins are expected to be 71.8%",
+    "and 72.0%, respectively.",
+    "</TEXT>\n</DOCUMENT>",
+  ].join("\n"));
+  assert.ok(verifyStatement({ kind: "guidance", metric: "revenue", quote: REVENUE_GUIDANCE }, exhibits), "under a heading");
+  // A sentence wrapped across lines is still one sentence.
+  const wrapped = "Gross margins are expected to be 71.8% and 72.0%, respectively.";
+  assert.ok(verifyStatement({ kind: "guidance", metric: "gross_margin", quote: wrapped }, exhibits), "wrapped");
+  assert.equal(verifyStatement({ kind: "guidance", metric: "gross_margin", quote: "Gross margins are expected to be 71.8%" }, exhibits), null, "a wrapped line alone");
+});
+
 test("a release longer than one prompt is read whole, across prompts split between blocks", () => {
   const filler = Array.from({ length: 1_500 }, (_, n) => `Paragraph ${n} restates a figure from the quarter.`);
   const commentary = "Gross margin decreased primarily due to a charge associated with excess inventory.";
@@ -191,6 +209,10 @@ test("an earnings release's verified quotes become management claims, once", { s
   const reply = JSON.stringify({ statements: [
     { kind: "explanation", metric: "gross_margin", quote: H20_EXPLANATION },
     { kind: "guidance", metric: "revenue", quote: REVENUE_GUIDANCE },
+    // One sentence explaining two metrics is a claim for each.
+    { kind: "explanation", metric: "operating_income", quote: H20_EXPLANATION },
+    // Picked twice for the same metric, it is one.
+    { kind: "explanation", metric: "gross_margin", quote: H20_EXPLANATION },
     // Invented: not in the filing, so never stored.
     { kind: "explanation", metric: "revenue", quote: "Revenue grew because every hyperscaler doubled its orders." },
   ] });
@@ -214,20 +236,33 @@ test("an earnings release's verified quotes become management claims, once", { s
   assert.deepEqual(claims.map((claim) => [claim.predicate, claim.text_canonical, claim.modality]), [
     ["guidance.revenue", REVENUE_GUIDANCE, "quoted"],
     ["management.explanation.gross_margin", H20_EXPLANATION, "quoted"],
+    ["management.explanation.operating_income", H20_EXPLANATION, "quoted"],
   ]);
   assert.ok(claims.every((claim) => claim.attributed_to_id === seeded.issuerId));
   assert.equal(claims[1]!.effective_time.toISOString(), "2025-05-28T00:00:00.000Z");
   assert.equal(claims[1]!.locator.exhibit, "EX-99.2");
   // Each is about the issuer, as the chat's claim reader selects them.
   const argued = await client.query(`select 1 from claim_arguments where subject_id = $1`, [seeded.issuerId]);
-  assert.equal(argued.rowCount, 3);
+  assert.equal(argued.rowCount, 4);
   const audit = await client.query(`select 1 from tool_call_logs where tool_name = 'extract_earnings_release' and status = 'ok'`);
   assert.equal(audit.rowCount, 1, "the model call is recorded for audit");
 
   // Processed once: no longer a candidate, and a second pass over it changes nothing.
   assert.deepEqual(await findReleaseCandidates(client), []);
   assert.equal(await extractReleaseStatements(deps, candidate!), "noop");
-  assert.equal((await client.query(`select 1 from claims where predicate like 'management.%' or predicate like 'guidance.%'`)).rowCount, 2);
+  assert.equal((await client.query(`select 1 from claims where predicate like 'management.%' or predicate like 'guidance.%'`)).rowCount, 3);
+});
+
+test("a release the model answers badly stays a candidate, with nothing stored", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "release-unparseable");
+  const client = await connectedClient(t, databaseUrl);
+  const seeded = await seedItem202(client);
+  const { llm } = fakeLlm("Sorry, I can't help with that.");
+  const result = await runReleaseExtractionDrain({ db: client, llm, secClient: fakeSec(SUBMISSION) });
+  assert.equal(result.unparseable, 1);
+  // Unread, so the next drain reads it again.
+  assert.deepEqual((await findReleaseCandidates(client)).map((candidate) => candidate.claimId), [seeded.claimId]);
+  assert.equal((await client.query(`select 1 from claims where claim_id <> $1`, [seeded.claimId])).rowCount, 0);
 });
 
 test("a filing without EX-99 exhibits is marked processed without a model call", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {

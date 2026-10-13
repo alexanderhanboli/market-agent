@@ -225,8 +225,10 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   guidance, metric from a closed list. A quote is kept only if it appears verbatim in an exhibit (in that canonical
   form) as whole sentences: it starts at a block edge or after a sentence's end, and ends at a block edge or with its
   own end mark. So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
-  to weaker demand") is rejected, while a sentence after a heading block is whole. The stored text is the exhibit's
-  own, never the model's string. Paraphrases and invented causes are dropped.
+  to weaker demand") is rejected, while a sentence after a heading block is whole. (A plain-text exhibit's blocks are
+  its paragraphs, with an all-caps heading line its own.) The stored text is the exhibit's own, never the model's
+  string. Paraphrases and invented causes are dropped. A reply that isn't JSON leaves the filing unprocessed, to be
+  read again by the next run.
 - **Claims:** `management.explanation.<metric>` or `guidance.<metric>`, modality `quoted`, attributed to the issuer,
   dated by the filing, confidence 0.8 (the words are verified; reading them as an explanation is the model's). A
   `claim_evidence` row locates each one (exhibit, character span, quote hash).

@@ -145,7 +145,9 @@ export function releaseExhibits(submission: string): ReleaseExhibit[] {
     const type = /<TYPE>([^\n<]+)/.exec(document!)?.[1]?.trim() ?? "";
     if (!/^EX-99(?:\.\d+)?$/i.test(type)) continue;
     const body = /<TEXT>([\s\S]*)<\/TEXT>/.exec(document!)?.[1] ?? "";
-    const blocks = body.split(BLOCK_BREAK).map(canonicalText).filter((block) => block !== "");
+    const blocks = (MARKUP.test(body) ? body.split(BLOCK_BREAK) : plainTextBlocks(body))
+      .map(canonicalText)
+      .filter((block) => block !== "");
     const edges = new Set<number>();
     let at = 0;
     for (const block of blocks) {
@@ -161,6 +163,27 @@ export function releaseExhibits(submission: string): ReleaseExhibit[] {
 }
 
 const BLOCK_BREAK = /<(?:\/(?:div|p|li|tr|td|th|h[1-6]|table|ul|ol)|br\s*\/?)\s*>/i;
+const MARKUP = /<\/?(?:html|body|div|p|br|table|font|span)\b/i;
+
+// A plain-text exhibit's blocks: its paragraphs (between blank lines), with a
+// heading line ("OUTLOOK": letters, none lower-case) a block of its own. A
+// sentence wrapped across lines stays one block. ponytail: a mixed-case
+// heading line ("Outlook") is read as the start of its paragraph.
+function plainTextBlocks(body: string): string[] {
+  return body.split(/\n[ \t]*\n/).flatMap((paragraph) => {
+    const blocks: string[] = [];
+    let lines: string[] = [];
+    for (const line of paragraph.split("\n")) {
+      if (!/[A-Z]/.test(line) || /[a-z]/.test(line)) {
+        lines.push(line);
+        continue;
+      }
+      blocks.push(lines.join("\n"), line);
+      lines = [];
+    }
+    return [...blocks, lines.join("\n")];
+  });
+}
 
 // Exhibit HTML (or text) as comparable text: tags dropped, entities decoded,
 // typographic quotes and dashes made plain, whitespace collapsed. Quotes are
@@ -317,8 +340,7 @@ export async function extractReleaseStatements(
   });
   const exhibits = releaseExhibits(new TextDecoder("utf-8").decode(fetched.bytes));
   let model: string | null = null;
-  // Every prompt is read; one the model answers badly leaves the others'
-  // statements standing.
+  // Every prompt is read.
   const proposed: ReleaseStatement[] = [];
   let unparseable = false;
   for (const prompt of releasePrompts(exhibits)) {
@@ -330,17 +352,20 @@ export async function extractReleaseStatements(
     if (statements === null) unparseable = true;
     else proposed.push(...statements);
   }
-  // A sentence picked in two prompts (or twice) is one claim.
+  // A prompt answered badly leaves its text unread: nothing is stored or
+  // stamped, so the next drain reads the filing again (as after a transport
+  // error). ponytail: one the model always answers badly is retried every run.
+  if (unparseable) return "unparseable";
+  // A sentence picked twice for the same metric is one claim; for two metrics,
+  // a claim for each.
   const verified = [...new Map(proposed.flatMap((statement) => {
     const found = verifyStatement(statement, exhibits);
-    return found ? [[`${found.kind}:${found.exhibit}:${found.start}`, found] as const] : [];
+    return found ? [[`${found.kind}:${found.metric}:${found.exhibit}:${found.start}`, found] as const] : [];
   })).values()];
   const outcome: ExtractReleaseOutcome = exhibits.length === 0
     ? "no_exhibits"
     : verified.length > 0
     ? "extracted"
-    : unparseable
-    ? "unparseable"
     : "empty";
 
   let applied = false;
@@ -388,7 +413,7 @@ export async function extractReleaseStatements(
         verified: verified.length,
         claim_ids: claimIds,
       },
-      status: outcome === "extracted" ? "ok" : outcome === "unparseable" ? "partial" : "skipped",
+      status: outcome === "extracted" ? "ok" : "skipped",
     });
   });
   return applied ? outcome : "noop";
