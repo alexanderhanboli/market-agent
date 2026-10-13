@@ -223,6 +223,11 @@ export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedM
   return scope.metrics.filter((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS);
 }
 
+// A qualifier placed before a statement metric ("growth in free cash flow",
+// "growth in NVDA's EPS"), captured with it: the metric qualified, never the
+// plain figure, and its "growth" asks for no income figures.
+const PRE_QUALIFIER = String.raw`(?:\b(growth|margins?|yields?|trends?) (?:in|of) (?:(?:the|its|their|\w+['’]s) )?)?`;
+
 // Adjectives that make a statement metric another, unreported figure
 // ("adjusted EPS", "non-GAAP free cash flow"), captured before it.
 const ADJUSTMENT = String.raw`(?:\b(adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed|levered|unlevered|ytd|year[- ]to[- ]date)\s+)?`;
@@ -243,10 +248,12 @@ const ADJUSTMENTS: Readonly<Record<string, { key: string; label: string }>> = {
 // One mention of a statement metric: the metric itself, or with an adjustment
 // before it or a qualifier after it, the named gap it then asks for.
 function classifyStatementMention(metric: RequestedMetric, pattern: RegExp, occurrence: RegExpMatchArray): RequestedMetric {
-  const adjustment = occurrence[1] !== undefined ? ADJUSTMENTS[occurrence[1].toLowerCase().replace(/[- ]/g, " ")] : undefined;
+  // Group 1: a qualifier before the metric ("growth in"); group 2: an adjustment.
+  const before = occurrence[1]?.toLowerCase().replace(/s$/, "");
+  const adjustment = occurrence[2] !== undefined ? ADJUSTMENTS[occurrence[2].toLowerCase().replace(/[- ]/g, " ")] : undefined;
   const text = occurrence[0];
-  const body = adjustment ? text.slice(text.search(new RegExp(`(?:${pattern.source})`, "i"))) : text;
-  const raw = body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase();
+  const body = before || adjustment ? text.slice(text.search(new RegExp(`(?:${pattern.source})`, "i"))) : text;
+  const raw = body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() || before || "";
   const qualifier = raw === "" ? undefined : qualifierParts(raw);
   if (!adjustment && !qualifier) return metric;
   return {
@@ -274,7 +281,7 @@ function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: stri
     // "free cash flow growth" or "EBITDA margin" asks for no income figures.
     const own = metric.metric_key !== "income_statement";
     const statement = metric.metric_key in STATEMENT_METRIC_LABELS;
-    const match = new RegExp(`${statement ? ADJUSTMENT : ""}(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
+    const match = new RegExp(`${statement ? PRE_QUALIFIER + ADJUSTMENT : ""}(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
     const found = [...rest.matchAll(match)];
     if (found.length === 0) continue;
     // Each mention is classified ("EPS and adjusted EPS" asks for both). A

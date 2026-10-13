@@ -173,6 +173,11 @@ test("a metric's context or qualifier is not another metric", () => {
   ]);
   assert.equal(fresh("What is AMD's free cash flow growth?", [AMD]).route, "unavailable_metric");
   assert.deepEqual(keys("Show NVDA's EPS growth over the last 4 quarters"), ["eps_diluted_growth"]);
+  // The qualifier before the metric too, with nothing else asked for in its place.
+  assert.deepEqual(keys("Show the growth in free cash flow"), ["free_cash_flow_growth"]);
+  assert.deepEqual(keys("What was the growth in NVDA's EPS?"), ["eps_diluted_growth"]);
+  assert.deepEqual(keys("AMD trend of its operating cash flow"), ["operating_cash_flow_trend"]);
+  assert.equal(fresh("Show the growth in free cash flow", [AMD]).route, "unavailable_metric");
   assert.deepEqual(keys("What is NVDA's free cash flow per share?"), ["free_cash_flow_per_share"]);
   assert.deepEqual(keys("What is AMD's EBITDA growth?"), ["ebitda"]);
   assert.equal(fresh("What is AMD's EBITDA growth?", [AMD]).route, "unavailable_metric");
