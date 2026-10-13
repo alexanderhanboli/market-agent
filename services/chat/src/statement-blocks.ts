@@ -108,10 +108,11 @@ export function freeCashFlowSpecs(
 ): QuarterMetric[] {
   const loadable = new Map(verifierFacts.map((fact) => [fact.fact_id, fact]));
   return latestCashFlows(ofYear(facts, fiscalYear), loadable).flatMap(({ ocf, capex }) => {
+    if (!ocf || !capex) return [];
     const period = loadable.get(ocf.fact_id);
-    const capexPeriod = capex && loadable.get(capex.fact_id);
+    const capexPeriod = loadable.get(capex.fact_id);
     if (
-      !capex || !period?.period_end || !capexPeriod ||
+      !period?.period_end || !capexPeriod ||
       period.period_start !== capexPeriod.period_start ||
       period.period_end !== capexPeriod.period_end ||
       (ocf.currency ?? "USD") !== (capex.currency ?? "USD")
@@ -182,13 +183,13 @@ export function buildStatementBlocks(input: {
   const blocks: Block[] = [];
 
   if (input.facets.cashFlow) {
-    for (const { ocf, capex } of latestCashFlows(facts, loadable)) {
-      const fcf = derived.find((fact) => fact.input_fact_ids.includes(ocf.fact_id));
-      const reported = capex ? [ocf, capex] : [ocf];
+    for (const { period, ocf, capex } of latestCashFlows(facts, loadable)) {
+      const fcf = ocf && derived.find((fact) => fact.input_fact_ids.includes(ocf.fact_id));
+      const reported = [ocf, capex].filter((fact): fact is IssuerFundamentalFact => fact !== undefined);
       const shown = fcf ? [fcf] : [];
       blocks.push({
-        ...blockBase("metric_row", input, withInputs([...reported, ...shown], shown, loadable), loadable, `cash_flow_${ocf.fiscal_period === "FY" ? "year" : "quarter"}`),
-        title: `Cash flow (${periodLabel(ocf)})`,
+        ...blockBase("metric_row", input, withInputs([...reported, ...shown], shown, loadable), loadable, `cash_flow_${period.fiscal_period === "FY" ? "year" : "quarter"}`),
+        title: `Cash flow (${periodLabel(period)})`,
         items: [
           ...reported.map((fact) => ({ label: label(fact.metric_key), value_ref: fact.fact_id, format: money(native(fact), fact.currency) })),
           ...shown.map((fact) => ({ label: label("free_cash_flow"), value_ref: fact.fact_id, format: money(fact.value_num, fact.currency ?? null) })),
@@ -230,20 +231,23 @@ export function buildStatementBlocks(input: {
   return Object.freeze(blocks);
 }
 
-// The latest quarter's and the latest fiscal year's operating cash flow, each
-// with capex for the same period when reported.
+// The latest quarter and the latest fiscal year that report operating cash
+// flow or capex, each with whichever of the two that period has. Free cash
+// flow needs both; either alone is still shown.
 function latestCashFlows(
   facts: ReadonlyArray<IssuerFundamentalFact>,
   loadable: ReadonlyMap<string, VerifierFact>,
-): Array<{ ocf: IssuerFundamentalFact; capex: IssuerFundamentalFact | undefined }> {
-  const usable = facts.filter((fact) => loadable.has(fact.fact_id) && fact.value_num !== null);
+): Array<{ period: IssuerFundamentalFact; ocf: IssuerFundamentalFact | undefined; capex: IssuerFundamentalFact | undefined }> {
+  const usable = facts.filter((fact) =>
+    loadable.has(fact.fact_id) && fact.value_num !== null && CASH_FLOW.includes(fact.metric_key)
+  );
   return [false, true].flatMap((annual) => {
-    const ocf = latestPeriod(usable.filter((fact) => fact.metric_key === "operating_cash_flow" && (fact.fiscal_period === "FY") === annual));
-    if (!ocf) return [];
-    const capex = usable.find((fact) =>
-      fact.metric_key === "capex" && fact.fiscal_year === ocf.fiscal_year && fact.fiscal_period === ocf.fiscal_period
+    const period = latestPeriod(usable.filter((fact) => (fact.fiscal_period === "FY") === annual));
+    if (!period) return [];
+    const at = (metricKey: string) => usable.find((fact) =>
+      fact.metric_key === metricKey && fact.fiscal_year === period.fiscal_year && fact.fiscal_period === period.fiscal_period
     );
-    return [{ ocf, capex }];
+    return [{ period, ocf: at("operating_cash_flow"), capex: at("capex") }];
   });
 }
 

@@ -168,6 +168,15 @@ test("cash flow shows the latest quarter and fiscal year, free cash flow citing 
   assert.notEqual(quarter!.id, year!.id);
 });
 
+test("without operating cash flow, cash flow shows capex alone and no free cash flow", () => {
+  const facts = [fact("capex", 2026, "Q4", 1_284e6, Q4)];
+  const verifier = verifierFacts(facts);
+  assert.deepEqual(freeCashFlowSpecs(facts, verifier), []);
+  const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false });
+  assert.equal(quarter!.title, "Cash flow (Q4 2026)");
+  assert.deepEqual(items(quarter!).map((item) => [item.label, item.format]), [["Capital expenditures", "$1.3B"]]);
+});
+
 test("without capex, cash flow shows operating cash flow alone and no free cash flow", () => {
   const facts = [fact("operating_cash_flow", 2026, "Q4", 36_188e6, Q4)];
   const [quarter] = blocksFor(facts, { cashFlow: true, balanceSheet: false, eps: false });
@@ -232,8 +241,12 @@ test("facts the verifier cannot load are left out rather than rendered unbound",
   const facts = nvdaFacts();
   const verifier = verifierFacts(facts).filter((binding) => binding.fact_id !== facts[2]!.fact_id);
   const blocks = buildStatementBlocks({ facts, verifierFacts: verifier, facets: ALL, snapshotId: SNAPSHOT_ID, asOf: AS_OF });
-  // Q4's operating cash flow cannot be bound, so the latest bound quarter is Q3.
-  assert.equal(blocks[0]!.title, "Cash flow (Q3 2026)");
+  // Q4's operating cash flow cannot be bound: Q4 shows its capex alone, and no
+  // free cash flow is computed from the unbound figure.
+  assert.equal(blocks[0]!.title, "Cash flow (Q4 2026)");
+  assert.deepEqual(items(blocks[0]!).map((item) => item.label), ["Capital expenditures"]);
+  assert.ok(!blocks.flatMap(items).some((item) => item.value_ref === facts[2]!.fact_id));
+  assert.equal(freeCashFlowSpecs(facts, verifier).some((spec) => spec.period.fiscal_period === "Q4"), false);
 });
 
 test("a figure derived across filings cites every filing it was computed from", async (t) => {
