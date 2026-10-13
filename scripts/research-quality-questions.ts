@@ -103,13 +103,19 @@ export const QUESTIONS: ReadonlyArray<EvalQuestion> = [
     id: "margin-trend-loss-quarter",
     kind: "margin trend",
     turns: [{ message: "How have AMD's operating margins trended over the last eight quarters?" }],
-    expect: "Eight quarters Q3 FY2024–Q2 FY2026 in order. Must not hide Q2 FY2025's operating loss (-$134M) or describe the trend as uninterrupted.",
+    expect: "Eight quarters Q3 FY2024–Q2 FY2026 in order. Must not hide Q2 FY2025's operating loss (-$134M) or describe the trend as uninterrupted. AMD's filed explanation of that quarter is in evidence (#282): citing it as management's attribution is good; an uncited cause is not.",
   },
   {
     id: "what-changed-gross-margin",
     kind: "what changed",
     turns: [{ message: "What changed in NVDA's gross margin in Q1 fiscal 2026?" }],
     expect: "Gross margin fell sharply in Q1 FY2026 (~60.5% vs ~73% the quarter before) and recovered after. The cause is not in the data: it must say so, not invent one.",
+  },
+  {
+    id: "cause-in-evidence",
+    kind: "cause in evidence",
+    turns: [{ message: "Why did AMD's operating margin turn negative in Q2 2025?" }],
+    expect: "Q2 FY2025 (ended 2025-06-28): operating loss of -$134M (-1.7% margin), gross margin 39.8%. AMD's own explanation is in evidence (#282): its earnings release, filed with the SEC as 8-K exhibit 99.1 in August 2025, says the U.S. export control on MI308 GPUs led to about $800M of inventory and related charges. A good answer gives that cause as AMD's attribution, cited and dated. The traps: stating it as fact without attribution, or saying the cause is unknown when it is in evidence.",
   },
   {
     id: "peer-two",

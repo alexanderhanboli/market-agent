@@ -4,7 +4,7 @@
 import { pathToFileURL } from "node:url";
 import { Client } from "pg";
 
-import { GOLDEN_COMPANIES, seedGoldenDataset } from "../test/golden/dataset.ts";
+import { GOLDEN_COMPANIES, seedFiledClaims, seedGoldenDataset } from "../test/golden/dataset.ts";
 
 const RESET_COMMAND = "docker compose -f docker-compose.dev.yml --env-file .env.dev down -v";
 
@@ -33,7 +33,18 @@ export async function seedGoldenDevDatabase(databaseUrl: string): Promise<"seede
   try {
     const marker = GOLDEN_COMPANIES[0]!;
     const { rowCount } = await client.query(`select 1 from issuers where issuer_id = $1::uuid`, [marker.issuer_id]);
-    if (rowCount) return "already-seeded";
+    if (rowCount) {
+      // Seeded before the filed claim existed (#282): add it, once.
+      await client.query("begin");
+      try {
+        await seedFiledClaims(client);
+        await client.query("commit");
+      } catch (error) {
+        await client.query("rollback");
+        throw error;
+      }
+      return "already-seeded";
+    }
 
     await client.query("begin");
     try {

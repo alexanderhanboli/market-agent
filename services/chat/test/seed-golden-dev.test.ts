@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { bootstrapDatabase, connectedClient, dockerAvailable } from "../../../db/test/docker-pg.ts";
 import { assertNoGoldenDataset, seedGoldenDevDatabase } from "../scripts/seed-golden-dev.ts";
-import { GOLDEN_COMPANIES } from "./golden/dataset.ts";
+import { AMD_Q2_2025_RELEASE, GOLDEN_COMPANIES } from "./golden/dataset.ts";
 
 test("seedGoldenDevDatabase seeds the frozen dataset once and is a no-op on rerun", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "chat-golden-dev-seed");
@@ -48,4 +48,24 @@ test("seedGoldenDevDatabase leaves nothing half-seeded when a golden ticker is a
   await assert.rejects(() => seedGoldenDevDatabase(databaseUrl), /golden dataset.*fresh database/i);
   const facts = (await client.query<{ n: number }>(`select count(*)::int as n from facts`)).rows[0]!.n;
   assert.equal(facts, 0, "the failed seed rolled back entirely");
+});
+
+test("a database seeded before #282 gets the filed claim on the next run, once (#291 review)", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "chat-golden-dev-backfill");
+  const client = await connectedClient(t, databaseUrl);
+  const filed = async () => (await client.query<{ n: number }>(
+    `select count(*)::int as n from claims where text_canonical = $1`, [AMD_Q2_2025_RELEASE.text],
+  )).rows[0]!.n;
+
+  assert.equal(await seedGoldenDevDatabase(databaseUrl), "seeded");
+  assert.equal(await filed(), 1);
+  // As a pre-#282 database: the golden companies, but no filed claim.
+  await client.query(`delete from documents where source_id in (select source_id from sources where canonical_url = $1)`, [AMD_Q2_2025_RELEASE.url]);
+  await client.query(`delete from sources where canonical_url = $1`, [AMD_Q2_2025_RELEASE.url]);
+  assert.equal(await filed(), 0);
+
+  assert.equal(await seedGoldenDevDatabase(databaseUrl), "already-seeded");
+  assert.equal(await filed(), 1, "the filed claim is backfilled");
+  await seedGoldenDevDatabase(databaseUrl);
+  assert.equal(await filed(), 1, "and never duplicated");
 });

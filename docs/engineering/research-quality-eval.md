@@ -1,12 +1,13 @@
 # Research-quality eval (#124)
 
-Tests prove the plumbing works. They don't show whether an answer helps an analyst. This eval is eleven questions that
+Tests prove the plumbing works. They don't show whether an answer helps an analyst. This eval is twelve questions that
 the owner scores by hand, so answer quality can be compared from one run to the next.
 
 - **Questions and rubric:** `scripts/research-quality-questions.ts`. Every question runs on the frozen golden dataset:
   NVDA, AMD and AAPL, with quarterly and annual income metrics, quotes and ten daily price bars, plus NVDA's
-  business-segment revenue for its latest quarter. Nothing else is seeded, so the missing-data questions have one
-  honest answer: "not available".
+  business-segment revenue for its latest quarter, and one filed claim: AMD's explanation of its Q2 2025 margin drop,
+  quoted from its earnings release (8-K exhibit 99.1, #282). Nothing else is seeded, so the missing-data questions have
+  one honest answer: "not available", and only AMD's Q2 2025 has a cause in evidence.
 - **Rubric:** six criteria, each scored 0–2, with fixed meanings for 0, 1 and 2:
   1. correct companies;
   2. comparable periods;
@@ -17,7 +18,7 @@ the owner scores by hand, so answer quality can be compared from one run to the 
   Each question carries an `expect` note (what a good answer does, and the trap), so the scorer doesn't have to work it
   out from the data. A question can mark criteria `notApplicable`. Those are scored N/A and left out of totals, so an
   honest "not available" answer isn't penalized for having no figures to judge.
-- **Coverage:** single company, margin trend, what changed, a segment drill-down, peer comparison (two and three
+- **Coverage:** single company, margin trend, what changed (cause not in evidence), a cause in evidence, a segment drill-down, peer comparison (two and three
   companies), a mismatched-fiscal-year trap, two missing-data questions, a three-turn follow-up, and a thread opened
   from a ticker page.
 
