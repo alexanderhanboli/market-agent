@@ -947,3 +947,12 @@ test("an active causal verb's cause is checked like a connective's (#294 review)
   // With no figures shown, an active cause goes too.
   assert.equal(keepUncausedSentences("Inventory charges weighed on AMD's results.").removed.length, 1);
 });
+
+test("a passive financial causative is a cause; the noun \"results in\" is not (#294 review)", () => {
+  const figures = [{ company: "NVDA", value: "$209.9B", metric: "Revenue" }];
+  const keep = (text: string) => keepSupportedSentences(text, [], figures, [], ["Revenue"], ["NVDA"]);
+  assert.equal(keep("NVDA's revenue was lifted by AI demand to $209.9B.").removed.length, 1);
+  assert.equal(keep("NVDA's revenue was boosted by pricing to $209.9B.").removed.length, 1);
+  // FY2026 shown, as a comparison title would show it.
+  assert.deepEqual(keepSupportedSentences("The results in FY2026 include NVDA's revenue of $209.9B.", ["FY2026"], figures, [], ["Revenue"], ["NVDA"]).removed, []);
+});

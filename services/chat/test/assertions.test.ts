@@ -630,3 +630,7 @@ test("common financial causatives (lifted, boosted, pressured, weighed on) are c
     assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
   }
 });
+
+test("the noun \"results in\" is not a cause (#294 review)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "The results in FY2026 include NVDA's gross margin of 75.0%.", evidence: ["F1"] }]).rejected, []);
+});

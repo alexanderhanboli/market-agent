@@ -133,7 +133,7 @@ const MULTIPLIER = new RegExp(
 // explicit gap names none ("the data does not explain why margins rose").
 // ponytail: a vocabulary check, not a semantic one; an interpretation the data
 // cannot show ("pricing power") goes too, unless labelled as a hypothesis.
-const CONNECTIVE = String.raw`(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|result(?:s|ed)? from|reflect(?:s|ed|ing)?)`;
+const CONNECTIVE = String.raw`(?:driven by|(?:lifted|boosted|pressured|helped|hurt|hit|weighed down|dragged down|squeezed) by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|result(?:s|ed)? from|reflect(?:s|ed|ing)?)`;
 const CAUSAL = new RegExp(
   String.raw`\b${CONNECTIVE}\s+((?:(?!\b(?:although|though|but|while|whereas|yet|however|${CONNECTIVE})\b)[^,;:.])+)`,
   "gi",
@@ -146,14 +146,14 @@ const CAUSAL = new RegExp(
 // financial causatives "lifted", "boosted", "pressured", "weighed on", #294
 // review): unlike "reflects", these only ever say why.
 // ponytail: a vocabulary, not a parser; checked takeaways and causes are #288.
-const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:e|es|ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|s|ing)? in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down))\b/i;
+const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:e|es|ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down))\b/i;
 // An active causal verb in prose ("AI demand lifted revenue"): its cause is
 // the few words before it, held to the same grounding as a connective's
 // (#294 review). Not a passive "caused by", which CAUSAL reads.
 // ponytail: up to four words before the verb are taken as its cause.
 // "Cause" and "causes" are nouns as often ("does not show a cause"): only
 // "caused" and "causing" count.
-const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|s|ing)? in|contribut(?:e|es|ed|ing) to|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down))`;
+const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|ives|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|lift(?:s|ed|ing)|boost(?:s|ed|ing)|pressur(?:es|ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down))`;
 const ACTIVE_CAUSAL = new RegExp(String.raw`((?:[^\s,;:.]+\s+){1,4}?)${ACTIVE_VERB}\b(?!\s+by\b)`, "gi");
 
 export function statesCause(text: string): boolean {

@@ -428,7 +428,7 @@ export async function composeAnalystBlocksWithLlm(input: {
 // "a quarter billion", "hundreds of millions", "twelve percent", "zero
 // dollars"), which the guard's digit-based check does not see (#294 review).
 // On a turn with no data there is nothing such a word could measure.
-const WORDED_AMOUNT = /\b(?:hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?)\b/i;
+const WORDED_AMOUNT = /\b(?:hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?|won)\b/i;
 
 // On a turn with no data, a sentence stating an amount in words goes as one
 // in digits does.

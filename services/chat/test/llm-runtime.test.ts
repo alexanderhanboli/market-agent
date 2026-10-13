@@ -1519,3 +1519,17 @@ test("on a named-gap turn any magnitude or unit word is an amount, however it is
   const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
   assert.equal(text, "Free cash flow is not available for AMD in this data.");
 });
+
+test("on a named-gap turn other currency units are amounts too (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. Adjusted EPS was fifty cents. It was one euro. It was zero pounds." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "Free cash flow is not available for AMD in this data.");
+});
