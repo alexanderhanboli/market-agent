@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { rejectionCheck } from "../services/chat/src/assertions.ts";
+import { rejectionCheck } from "../services/chat/src/rejection-check.ts";
 import { api, runTurn } from "../services/chat/scripts/golden-live-check.ts";
 import { QUESTIONS, RUBRIC, type CriterionId, type EvalQuestion } from "./research-quality-questions.ts";
 

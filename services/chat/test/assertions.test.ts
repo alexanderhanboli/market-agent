@@ -593,3 +593,9 @@ test("descriptive wording is not a cause; causal connectives are (#294 review)",
     assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
   }
 });
+
+test("a cause is caught on an answer with no figures too, not left unchecked (#294 review)", () => {
+  const report = checkAssertions([{ kind: "observation", text: "AMD's margin fell, driven by inventory charges.", evidence: [] }], { ...PACKET, figures: [] });
+  assert.equal(rejectionCheck(report.rejected[0]?.reason ?? ""), "cause");
+  assert.equal(report.unchecked, undefined);
+});

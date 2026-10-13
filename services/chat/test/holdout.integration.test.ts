@@ -134,6 +134,9 @@ function checkExpectations(holdout: HoldoutCase, completed: Record<string, unkno
   const { expect } = holdout;
   if (expect.clarification) {
     assert.equal(completed.clarification, true, "the turn asks instead of answering");
+    // ...and binds no company: no scope saved, or one covering none.
+    const bound = (scope?.companies as unknown[] | undefined) ?? [];
+    assert.deepEqual(bound, expect.companies, "a clarification binds no company");
   } else {
     assert.ok(scope, "the answer saves its research scope");
     const labels = (scope.companies as Array<{ label?: string; issuer_id: string }>).map((company) =>
