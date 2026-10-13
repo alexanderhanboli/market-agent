@@ -106,7 +106,12 @@ export function claimSelection(
     typeof entry === "string" ? `${prefix}${entry}` : entry.map((metric) => `${prefix}${metric}`);
   // Whatever the figures' route: management's explanation is how a metric no
   // reader serves is answered.
-  const explained = metrics.map(family("management.explanation."));
+  // A route without predicates of its own (a metric no reader serves) reads
+  // every explanation next: one a release files as "other" (EBITDA) too.
+  const explained = [
+    ...metrics.map(family("management.explanation.")),
+    ...(route.length === 0 && scope.metrics.length > 0 ? ["management.explanation."] : []),
+  ];
   // A question asking for guidance reads it first, before any explanation:
   // for the metrics it names, then any; whatever the figures' route (a metric
   // no reader serves included).

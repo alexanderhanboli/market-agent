@@ -109,6 +109,8 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     "What are management's projections?",
     "What does NVDA project for revenue next quarter?",
     "What are management's revenue expectations?",
+    "What is NVDA guiding for revenue next quarter?",
+    "What does NVDA's management guide to?",
     // Guidance set against guidance is still guidance.
     "How does NVDA's current revenue guidance compare versus prior guidance?",
     "What is NVDA's gross margin target?",

@@ -218,6 +218,9 @@ test("a route reads its predicate families first, from the start of the period i
     "management.explanation.operating_income",
     "management.explanation.net_income",
   ]);
+  // One no explanation maps to (EBITDA: "other" in a release) reads them all.
+  assert.equal(scope("Why did NVDA's EBITDA decline?").reads, "unavailable_metric");
+  assert.equal(claimSelection(scope("Why did NVDA's EBITDA decline?"), CUTOFF).predicate_prefixes[0], "management.explanation.");
   // Every item it names shares the top priority: none crowds out another.
   assert.deepEqual(claimSelection(scope("Why did NVDA's revenue fall while operating income rose?"), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",
