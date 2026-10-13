@@ -227,3 +227,37 @@ test("the same statement in two quarters is two claims, and a comparison's slots
   assert.ok(compared.claim_refs.includes(OLD_GUIDANCE), "the rival's claim is not crowded out");
   assert.equal(compared.truncated, true);
 });
+
+// A route's prefixes are a priority, in order: its first family's claims come
+// before newer ones of the next (management's explanations before a burst of
+// newer guidance from the same releases).
+test("a route reads its first predicate family before newer claims of the next", async (t) => {
+  if (!dockerAvailable()) return t.skip("docker unavailable");
+  const { databaseUrl } = await bootstrapDatabase(t, "evidence-selection-priority");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  await db.query(`insert into issuers (issuer_id, legal_name) values ($1, 'Acme Inc')`, [ISSUER]);
+  await db.query(
+    `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at)
+     values ($1, 'sec_edgar', 'filing', 'primary', 'public', now())`,
+    [FILINGS],
+  );
+  const EXPLANATION = "c4000000-0000-4000-8000-0000000000e1";
+  await claim(db, {
+    id: EXPLANATION,
+    source: FILINGS,
+    predicate: "management.explanation.gross_margin",
+    text: "Gross margin decreased primarily due to an inventory charge.",
+    polarity: "neutral",
+    at: "2025-05-28T00:00:00Z",
+  });
+  for (let n = 1; n <= 6; n++) {
+    await claim(db, { id: INSIDER(n), source: FILINGS, predicate: "guidance.revenue", text: `Acme guidance ${n}.`, polarity: "neutral", at: `2026-0${n}-01T00:00:00Z` });
+  }
+  const evidence = await loadLocalRuntimeEvidence(db, {
+    subject_refs: [{ kind: "issuer", id: ISSUER }],
+    limit: 5,
+    selection: { predicate_prefixes: ["management.", "guidance."], effective_from: null },
+  });
+  assert.equal(evidence.claim_refs[0], EXPLANATION, "the explanation, though older, comes first");
+  assert.deepEqual(evidence.claim_refs.slice(1), [INSIDER(6), INSIDER(5), INSIDER(4), INSIDER(3)], "then the guidance, newest first");
+});

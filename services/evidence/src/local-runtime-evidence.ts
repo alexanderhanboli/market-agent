@@ -142,7 +142,12 @@ export async function loadLocalRuntimeEvidence(
               sr.subject_id::text as subject_id,
               coalesce(c.predicate like any($8::text[]), false)
                 and ($9::timestamptz is null or coalesce(c.effective_time, d.published_at, c.created_at) >= $9::timestamptz)
-                as relevant
+                as relevant,
+              -- The route's prefixes are a priority: the position of the first
+              -- one the predicate matches (management explanations before
+              -- newer guidance).
+              (select min(p.ord) from unnest($8::text[]) with ordinality as p(pattern, ord) where c.predicate like p.pattern)
+                as tier
          from subject_refs sr
          join claim_arguments ca
            on ca.subject_kind = sr.subject_kind
@@ -233,12 +238,14 @@ export async function loadLocalRuntimeEvidence(
             effective_time,
             subject_id
        from selected
-      -- Within each tier, companies take turns (each one's newest first), so a
-      -- comparison's slots are not all one company's.
+      -- Relevant claims first, by their prefix's priority; within each tier,
+      -- companies take turns (each one's newest first), so a comparison's
+      -- slots are not all one company's.
       order by relevant desc,
+               case when relevant then tier end asc nulls last,
                case when $10::boolean
                  then row_number() over (
-                   partition by relevant, subject_id
+                   partition by relevant, case when relevant then tier end, subject_id
                    order by coalesce(effective_time, published_at, claim_created_at) desc nulls last, claim_id desc)
                  else 0 end,
                coalesce(effective_time, published_at, claim_created_at) desc nulls last,
