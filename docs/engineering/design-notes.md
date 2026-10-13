@@ -210,6 +210,32 @@ shared by `loadUsableFacts`, the SEC statement/stats repositories (comparison in
 `loadVerifierFactsForRefs` (`requireKnownByCutoff`). Derived facts the comparison materializes are stamped at the
 cutoff (`clock`), so they pass the same check (#161). The rules are tested together in `services/fundamentals/test/usable-facts.integration.test.ts`.
 
+## Management's explanations and guidance (#205)
+
+An answer may state a cause only as management's own attribution from a cited claim (`llm-runtime.ts`), and those
+claims used to be keyword hits, so most "why" questions got "the data does not show why". Earnings releases say why:
+an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
+(`services/evidence/src/sec-earnings-release-extraction.ts`).
+
+- **Candidates:** Item 2.02 claims (`material_event.guidance_update`, written by the 8-K handler) whose `enriched_at`
+  is unset. High-severity 8-K enrichment reads other predicates, so the two never share a claim. `enriched_at` marks
+  each processed, rowCount-guarded like the enrichment, so a concurrent run is a no-op.
+- **The model picks, the filing decides.** The model gets the EX-99 exhibits as plain text (tags dropped, entities
+  decoded, typographic quotes and dashes made plain) and returns up to 8 `{kind, metric, quote}`: kind explanation or
+  guidance, metric from a closed list. A quote is kept only if it appears verbatim in an exhibit (in that canonical
+  form), and the stored text is the exhibit's own, never the model's string. Paraphrases and invented causes are
+  dropped.
+- **Claims:** `management.explanation.<metric>` or `guidance.<metric>`, modality `quoted`, attributed to the issuer,
+  dated by the filing, confidence 0.8 (the words are verified; reading them as an explanation is the model's). A
+  `claim_evidence` row locates each one (exhibit, character span, quote hash).
+- **Chat** reads `management.` claims first on every route that reads figures (latest quarter, trends, margins,
+  segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
+- **Run it** after the 8-K crawl: `npm run extract:earnings-releases` (in `services/evidence`). It is a batch step,
+  never the crawl: one model call per release, at low reasoning; about 46 s on the dev model in a probe (4 minutes at
+  its default reasoning).
+- **Not yet:** guidance compared with the reported result once it is in, 10-Q/10-K MD&A, and the frozen golden
+  dataset has no such claims (the eval's "why" question still answers from figures alone).
+
 ## Which metrics a chat turn asks for
 
 A turn's metrics (free cash flow, adjusted EPS, a balance item...) are read by a model, proposed from a fixed catalog

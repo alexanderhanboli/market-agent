@@ -79,13 +79,16 @@ export type EvidencePacket = {
 
 // The claims a route reads first (#207): its predicate families, from the
 // start of the period it covers. Others still fill any room left, newest first.
+// Management's own explanations (management.explanation.*, verbatim from
+// earnings releases) come first on every route: they are the only causes an
+// answer may state.
 const ROUTE_PREDICATES: Partial<Record<ResearchScope["reads"], ReadonlyArray<string>>> = {
-  latest_quarter: ["guidance.", "kpi."],
-  trend: ["guidance.", "kpi."],
-  derived_margin: ["guidance.", "kpi."],
-  comparison: ["guidance.", "kpi."],
-  segments: ["segment.", "guidance."],
-  statements: ["guidance.", "kpi."],
+  latest_quarter: ["management.", "guidance.", "kpi."],
+  trend: ["management.", "guidance.", "kpi."],
+  derived_margin: ["management.", "guidance.", "kpi."],
+  comparison: ["management.", "guidance.", "kpi."],
+  segments: ["management.", "segment.", "guidance."],
+  statements: ["management.", "guidance.", "kpi."],
 };
 const PRICE_PREDICATES = ["material_event.", "guidance."];
 

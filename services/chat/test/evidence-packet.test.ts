@@ -158,11 +158,16 @@ const claim = (id: string, overrides: Partial<ClaimRecord>): ClaimRecord => ({
 });
 
 test("a route reads its predicate families first, from the start of the period it covers (#207)", () => {
+  // Management's own explanations come first on every route: they are the only
+  // causes an answer may state.
   assert.deepEqual(claimSelection(scope("Analyze NVDA's latest quarter"), CUTOFF), {
-    predicate_prefixes: ["guidance.", "kpi."],
+    predicate_prefixes: ["management.", "guidance.", "kpi."],
     effective_from: "2024-09-01T00:00:00.000Z",
   });
-  assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["segment.", "guidance."]);
+  assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.", "segment.", "guidance."]);
+  for (const question of ["How have NVDA's margins trended?", "What is NVDA's free cash flow?", "Compare NVDA with AMD"]) {
+    assert.equal(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes[0], "management.", question);
+  }
   assert.equal(claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
   assert.deepEqual(claimSelection(undefined, CUTOFF), { predicate_prefixes: [], effective_from: null });
 });
@@ -189,7 +194,7 @@ test("claims carry short ids, their company and a stance only their stored polar
     ["C4", null, "neutral", "d"],
   ]);
   assert.equal(packet.claims_truncated, true);
-  assert.match(packet.query_bounds.claims!, /^guidance and kpi claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff/);
+  assert.match(packet.query_bounds.claims!, /^management, guidance, and kpi claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff/);
   const forModel = packetForModel(packet);
   assert.equal(JSON.stringify(forModel).includes("s-a"), false, "no source ids reach the model");
   assert.equal(JSON.stringify(forModel).includes("\"claim_id\""), false, "no claim ids reach the model");
@@ -242,7 +247,7 @@ test("a price window adds its event predicates to the route's, over the route's 
   const ytd = scope("Compare NVDA with AMD YTD", [NVDA, AMD]);
   assert.equal(ytd.reads, "comparison");
   assert.deepEqual(claimSelection(ytd, CUTOFF), {
-    predicate_prefixes: ["guidance.", "kpi.", "material_event."],
+    predicate_prefixes: ["management.", "guidance.", "kpi.", "material_event."],
     effective_from: "2024-09-01T00:00:00.000Z",
   });
 });
