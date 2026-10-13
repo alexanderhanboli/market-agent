@@ -903,14 +903,14 @@ test("with claims unreadable and nothing else on file, the gap never says there 
   assert.deepEqual(packet.gaps, ["No reported facts or quote are on file for this subject, and its research claims could not be read."]);
 });
 
-test("the answer's assertion list is checked in shadow and never shown (#208)", async () => {
+test("with rendering off, the answer's assertion list is checked in shadow and never shown (#208)", async () => {
   const reports: unknown[] = [];
   const list = JSON.stringify([
     { kind: "observation", text: "NVDA's revenue is shown.", evidence: ["F1"] },
     { kind: "observation", text: "Revenue rose.", evidence: ["F99"] },
   ]);
   const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" },
     context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
@@ -1068,10 +1068,13 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
 });
 
 test("with rendering off, or nothing accepted, the guarded prose stands (#208)", async () => {
-  const list = [{ kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] }];
-  const off = await renderWithReply(withList(list), BASE_ENV);
+  // Both companies' figures, so only the flag keeps the prose.
+  const both = [{ kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] }];
+  const off = await renderWithReply(withList(both), { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
   assert.equal((off.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(off.report.rendered, undefined);
+  // Unset is off.
+  assert.equal((await renderWithReply(withList(both), BASE_ENV)).report.rendered, undefined);
   const none = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was 99%.", evidence: ["F2"] }]));
   assert.equal((none.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(none.report.rendered, undefined);
@@ -1151,7 +1154,7 @@ test("an inference resting on an observation the guard removed is removed too (#
   const { text, report } = await renderA([
     { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
     { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
-    { kind: "analyst_inference", text: "A appears stronger.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "A appears well run.", evidence: [], supports: [0] },
   ]);
   assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.");
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
@@ -1160,17 +1163,22 @@ test("an inference resting on an observation the guard removed is removed too (#
   ]);
 });
 
-test("a rendered inference states no figures: its observations carry them, sealed (#208)", async () => {
+test("a rendered inference's figures are its supports' fact refs; one it cannot link is not rendered (#208)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", text: "NVDA's 74.6% margin outruns AMD's 49.2%.", evidence: [], supports: [0] },
-    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
+    // 74.6% is NVDA's figure, so it cannot be AMD's: the binding check rejects it.
+    { kind: "analyst_inference", text: "AMD's 74.6% margin stands out.", evidence: [], supports: [0] },
   ]));
-  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.match(text, /> \*\*Analyst inference:\*\* NVDA keeps more of each sale than AMD\.$/);
-  assert.doesNotMatch(text, /outruns/);
+  const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
+  const text = segments.map((segment) => segment.text ?? segment.format).join("");
+  assert.match(text, /> \*\*Analyst inference:\*\* NVDA's 74\.6% margin outruns AMD's 49\.2%\./);
+  assert.match(text, /> \*\*Analyst inference:\*\* NVDA appears to hold pricing power\.$/);
+  // The observation's two refs, then the inference's, all sealed facts.
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(2), FACT(4)]);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [1, "a rendered inference states no figures; its observations do"],
+    [3, "74.6% is not a cited figure's value for AMD"],
   ]);
 });
 
@@ -1289,4 +1297,141 @@ test("an observation whose value cannot be sealed is not rendered (#208)", async
     (reports[0]!.rejected as Array<{ reason: string }>).map((entry) => entry.reason),
     ["its figure has no fact to seal, so it is not rendered"],
   );
+});
+
+test("a comparison renders its checked result through the guard; an inference's ranking does not render (#208)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [0] },
+    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "AMD trails NVDA on profitability.", evidence: [], supports: [2] },
+  ]));
+  const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
+  assert.equal(
+    segments.map((segment) => segment.text ?? segment.format).join(""),
+    "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026, ended Jan 2026), AMD 49.2% (FY2025, ended Dec 2025)." +
+      "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).",
+  );
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(2), FACT(4)]);
+  // Resting on the checked comparison or not, an inference's ranking is its own wording.
+  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [1, "a rendered inference states no ranking or direction; its comparisons do"],
+    [3, "a rendered inference states no ranking or direction; its comparisons do"],
+  ]);
+
+  // The wrong winner, every number right: rejected, and the inference with it.
+  const wrong = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "AMD keeps more of each sale than NVDA.", evidence: [], supports: [0] },
+  ]));
+  assert.deepEqual((wrong.report.rejected as Array<{ index: number; reason: string }>).map((entry) => entry.reason), [
+    "comparison: F2 (74.6%) is higher than F4 (49.2%)",
+    "an inference binds the accepted observations it rests on",
+  ]);
+  assert.equal(wrong.report.rendered, undefined);
+});
+
+test("a single company's checked trend and low render through the guard (#208)", async () => {
+  const quarters = [["Q1 2025", "2025-03-29", "10.8%", 2025, "Q1"], ["Q2 2025", "2025-06-28", "-1.7%", 2025, "Q2"], ["Q3 2025", "2025-09-27", "13.7%", 2025, "Q3"], ["Q4 2025", "2025-12-27", "14.1%", 2025, "Q4"]] as const;
+  const id = (n: number) => `d2080000-0000-4000-8000-00000000000${n}`;
+  const trendRow = {
+    id: "margin-trend", kind: "metric_row", title: "Operating margin by quarter", subjects: [{ kind: "issuer", id: "i-amd" }], subject_labels: ["AMD"],
+    items: quarters.map(([label, , format], n) => ({ label, format, value_ref: id(n) })),
+    source_refs: ["s-amd"],
+    data_ref: { kind: "metric_row", id: "margin-trend", params: { fact_bindings: quarters.map(([, period_end, , fiscal_year, fiscal_period], n) => ({
+      fact_id: id(n), unit: "ratio", period_kind: "fiscal_q", fiscal_year, fiscal_period, period_end, as_of: "2026-02-26T00:00:00.000Z",
+    })) } },
+  };
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "How have AMD's operating margins trended?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [trendRow],
+    subjectLabels: ["AMD"],
+    createClient: () => async () => ({ text: withList([
+      { kind: "comparison", op: "trend", result: "rebounded", text: "AMD's operating margin rebounded.", evidence: ["F1", "F2", "F3", "F4"] },
+      { kind: "comparison", op: "lowest", result: "F2", text: "Q2 2025 was the low.", evidence: ["F1", "F2", "F3", "F4"] },
+      // The convenient endpoint: rejected.
+      { kind: "comparison", op: "lowest", result: "F1", text: "Q1 2025 was the low.", evidence: ["F1", "F3", "F4"] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text,
+    "AMD's operating margin fell from 10.8% in Q1 2025 to a low of -1.7% in Q2 2025, then rebounded to 14.1% in Q4 2025, above where it started." +
+    "\n\nAMD's operating margin was lowest in Q2 2025, at -1.7%, of the periods from Q1 2025 to Q4 2025.");
+  assert.deepEqual((reports[0]!.rejected as Array<{ reason: string }>).map((entry) => entry.reason), [
+    "comparison: leaves out Q2 2025, which shows operating margin too",
+  ]);
+});
+
+test("an inference states no ranking or direction of its own, even resting on a checked comparison (#208 review)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
+    // Contradicts its comparison: NVDA is highest.
+    { kind: "analyst_inference", text: "AMD leads NVDA on profitability.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
+  ]));
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.doesNotMatch(text, /AMD leads/);
+  assert.match(text, /NVDA appears to hold pricing power/);
+  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [1, "a rendered inference states no ranking or direction; its comparisons do"],
+  ]);
+});
+
+test("an inference whose support was left out of the answer is left out too (#208 review)", async () => {
+  // A price return read off its chart has no fact to seal.
+  const perf = { id: "perf-1", kind: "perf_comparison", title: "Price performance", default_range: "YTD 2026", series: [
+    { name: "NVDA", points: [{ y: 0 }, { y: 5.81 }] }, { name: "AMD", points: [{ y: 0 }, { y: 3.17 }] },
+  ] };
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD YTD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [...RENDER_BLOCKS, perf],
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+      { kind: "observation", text: "NVDA's price return was 5.81% and AMD's 3.17%.", evidence: ["F5", "F6"] },
+      { kind: "analyst_inference", text: "Momentum remains with NVDA.", evidence: [], supports: [1] },
+      { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.doesNotMatch(text, /Momentum/);
+  assert.match(text, /NVDA appears to hold pricing power/);
+  assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [1, "its figure has no fact to seal, so it is not rendered"],
+    [2, "rests on an assertion left out of the answer"],
+  ]);
+});
+
+test("with rendering on, a rejected comparison never falls back to the model's prose (#286 review)", async () => {
+  // The prose names the wrong winner; its comparison is rejected, nothing else is listed.
+  const reply = "AMD has the highest gross margin.\n\n```assertions\n" + JSON.stringify([
+    { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F2", "F4"] },
+  ]) + "\n```";
+  const { block, report } = await renderWithReply(reply);
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.doesNotMatch(text, /AMD has the highest/);
+  assert.equal(report.rendered, undefined);
+  // With rendering off the guarded prose stands, as before.
+  const off = await renderWithReply(reply, { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
+  assert.match((off.block.segments as Array<{ text: string }>)[0]!.text, /AMD has the highest/);
+});
+
+test("with rendering on, a comparison rejected for its shape also keeps the prose out (#286 review)", async () => {
+  // One figure: rejected by the shape check, before the comparison check.
+  const reply = "AMD has the highest gross margin.\n\n```assertions\n" + JSON.stringify([
+    { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F4"] },
+  ]) + "\n```";
+  const { block, report } = await renderWithReply(reply);
+  assert.deepEqual((report.rejected as Array<{ reason: string }>).map((entry) => entry.reason), ["a comparison cites two or more figures, and only figures"]);
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.doesNotMatch(text, /AMD has the highest/);
 });

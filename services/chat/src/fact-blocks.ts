@@ -358,7 +358,7 @@ async function loadSegmentBlocks(
     if (cited.length !== factIds.length) return [];
     return [{
       ...blockBase("metric_row", input, cited, loadable, "segment_revenue"),
-      title: `Revenue by segment (${breakdown.period})`,
+      title: `${SEGMENT_TITLE} (${breakdown.period})`,
       items: breakdown.items,
     }];
   } catch (reason) {
@@ -694,6 +694,9 @@ export function buildIssuerFactBlocks(input: {
   return Object.freeze([metricRow, revenueBars, ...marginTrend]);
 }
 
+// A segment breakdown's title starts with this; its cells are labelled by segment.
+const SEGMENT_TITLE = "Revenue by segment";
+
 // A margin-trend row's title ends with this; its cells are labelled by quarter.
 const BY_QUARTER = " by quarter";
 
@@ -874,6 +877,8 @@ function byFiscalQuarter(a: IssuerFundamentalFact, b: IssuerFundamentalFact): nu
 // to quote figures, so it knows whose value each one is.
 export type DisplayedFigure = {
   company?: string;
+  // A business segment's revenue: metric "Revenue", for the segment named here.
+  segment?: string;
   metric: string;
   period?: string;
   period_end?: string;
@@ -926,8 +931,11 @@ export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[
       const trendMetric = typeof block.title === "string" && block.title.endsWith(BY_QUARTER)
         ? block.title.slice(0, -BY_QUARTER.length)
         : undefined;
+      // A segment breakdown: one metric (revenue) across the company's segments.
+      const segments = typeof block.title === "string" && block.title.startsWith(SEGMENT_TITLE);
       return items.flatMap((item) => {
         if (!item.label || !item.format) return [];
+        if (segments) return [{ segment: item.label, metric: "Revenue", ...periodOf(item.value_ref), value: item.format, ...shownIn, ...cites(item.value_ref) }];
         return [trendMetric
           ? { metric: trendMetric, period: item.label, ...endOf(item.value_ref), value: item.format, ...shownIn, ...cites(item.value_ref) }
           : { metric: item.label, ...periodOf(item.value_ref), value: item.format, ...shownIn, ...cites(item.value_ref) }];

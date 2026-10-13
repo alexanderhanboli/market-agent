@@ -1,0 +1,105 @@
+{
+  "run": "2026-10-13T045449",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Grounded takeaway; the counterpoint (8.9% QoQ beside 57.9% YoY does not alone show a demand inflection) is specific, with both values as fact refs."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Rebound template exactly right (fell to -1.7% in Q2 2025, rebounded to 14.4%, above the start); unknown cause; the Q2 dip as a grounded counterpoint."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Low, unknown cause, and the one-quarter-event inference with full recovery. The revenue-grew counterpoint was dropped (comparative wording without a checked comparison)."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Four checked comparisons and a takeaway. The counterpoint (AMD's growth still high) was the 13th assertion, past the cap. The takeaway names price return, which shows only in the chart."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Five correct checked comparisons, but the inference says 'AMD trails on all metrics shown', which is false: AMD beats AAPL on gross margin and growth (the same error as 2026-10-10). Inference wording is not checked against its comparisons. The AAPL counterpoint was rejected for naming AMD."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Mismatch stated in the inference and the note; the scale vs profitability point is a grounded counterpoint."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Ranking and the concentration inference; the one-quarter limitation was rejected (it rested on nothing accepted)."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Gap stated honestly; the sentence still repeats (#272)."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Gap stated honestly; the sentence still repeats (#272)."
+    },
+    "follow-up-memory": {
+      "correct_companies": null,
+      "comparable_periods": null,
+      "figures_match_sources": null,
+      "conclusions_justified": null,
+      "counterarguments": null,
+      "no_invented_numbers": null,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Not scored: turn 1 failed on the provider (qwen3.8-max provider_failed after 35 s, kimi fallback failed too), so turns 2 and 3 were never sent. Re-run in 2026-10-13 run 6."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, assertion cap 12 (#208 3/3). Checked growth and revenue comparisons, and a takeaway; the counterpoint is a market interpretation of similar price returns, which show only in the chart."
+    }
+  }
+}

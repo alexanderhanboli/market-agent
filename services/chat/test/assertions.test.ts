@@ -101,11 +101,11 @@ test("a matching number is not enough: the wrong company, scale or id is rejecte
   assert.equal(report.accepted.length, 0);
 });
 
-test("at most eight assertions are checked; the rest are rejected (#208)", () => {
+test("at most twelve assertions are checked; the rest are rejected (#208)", () => {
   const one = { kind: "observation", text: "NVDA's gross margin was 75.0%.", evidence: ["F1"] };
-  const report = check(Array.from({ length: 10 }, () => one));
-  assert.equal(report.accepted.length, 8);
-  assert.deepEqual(report.rejected.map((entry) => entry.index), [8, 9]);
+  const report = check(Array.from({ length: 14 }, () => one));
+  assert.equal(report.accepted.length, 12);
+  assert.deepEqual(report.rejected.map((entry) => entry.index), [12, 13]);
 });
 
 test("a company the text names must be its evidence's (#208)", () => {
@@ -247,13 +247,13 @@ test("with claims but no figures, only claim-bound assertions are checked; the r
 
 test("on the no-figures path, malformed or over-limit entries are still rejected, not unchecked (#208)", () => {
   const one = { kind: "observation", text: "ACME trades at $12.", evidence: [] };
-  const report = checkAssertions([null, { kind: "guess", text: "x", evidence: [] }, ...Array.from({ length: 7 }, () => one)], { ...PACKET, figures: [] });
+  const report = checkAssertions([null, { kind: "guess", text: "x", evidence: [] }, ...Array.from({ length: 11 }, () => one)], { ...PACKET, figures: [] });
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [0, "not an assertion with text"],
     [1, 'unknown kind "guess"'],
-    [8, "more than 8 assertions"],
+    [12, "more than 12 assertions"],
   ]);
-  assert.equal(report.unchecked, 6);
+  assert.equal(report.unchecked, 10);
 });
 
 test("a currency prefix keeps its identity and sign (#208)", () => {
@@ -457,15 +457,16 @@ test("a requested metric no reader serves is a named gap: no other figure stands
 
 test("an unknown cause needs a change: one company's metric in two periods (#208)", () => {
   const report = check([
+    // The figure that moved alone: the packet shows its other period (F2).
     { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1"] },
-    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F3"] },
+    // Two companies' figures, and AMD's revenue has no other period.
+    { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F3", "F4"] },
     { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F1", "F2"] },
   ]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
-    [0, "an unknown cause cites a change: one company's metric, two periods, two values"],
     [1, "an unknown cause cites a change: one company's metric, two periods, two values"],
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [2]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 2]);
 });
 
 test("an unchanged value is no change; a claim about a missing metric may be attributed (#208)", () => {
@@ -504,4 +505,47 @@ test("only a year said as a time is not a figure (#208)", () => {
 
 test("\"to\" or \"of\" before a number does not make it a year (#208)", () => {
   assert.equal(statesValue("NVDA's headcount grew to 2025 employees.", ["NVDA"]), true);
+});
+
+test("an inference may omit evidence; a malformed one is still rejected (#208)", () => {
+  const report = check([
+    { kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0] },
+    { kind: "analyst_inference", text: "NVDA keeps pricing power.", evidence: "F1", supports: [0] },
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.kind, entry.evidence]), [[0, "observation", ["F1"]], [1, "analyst_inference", []]]);
+  assert.deepEqual(report.rejected.map((entry) => entry.reason), ["evidence is not a list of packet ids"]);
+});
+
+test("an unknown cause may cite only the figure that moved when the packet shows the change (#208)", () => {
+  // F1 (FY2026) differs from F2 (FY2025) in the packet, though only F1 is cited.
+  assert.deepEqual(check([{ kind: "unknown_cause", text: "The data does not show why NVDA's gross margin moved.", evidence: ["F1"] }]).rejected, []);
+  // AMD's revenue has no other period in the packet: no change to explain.
+  assert.deepEqual(check([{ kind: "unknown_cause", text: "The data does not show why.", evidence: ["F4"] }]).rejected.map((entry) => entry.reason),
+    ["an unknown cause cites a change: one company's metric, two periods, two values"]);
+});
+
+test("a date inside a figure's window is a cited date (#208)", () => {
+  const packet = { ...PACKET, figures: [{ id: "F1", company: "NVDA", metric: "Price return", period: "YTD 2026: 2025-12-31 close to 2026-08-31 close", value: "5.81%", source_ids: [] }] };
+  assert.deepEqual(checkAssertions([{ kind: "observation", text: "NVDA's YTD price return (Dec 2025 close to Aug 2026 close) was 5.81%.", evidence: ["F1"] }], packet).rejected, []);
+});
+
+test("an inference needs every support it declares accepted (#286 review)", () => {
+  const report = check([
+    { kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's gross margin was 99% in FY2026.", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0, 1] },
+    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0] },
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.supports ?? null]), [[0, null], [3, [0]]]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [1, "99% is not a cited figure's value"],
+    [2, "an inference binds the accepted observations it rests on"],
+  ]);
+});
+
+test("a parenthesized percentage is an aside, not an accounting negative (#208)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin (75.0%) was its highest.", evidence: ["F1"] }]).rejected, []);
+  // Money in parentheses stays negative.
+  assert.equal(check([{ kind: "observation", text: "AMD's revenue was ($75.0B).", evidence: ["F4"] }]).rejected.length, 1);
 });
