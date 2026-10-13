@@ -325,6 +325,25 @@ test("dropping operating cash flow by name keeps the other cash flow figures", (
   const prior = fresh("Show NVDA's operating cash flow and capex", [NVDA]);
   const next = resolveResearchScope({ question: "Drop operating cash flow", companies: [NVDA], prior, asOf: AS_OF });
   assert.deepEqual(next.metrics.map((metric) => metric.metric_key), ["capex"]);
+  // Each clause is read on its own: a later clause does not widen an earlier one.
+  const more = fresh("Show NVDA's operating cash flow, capex, free cash flow and EPS", [NVDA]);
+  const both = resolveResearchScope({ question: "Drop operating cash flow; drop EPS", companies: [NVDA], prior: more, asOf: AS_OF });
+  assert.deepEqual(both.metrics.map((metric) => metric.metric_key), ["free_cash_flow", "capex"]);
+});
+
+test("cash from operations and cash equivalents are the statement figures they name", () => {
+  const keys = (question: string) => requestedMetrics(question).map((metric) => metric.metric_key);
+  for (const question of [
+    "What was NVDA's cash from operations?",
+    "NVDA cash provided by operating activities",
+    "How much cash was generated from operations?",
+  ]) {
+    assert.deepEqual(keys(question), ["operating_cash_flow"], question);
+  }
+  assert.deepEqual(keys("What was AMD's cash used in investing activities?"), ["investing_cash_flow"]);
+  assert.deepEqual(keys("AMD cash provided by financing activities"), ["financing_cash_flow"]);
+  assert.deepEqual(keys("What are NVDA's cash equivalents?"), ["cash_and_equivalents"]);
+  assert.equal(fresh("What was NVDA's cash from operations?", [NVDA]).route, "statements");
 });
 
 test("dropping the balance sheet drops its items, however they were kept", () => {

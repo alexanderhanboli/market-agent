@@ -130,16 +130,22 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
     metric_key: "financing_cash_flow",
     label: "Financing cash flow",
     available: false,
-    pattern: /\bfinancing cash[- ]flows?\b|\bcash[- ]flows? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) financing(?: activities)?\b/gi,
+    pattern: /\bfinancing cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) financing(?: activities)?\b/gi,
   },
   {
     metric_key: "investing_cash_flow",
     label: "Investing cash flow",
     available: false,
-    pattern: /\binvesting cash[- ]flows?\b|\bcash[- ]flows? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) investing(?: activities)?\b/gi,
+    pattern: /\binvesting cash[- ]flows?\b|\bcash(?:[- ]flows?)? (?:from|used in|provided by|(?:provided by|used in) \(?used in\)?) investing(?: activities)?\b/gi,
   },
   // Unqualified "cash flow" means operating cash flow.
-  { metric_key: "operating_cash_flow", label: "Operating cash flow", available: true, pattern: /\b(?:operating )?cash[- ]flows?\b/gi },
+  // So is cash "from operations" / "provided by operating activities".
+  {
+    metric_key: "operating_cash_flow",
+    label: "Operating cash flow",
+    available: true,
+    pattern: /\b(?:operating )?cash[- ]flows?\b|\bcash (?:(?:was|is|were) )?(?:from|provided by|generated (?:by|from)) (?:operations|operating activities)\b/gi,
+  },
   { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
   // The whole balance sheet, or one item of it, each its own request: a cash
   // question is answered by cash, never by assets. Cash on hand is a balance,
@@ -149,7 +155,7 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
     metric_key: "cash_and_equivalents",
     label: "Cash and equivalents",
     available: true,
-    pattern: /\bcash (?:and (?:cash )?equivalents|position|balance|on hand)\b|\bhow much cash\b/gi,
+    pattern: /\bcash (?:and (?:cash )?equivalents|equivalents|position|balance|on hand)\b|\bhow much cash\b/gi,
   },
   { metric_key: "total_assets", label: "Total assets", available: true, pattern: /\btotal assets\b/gi },
   { metric_key: "total_liabilities", label: "Total liabilities", available: true, pattern: /\btotal liabilities\b/gi },
@@ -385,14 +391,16 @@ function turnedOff(question: string): { fields: Set<ScopeField>; metrics: Set<st
     if (MARGINS.test(object)) fields.add("margin_trend");
     if (WINDOW.test(object)) fields.add("price_window");
     if (FISCAL.test(object)) fields.add("fiscal_year");
-    for (const metric of scanMetrics(object).metrics) metrics.add(metric.metric_key);
+    // Each clause widens only what it names itself.
+    const named = new Set(scanMetrics(object).metrics.map((metric) => metric.metric_key));
     // Unqualified "cash flow" ("drop the cash flow") drops every cash flow
     // figure; "drop operating cash flow" names only that one.
-    if (metrics.has("operating_cash_flow") && !/\boperating\b|\boperations\b/i.test(object)) {
-      for (const key of ["capex", "free_cash_flow"]) metrics.add(key);
+    if (named.has("operating_cash_flow") && !/\boperating\b|\boperations\b/i.test(object)) {
+      for (const key of ["capex", "free_cash_flow"]) named.add(key);
     }
     // The whole balance sheet drops its items too, however they were kept.
-    if (metrics.has("balance_sheet")) for (const key of BALANCE_SHEET_ITEMS) metrics.add(key);
+    if (named.has("balance_sheet")) for (const key of BALANCE_SHEET_ITEMS) named.add(key);
+    for (const key of named) metrics.add(key);
     return fields.size + metrics.size > before ? " " : phrase;
   });
   return { fields, metrics, rest };
