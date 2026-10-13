@@ -541,3 +541,10 @@ test("dropping quarter-over-quarter growth keeps the named quarter (#292 review)
   // Dropping the quarter itself still clears it.
   assert.equal(resolveResearchScope({ question: "Drop the quarter", companies: [AMD], prior: asked, asOf: AS_OF }).fiscal_quarter, null);
 });
+
+test("a quarter named alone takes an inherited fiscal year when no quarter was inherited (#292 review)", () => {
+  const year = fresh("Show AMD's fiscal 2025 EPS", [AMD]);
+  assert.equal(year.fiscal_quarter, null);
+  const next = resolveResearchScope({ question: "Now show revenue in Q3", companies: [AMD], prior: year, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q3" });
+});

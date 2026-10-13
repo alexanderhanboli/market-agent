@@ -368,8 +368,9 @@ export function resolveResearchScope(input: {
   // ("now for fiscal 2026") or the latest quarter replaces it.
   const partial = PARTIAL_QUARTER.exec(question);
   const partialPeriod = partial ? `Q${partial[1] ?? ORDINAL_QUARTERS[partial[2]!.toLowerCase()]}` : null;
-  // Its year: one named in the question ("Q3, FY2026"), else the inherited quarter's.
-  const partialYear = requestedFiscalYear(question) ?? prior?.fiscal_quarter?.fiscal_year;
+  // Its year: one named in the question ("Q3, FY2026"), else the inherited
+  // quarter's, else an inherited fiscal year (#292 review).
+  const partialYear = requestedFiscalYear(question) ?? prior?.fiscal_quarter?.fiscal_year ?? prior?.fiscal_year ?? undefined;
   const namedQuarter = requestedFiscalQuarter(question) ??
     (partialPeriod && partialYear !== undefined ? { fiscal_year: partialYear, fiscal_period: partialPeriod } : null);
   if (namedQuarter === null && (LATEST_QUARTER.test(question) || requestedFiscalYear(question) !== undefined)) off.fields.add("fiscal_quarter");
