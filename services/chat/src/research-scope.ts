@@ -110,7 +110,8 @@ const SEGMENTS = /\bsegments?\b/i;
 // company expects or is expected to do, its projections or its targets. A
 // result "than expected" or "as expected" is set against past expectations,
 // and asks why.
-const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expects?|expected to|expectations? for|project(?:ed|ions?)|targets?)\b/i;
+// ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
+const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expects?|expected to|expectations? for|project(?:s|ed|ions?)?|targets?)\b/i;
 
 // The income-statement items a question names, in earnings-release terms
 // (sec-earnings-release-extraction.ts): the scope reads them all as the income
@@ -446,9 +447,12 @@ export function resolveResearchScope(input: {
   const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
     metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
     !SEGMENTS.test(question) && !marginAsked;
-  const incomeItems = evidence && prior !== null
-    ? prior.income_items ?? []
-    : INCOME_ITEMS.flatMap(([item, pattern]) => (pattern.test(question) ? [item] : []));
+  // The items named now; else the previous answer's, where this turn re-reads
+  // it (an evidence follow-up) or keeps the metrics it named them for ("Why?").
+  const namedItems = INCOME_ITEMS.flatMap(([item, pattern]) => (pattern.test(question) ? [item] : []));
+  const incomeItems = evidence || (namedItems.length === 0 && inherited.includes("metrics"))
+    ? prior?.income_items ?? []
+    : namedItems;
   const reads = evidence && prior !== null
     ? prior.reads
     : input.served

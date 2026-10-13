@@ -107,6 +107,7 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     "What revenue does NVDA expect next quarter?",
     "What revenue is NVDA expected to report next quarter?",
     "What are management's projections?",
+    "What does NVDA project for revenue next quarter?",
     "What is NVDA's gross margin target?",
   ]) {
     assert.equal(fresh(question, [NVDA]).guidance, true, question);
@@ -123,8 +124,12 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
   assert.equal(sources.route, "evidence_followup");
   assert.equal(sources.guidance, true);
   assert.deepEqual(sources.income_items, ["revenue"]);
-  // Any other turn names its own.
+  // Any other turn names its own; one that names none, and keeps the metrics
+  // it asked about, keeps its items too.
   assert.deepEqual(next.income_items, ["gross_margin"]);
+  const why = resolveResearchScope({ question: "Why?", companies: [NVDA], prior: fresh("How did NVDA's operating income change?", [NVDA]), asOf: AS_OF });
+  assert.ok(why.inherited.includes("metrics"));
+  assert.deepEqual(why.income_items, ["operating_income"]);
   // Both read back from a saved answer.
   const saved = JSON.parse(JSON.stringify(asked));
   assert.deepEqual(parseResearchScope(saved), { ...saved, inherited: [] });
