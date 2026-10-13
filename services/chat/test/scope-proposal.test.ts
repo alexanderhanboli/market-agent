@@ -43,6 +43,30 @@ test("a proposal outside the catalog is refused whole, so the patterns answer", 
   }
 });
 
+test("an adjusted income figure is the non-GAAP gap, never the reported income statement", () => {
+  for (const adjustment of ["adjusted", "non_gaap", "pro_forma"]) {
+    assert.deepEqual(
+      parseProposal(JSON.stringify({ metrics: [{ metric: "income_statement", adjustment }] })),
+      requestedMetrics("non-GAAP operating income"),
+      adjustment,
+    );
+  }
+  // Unadjusted, it is the reported figures.
+  assert.deepEqual(parseProposal('{"metrics":[{"metric":"income_statement","qualifier":"growth"}]}'), requestedMetrics("revenue"));
+});
+
+test("a metric the turn turns off stays off, even when the model names it", () => {
+  const prior = resolveResearchScope({ question: "Show NVDA's operating cash flow and capex", companies: [NVDA], prior: null, asOf: AS_OF });
+  const next = resolveResearchScope({
+    question: "Drop capex",
+    companies: [NVDA],
+    prior,
+    asOf: AS_OF,
+    proposedMetrics: parseProposal('{"metrics":[{"metric":"capex"}]}'),
+  });
+  assert.deepEqual(next.metrics.map((metric) => metric.metric_key), ["operating_cash_flow"]);
+});
+
 test("an unavailable metric stays the named gap it is, whatever its qualifiers", () => {
   assert.deepEqual(parseProposal('{"metrics":[{"metric":"ebitda","qualifier":"margin"}]}'), requestedMetrics("EBITDA"));
 });

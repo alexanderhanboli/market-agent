@@ -296,6 +296,9 @@ export function proposedMetric(
   if (!metric) return undefined;
   if (adjustment !== null && !(PROPOSABLE_ADJUSTMENTS as ReadonlyArray<string>).includes(adjustment)) return undefined;
   if (qualifier !== null && !(PROPOSABLE_QUALIFIERS as ReadonlyArray<string>).includes(qualifier)) return undefined;
+  // Adjusted income ("adjusted profit") is not the reported income statement:
+  // the non-GAAP gap, as the patterns read it.
+  if (metric.metric_key === "income_statement" && adjustment !== null) return proposedMetric("non_gaap_income", null, null);
   if (!(metric.metric_key in STATEMENT_METRIC_LABELS)) return metric;
   return qualifiedMetric(
     metric,
@@ -377,7 +380,9 @@ export function resolveResearchScope(input: {
   const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
   // The metrics a model proposed from the catalog (scope-proposal.ts), when it
   // did; else the ones the patterns found.
-  const requested = input.proposedMetrics ?? scanned.metrics;
+  // A metric the turn turns off ("drop capex") is not asked for, though the
+  // model read the question with the words still in it.
+  const requested = input.proposedMetrics?.filter((metric) => !off.metrics.has(metric.metric_key)) ?? scanned.metrics;
   const named = requested.map((metric) => (input.served ? { ...metric, available: true } : metric));
   // A metric turned off leaves the ones kept; none left keeps none.
   // Dropping one item of the whole balance sheet keeps the others, named.
