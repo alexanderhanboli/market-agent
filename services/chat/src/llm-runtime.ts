@@ -390,6 +390,13 @@ export async function composeAnalystBlocksWithLlm(input: {
   );
   const rendered = renderAccepted((text) => guard(text).removed);
   if (rendered) return rendered;
+  // With rendering on, a comparison the check rejected may be what the prose
+  // says ("AMD has the highest margin"), and the guard checks figures, not
+  // direction: the prose does not stand in for it.
+  if (assertionRenderingEnabled(input.env ?? process.env) && report.rejected.some((entry) => entry.reason.startsWith("comparison:"))) {
+    reportAssertions();
+    return rewriteFirstRichTextBlock(input.blocks, FACT_BLOCKS_FALLBACK_TEXT);
+  }
   reportAssertions();
   const guarded = guard(text);
   if (guarded.removed.length > 0) {

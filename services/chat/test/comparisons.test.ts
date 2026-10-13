@@ -190,3 +190,18 @@ test("segments of one company rank as one metric, apart from the company's own r
   assert.deepEqual(reasons(segments, "highest", ["S1", "S2"], "S1"), ["comparison: leaves out Automotive, which shows revenue too"]);
   assert.deepEqual(reasons(segments, "highest", ["R1", "S1"], "R1"), ["comparison: a comparison is of one metric"]);
 });
+
+test("a comparison needs two distinct facts, however its evidence repeats them (#286 review)", () => {
+  const one = packet(["NVDA"], [
+    fig("A1", "Revenue", "Q42026", "$62.1B", { fact_id: "f1" }),
+    fig("A2", "Revenue", "Q4 2026", "$62.1B", { fact_id: "f1" }),
+  ]);
+  assert.deepEqual(reasons(one, "highest", ["A1", "A1"], "A1"), ["comparison: a comparison needs two or more distinct figures"]);
+  assert.deepEqual(reasons(one, "lowest", ["A1", "A2"], "A1"), ["comparison: a comparison needs two or more distinct figures"]);
+});
+
+test("common direction and ranking words are comparative wording (#286 review)", () => {
+  for (const text of ["Margins expanded.", "Revenue is down.", "AMD surpassed NVDA.", "AMD dominates NVDA.", "Sales were up.", "AMD exceeds NVDA on growth.", "The gap widened."]) {
+    assert.equal(statesComparison(text), true, text);
+  }
+});

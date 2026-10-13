@@ -146,8 +146,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, shape);
       continue;
     }
-    // An inference keeps the supports that were accepted (shapeError requires one).
-    const supports = ((item.supports ?? []) as number[]).filter((n) => accepted.some((entry) => entry.index === n));
+    const supports = (item.supports ?? []) as number[];
     // An unknown cause is a change's: each figure it cites has its company's
     // same metric in another period with a different value beside it.
     if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!), packet.figures)) {
@@ -280,7 +279,8 @@ function shapeError(
       return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
     case "analyst_inference": {
       const observations = new Set(accepted.filter((entry) => entry.kind === "observation" || entry.kind === "comparison").map((entry) => entry.index));
-      return !supports.some((n) => observations.has(n))
+      // Every support it declares: one that failed may be what it rests on.
+      return supports.length === 0 || !supports.every((n) => observations.has(n))
         ? "an inference binds the accepted observations it rests on"
         : null;
     }

@@ -52,6 +52,8 @@ export function checkComparison(
   // The same fact shown in two blocks counts once.
   const keyOf = (figure: PacketFigure) => figure.fact_id ?? `${companyOf(figure)}|${figure.segment ?? ""}|${figure.metric}|${periodKey(figure.period)}`;
   const cited = unique(figureIds.flatMap((id) => packet.figures.filter((figure) => figure.id === id)), keyOf);
+  // "F1" twice, or two ids showing one fact, is one figure: nothing to compare.
+  if (cited.length < 2) return fail("a comparison needs two or more distinct figures");
   const metric = cited[0]!.metric;
   // A segment's revenue and the company's are not one metric.
   const segmented = cited[0]!.segment !== undefined;
@@ -186,7 +188,7 @@ export function checkComparison(
 // with it must rest on a checked comparison (llm-runtime renderAccepted).
 // ponytail: a vocabulary net, not a parser; an inference's wording is checked
 // for these words only, and their direction is the comparison's to prove.
-const COMPARATIVE = new RegExp(String.raw`\b(?:(?:high|low|larg|small|fast|slow|strong|weak|great|bigg|wid|narrow)(?:er|est)|best|worst|better|worse|most|least|(?:more|less|fewer)\b[^.]*?\bthan|ahead of|behind|lead(?:s|ing)?|trail(?:s|ing)?|lag(?:s|ging)?|outpac\w*|outperform\w*|underperform\w*|peak\w*|trough\w*|rose|rise[sn]?|rising|fell|falls?|fallen|falling|declin\w*|increas\w*|decreas\w*|grew|grows|growing|climb\w*|dropp?\w*|accelerat\w*|decelerat\w*|rebound\w*|recover\w*|improv\w*|deteriorat\w*|compress\w*|every (?:quarter|year|period)|throughout|consistently|steadily)\b`, "i");
+const COMPARATIVE = new RegExp(String.raw`\b(?:(?:high|low|larg|small|fast|slow|strong|weak|great|bigg|wid|narrow)(?:er|est)|best|worst|better|worse|most|least|(?:more|less|fewer)\b[^.]*?\bthan|ahead of|behind|lead(?:s|ing)?|trail(?:s|ing)?|lag(?:s|ging)?|outpac\w*|outperform\w*|underperform\w*|peak\w*|trough\w*|rose|rise[sn]?|rising|fell|falls?|fallen|falling|declin\w*|increas\w*|decreas\w*|grew|grows|growing|climb\w*|dropp?\w*|accelerat\w*|decelerat\w*|rebound\w*|recover\w*|improv\w*|deteriorat\w*|compress\w*|expand\w*|contract(?:ed|ing|ion)|widen\w*|shrink\w*|surpass\w*|dominat\w*|exceed\w*|overtak\w*|eclips\w*|outgrow\w*|superior|inferior|beats?|beating|surg\w*|jump\w*|plung\w*|soar\w*|slump\w*|(?:is|are|was|were)\s+(?:up|down)|every (?:quarter|year|period)|throughout|consistently|steadily)\b`, "i");
 
 export function statesComparison(text: string): boolean {
   return COMPARATIVE.test(text);

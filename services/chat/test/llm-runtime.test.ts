@@ -1410,3 +1410,17 @@ test("an inference whose support was left out of the answer is left out too (#20
     [2, "rests on an assertion left out of the answer"],
   ]);
 });
+
+test("with rendering on, a rejected comparison never falls back to the model's prose (#286 review)", async () => {
+  // The prose names the wrong winner; its comparison is rejected, nothing else is listed.
+  const reply = "AMD has the highest gross margin.\n\n```assertions\n" + JSON.stringify([
+    { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F2", "F4"] },
+  ]) + "\n```";
+  const { block, report } = await renderWithReply(reply);
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.doesNotMatch(text, /AMD has the highest/);
+  assert.equal(report.rendered, undefined);
+  // With rendering off the guarded prose stands, as before.
+  const off = await renderWithReply(reply, { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
+  assert.match((off.block.segments as Array<{ text: string }>)[0]!.text, /AMD has the highest/);
+});

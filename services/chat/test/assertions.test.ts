@@ -528,17 +528,17 @@ test("a date inside a figure's window is a cited date (#208)", () => {
   assert.deepEqual(checkAssertions([{ kind: "observation", text: "NVDA's YTD price return (Dec 2025 close to Aug 2026 close) was 5.81%.", evidence: ["F1"] }], packet).rejected, []);
 });
 
-test("an inference keeps the supports that were accepted, and needs one (#208)", () => {
+test("an inference needs every support it declares accepted (#286 review)", () => {
   const report = check([
     { kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] },
     { kind: "observation", text: "NVDA's gross margin was 99% in FY2026.", evidence: ["F1"] },
     { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0, 1] },
-    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [1] },
+    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.supports ?? null]), [[0, null], [2, [0]]]);
+  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.supports ?? null]), [[0, null], [3, [0]]]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [1, "99% is not a cited figure's value"],
-    [3, "an inference binds the accepted observations it rests on"],
+    [2, "an inference binds the accepted observations it rests on"],
   ]);
 });
 
