@@ -497,11 +497,14 @@ export function secFiscalYearWindow(facts: SecCompanyFacts, fiscalYear: number):
   return start && end ? { start, end } : null;
 }
 
-// The fiscal year's own full-year period in its 10-K, across every concept.
+// The fiscal year's own full-year period in its 10-K. Only the primary
+// statement concepts mapped here date it: a 10-K can also carry a footnote's
+// annual context outside the reporting year (a next-year commitment).
 function annualPeriod(facts: SecCompanyFacts, fiscalYear: number): SecFiscalWindow | null {
+  const usGaap = facts.facts["us-gaap"] ?? {};
   let best: SecConceptValue | undefined;
-  for (const concept of Object.values(facts.facts["us-gaap"] ?? {})) {
-    for (const values of Object.values(concept?.units ?? {})) {
+  for (const conceptName of Object.keys(US_GAAP_TO_METRIC_KEY)) {
+    for (const values of Object.values(usGaap[conceptName]?.units ?? {})) {
       if (!Array.isArray(values)) continue;
       for (const v of values) {
         if (v.fy !== fiscalYear || v.fp !== "FY" || v.form !== "10-K" || !isAnnualDuration(v)) continue;

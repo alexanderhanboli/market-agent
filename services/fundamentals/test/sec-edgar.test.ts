@@ -447,6 +447,28 @@ test("a quarter outside its fiscal year is another year's, whatever its fy says"
   assert.equal(secFiscalYearWindow(facts, 2022), null);
 });
 
+// A 10-K can carry an annual context that is not the reporting year (a
+// footnote's next-year commitment): only primary-statement concepts date the year.
+test("the fiscal year's dates come from its statements, not a footnote's annual context", () => {
+  const fy2020 = { fy: 2020, fp: "FY", form: "10-K", accn: "0001045810-20-000010", filed: "2020-02-20" };
+  const concept = (values: SecConceptValue[]) => ({ label: "", description: "", units: { USD: values } });
+  const facts: SecCompanyFacts = {
+    cik: 1045810,
+    entityName: "NVIDIA Corp",
+    facts: {
+      "us-gaap": {
+        PurchaseObligationDueInNextFiscalYear: concept([
+          value({ val: 1_000_000_000, ...fy2020, start: "2020-01-27", end: "2021-01-31" }),
+        ]),
+        Revenues: concept([
+          value({ val: 10_918_000_000, ...fy2020, start: "2019-01-28", end: "2020-01-26" }),
+        ]),
+      },
+    },
+  };
+  assert.deepEqual(secFiscalYearWindow(facts, 2020), { start: "2019-01-28", end: "2020-01-26" });
+});
+
 // A pre-2021 10-K also tags its fourth quarter alone as fp=FY, ending the same
 // day as the year; the year is the full-length one, in any listing order.
 test("annual extraction takes the full year, not a fourth quarter tagged FY", () => {
