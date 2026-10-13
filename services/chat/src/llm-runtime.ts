@@ -14,7 +14,7 @@ import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, t
 import { statesComparison } from "./comparisons.ts";
 import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
-import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
+import { keepSupportedSentences, keepUncausedSentences, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
@@ -436,14 +436,18 @@ const WORDED_AMOUNT = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|el
 // in digits does.
 function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { text: string; removed: string[] } {
   const removed = [...guarded.removed];
-  const text = guarded.text.split("\n").map((line) =>
-    line.split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
+  // A line that lost every sentence is dropped (null), so a heading left with
+  // nothing under it goes too, as in the guard (#294 review).
+  const lines = guarded.text.split("\n").map((line) => {
+    if (line.trim() === "") return line;
+    const kept = line.split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
       if (!WORDED_AMOUNT.test(sentence)) return true;
       removed.push(sentence.trim());
       return false;
-    }).join(" ")
-  ).join("\n").trim();
-  return { text, removed };
+    });
+    return kept.length === 0 ? null : kept.join(" ");
+  });
+  return { text: withoutEmptySections(lines), removed };
 }
 
 // Claim text the answer cites; a figure a claim states is supported.

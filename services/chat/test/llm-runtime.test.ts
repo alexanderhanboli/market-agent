@@ -1560,3 +1560,20 @@ test("on a named-gap turn \"won't\" is not the won currency (#294 review)", asyn
   });
   assert.equal((composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join(""), "The available data won't support a free-cash-flow estimate for AMD.");
 });
+
+test("on a named-gap turn a heading left with no content goes too, and the fallback shows (#294 review)", async () => {
+  const answered: string[] = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "## Free cash flow\nAMD's free cash flow was three billion dollars." }),
+    onAnswered: (deployment) => answered.push(deployment),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.equal(text, "No written answer is available for this question; try asking again.");
+  assert.deepEqual(answered, [], "no model prose was shown, so no deployment answered");
+});

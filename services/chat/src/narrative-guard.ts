@@ -527,7 +527,7 @@ export function keepUncausedSentences(text: string): { text: string; removed: st
 // everything goes too: the guard dropped lines before the next heading at its
 // level or above, and kept none of them. A heading with a figure in it
 // ("## Revenue: $62.1B") is content: its figure passed the guard.
-function withoutEmptySections(lines: ReadonlyArray<string | null>): string {
+export function withoutEmptySections(lines: ReadonlyArray<string | null>): string {
   const level = (line: string | null) =>
     line !== null && HEADING.test(line) && !/\d/.test(line) ? line.trim().match(/^#+/)?.[0].length ?? 7 : 0;
   const keepHeading = (i: number): boolean => {
