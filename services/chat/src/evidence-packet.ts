@@ -104,8 +104,10 @@ export function claimSelection(
   const explained = route.length > 0
     ? explainedMetrics(scope).map((entry) => (typeof entry === "string" ? explanation(entry) : entry.map(explanation)))
     : [];
+  // A question asking for guidance reads it first, before any explanation.
+  const asked = route.length > 0 && scope.guidance ? ["guidance."] : [];
   // A price window adds the events that move a price, whatever else is read.
-  const prefixes = [...new Set([...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
+  const prefixes = [...new Set([...asked, ...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
   return {
     predicate_prefixes: prefixes,
     effective_from: periodStart(scope, cutoff, route.length > 0),
@@ -132,7 +134,8 @@ type ClaimSelection = {
 // by the metric it qualifies).
 // A group shares one priority.
 const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string | ReadonlyArray<string>>>> = {
-  free_cash_flow: ["free_cash_flow", "operating_cash_flow", "capex"],
+  // Its own explanations, then either component's alike.
+  free_cash_flow: ["free_cash_flow", ["operating_cash_flow", "capex"]],
   operating_cash_flow: ["operating_cash_flow"],
   capex: ["capex"],
   eps_diluted: ["eps"],

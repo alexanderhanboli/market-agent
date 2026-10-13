@@ -67,6 +67,9 @@ export type ResearchScope = {
   price_window: { kind: "ytd"; cutoff: string } | null;
   // A benchmark index asked for: never in this data, so always a named gap.
   benchmark: boolean;
+  // Guidance asked for this turn ("what guidance", "the outlook"): its claims
+  // are read first. Absent when not.
+  guidance?: true;
   // The fields carried from the previous answer rather than asked for now.
   inherited: ReadonlyArray<ScopeField>;
 };
@@ -98,6 +101,7 @@ const OFF = new RegExp(
   "g",
 );
 const SEGMENTS = /\bsegments?\b/i;
+const GUIDANCE = /\b(?:guidance|guided|outlook|forecasts?)\b/i;
 const MARGINS = /\b(margins?|profitab\w*)\b/i;
 // A margin asked about over time, not just its latest value.
 const OVER_TIME =
@@ -440,6 +444,7 @@ export function resolveResearchScope(input: {
     fiscal_year,
     price_window,
     benchmark,
+    ...(GUIDANCE.test(question) ? { guidance: true as const } : {}),
     inherited,
   };
 }
@@ -540,6 +545,7 @@ export function parseResearchScope(value: unknown): ResearchScope | null {
     price_window: window === null ? null : { kind: "ytd", cutoff: window!.cutoff as string },
     // Absent on scopes saved before benchmarks were recorded.
     benchmark: scope.benchmark === true,
+    ...(scope.guidance === true ? { guidance: true as const } : {}),
     inherited: [],
   };
 }

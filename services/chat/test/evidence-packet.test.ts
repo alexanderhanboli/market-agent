@@ -178,12 +178,17 @@ test("a route reads its predicate families first, from the start of the period i
     "guidance.",
     "kpi.",
   ]);
-  assert.deepEqual(claimSelection(scope("What is NVDA's free cash flow?"), CUTOFF).predicate_prefixes.slice(0, 4), [
+  // Free cash flow's own explanations, then either component's alike.
+  assert.deepEqual(claimSelection(scope("What is NVDA's free cash flow?"), CUTOFF).predicate_prefixes.slice(0, 3), [
     "management.explanation.free_cash_flow",
-    "management.explanation.operating_cash_flow",
-    "management.explanation.capex",
+    ["management.explanation.operating_cash_flow", "management.explanation.capex"],
     "management.",
   ]);
+  // A question asking for guidance reads it first.
+  for (const question of ["What revenue guidance did NVDA give?", "What is NVDA's outlook for next quarter?"]) {
+    assert.equal(claimSelection(scope(question), CUTOFF).predicate_prefixes[0], "guidance.", question);
+  }
+  assert.notEqual(claimSelection(scope("What was NVDA's revenue?"), CUTOFF).predicate_prefixes[0], "guidance.");
   assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
   // An adjusted income figure names neither by itself.
   assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted net income rise?"), CUTOFF).predicate_prefixes[0], [

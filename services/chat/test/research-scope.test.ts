@@ -97,9 +97,19 @@ test("a window asked for again is cut off at the new turn", () => {
   assert.deepEqual(next.inherited, []);
 });
 
+test("guidance is asked for by the turn's own words, not carried to the next", () => {
+  const asked = fresh("What revenue guidance did NVDA give?", [NVDA]);
+  assert.equal(asked.guidance, true);
+  assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
+  const next = resolveResearchScope({ question: "And its gross margin?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(next.guidance, undefined);
+});
+
 test("a saved scope reads back; anything else starts fresh", () => {
   const saved = JSON.parse(JSON.stringify(fresh("Compare NVDA with AMD YTD", [NVDA, AMD])));
   assert.deepEqual(parseResearchScope(saved), { ...saved, inherited: [] });
+  const guided = JSON.parse(JSON.stringify(fresh("What is NVDA's outlook?", [NVDA])));
+  assert.deepEqual(parseResearchScope(guided), { ...guided, inherited: [] });
   for (const value of [
     null,
     "scope",
