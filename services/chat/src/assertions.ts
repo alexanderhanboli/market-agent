@@ -8,18 +8,23 @@
 // Shadow: the report goes to evals and logs; the prose shown is unchanged. The
 // controlled rendering from validated assertions is #208's second slice.
 
+import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
-export const ASSERTION_KINDS = ["observation", "management_attribution", "analyst_inference", "unknown_cause"] as const;
+export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
 
 export type Assertion = {
   kind: AssertionKind;
   text: string;
   evidence: ReadonlyArray<string>;
-  // An inference's supporting observations, by their index in the list.
+  // An inference's supporting observations and comparisons, by their index in the list.
   supports?: ReadonlyArray<number>;
+  // A comparison's operation and claimed result (comparisons.ts): the high or
+  // low's id, the ids highest first, or a trend's result.
+  op?: ComparisonOp;
+  result?: string | ReadonlyArray<string>;
 };
 
 export type AssertionReport = {
@@ -36,7 +41,10 @@ export type AssertionReport = {
   rendered?: boolean;
 };
 
-export const MAX_ASSERTIONS = 8;
+// The answer is rendered from this list (#208), so it holds a comparison
+// answer's observations, a comparison per metric, the takeaway and the
+// counterpoint; at 8, counterpoints fell past the cap (2026-10-13 eval).
+export const MAX_ASSERTIONS = 12;
 
 // The list closes the answer in a fenced block the reader never sees. Wherever
 // it is, and closed or not, it is cut from the prose. open: the list never
@@ -93,8 +101,10 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, `unknown kind ${JSON.stringify(item.kind)}`);
       continue;
     }
-    // A malformed list is the model's error to report, never cleaned up.
-    if (!Array.isArray(item.evidence) || !item.evidence.every((id) => typeof id === "string")) {
+    // A malformed list is the model's error to report, never cleaned up. An
+    // inference cites through its supports, so its own evidence may be left out.
+    const listed = item.evidence === undefined && kind === "analyst_inference" ? [] : item.evidence;
+    if (!Array.isArray(listed) || !listed.every((id) => typeof id === "string")) {
       reject(index, item, "evidence is not a list of packet ids");
       continue;
     }
@@ -102,11 +112,15 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, "only an analyst inference lists supports");
       continue;
     }
+    if ((item.op !== undefined || item.result !== undefined) && kind !== "comparison") {
+      reject(index, item, "only a comparison has an op and a result");
+      continue;
+    }
     if (item.supports !== undefined && (!Array.isArray(item.supports) || !item.supports.every((n) => Number.isInteger(n)))) {
       reject(index, item, "supports is not a list of assertion indexes");
       continue;
     }
-    const evidence = item.evidence as string[];
+    const evidence = listed as string[];
     const unknown = evidence.find((id) => !figures.has(id) && !claims.has(id));
     if (unknown !== undefined) {
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
@@ -117,7 +131,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     // About figures when none were shown: nothing to bind, unless it cites a
     // claim where only figures may stand.
     if (packet.figures.length === 0 && kind !== "management_attribution") {
-      if ((kind === "observation" || kind === "unknown_cause") && claimIds.length > 0) {
+      if ((kind === "observation" || kind === "comparison" || kind === "unknown_cause") && claimIds.length > 0) {
         reject(index, item, shapeError(kind, [], claimIds, [], accepted)!);
       } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, uncheckedObservations)) {
         reject(index, item, "an inference binds the accepted observations it rests on");
@@ -127,15 +141,15 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       }
       continue;
     }
-    const supports = (item.supports ?? []) as number[];
-    const shape = shapeError(kind, figureIds, claimIds, supports, accepted);
+    const shape = shapeError(kind, figureIds, claimIds, (item.supports ?? []) as number[], accepted);
     if (shape) {
       reject(index, item, shape);
       continue;
     }
+    const supports = (item.supports ?? []) as number[];
     // An unknown cause is a change's: each figure it cites has its company's
     // same metric in another period with a different value beside it.
-    if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!))) {
+    if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!), packet.figures)) {
       reject(index, item, "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
     }
@@ -160,7 +174,21 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, binding);
       continue;
     }
-    accepted.push({ index, kind, text: item.text, evidence, ...(kind === "analyst_inference" ? { supports } : {}) });
+    // A comparison's claimed result is derived from its complete eligible
+    // evidence before it may stand (comparisons.ts).
+    const comparison = kind === "comparison" ? checkComparison(item, figureIds, packet) : undefined;
+    if (comparison && "error" in comparison) {
+      reject(index, item, comparison.error);
+      continue;
+    }
+    accepted.push({
+      index,
+      kind,
+      text: item.text,
+      evidence,
+      ...(kind === "analyst_inference" ? { supports } : {}),
+      ...(kind === "comparison" ? { op: item.op as ComparisonOp, result: item.result as string | string[] } : {}),
+    });
   }
   accepted.sort((a, b) => a.index - b.index);
   rejected.sort((a, b) => a.index - b.index);
@@ -189,11 +217,44 @@ export function statesValue(text: string, companies: ReadonlyArray<string>): boo
   ));
 }
 
-function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>): boolean {
-  // Every cited figure: the template says each cited metric changed.
-  return cited.length > 0 && cited.every((a) => cited.some((b) =>
-    a.company === b.company && a.metric === b.metric && a.period !== undefined && b.period !== undefined &&
-    a.period !== b.period && a.value !== b.value
+// Every cited figure: the template says each cited metric changed. The
+// other period may be any shown, so the figure that moved alone will do.
+// Each figure value an inference states, bound to the one cited figure it is
+// (its fact): where it sits in the text, so it can render as a fact ref.
+// Null when a value binds to no cited figure or to several different facts.
+export function linkFigures(
+  text: string,
+  cited: ReadonlyArray<string>,
+  packet: EvidencePacket,
+): Array<{ at: number; length: number; figureId: string }> | null {
+  const figures = packet.figures.filter((figure) => cited.includes(figure.id));
+  const companyOf = (company: string | undefined) => company ?? packet.companies[0];
+  const prefixes = currencyPrefixes(packet);
+  const masked = withoutCompanies(text, packet.companies);
+  const links: Array<{ at: number; length: number; figureId: string }> = [];
+  for (const quantity of quantities(masked, prefixes)) {
+    // A period's number ("Q4") or a year said as a time ("Q1 2026", "through
+    // 2025") is never a value to link; a grouped "2,025" is a quantity.
+    if (quantity.period) continue;
+    if (/^\d{4}$/.test(quantity.raw) && (TIME_BEFORE.test(masked.slice(0, quantity.at)) || /\b(?:Q[1-4]|H[12]|FY)\s*$/.test(masked.slice(0, quantity.at)))) continue;
+    const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies) ?? lastCompanyBefore(text, quantity.at, packet.companies);
+    const matches = figures.filter((figure) =>
+      (named === undefined || companyOf(figure.company) === named) &&
+      quantities(figure.value, prefixes).some((shown) => sameQuantity(quantity, shown))
+    );
+    const facts = new Set(matches.map((figure) => figure.fact_id ?? figure.id));
+    if (facts.size !== 1) return null;
+    // Accounting parentheses are outside the match.
+    const length = quantity.raw.startsWith("(") ? quantity.raw.length - 2 : quantity.raw.length;
+    links.push({ at: quantity.at, length, figureId: matches[0]!.id });
+  }
+  return links;
+}
+
+function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>, shown: EvidencePacket["figures"]): boolean {
+  return cited.length > 0 && cited.every((a) => shown.some((b) =>
+    a.company === b.company && a.metric === b.metric && a.segment === b.segment && a.period !== undefined && b.period !== undefined &&
+    a.period.replace(/\s+/g, "") !== b.period.replace(/\s+/g, "") && a.value !== b.value
   ));
 }
 
@@ -210,12 +271,15 @@ function shapeError(
   switch (kind) {
     case "observation":
       return figureIds.length === 0 || claimIds.length > 0 ? "an observation cites figures, and only figures" : null;
+    case "comparison":
+      return figureIds.length < 2 || claimIds.length > 0 ? "a comparison cites two or more figures, and only figures" : null;
     case "unknown_cause":
       return figureIds.length === 0 || claimIds.length > 0 ? "an unknown cause cites the figures that changed, and no claim" : null;
     case "management_attribution":
       return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
     case "analyst_inference": {
-      const observations = new Set(accepted.filter((entry) => entry.kind === "observation").map((entry) => entry.index));
+      const observations = new Set(accepted.filter((entry) => entry.kind === "observation" || entry.kind === "comparison").map((entry) => entry.index));
+      // Every support it declares: one that failed may be what it rests on.
       return supports.length === 0 || !supports.every((n) => observations.has(n))
         ? "an inference binds the accepted observations it rests on"
         : null;
@@ -276,11 +340,12 @@ function bindingError(text: string, cited: ReadonlyArray<string>, packet: Eviden
       return `${quantity.raw} is not a cited figure's value for ${named}`;
     }
   }
-  // A month the text dates something by is a cited date's: a claim's, or the
-  // month a figure's period ends in.
+  // A month the text dates something by is a cited date's: a claim's, the
+  // month a figure's period ends in, or a date its window names ("YTD 2026:
+  // 2025-12-31 close to ...").
   const months = new Set([
     ...claims.flatMap((claim) => [claim.effective_time, claim.published_at]),
-    ...figures.map((figure) => figure.period_end),
+    ...figures.flatMap((figure) => [figure.period_end, ...(figure.period?.match(/\d{4}-\d{2}-\d{2}/g) ?? [])]),
   ].flatMap((date) => (date ? [monthYear(date)] : [])));
   for (const match of text.matchAll(MONTH_YEAR)) {
     const month = `${MONTHS.find((name) => name.slice(0, 3).toLowerCase() === match[1]!.slice(0, 3).toLowerCase())} ${match[2]}`;
@@ -352,14 +417,17 @@ function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantit
   return [...text.matchAll(quantityPattern(prefixes))].map((match) => {
     const unit = (match[4] ?? "").toLowerCase();
     const denomination = DENOMINATIONS[(match[5] ?? "").toLowerCase().replace(/s$/, "")];
-    // Accounting parentheses ("($3.1B)") make it negative.
-    const parenthesized = /\(\s*$/.test(text.slice(0, match.index)) && /^\s*\)/.test(text.slice(match.index + match[0].length));
+    const currency = (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$") || denomination || "";
+    // Accounting parentheses ("($3.1B)") make an amount negative; a percentage
+    // in parentheses is prose's aside ("gross margin (75.0%)").
+    const parenthesized = currency !== "" &&
+      /\(\s*$/.test(text.slice(0, match.index)) && /^\s*\)/.test(text.slice(match.index + match[0].length));
     return {
       raw: parenthesized ? `(${match[0].trim()})` : match[0].trim(),
       at: match.index,
       value: String(Number(match[3]!.replace(/,/g, ""))),
       unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit === "×" ? "x" : unit.toUpperCase()),
-      currency: (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$") || denomination || "",
+      currency,
       negative: parenthesized || (match[1] !== undefined && match[1] !== "+"),
       positive: match[1] === "+",
       period: /(?:\bQ|\bFY ?|\bH)$/.test(text.slice(0, match.index)),

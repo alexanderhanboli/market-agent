@@ -1,0 +1,105 @@
+{
+  "run": "2026-10-13T043906",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Figures, margins and 'rose in every period' correct. Both inferences dropped: one for 'Q4 2026' read as an unlinkable figure (bug), one by the guard. No view or counterpoint."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Low at Q2 2025 and unknown cause rendered; the inference ('moderate rather than dramatic' improvement from the pre-dip baseline) is grounded. The hypothesis inference was dropped for 'Q2 2025' (year bug)."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Low and unknown cause right; the full series is shown. The 'one-quarter anomaly, recovered within three quarters' inference was dropped (year bug), so the recovery is never said."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Four checked comparisons plus a tiering inference. The counterpoint (AMD's 34.5% growth is strong in its own right) was cut by the 8-assertion cap."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Four correct comparisons; the inferences are justified. AAPL's scale is a partial counterpoint; still no industry caveat."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Mismatch stated twice (inference and note). The margin comparison was rejected for '(75.0%)' read as negative (parentheses bug)."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Ranking by revenue reads well; the concentration inference names the one-quarter limit."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Gap stated honestly; the sentence still repeats (#272)."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Gap stated honestly; the sentence still repeats (#272)."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Turn 3's margin and growth comparisons were all rejected for parenthesized values read as negative (bug), so 'explain the differences' is one inference. Turn 2's counterpoint (narrow YTD gap vs the fundamental gap) is specific and grounded. Price returns render only in the chart (#236)."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the first round of eval fixes (#208 3/3). Figures only: the multi-metric comparison was rejected, so both inferences (including a good counterpoint about similar returns) lost their comparison support and were dropped."
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "run": "2026-10-13T052626",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Checked trend and a non-comparative takeaway. The counterpoint inference was dropped for comparative wording."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Rebound template, gross-margin low, unknown cause. Both inferences, including the counterpoint about single-quarter vulnerability, were dropped for comparative wording."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Low and unknown cause only: the one-quarter-event inference ('immediate recovery') was dropped for comparative wording, so the recovery is never said."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Four checked comparisons; the takeaway and the counterpoint (AMD's growth still strong) were both dropped for comparative wording."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Five checked comparisons; the AAPL inference survives as a grounded counterpoint."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Revenue comparison and mismatch note only; the profitability inference was dropped and the margin comparison rejected (multi-metric)."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Ranking, the concentration inference, and Gaming's meaningful absolute size."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Gap stated honestly; the sentence still repeats (#272)."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Gap stated honestly; the sentence still repeats (#272)."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Turn 3: four checked comparisons; both inferences (the drivers caveat and AMD's robust growth) dropped for comparative wording."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Agent-scored (Claude), not owner-scored. Rendering on, after the Codex review fixes: no rendered inference states a ranking or direction (#208 3/3). Checked comparisons; both inferences, including the explicit counterpoint, dropped for comparative wording."
+    }
+  }
+}
