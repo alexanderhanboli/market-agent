@@ -271,19 +271,37 @@ export function verifyStatement(statement: ReleaseStatement, exhibits: ReadonlyA
 // counts only at a block edge.
 const SENTENCE_START = /^["'($•[0-9A-Z]/;
 
+// An abbreviation's full stop, which ends no sentence even before a capital
+// ("the U.S. Data Center market"): initials ("U.S.", "e.g.", "J.") or a word
+// shortened by convention ("Inc.", "approx."). ponytail: a sentence that ends
+// in one ("...sales in the U.S.") counts only at a block edge.
+const INITIALS = /(?:^|[\s("'])(?:(?:[A-Za-z]\.){2,}|[A-Z]\.)$/;
+const SHORTENED = /(?:^|[\s("'])(?:inc|corp|co|ltd|no|nos|approx|vs|mr|ms|dr|jr|sr|st)\.$/i;
+
+// Whether the text before `at` ends a sentence with one of `marks` (and a
+// closing quote or bracket), not with an abbreviation's full stop.
+function endMarkBefore(text: string, at: number, marks: RegExp): boolean {
+  const head = text.slice(Math.max(0, at - 16), at);
+  if (!marks.test(head)) return false;
+  const stop = head.replace(/["')]$/, "");
+  return !(stop.endsWith(".") && (INITIALS.test(stop) || SHORTENED.test(stop)));
+}
+
 // A sentence starts where a block starts, or after a sentence's end (a full
 // stop, question or exclamation mark, colon, semicolon or bullet) with what a
 // sentence starts with.
 function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
-  return exhibit.edges.has(start) ||
-    (/[.!?:;•]["')]?\s$/.test(exhibit.text.slice(Math.max(0, start - 3), start)) && SENTENCE_START.test(exhibit.text.slice(start)));
+  if (exhibit.edges.has(start)) return true;
+  return /\s/.test(exhibit.text[start - 1] ?? "") &&
+    endMarkBefore(exhibit.text, start - 1, /[.!?:;•]["')]?$/) &&
+    SENTENCE_START.test(exhibit.text.slice(start));
 }
 
 // A sentence ends where a block ends, or with its own end mark (and a closing
 // quote or bracket), at the end of the text or before the next sentence.
 function endsSentence(exhibit: ReleaseExhibit, end: number): boolean {
   if (exhibit.edges.has(end)) return true;
-  if (!/[.!?]["')]?$/.test(exhibit.text.slice(Math.max(0, end - 2), end))) return false;
+  if (!endMarkBefore(exhibit.text, end, /[.!?]["')]?$/)) return false;
   return end === exhibit.text.length || (exhibit.text[end] === " " && SENTENCE_START.test(exhibit.text.slice(end + 1)));
 }
 

@@ -151,8 +151,12 @@ const EXPLAINED_BY: Readonly<Record<string, ReadonlyArray<string | ReadonlyArray
 
 function explainedMetrics(scope: ResearchScope): Array<string | ReadonlyArray<string>> {
   const margins = scope.margins || scope.reads === "derived_margin";
-  // The scope records no margin by name, so theirs share one priority.
-  const metrics: Array<string | ReadonlyArray<string>> = margins ? [["gross_margin", "operating_income", "net_income"]] : [];
+  // The income-statement items the question names first; then the margins,
+  // which share one priority, and the metrics' own.
+  const metrics: Array<string | ReadonlyArray<string>> = [
+    ...(scope.income_items ?? []),
+    ...(margins ? [["gross_margin", "operating_income", "net_income"]] : []),
+  ];
   for (const requested of scope.metrics) {
     // In a margin question, the income statement it names is the margin.
     if (margins && requested.metric_key === "income_statement") continue;

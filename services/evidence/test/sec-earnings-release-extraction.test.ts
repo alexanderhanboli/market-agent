@@ -148,6 +148,13 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
   assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "due to weaker demand." }, abbreviated), null);
   assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S." }, abbreviated), null);
   assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S. due to weaker demand." }, abbreviated));
+  // Nor before a capitalized continuation ("the U.S. Data Center market").
+  const continued = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Revenue did not decline in the U.S. Data Center market due to weaker demand.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Data Center market due to weaker demand." }, continued), null);
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S." }, continued), null);
+  assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S. Data Center market due to weaker demand." }, continued));
 
   // A paraphrase, an invented cause, or a fragment is not a quote.
   for (const quote of [

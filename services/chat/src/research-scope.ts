@@ -71,6 +71,10 @@ export type ResearchScope = {
   // answer an evidence follow-up re-reads: its claims are read first. Absent
   // when not.
   guidance?: true;
+  // The income-statement items the question names ("operating income"), which
+  // its metrics read as the whole statement: their claims come first. This
+  // turn's, or the answer an evidence follow-up re-reads. Absent when none.
+  income_items?: ReadonlyArray<string>;
   // The fields carried from the previous answer rather than asked for now.
   inherited: ReadonlyArray<ScopeField>;
 };
@@ -103,8 +107,21 @@ const OFF = new RegExp(
 );
 const SEGMENTS = /\bsegments?\b/i;
 // Guidance, however it is asked for: guided, an outlook or forecast, what the
-// company expects, its projections or its targets.
-const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expect(?:s|ed|ations?)?|project(?:ed|ions?)|targets?)\b/i;
+// company expects or is expected to do, its projections or its targets. A
+// result "than expected" or "as expected" is set against past expectations,
+// and asks why.
+const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expects?|expected to|expectations? for|project(?:ed|ions?)|targets?)\b/i;
+
+// The income-statement items a question names, in earnings-release terms
+// (sec-earnings-release-extraction.ts): the scope reads them all as the income
+// statement, so these say which comes first.
+const INCOME_ITEMS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["revenue", /\b(?:revenues?|sales|top[- ]line)\b/i],
+  ["gross_margin", /\bgross (?:margins?|profits?)\b/i],
+  ["operating_expenses", /\b(?:operating expenses|opex)\b/i],
+  ["operating_income", /\boperating (?:income|profits?|margins?)\b/i],
+  ["net_income", /\bnet (?:income|profits?|margins?|earnings)\b/i],
+];
 const MARGINS = /\b(margins?|profitab\w*)\b/i;
 // A margin asked about over time, not just its latest value.
 const OVER_TIME =
@@ -429,6 +446,9 @@ export function resolveResearchScope(input: {
   const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
     metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
     !SEGMENTS.test(question) && !marginAsked;
+  const incomeItems = evidence && prior !== null
+    ? prior.income_items ?? []
+    : INCOME_ITEMS.flatMap(([item, pattern]) => (pattern.test(question) ? [item] : []));
   const reads = evidence && prior !== null
     ? prior.reads
     : input.served
@@ -449,6 +469,7 @@ export function resolveResearchScope(input: {
     benchmark,
     // Asked this turn, or by the answer an evidence follow-up re-reads.
     ...(GUIDANCE.test(question) || (evidence && prior?.guidance) ? { guidance: true as const } : {}),
+    ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };
 }
@@ -550,6 +571,9 @@ export function parseResearchScope(value: unknown): ResearchScope | null {
     // Absent on scopes saved before benchmarks were recorded.
     benchmark: scope.benchmark === true,
     ...(scope.guidance === true ? { guidance: true as const } : {}),
+    ...(Array.isArray(scope.income_items) && scope.income_items.length > 0 && scope.income_items.every((item) => typeof item === "string")
+      ? { income_items: scope.income_items as string[] }
+      : {}),
     inherited: [],
   };
 }

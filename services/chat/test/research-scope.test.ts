@@ -55,6 +55,8 @@ test("a fresh question records what it asks for and inherits nothing", () => {
     fiscal_year: 2025,
     price_window: { kind: "ytd", cutoff: AS_OF },
     benchmark: false,
+    // Which of the income statement it names.
+    income_items: ["revenue"],
     inherited: [],
   });
 });
@@ -101,8 +103,17 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
   const asked = fresh("What revenue guidance did NVDA give?", [NVDA]);
   assert.equal(asked.guidance, true);
   // Asked as an expectation, a projection or a target too.
-  for (const question of ["What revenue does NVDA expect next quarter?", "What are management's projections?", "What is NVDA's gross margin target?"]) {
+  for (const question of [
+    "What revenue does NVDA expect next quarter?",
+    "What revenue is NVDA expected to report next quarter?",
+    "What are management's projections?",
+    "What is NVDA's gross margin target?",
+  ]) {
     assert.equal(fresh(question, [NVDA]).guidance, true, question);
+  }
+  // A result set against past expectations asks why, not for guidance.
+  for (const question of ["Why were NVDA's margins lower than expected?", "Did NVDA's revenue come in as expected?"]) {
+    assert.equal(fresh(question, [NVDA]).guidance, undefined, question);
   }
   assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
   const next = resolveResearchScope({ question: "And its gross margin?", companies: [NVDA], prior: asked, asOf: AS_OF });
@@ -111,6 +122,12 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
   const sources = resolveResearchScope({ question: "What are your sources?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(sources.route, "evidence_followup");
   assert.equal(sources.guidance, true);
+  assert.deepEqual(sources.income_items, ["revenue"]);
+  // Any other turn names its own.
+  assert.deepEqual(next.income_items, ["gross_margin"]);
+  // Both read back from a saved answer.
+  const saved = JSON.parse(JSON.stringify(asked));
+  assert.deepEqual(parseResearchScope(saved), { ...saved, inherited: [] });
 });
 
 test("a saved scope reads back; anything else starts fresh", () => {

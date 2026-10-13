@@ -224,7 +224,8 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   decoded, typographic quotes and dashes made plain) and returns up to 8 `{kind, metric, quote}`: kind explanation or
   guidance, metric from a closed list. A quote is kept only if it appears verbatim in an exhibit (in that canonical
   form) as whole sentences: it starts at a block edge or after a sentence's end, and ends at a block edge or with its
-  own end mark (a full stop counts only before what a sentence starts with, so "the U.S. due to" is not a boundary). So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
+  own end mark (a full stop counts only before what a sentence starts with, and never an abbreviation's, so neither
+  "the U.S. due to" nor "the U.S. Data Center market" is a boundary). So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
   to weaker demand") is rejected, while a sentence after a heading block is whole. (A plain-text exhibit's blocks are
   its paragraphs, with an all-caps heading line its own.) The stored text is the exhibit's own, never the model's
   string. Paraphrases and invented causes are dropped. A reply that isn't JSON leaves the filing unprocessed, to be
@@ -235,8 +236,10 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
 - **Chat** reads `management.` claims first on every route that reads figures (latest quarter, trends, margins,
   segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
   The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
-  metric named), since one release can hold more explanations than the claim limit. A question asking for guidance
-  ("guidance", "outlook", "forecast", "expect", "projections", "target": the scope's `guidance`, this turn only, or
+  metric named), since one release can hold more explanations than the claim limit. The scope reads revenue, margins
+  and income as the whole income statement, so it also records the items the question names (`income_items`:
+  "operating income"), and theirs come first. A question asking for guidance
+  ("guidance", "outlook", "forecast", "expects", "projections", "target"; not "than expected": the scope's `guidance`, this turn only, or
   kept by an evidence follow-up) reads guidance claims first instead, for the metrics it names and then any,
   whatever the figures' route. The loader ranks claims by the
   first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`); a group of
