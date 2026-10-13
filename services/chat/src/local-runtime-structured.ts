@@ -11,6 +11,7 @@ import {
   loadRecentIssuerFundamentals,
   type IssuerFundamentalFact,
 } from "../../fundamentals/src/issuer-fundamentals-reader.ts";
+import { SEC_METRIC_KEYS_BY_FAMILY } from "../../fundamentals/src/sec-edgar.ts";
 
 // Structured (non-research) context for the chat analyst. The local runtime
 // historically grounded answers only on research claims, so subjects with price
@@ -152,8 +153,17 @@ async function loadIssuerFacts(
   if (issuer === null) return [];
   // The canonical reader owns the eligibility filter (reported, active, entitled
   // for the "app" channel, display-verified). Chat answers render on "app".
-  return loadRecentIssuerFundamentals(db, issuer, { channel: "app", limit, cutoff });
+  // Cash flow and balances reach the model only through their own blocks
+  // (statement-blocks.ts), which date a balance by its period end; here a
+  // balance would read as its fiscal-year label and crowd out the income rows.
+  return loadRecentIssuerFundamentals(db, issuer, { channel: "app", limit, cutoff, excludeMetricKeys: STATEMENT_ONLY_METRICS });
 }
+
+const STATEMENT_ONLY_METRICS = [
+  ...SEC_METRIC_KEYS_BY_FAMILY.cashflow,
+  ...SEC_METRIC_KEYS_BY_FAMILY.balance,
+  "free_cash_flow",
+];
 
 // Reads each listing's latest quote through the canonical market cache repository
 // and returns the freshest across the subject's listings (usually just one).

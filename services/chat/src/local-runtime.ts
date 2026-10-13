@@ -30,8 +30,17 @@ import {
 } from "./coordinator.ts";
 import type { AssertionReport } from "./assertions.ts";
 import { claimSelection } from "./evidence-packet.ts";
-import { companyListings, loadTurnFactBlocks, mayOfferOtherFacts, priceListingsForTurn, scopeGapBlocks, turnCompanies } from "./fact-blocks.ts";
+import {
+  companyListings,
+  loadTurnFactBlocks,
+  mayOfferOtherFacts,
+  priceListingsForTurn,
+  scopeGapBlocks,
+  turnCompanies,
+  withDerivationSources,
+} from "./fact-blocks.ts";
 import { resolveResearchScope, type ResearchScope } from "./research-scope.ts";
+import { loadStatementBlocks, statementFacets, wantsStatements } from "./statement-blocks.ts";
 import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin, turnNow } from "./ytd-hydration.ts";
 import { listingTimeZones } from "./perf-block.ts";
 import { loadPriorScope, loadPriorSubjects as loadThreadPriorSubjects, loadRecentConversation } from "./thread-context.ts";
@@ -182,8 +191,13 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   // A turn asking only for metrics no reader serves reads no other facts, nor
   // does one re-reading a financial-engine answer, whose evidence is in it (#206).
   const readsFacts = scope.reads !== "unavailable_metric" && scope.reads !== "financial_answer";
-  const [shownBlocks, conversation] = await Promise.all([
-    readsFacts ? loadTurnFactBlocks(pool(), {
+  // Cash flow, balance sheet and EPS for one company; a statement-only request
+  // reads them alone, as a segment request reads segments alone.
+  const [statementIssuer] = issuersOfScope(scope);
+  const statements = statementFacets(scope);
+  const readsStatements = readsFacts && wantsStatements(statements) && scope.companies.length === 1 && !scope.peers;
+  const [incomeBlocks, statementBlocks, conversation] = await Promise.all([
+    readsFacts && scope.reads !== "statements" ? loadTurnFactBlocks(pool(), {
       // The companies the scope records, peers already resolved (comparedCompanies),
       // so the blocks chart exactly the set the scope saves.
       issuers: issuersOfScope(scope),
@@ -202,8 +216,18 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
       snapshotId: result.snapshot_id,
       asOf,
     }) : Promise.resolve([]),
+    readsStatements && statementIssuer
+      ? loadStatementBlocks(pool(), {
+        issuer: statementIssuer,
+        facets: statements,
+        fiscalYear: scope.fiscal_year ?? undefined,
+        snapshotId: result.snapshot_id,
+        asOf,
+      })
+      : Promise.resolve([]),
     loadRecentConversation(pool(), { threadId: context.threadId, limit: CONVERSATION_MESSAGES }),
   ]);
+  const shownBlocks = await withDerivationSources(pool(), [...incomeBlocks, ...statementBlocks]);
   const factBlocks = [...shownBlocks, ...scopeGapBlocks(scope, shownBlocks, { snapshotId: result.snapshot_id, asOf })];
   let narrativeRemoved: ReadonlyArray<string> = [];
   let assertionReport: AssertionReport | undefined;

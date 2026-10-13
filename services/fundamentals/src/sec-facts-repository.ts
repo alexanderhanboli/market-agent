@@ -11,10 +11,14 @@ import {
   extractStatementWithTokens,
   SecEdgarFetchError,
   SEC_INCOME_METRIC_KEYS,
+  SEC_METRIC_KEYS_BY_FAMILY,
   US_GAAP_TO_METRIC_KEY,
+  secFiscalYearWindow,
   selectSecConceptValue,
+  type ExtractStatementInput,
   type SecCompanyFacts,
   type SecEdgarFetcher,
+  type SecDerivation,
   type SecSourceToken,
 } from "./sec-edgar.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
@@ -26,6 +30,7 @@ import {
   normalizedStatement,
   type CoverageLevel,
   type FiscalPeriod,
+  type StatementFamily,
   type NormalizedStatement,
   type StatementLine,
   type PeriodKind,
@@ -91,33 +96,19 @@ export function createSecBackedStatementRepository(
         return null;
       }
 
-      const asOf = clock().toISOString();
       try {
         const companyFacts = await fetchCompanyFacts(options.fetcher, cikNumber);
-        const accessionNumber = statementAccession(companyFacts, lookup.fiscal_year, lookup.fiscal_period);
-        const sourceId = accessionNumber
-          ? await upsertSecFilingSource(db, {
-              cik: cikNumber,
-              accessionNumber,
-              retrievedAt: asOf,
-            })
-          : options.sourceId;
-        const extracted = extractStatementWithTokens({
-          subject: { kind: "issuer", id: lookup.issuer_id },
-          facts: companyFacts,
-          family: lookup.family,
+        return await ingestFiling(db, {
+          companyFacts,
+          cik: cikNumber,
+          issuerId: lookup.issuer_id,
           fiscal_year: lookup.fiscal_year,
           fiscal_period: lookup.fiscal_period,
-          accession_number: accessionNumber ?? undefined,
-          source_id: sourceId,
-          as_of: asOf,
+          fallbackSourceId: options.sourceId,
+          income: "require",
+          clock,
+          logger,
         });
-        const statement = normalizedStatement(extracted.statement);
-
-        const registry = await loadMetricRegistry(db, statement.lines.map((line) => line.metric_key));
-        const mapped = mapStatement(registry, statement);
-        await withPinnedTransaction(db, (client) => persistStatementFacts(client, mapped, clock, { cik: cikNumber, tokens: extracted.tokens }));
-        return statement;
       } catch (error) {
         const unavailable = classifySecIngestionError(error);
         logger.warn("sec_edgar fundamentals ingestion failed", {
@@ -131,6 +122,254 @@ export function createSecBackedStatementRepository(
       }
     },
   };
+}
+
+// For every SEC income period already on file for an issuer, from one
+// companyfacts download: stores the cash flow and balance sheet, and repairs
+// the income statement. Those periods are otherwise read from facts and never
+// fetched again, so this is how they gain the families ingested since, and how
+// facts the old period selector got wrong (a 10-K's oldest comparative, a
+// framed prior-year quarter) are replaced. Rerunning is safe: a stored fact that
+// matches the filing is left as it is.
+export async function backfillSecCompanionStatements(
+  db: FundamentalsTransactionalQueryExecutor,
+  input: {
+    issuerId: UUID;
+    fetcher: SecEdgarFetcher;
+    sourceId: UUID;
+    clock?: () => Date;
+    logger?: Pick<Console, "warn">;
+  },
+): Promise<{ periods: number }> {
+  const issuer = await loadIssuer(db, input.issuerId);
+  const cik = Number(issuer?.cik);
+  if (!Number.isInteger(cik) || cik <= 0) return { periods: 0 };
+  const { rows } = await db.query<{ fiscal_year: number; fiscal_period: FiscalPeriod }>(
+    `select distinct f.fiscal_year, f.fiscal_period::text as fiscal_period
+       from facts f
+       join metrics m on m.metric_id = f.metric_id
+       join sources s on s.source_id = f.source_id
+      where f.subject_kind = 'issuer'
+        and f.subject_id = $1
+        and f.method = 'reported'
+        and f.period_kind in ('fiscal_q', 'fiscal_y')
+        and s.provider = 'sec_edgar'
+        and ${factActiveSql("f")}
+        and m.metric_key = any($2::text[])
+      order by f.fiscal_year, f.fiscal_period`,
+    [input.issuerId, SEC_INCOME_METRIC_KEYS],
+  );
+  if (rows.length === 0) return { periods: 0 };
+  const companyFacts = await fetchCompanyFacts(input.fetcher, cik);
+  for (const period of rows) {
+    await ingestFiling(db, {
+      companyFacts,
+      cik,
+      issuerId: input.issuerId,
+      fiscal_year: period.fiscal_year,
+      fiscal_period: period.fiscal_period,
+      fallbackSourceId: input.sourceId,
+      income: "repair",
+      clock: input.clock ?? (() => new Date()),
+      logger: input.logger ?? console,
+    });
+  }
+  return { periods: rows.length };
+}
+
+type Extracted = {
+  statement: NormalizedStatement;
+  tokens: ReadonlyMap<string, SecSourceToken>;
+  derivations: ReadonlyMap<string, SecDerivation>;
+};
+
+// Stores one filing's statements for a fiscal period from a companyfacts
+// download, in one transaction: the income statement, and the same filing's
+// cash flow and balance sheet beside it. Income is "require" (a lookup: it must
+// extract) or "repair" (a backfill: stored income facts that differ from the
+// filing are replaced; a period it cannot extract is left as it is). Returns
+// the income statement, or null without it.
+async function ingestFiling(
+  db: FundamentalsTransactionalQueryExecutor,
+  input: {
+    companyFacts: SecCompanyFacts;
+    cik: number;
+    issuerId: UUID;
+    fiscal_year: number;
+    fiscal_period: FiscalPeriod;
+    fallbackSourceId: UUID;
+    income: "require" | "repair";
+    clock: () => Date;
+    logger: Pick<Console, "warn">;
+  },
+): Promise<NormalizedStatement | null> {
+  const asOf = input.clock().toISOString();
+  const accessionNumber = statementAccession(input.companyFacts, input.fiscal_year, input.fiscal_period);
+  const sourceId = accessionNumber
+    ? await upsertSecFilingSource(db, { cik: input.cik, accessionNumber, retrievedAt: asOf })
+    : input.fallbackSourceId;
+  const target = {
+    subject: { kind: "issuer", id: input.issuerId },
+    facts: input.companyFacts,
+    fiscal_year: input.fiscal_year,
+    fiscal_period: input.fiscal_period,
+    accession_number: accessionNumber ?? undefined,
+    source_id: sourceId,
+    as_of: asOf,
+  } as const;
+  const income: Extracted | null = input.income === "require"
+    ? extracted(extractStatementWithTokens({ ...target, family: "income" }))
+    : statementsOf(target, ["income"], input.logger)[0] ?? null;
+  const companions = statementsOf(target, COMPANION_FAMILIES, input.logger);
+  const registry = await loadMetricRegistry(
+    db,
+    [...(income ? [income] : []), ...companions].flatMap((entry) => entry.statement.lines.map((line) => line.metric_key)),
+  );
+  const mapped = [
+    ...(income ? [{ ...income, mapped: mapStatement(registry, income.statement) }] : []),
+    ...mapCompanions(registry, companions, target, input.logger),
+  ];
+  if (mapped.length === 0) return income?.statement ?? null;
+  await withPinnedTransaction(db, async (client) => {
+    // The repair retires stored income facts the filing contradicts, then
+    // stores the filing's in their place (the active identity is unique).
+    const stale = input.income === "repair" && income
+      ? await staleStatementFacts(client, input.issuerId, income.statement)
+      : new Map<string, string[]>();
+    if (stale.size > 0) {
+      await client.query(
+        `update facts set invalidated_at = now(), updated_at = now() where fact_id = any($1::uuid[])`,
+        [[...stale.values()].flat()],
+      );
+    }
+    for (const entry of mapped) {
+      const inserted = await persistStatementFacts(client, entry.mapped, input.clock, {
+        cik: input.cik,
+        tokens: entry.tokens,
+        derivations: entry.derivations,
+        retrievedAt: asOf,
+      });
+      if (entry.statement !== income?.statement) continue;
+      for (const [metricKey, oldIds] of stale) {
+        const newId = inserted.get(metricKey);
+        if (newId) {
+          await client.query(`update facts set superseded_by = $2, updated_at = now() where fact_id = any($1::uuid[])`, [oldIds, newId]);
+        }
+      }
+    }
+  });
+  return income?.statement ?? null;
+}
+
+// The stored, active SEC facts for a statement's period that the filing
+// contradicts, their ids by metric_key: a metric the statement has, with another value
+// or dates; or one of its family the statement lacks, dated for another
+// period (the old selector's comparative, with nothing to replace it).
+async function staleStatementFacts(
+  db: FundamentalsQueryExecutor,
+  issuerId: UUID,
+  statement: NormalizedStatement,
+): Promise<Map<string, string[]>> {
+  const { rows } = await db.query<{
+    fact_id: string;
+    metric_key: string;
+    stored_value: string | null;
+    period_start: string | null;
+    period_end: string;
+  }>(
+    // Dates as text: pg reads a date column as a local-time Date, which can
+    // shift a day when written back as ISO.
+    `select f.fact_id::text as fact_id, m.metric_key, f.value_num::text as stored_value,
+            f.period_start::text as period_start, f.period_end::text as period_end
+       from facts f
+       join metrics m on m.metric_id = f.metric_id
+       join sources s on s.source_id = f.source_id
+      where f.subject_kind = 'issuer'
+        and f.subject_id = $1
+        and f.period_kind = $2
+        and f.fiscal_year = $3
+        and f.fiscal_period = $4
+        and f.method = 'reported'
+        and s.provider = 'sec_edgar'
+        and ${factActiveSql("f")}
+        and m.metric_key = any($5::text[])`,
+    [issuerId, statement.period_kind, statement.fiscal_year, statement.fiscal_period, SEC_METRIC_KEYS_BY_FAMILY[statement.family]],
+  );
+  // A metric can have rows from several filings: every contradicted one goes.
+  const stale = new Map<string, string[]>();
+  for (const row of rows) {
+    const line = statement.lines.find((candidate) => candidate.metric_key === row.metric_key);
+    const otherDates = row.period_start !== statement.period_start || row.period_end !== statement.period_end;
+    const contradicted = line
+      ? otherDates || (row.stored_value === null ? null : Number(row.stored_value)) !== line.value_num
+      : otherDates;
+    if (contradicted) stale.set(row.metric_key, [...(stale.get(row.metric_key) ?? []), row.fact_id]);
+  }
+  return stale;
+}
+
+function extracted(result: ReturnType<typeof extractStatementWithTokens>): Extracted {
+  return { statement: normalizedStatement(result.statement), tokens: result.tokens, derivations: result.derivations };
+}
+
+// The statements of these families for the filing being ingested. A filer that
+// tags none of a family's concepts has no such statement; any other failure
+// (concepts disagreeing on the period, a second currency) is logged and costs
+// only that family, never the statement a lookup asked for.
+function statementsOf(
+  target: Omit<ExtractStatementInput, "family">,
+  families: ReadonlyArray<StatementFamily>,
+  logger: Pick<Console, "warn">,
+): Extracted[] {
+  return families.flatMap((family) => {
+    try {
+      return [extracted(extractStatementWithTokens({ ...target, family }))];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isMissingCoverage(message)) {
+        logger.warn("sec_edgar statement extraction failed", {
+          issuer_id: target.subject.id,
+          family,
+          fiscal_year: target.fiscal_year,
+          fiscal_period: target.fiscal_period,
+          error: message,
+        });
+      }
+      return [];
+    }
+  });
+}
+
+const COMPANION_FAMILIES = ["cashflow", "balance"] as const;
+
+// A companion whose metrics the registry lacks is logged and left out, like
+// a failed extraction, so it cannot cost the income statement either.
+function mapCompanions(
+  registry: MetricRegistry,
+  companions: ReadonlyArray<Extracted>,
+  target: Omit<ExtractStatementInput, "family">,
+  logger: Pick<Console, "warn">,
+): Array<Extracted & { mapped: MappedStatement }> {
+  return companions.flatMap((entry) => {
+    try {
+      return [{ ...entry, mapped: mapStatement(registry, entry.statement) }];
+    } catch (error) {
+      logger.warn("sec_edgar statement mapping failed", {
+        issuer_id: target.subject.id,
+        family: entry.statement.family,
+        fiscal_year: target.fiscal_year,
+        fiscal_period: target.fiscal_period,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  });
+}
+
+function isMissingCoverage(message: string): boolean {
+  return message.includes("no us-gaap values") ||
+    message.includes('has no "us-gaap" taxonomy') ||
+    message.includes("no monetary lines extracted");
 }
 
 async function upsertSecFilingSource(
@@ -187,6 +426,7 @@ function statementAccession(
   const counts = new Map<string, number>();
   const usGaap = facts.facts["us-gaap"];
   if (!usGaap) return null;
+  const fiscalWindow = secFiscalYearWindow(facts, fiscalYear);
   for (const [conceptName, metricKey] of Object.entries(US_GAAP_TO_METRIC_KEY)) {
     if (!SEC_INCOME_METRIC_KEYS.includes(metricKey)) continue;
     const concept = usGaap[conceptName];
@@ -195,6 +435,7 @@ function statementAccession(
       const match = selectSecConceptValue(values, {
         fiscal_year: fiscalYear,
         fiscal_period: fiscalPeriod,
+        fiscal_window: fiscalWindow,
       }, unitCode);
       if (!match) continue;
       counts.set(match.accn, (counts.get(match.accn) ?? 0) + 1);
@@ -325,11 +566,7 @@ function classifySecIngestionError(error: unknown): FundamentalsDataUnavailableE
   }
 
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    message.includes("no us-gaap values") ||
-    message.includes('has no "us-gaap" taxonomy') ||
-    message.includes("no monetary lines extracted")
-  ) {
+  if (isMissingCoverage(message)) {
     return null;
   }
 
@@ -510,21 +747,32 @@ async function persistStatementFacts(
   db: FundamentalsQueryExecutor,
   statement: MappedStatement,
   clock: () => Date,
-  provenance: { cik: number; tokens: ReadonlyMap<string, SecSourceToken> },
-): Promise<void> {
+  provenance: {
+    cik: number;
+    tokens: ReadonlyMap<string, SecSourceToken>;
+    derivations?: ReadonlyMap<string, SecDerivation>;
+    retrievedAt?: string;
+  },
+): Promise<Map<string, string>> {
+  // The facts this call inserted, by metric_key (a conflicting line inserts none).
+  const insertedIds = new Map<string, string>();
   for (const line of statement.lines) {
     const token = provenance.tokens.get(line.metric_key);
+    const derivation = provenance.derivations?.get(line.metric_key);
+    const qualityFlags = derivation
+      ? [await derivationLineage(db, derivation, provenance.cik, provenance.retrievedAt ?? clock().toISOString())]
+      : [];
     const inserted = await db.query<{ fact_id: string }>(
       `insert into facts (
          subject_kind, subject_id, metric_id, period_kind, period_start,
          period_end, fiscal_year, fiscal_period, value_num, value_text,
          unit, currency, scale, as_of, reported_at, observed_at, source_id,
          method, definition_version, verification_status, freshness_class,
-         coverage_level, confidence
+         coverage_level, confidence, quality_flags
        ) values (
          'issuer', $1, $2, $3, $4, $5, $6, $7, $8, $9,
          $10, $11, $12, $13, $14, $15, $16,
-         'reported', 1, 'authoritative', 'filing_time', $17, 1
+         'reported', 1, 'authoritative', 'filing_time', $17, 1, $18::jsonb
        )
        on conflict do nothing
        returning fact_id::text as fact_id`,
@@ -546,6 +794,7 @@ async function persistStatementFacts(
         clock().toISOString(),
         statement.source_id,
         line.coverage_level,
+        JSON.stringify(qualityFlags),
       ],
     );
     const factId = inserted.rows[0]?.fact_id;
@@ -559,7 +808,34 @@ async function persistStatementFacts(
         validation_method: "sec_companyfacts_lossless_json.v1",
       });
     }
+    if (factId) insertedIds.set(line.metric_key, factId);
   }
+  return insertedIds;
+}
+
+// A discrete quarter computed from filed values (a cash flow year to date less
+// the previous one, a year less three quarters) usually spans filings: the
+// fact's source is the statement's filing, and its lineage names every input
+// with its own filing source, so a reader can cite each one.
+export const SEC_DERIVATION_KIND = "sec_period_difference";
+
+async function derivationLineage(
+  db: FundamentalsQueryExecutor,
+  derivation: SecDerivation,
+  cik: number,
+  retrievedAt: string,
+): Promise<Record<string, unknown>> {
+  const sources = new Map<string, UUID>();
+  for (const accn of new Set(derivation.inputs.map((input) => input.accn))) {
+    sources.set(accn, await upsertSecFilingSource(db, { cik, accessionNumber: accn, retrievedAt }));
+  }
+  return {
+    kind: SEC_DERIVATION_KIND,
+    concept: derivation.concept,
+    unit: derivation.unit,
+    input_source_ids: [...new Set(sources.values())],
+    inputs: derivation.inputs.map((input) => ({ ...input, source_id: sources.get(input.accn)! })),
+  };
 }
 
 /** Binds the exact token to its location in the SEC response. */
@@ -595,9 +871,14 @@ function periodKindFor(fiscalPeriod: FiscalPeriod): PeriodKind {
   return fiscalPeriod === "FY" ? "fiscal_y" : "fiscal_q";
 }
 
+// pg reads a date column as local midnight, so its calendar date is the local
+// one: toISOString would shift it a day east of UTC.
 function dateString(value: Date | string | null): string | null {
   if (value === null) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
   return value.slice(0, 10);
 }
 

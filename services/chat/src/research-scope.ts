@@ -12,7 +12,7 @@
 // keeps its cutoff, so its baseline and end are the ones already charted, not
 // recomputed from the current date.
 //
-// A metric the question names that no reader here serves (free cash flow, EPS)
+// A metric the question names that no reader here serves (EBITDA, debt)
 // is a named gap: it is never answered with another metric in its place, so a
 // question asking only for such metrics reads no income-statement facts at all.
 //
@@ -30,6 +30,8 @@ const ROUTES = [
   "trend",
   "derived_margin",
   "segments",
+  // Cash flow, balance sheet or EPS, for one company.
+  "statements",
   "comparison",
   "unavailable_metric",
   "evidence_followup",
@@ -102,31 +104,167 @@ const OVER_TIME =
   /\b(trend\w*|over (?:the )?(?:last|past)\b|histor\w*|chang\w*|since|evolv\w*|quarters|years|qoq|yoy|quarter[- ]over[- ]quarter|year[- ]over[- ]year|(?:last|prior|previous) (?:quarter|year)|a year ago)\b/i;
 // Phrases that name a context, not a metric: "earnings" in "earnings call".
 const NOT_METRICS = /\bearnings (?:calls?|releases?|reports?|dates?|season)\b/gi;
-// Words that qualify a metric just named ("free cash flow growth") rather than
-// asking for another one.
-const QUALIFIER = String.raw`(?:\s+(?:growth|margins?|yields?|trends?|per share))?`;
+// Words that qualify a metric just named ("free cash flow growth", "free cash
+// flow YTD") rather than asking for another one. A YTD attached to a metric
+// qualifies it; one elsewhere ("EPS and YTD stock return") does not.
+const QUALIFIER = String.raw`(?:\s+(?:growth|margins?|yields?|trends?|per share|ytd|year[- ]to[- ]date))?`;
+// A qualifier's key and label: YTD is written out.
+function qualifierParts(qualifier: string): { key: string; label: string } {
+  return /^(?:ytd|year[- ]to[- ]date)$/.test(qualifier)
+    ? { key: "ytd", label: "year to date" }
+    : { key: qualifier.replace(/\s+/g, "_"), label: qualifier };
+}
 // Asking for an answer's evidence, not about a company's sources of revenue:
 // a source counts only as the answer's ("your source", "the sources for this"),
 // never one "of" something else ("the sources of NVDA's revenue").
 const EVIDENCE =
   /\b(evidence|cite|citations?|(?:the|your|its) sources?(?!\s+of\b)|sources? (?:for|of) (?:this|that|these|those)|where (?:does|do|did) (?:this|that|these|those) come from)\b/i;
 
+// How a statement names the cash of an activity after it: "cash from",
+// "provided by", "used in", "used for", and the label's "provided by (used
+// in)". One phrasing for operating, investing and financing alike.
+const CASH_FOR = String.raw`\bcash(?:[- ]flows?)? (?:(?:was|is|were) )?(?:from|generated (?:by|from)|(?:provided by|used (?:in|for))(?: \((?:provided by|used in)\))?) `;
+
+// A cash flow category named before "cash flow" (its prepositive pattern) or
+// after "cash ..." (its activity).
+function cashFlowPattern(prepositive: string, activity: string): RegExp {
+  return new RegExp(String.raw`${prepositive}|${CASH_FOR}${activity}\b`, "gi");
+}
+
 // The metrics a question can name, most specific first: each match is removed
 // before the next is tried, so "free cash flow" is not also "cash flow" and
 // "earnings per share" is not also "earnings".
 const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
-  { metric_key: "free_cash_flow", label: "Free cash flow", available: false, pattern: /\bfree[- ]cash[- ]flows?\b|\bFCF\b/gi },
-  { metric_key: "financing_cash_flow", label: "Financing cash flow", available: false, pattern: /\bfinancing cash[- ]flows?\b/gi },
-  { metric_key: "investing_cash_flow", label: "Investing cash flow", available: false, pattern: /\binvesting cash[- ]flows?\b/gi },
-  // Unqualified "cash flow" means operating cash flow.
-  { metric_key: "operating_cash_flow", label: "Operating cash flow", available: false, pattern: /\b(?:operating )?cash[- ]flows?\b/gi },
-  { metric_key: "capex", label: "Capital expenditures", available: false, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
-  { metric_key: "eps_diluted", label: "Earnings per share", available: false, pattern: /\bEPS\b|\bearnings per share\b/gi },
+  { metric_key: "free_cash_flow", label: "Free cash flow", available: true, pattern: /\bfree[- ]cash[- ]flows?\b|\bFCF\b/gi },
+  // Named before or after "cash flow" ("cash flow from investing activities").
+  {
+    metric_key: "financing_cash_flow",
+    label: "Financing cash flow",
+    available: false,
+    pattern: cashFlowPattern(String.raw`\bfinancing cash[- ]flows?\b`, String.raw`financing(?: activities)?`),
+  },
+  {
+    metric_key: "investing_cash_flow",
+    label: "Investing cash flow",
+    available: false,
+    pattern: cashFlowPattern(String.raw`\binvesting cash[- ]flows?\b`, String.raw`investing(?: activities)?`),
+  },
+  // Unqualified "cash flow" means operating cash flow, and so does cash "from
+  // operations" or "used in operating activities" (a negative one).
+  {
+    metric_key: "operating_cash_flow",
+    label: "Operating cash flow",
+    available: true,
+    pattern: cashFlowPattern(String.raw`\b(?:operating )?cash[- ]flows?\b`, String.raw`(?:operations|operating activities)`),
+  },
+  { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
+  // The whole balance sheet, or one item of it, each its own request: a cash
+  // question is answered by cash, never by assets. Cash on hand is a balance,
+  // read after every cash flow phrase is taken.
+  { metric_key: "balance_sheet", label: "Balance sheet", available: true, pattern: /\bbalance[- ]sheets?\b/gi },
+  {
+    metric_key: "cash_and_equivalents",
+    label: "Cash and equivalents",
+    available: true,
+    pattern: /\bcash (?:and (?:cash )?equivalents|equivalents|position|balance|on hand)\b|\bhow much cash\b/gi,
+  },
+  { metric_key: "total_assets", label: "Total assets", available: true, pattern: /\btotal assets\b/gi },
+  { metric_key: "total_liabilities", label: "Total liabilities", available: true, pattern: /\btotal liabilities\b/gi },
+  {
+    metric_key: "total_equity",
+    label: "Total equity",
+    available: true,
+    pattern: /\b(?:total|(?:shareholders|stockholders)['’]?) equity\b|\bbook value\b/gi,
+  },
+  // Basic EPS is its own figure, taken before any EPS is read as diluted.
+  { metric_key: "eps_basic", label: "Basic earnings per share", available: true, pattern: /\bbasic (?:EPS|earnings per share)\b/gi },
+  // "Diluted" is part of the name, so an adjustment before it ("adjusted
+  // diluted EPS") still qualifies it.
+  { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\b(?:diluted )?EPS\b|\b(?:diluted )?earnings per share\b/gi },
   { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
+  // An adjusted income figure is not the reported one (statement metrics take
+  // these adjectives through ADJUSTMENT instead).
+  {
+    metric_key: "non_gaap_income",
+    label: "Non-GAAP earnings",
+    available: false,
+    pattern: /\b(?:adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed) (?:operating income|net income|income|earnings|profits?|margins?|EBIT)\b/gi,
+  },
   { metric_key: "total_debt", label: "Debt", available: false, pattern: /\bdebt\b/gi },
   { metric_key: "dividends", label: "Dividends", available: false, pattern: /\bdividends?\b/gi },
   { metric_key: "income_statement", label: "Revenue, profit and margins", available: true, pattern: /\b(revenue|sales|income|profits?|profitab\w*|margins?|growth|earnings)\b/gi },
 ];
+
+// The cash flow, balance sheet and EPS a question can name, each with the item
+// labels its block shows (statement-blocks.ts). One company at a time: a
+// comparison names them as a gap.
+export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  operating_cash_flow: ["Operating cash flow"],
+  capex: ["Capital expenditures"],
+  free_cash_flow: ["Free cash flow"],
+  balance_sheet: ["Cash and equivalents", "Total assets", "Total liabilities", "Total equity"],
+  cash_and_equivalents: ["Cash and equivalents"],
+  total_assets: ["Total assets"],
+  total_liabilities: ["Total liabilities"],
+  total_equity: ["Total equity"],
+  eps_diluted: ["EPS (diluted)"],
+  eps_basic: ["EPS (basic)"],
+};
+
+const BALANCE_SHEET_ITEMS = ["cash_and_equivalents", "total_assets", "total_liabilities", "total_equity"];
+
+function metricByKey(key: string): RequestedMetric {
+  const { pattern: _pattern, ...metric } = METRICS.find((candidate) => candidate.metric_key === key)!;
+  return metric;
+}
+
+// The statement metrics a turn asks for (or kept from the previous one).
+export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedMetric> {
+  return scope.metrics.filter((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS);
+}
+
+// A qualifier placed before a statement metric ("growth in free cash flow",
+// "growth in NVDA's EPS"), captured with it: the metric qualified, never the
+// plain figure, and its "growth" asks for no income figures.
+const PRE_QUALIFIER = String.raw`(?:\b(growth|margins?|yields?|trends?) (?:in|of) (?:(?:the|its|their|\w+['’]s) )?)?`;
+
+// Adjectives that make a statement metric another, unreported figure
+// ("adjusted EPS", "non-GAAP free cash flow"), captured before it.
+const ADJUSTMENT = String.raw`(?:\b(adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed|levered|unlevered|ytd|year[- ]to[- ]date)\s+)?`;
+const ADJUSTMENTS: Readonly<Record<string, { key: string; label: string }>> = {
+  // Year to date, before the metric ("year-to-date EPS"): a figure no reader serves.
+  "ytd": { key: "ytd", label: "Year-to-date" },
+  "year to date": { key: "ytd", label: "Year-to-date" },
+  "adjusted": { key: "adjusted", label: "Adjusted" },
+  "non gaap": { key: "non_gaap", label: "Non-GAAP" },
+  "pro forma": { key: "pro_forma", label: "Pro forma" },
+  "core": { key: "core", label: "Core" },
+  "normalized": { key: "normalized", label: "Normalized" },
+  "normalised": { key: "normalized", label: "Normalized" },
+  "levered": { key: "levered", label: "Levered" },
+  "unlevered": { key: "unlevered", label: "Unlevered" },
+};
+
+// One mention of a statement metric: the metric itself, or with an adjustment
+// before it or a qualifier after it, the named gap it then asks for.
+function classifyStatementMention(metric: RequestedMetric, pattern: RegExp, occurrence: RegExpMatchArray): RequestedMetric {
+  // Group 1: a qualifier before the metric ("growth in"); group 2: an adjustment.
+  const before = occurrence[1]?.toLowerCase().replace(/s$/, "");
+  const adjustment = occurrence[2] !== undefined ? ADJUSTMENTS[occurrence[2].toLowerCase().replace(/[- ]/g, " ")] : undefined;
+  const text = occurrence[0];
+  const body = before || adjustment ? text.slice(text.search(new RegExp(`(?:${pattern.source})`, "i"))) : text;
+  const raw = body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() || before || "";
+  const qualifier = raw === "" ? undefined : qualifierParts(raw);
+  if (!adjustment && !qualifier) return metric;
+  return {
+    metric_key: [metric.metric_key, adjustment?.key, qualifier?.key].filter(Boolean).join("_"),
+    label: [
+      adjustment ? `${adjustment.label} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}` : metric.label,
+      qualifier?.label,
+    ].filter(Boolean).join(" "),
+    available: false,
+  };
+}
 
 export function requestedMetrics(question: string): RequestedMetric[] {
   return scanMetrics(question).metrics;
@@ -136,18 +274,28 @@ export function requestedMetrics(question: string): RequestedMetric[] {
 // and their qualifiers: "free cash flow margin" asks for no (available) margin.
 function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: string } {
   let rest = question.replace(NOT_METRICS, " ");
-  let withoutUnavailable = question;
+  let withoutOthers = question;
   const metrics: RequestedMetric[] = [];
   for (const { pattern, ...metric } of METRICS) {
-    // An unavailable metric takes its qualifier with it, so "free cash flow
-    // growth" does not also ask for (available) growth.
-    const match = new RegExp(`(?:${pattern.source})${metric.available ? "" : QUALIFIER}`, "gi");
-    if (!new RegExp(match.source, "i").test(rest)) continue;
-    metrics.push(metric);
+    // A metric other than the income statement takes its qualifier with it, so
+    // "free cash flow growth" or "EBITDA margin" asks for no income figures.
+    const own = metric.metric_key !== "income_statement";
+    const statement = metric.metric_key in STATEMENT_METRIC_LABELS;
+    const match = new RegExp(`${statement ? PRE_QUALIFIER + ADJUSTMENT : ""}(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
+    const found = [...rest.matchAll(match)];
+    if (found.length === 0) continue;
+    // Each mention is classified ("EPS and adjusted EPS" asks for both). A
+    // qualified statement metric ("free cash flow margin", "EPS growth",
+    // "adjusted EPS") is another metric no reader serves: a named gap, never
+    // the reported figure in its place.
+    for (const occurrence of found) {
+      const classified = statement ? classifyStatementMention(metric, pattern, occurrence) : metric;
+      if (!metrics.some((seen) => seen.metric_key === classified.metric_key)) metrics.push(classified);
+    }
     rest = rest.replace(match, " ");
-    if (!metric.available) withoutUnavailable = withoutUnavailable.replace(match, " ");
+    if (own) withoutOthers = withoutOthers.replace(match, " ");
   }
-  return { metrics, rest: withoutUnavailable };
+  return { metrics, rest: withoutOthers };
 }
 
 export function resolveResearchScope(input: {
@@ -187,7 +335,13 @@ export function resolveResearchScope(input: {
   const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
   const named = scanned.metrics.map((metric) => (input.served ? { ...metric, available: true } : metric));
   // A metric turned off leaves the ones kept; none left keeps none.
-  const kept = prior?.metrics.filter((metric) => !off.metrics.has(metric.metric_key)) ?? [];
+  // Dropping one item of the whole balance sheet keeps the others, named.
+  const kept = (prior?.metrics ?? []).flatMap((metric): RequestedMetric[] => {
+    if (off.metrics.has(metric.metric_key)) return [];
+    const parts = metric.metric_key === "balance_sheet" ? BALANCE_SHEET_ITEMS : [];
+    if (!parts.some((key) => off.metrics.has(key))) return [metric];
+    return parts.filter((key) => !off.metrics.has(key)).map(metricByKey);
+  });
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
   const fiscal_year = pick("fiscal_year", requestedFiscalYear(question) ?? null, prior?.fiscal_year);
   const asked = requestedPriceWindow(question) === "ytd" ? { kind: "ytd" as const, cutoff: input.asOf } : null;
@@ -201,13 +355,24 @@ export function resolveResearchScope(input: {
   // beside such a gap are still read, with the gap named.
   // A price window counts only where it can be shown: a comparison charts it, a
   // single company's answer does not.
-  const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !metric.available) &&
+  // Statement figures are read for one company at a time: a comparison asking
+  // now only for them is a named gap too. Kept from an earlier turn, they do
+  // not stop a comparison asked for now ("compare it with AMD").
+  const comparing = input.companies.length > 1 || peers;
+  const readable = (metric: RequestedMetric) =>
+    metric.available && !(comparing && named.length > 0 && metric.metric_key in STATEMENT_METRIC_LABELS);
+  const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !readable(metric)) &&
     (asked === null || input.companies.length < 2) && !PEERS.test(question) && !SEGMENTS.test(question) && !marginAsked;
+  // Only cash flow, balance sheet or EPS (and any named gaps beside them): the
+  // statement figures alone, as a segment request reads segments alone.
+  const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
+    metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
+    !SEGMENTS.test(question) && !marginAsked;
   const reads = evidence && prior !== null
     ? prior.reads
     : input.served
     ? "financial_answer"
-    : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable });
+    : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable, onlyStatements });
   return {
     route: evidence ? "evidence_followup" : reads,
     reads,
@@ -246,7 +411,16 @@ function turnedOff(question: string): { fields: Set<ScopeField>; metrics: Set<st
     if (MARGINS.test(object)) fields.add("margin_trend");
     if (WINDOW.test(object)) fields.add("price_window");
     if (FISCAL.test(object)) fields.add("fiscal_year");
-    for (const metric of scanMetrics(object).metrics) metrics.add(metric.metric_key);
+    // Each clause widens only what it names itself.
+    const named = new Set(scanMetrics(object).metrics.map((metric) => metric.metric_key));
+    // Unqualified "cash flow" ("drop the cash flow") drops every cash flow
+    // figure; "drop operating cash flow" names only that one.
+    if (named.has("operating_cash_flow") && !/\boperating\b|\boperations\b/i.test(object)) {
+      for (const key of ["capex", "free_cash_flow"]) named.add(key);
+    }
+    // The whole balance sheet drops its items too, however they were kept.
+    if (named.has("balance_sheet")) for (const key of BALANCE_SHEET_ITEMS) named.add(key);
+    for (const key of named) metrics.add(key);
     return fields.size + metrics.size > before ? " " : phrase;
   });
   return { fields, metrics, rest };
@@ -260,12 +434,14 @@ function routeOf(
     margin_trend: boolean;
     marginAsked: boolean;
     onlyUnavailable: boolean;
+    onlyStatements: boolean;
   },
 ): ResearchRoute {
   if (companies === 0) return "unknown";
   if (facets.onlyUnavailable) return "unavailable_metric";
   if (companies > 1 || facets.peers) return "comparison";
   if (facets.segments) return "segments";
+  if (facets.onlyStatements) return "statements";
   if (facets.margin_trend) return "trend";
   if (facets.marginAsked) return "derived_margin";
   return "latest_quarter";

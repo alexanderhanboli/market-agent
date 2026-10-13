@@ -371,6 +371,25 @@ test("loadStructuredSubjectContext reads facts as of the turn's timestamp (#159)
   assert.ok(factQueries[0].values.includes("2026-06-02T08:50:00.000Z"));
 });
 
+test("the model's other facts leave out cash flow and balances, before the row cap", async () => {
+  const factQueries: Array<{ text: string; values: unknown[] }> = [];
+  const db = {
+    query: (async (text: string, values?: unknown[]) => {
+      if (text.includes("from facts")) factQueries.push({ text, values: values ?? [] });
+      return { rows: [] };
+    }) as unknown as QueryExecutor["query"],
+  };
+  await loadStructuredSubjectContext(db, REFS_WITH_LISTING, { now: "2026-06-02T08:50:00.000Z" });
+  const [query] = factQueries;
+  assert.match(query!.text, /m\.metric_key <> all\(\$\d+::text\[\]\)/);
+  const excluded = query!.values.find((value) => Array.isArray(value) && value.includes("total_assets")) as string[];
+  assert.deepEqual([...excluded].sort(), [
+    "capex", "cash_and_equivalents", "free_cash_flow", "operating_cash_flow", "total_assets", "total_equity", "total_liabilities",
+  ]);
+  // The exclusion is a filter inside the canonical read, so the limit comes after it.
+  assert.ok(query!.text.indexOf("<> all") < query!.text.indexOf("limit"));
+});
+
 test("a subject's guard labels are its listing tickers, whether it resolved as a listing or an issuer (#268 review)", () => {
   assert.deepEqual(subjectLabelsFromHandoff(handoffWithListing()), ["AAOI"]);
   assert.deepEqual(subjectLabelsFromHandoff(handoffIssuerOnly()), ["AAOI"]);
