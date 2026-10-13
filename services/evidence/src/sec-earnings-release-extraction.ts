@@ -265,18 +265,26 @@ export function verifyStatement(statement: ReleaseStatement, exhibits: ReadonlyA
   return null;
 }
 
+// What a sentence starts with: a capital, a figure, a quote, a bracket or a
+// bullet. A full stop before anything else ("the U.S. due to") is an
+// abbreviation's. ponytail: a sentence opening lower-case ("iPhone revenue")
+// counts only at a block edge.
+const SENTENCE_START = /^["'($•[0-9A-Z]/;
+
 // A sentence starts where a block starts, or after a sentence's end (a full
-// stop, question or exclamation mark, colon, semicolon or bullet).
+// stop, question or exclamation mark, colon, semicolon or bullet) with what a
+// sentence starts with.
 function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
-  return exhibit.edges.has(start) || /[.!?:;•]["')]?\s$/.test(exhibit.text.slice(Math.max(0, start - 3), start));
+  return exhibit.edges.has(start) ||
+    (/[.!?:;•]["')]?\s$/.test(exhibit.text.slice(Math.max(0, start - 3), start)) && SENTENCE_START.test(exhibit.text.slice(start)));
 }
 
 // A sentence ends where a block ends, or with its own end mark (and a closing
-// quote or bracket), before a space or the end of the text.
+// quote or bracket), at the end of the text or before the next sentence.
 function endsSentence(exhibit: ReleaseExhibit, end: number): boolean {
   if (exhibit.edges.has(end)) return true;
-  const next = exhibit.text[end];
-  return /[.!?]["')]?$/.test(exhibit.text.slice(Math.max(0, end - 2), end)) && (next === undefined || next === " ");
+  if (!/[.!?]["')]?$/.test(exhibit.text.slice(Math.max(0, end - 2), end))) return false;
+  return end === exhibit.text.length || (exhibit.text[end] === " " && SENTENCE_START.test(exhibit.text.slice(end + 1)));
 }
 
 // The exhibits as prompts of at most MAX_PROMPT_CHARS each, so a long release
@@ -355,8 +363,17 @@ export async function extractReleaseStatements(
   }
   // A prompt answered badly leaves its text unread: nothing is stored or
   // stamped, so the next drain reads the filing again (as after a transport
-  // error). ponytail: one the model always answers badly is retried every run.
-  if (unparseable) return "unparseable";
+  // error); the attempt is still recorded for audit. ponytail: one the model
+  // always answers badly is retried every run.
+  if (unparseable) {
+    await writeToolCallLog(deps.db, {
+      tool_name: "extract_earnings_release",
+      args: { claim_id: candidate.claimId, accession: candidate.accession, model },
+      result: { outcome: "unparseable", exhibits: exhibits.map((exhibit) => exhibit.type), proposed: proposed.length },
+      status: "partial",
+    });
+    return "unparseable";
+  }
   // A sentence picked twice for the same metric is one claim; for two metrics,
   // a claim for each.
   const verified = [...new Map(proposed.flatMap((statement) => {

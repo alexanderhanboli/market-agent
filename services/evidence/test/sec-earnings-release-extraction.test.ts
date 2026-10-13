@@ -140,6 +140,14 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
   assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline due to weaker demand in the quarter." }, negated));
   // A sentence after a heading block (no punctuation between) is whole.
   assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue was up 73%, driven by demand for our accelerated computing platform." }, negated));
+  // An abbreviation's full stop ends no sentence: neither the clause after it
+  // nor the words up to it are one.
+  const abbreviated = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Revenue did not decline in the U.S. due to weaker demand.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "due to weaker demand." }, abbreviated), null);
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S." }, abbreviated), null);
+  assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue did not decline in the U.S. due to weaker demand." }, abbreviated));
 
   // A paraphrase, an invented cause, or a fragment is not a quote.
   for (const quote of [
@@ -273,6 +281,9 @@ test("a release the model answers badly stays a candidate, with nothing stored",
   // Unread, so the next drain reads it again.
   assert.deepEqual((await findReleaseCandidates(client)).map((candidate) => candidate.claimId), [seeded.claimId]);
   assert.equal((await client.query(`select 1 from claims where claim_id <> $1`, [seeded.claimId])).rowCount, 0);
+  // The model call is still recorded for audit.
+  const audit = await client.query(`select 1 from tool_call_logs where tool_name = 'extract_earnings_release' and status = 'partial'`);
+  assert.equal(audit.rowCount, 1);
 });
 
 test("a filing without EX-99 exhibits is marked processed without a model call", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {

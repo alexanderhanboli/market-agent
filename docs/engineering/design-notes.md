@@ -224,7 +224,7 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   decoded, typographic quotes and dashes made plain) and returns up to 8 `{kind, metric, quote}`: kind explanation or
   guidance, metric from a closed list. A quote is kept only if it appears verbatim in an exhibit (in that canonical
   form) as whole sentences: it starts at a block edge or after a sentence's end, and ends at a block edge or with its
-  own end mark. So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
+  own end mark (a full stop counts only before what a sentence starts with, so "the U.S. due to" is not a boundary). So a clause cut from a sentence ("decline due to weaker demand" out of "Revenue did not decline due
   to weaker demand") is rejected, while a sentence after a heading block is whole. (A plain-text exhibit's blocks are
   its paragraphs, with an all-caps heading line its own.) The stored text is the exhibit's own, never the model's
   string. Paraphrases and invented causes are dropped. A reply that isn't JSON leaves the filing unprocessed, to be
