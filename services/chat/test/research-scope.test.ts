@@ -531,3 +531,13 @@ test("a named quarter's year is the fiscal year a comparison uses (#292 review)"
   assert.deepEqual(compared.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
   assert.equal(compared.fiscal_year, 2025);
 });
+
+test("dropping quarter-over-quarter growth keeps the named quarter (#292 review)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  for (const question of ["Same margins, without quarter-over-quarter growth", "Drop the QoQ growth"]) {
+    const next = resolveResearchScope({ question, companies: [AMD], prior: asked, asOf: AS_OF });
+    assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" }, question);
+  }
+  // Dropping the quarter itself still clears it.
+  assert.equal(resolveResearchScope({ question: "Drop the quarter", companies: [AMD], prior: asked, asOf: AS_OF }).fiscal_quarter, null);
+});

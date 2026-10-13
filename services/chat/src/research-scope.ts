@@ -442,7 +442,8 @@ function turnedOff(question: string): { fields: Set<ScopeField>; metrics: Set<st
     if (MARGINS.test(object)) fields.add("margin_trend");
     if (WINDOW.test(object)) fields.add("price_window");
     if (FISCAL.test(object)) fields.add("fiscal_year");
-    if (QUARTER.test(object)) fields.add("fiscal_quarter");
+    // A quarter-over-quarter comparison removed is not the quarter (#292 review).
+    if (QUARTER.test(object.replace(/\bquarter[- ]over[- ]quarter\b|\bQoQ\b/gi, " "))) fields.add("fiscal_quarter");
     // Each clause widens only what it names itself.
     const named = new Set(scanMetrics(object).metrics.map((metric) => metric.metric_key));
     // Unqualified "cash flow" ("drop the cash flow") drops every cash flow
