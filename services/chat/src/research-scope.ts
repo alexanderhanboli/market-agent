@@ -113,11 +113,12 @@ const SEGMENTS = /\bsegments?\b/i;
 // ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
 const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expects?|expected to|expectations?|project(?:s|ed|ions?)?|targets?)\b/i;
 // A result set against guidance, a forecast or a target ("missed its forecast",
-// "below target", "beat guidance") asks why, not for guidance: the question
+// "below target", "beat guidance", "below the low end of guidance") asks why,
+// not for guidance: the question
 // asks for guidance only if it still names some with those comparisons taken
 // out ("current guidance versus prior guidance" does).
 const AGAINST_GUIDANCE =
-  /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
+  /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,5}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
 
 // The income-statement items a question names, in earnings-release terms
 // (sec-earnings-release-extraction.ts): the scope reads them all as the income

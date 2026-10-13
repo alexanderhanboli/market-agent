@@ -124,6 +124,8 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     "Why did NVDA beat its guidance?",
     "Why did NVDA's revenue miss the company's guidance?",
     "Why did NVDA's revenue miss expectations?",
+    "Why did NVDA's revenue come in below the low end of guidance?",
+    "Why was NVDA's gross margin above the high end of its outlook?",
   ]) {
     assert.equal(fresh(question, [NVDA]).guidance, undefined, question);
   }
