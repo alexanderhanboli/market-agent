@@ -641,3 +641,8 @@ test("a base-form causative after a modal or \"to\" is a cause; the noun \"press
   }
   assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin of 75.0% in FY2026 shows no pressure.", evidence: ["F1"] }]).rejected, []);
 });
+
+test("the noun \"cause\" is not a stated cause (#294 review)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "The cause is not shown; NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] }]).rejected, []);
+  assert.equal(rejectionCheck(check([{ kind: "observation", text: "Charges caused NVDA's gross margin of 75.0% in FY2026.", evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause");
+});
