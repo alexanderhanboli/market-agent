@@ -236,7 +236,8 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
   segments, statements, comparisons: `ROUTE_PREDICATES`, `evidence-packet.ts`); other routes take the newest claims.
   The explanation of what the question asks about comes before the others (`explainedMetrics`: margins, then each
   metric named), since one release can hold more explanations than the claim limit. A question asking for guidance
-  ("guidance", "outlook", "forecast": the scope's `guidance`, this turn only) reads guidance claims first instead. The loader ranks claims by the
+  ("guidance", "outlook", "forecast": the scope's `guidance`, this turn only, or kept by an evidence follow-up)
+  reads guidance claims first instead, whatever the figures' route. The loader ranks claims by the
   first of the route's prefixes they match, so this order is the priority (`local-runtime-evidence.ts`); a group of
   prefixes shares one where the scope doesn't record which was named (an operating income, net income or expenses
   question is read as the income statement, so its explanations rank together; so do the margins'). A question about a fiscal year reads the releases

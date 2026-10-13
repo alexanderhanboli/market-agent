@@ -104,8 +104,9 @@ export function claimSelection(
   const explained = route.length > 0
     ? explainedMetrics(scope).map((entry) => (typeof entry === "string" ? explanation(entry) : entry.map(explanation)))
     : [];
-  // A question asking for guidance reads it first, before any explanation.
-  const asked = route.length > 0 && scope.guidance ? ["guidance."] : [];
+  // A question asking for guidance reads it first, before any explanation,
+  // whatever the figures' route (a metric no reader serves included).
+  const asked = scope.guidance ? ["guidance."] : [];
   // A price window adds the events that move a price, whatever else is read.
   const prefixes = [...new Set([...asked, ...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
   return {

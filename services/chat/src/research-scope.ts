@@ -67,8 +67,9 @@ export type ResearchScope = {
   price_window: { kind: "ytd"; cutoff: string } | null;
   // A benchmark index asked for: never in this data, so always a named gap.
   benchmark: boolean;
-  // Guidance asked for this turn ("what guidance", "the outlook"): its claims
-  // are read first. Absent when not.
+  // Guidance asked for this turn ("what guidance", "the outlook"), or by the
+  // answer an evidence follow-up re-reads: its claims are read first. Absent
+  // when not.
   guidance?: true;
   // The fields carried from the previous answer rather than asked for now.
   inherited: ReadonlyArray<ScopeField>;
@@ -444,7 +445,8 @@ export function resolveResearchScope(input: {
     fiscal_year,
     price_window,
     benchmark,
-    ...(GUIDANCE.test(question) ? { guidance: true as const } : {}),
+    // Asked this turn, or by the answer an evidence follow-up re-reads.
+    ...(GUIDANCE.test(question) || (evidence && prior?.guidance) ? { guidance: true as const } : {}),
     inherited,
   };
 }

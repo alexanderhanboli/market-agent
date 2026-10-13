@@ -103,6 +103,10 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
   assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
   const next = resolveResearchScope({ question: "And its gross margin?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(next.guidance, undefined);
+  // An evidence follow-up re-reads the answer it asks about, guidance first too.
+  const sources = resolveResearchScope({ question: "What are your sources?", companies: [NVDA], prior: asked, asOf: AS_OF });
+  assert.equal(sources.route, "evidence_followup");
+  assert.equal(sources.guidance, true);
 });
 
 test("a saved scope reads back; anything else starts fresh", () => {
