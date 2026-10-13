@@ -591,6 +591,8 @@ async function loadDerivedQuarterMetrics(
       // Only the latest quarter renders unless the margin trend was asked for, so
       // mint just what is shown: each derived fact is a lookup and maybe an insert.
       shownRevenue: wantsMarginTrend ? revenue : [shown],
+      // Growth is the shown quarter's, a named one inside the window (#290).
+      growthAt: shown,
       fact: (metricKey, fiscalYear, fiscalPeriod) => byQuarter.get(quarterKey(metricKey, fiscalYear, fiscalPeriod)),
       period: (factId) => loadable.get(factId),
     });

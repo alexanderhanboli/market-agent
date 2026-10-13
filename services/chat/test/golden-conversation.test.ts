@@ -430,6 +430,8 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     const items = new Map((row.items as Array<{ label: string; format: string }>).map((item) => [item.label, item.format]));
     assert.equal(items.get("Operating margin"), "-1.7%");
     assert.equal(items.get("Gross margin"), "39.8%");
+    // Growth is the named quarter's, though the margin trend's window runs past it (#292 review).
+    assert.equal(items.get("Revenue growth (QoQ)"), "3.3%");
     // The margins across the quarters around it, the named quarter among them.
     const trend = answer.blocks.find((block) => block.title === "Operating margin by quarter");
     assert.ok((trend?.items as Array<{ label: string }> | undefined)?.some((item) => item.label === "Q2 2025"));

@@ -46,6 +46,9 @@ export function deriveQuarterMetrics(input: {
   shownRevenue: ReadonlyArray<IssuerFundamentalFact>;
   fact: (metricKey: string, fiscalYear: number, fiscalPeriod: string) => IssuerFundamentalFact | undefined;
   period: (factId: string) => VerifierFact | undefined;
+  // The quarter growth is for: a named quarter inside a wider window (#290);
+  // else the latest shown.
+  growthAt?: IssuerFundamentalFact;
 }): QuarterMetric[] {
   const out: QuarterMetric[] = [];
   for (const revenue of input.shownRevenue) {
@@ -56,7 +59,7 @@ export function deriveQuarterMetrics(input: {
       if (spec) out.push(spec);
     }
   }
-  const latest = input.shownRevenue.at(-1);
+  const latest = input.growthAt ?? input.shownRevenue.at(-1);
   if (latest) {
     for (const growth of GROWTH) {
       const earlier = quarterBefore(latest.fiscal_year!, latest.fiscal_period!, growth.back);
