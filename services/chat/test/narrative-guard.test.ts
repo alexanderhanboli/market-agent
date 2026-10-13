@@ -961,3 +961,9 @@ test("a base-form causative after a modal is checked in prose too (#294 review)"
   const figures = [{ company: "NVDA", value: "$209.9B", metric: "Revenue" }];
   assert.equal(keepSupportedSentences("AI demand could lift NVDA's revenue to $209.9B.", [], figures, [], ["Revenue"], ["NVDA"]).removed.length, 1);
 });
+
+test("an active causal verb's whole clause before it is its cause, not its last four words (#294 review)", () => {
+  const figures = [{ company: "NVDA", value: "$209.9B", metric: "Revenue" }];
+  const text = "A new product launch across the company's reported segments lifted NVDA's revenue to $209.9B.";
+  assert.equal(keepSupportedSentences(text, [], figures, [], ["Revenue"], ["NVDA"]).removed.length, 1);
+});

@@ -150,7 +150,8 @@ const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to
 // An active causal verb in prose ("AI demand lifted revenue"): its cause is
 // the few words before it, held to the same grounding as a connective's
 // (#294 review). Not a passive "caused by", which CAUSAL reads.
-// ponytail: up to four words before the verb are taken as its cause.
+// Its cause is the whole clause before it, back to a comma, colon or sentence
+// start, so an invented cause cannot hide behind data words (#294 review).
 // "Cause" and "causes" are nouns as often ("does not show a cause"): only
 // "caused" and "causing" count.
 const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|lift(?:ed|ing)|boost(?:ed|ing)|pressur(?:ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down)|(?:could|may|might|would|will|can|should|to)\s+(?:lift|boost|pressure|drive|cause|lead to|weigh on|drag (?:on|down)|contribute to|result in))`;
@@ -158,7 +159,7 @@ const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?
 // often ("hard drives"), so they are left out (#294 review; see #296).
 // Base forms ("could lift", "may drive", #294 review) count only after a modal
 // or "to": bare "pressure" and "drive" are as often nouns.
-const ACTIVE_CAUSAL = new RegExp(String.raw`((?:[^\s,;:.]+\s+){1,4}?)${ACTIVE_VERB}\b(?!\s+by\b)`, "gi");
+const ACTIVE_CAUSAL = new RegExp(String.raw`((?:[^\s,;:.]+\s+)+?)${ACTIVE_VERB}\b(?!\s+by\b)`, "gi");
 
 export function statesCause(text: string): boolean {
   return STRICT_CAUSAL.test(text);
