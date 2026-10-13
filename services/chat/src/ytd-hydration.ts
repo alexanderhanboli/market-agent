@@ -25,6 +25,17 @@ export function frozenDataMode(env: NodeJS.ProcessEnv): boolean {
   return env.DEV_NO_KEYS === "true" || env.DEV_MODE === "analyst";
 }
 
+// The golden dataset's cutoff (test/golden/dataset.ts seeds at it). The frozen
+// modes answer at it rather than the wall clock, so the frozen conversation is
+// a fixed point in time: from 2027 a wall-clock "YTD" would ask for 2027 bars
+// the dataset never has (#259).
+export const FROZEN_AS_OF = "2026-09-01T00:00:00.000Z";
+
+// A turn's cutoff: the golden dataset's in a frozen mode, otherwise now.
+export function turnNow(env: NodeJS.ProcessEnv): string {
+  return frozenDataMode(env) ? FROZEN_AS_OF : new Date().toISOString();
+}
+
 export function marketHydrationOrigin(env: NodeJS.ProcessEnv): string | null {
   if (frozenDataMode(env)) return null;
   // The chat profile serves market in-process from the one-process app, on its
