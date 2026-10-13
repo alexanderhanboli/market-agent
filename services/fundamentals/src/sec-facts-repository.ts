@@ -235,11 +235,11 @@ async function ingestFiling(
     // stores the filing's in their place (the active identity is unique).
     const stale = input.income === "repair" && income
       ? await staleStatementFacts(client, input.issuerId, income.statement)
-      : new Map<string, string>();
+      : new Map<string, string[]>();
     if (stale.size > 0) {
       await client.query(
         `update facts set invalidated_at = now(), updated_at = now() where fact_id = any($1::uuid[])`,
-        [[...stale.values()]],
+        [[...stale.values()].flat()],
       );
     }
     for (const entry of mapped) {
@@ -250,9 +250,11 @@ async function ingestFiling(
         retrievedAt: asOf,
       });
       if (entry.statement !== income?.statement) continue;
-      for (const [metricKey, oldId] of stale) {
+      for (const [metricKey, oldIds] of stale) {
         const newId = inserted.get(metricKey);
-        if (newId) await client.query(`update facts set superseded_by = $2, updated_at = now() where fact_id = $1`, [oldId, newId]);
+        if (newId) {
+          await client.query(`update facts set superseded_by = $2, updated_at = now() where fact_id = any($1::uuid[])`, [oldIds, newId]);
+        }
       }
     }
   });
@@ -260,14 +262,14 @@ async function ingestFiling(
 }
 
 // The stored, active SEC facts for a statement's period that the filing
-// contradicts, by metric_key: a metric the statement has, with another value
+// contradicts, their ids by metric_key: a metric the statement has, with another value
 // or dates; or one of its family the statement lacks, dated for another
 // period (the old selector's comparative, with nothing to replace it).
 async function staleStatementFacts(
   db: FundamentalsQueryExecutor,
   issuerId: UUID,
   statement: NormalizedStatement,
-): Promise<Map<string, string>> {
+): Promise<Map<string, string[]>> {
   const { rows } = await db.query<{
     fact_id: string;
     metric_key: string;
@@ -293,14 +295,15 @@ async function staleStatementFacts(
         and m.metric_key = any($5::text[])`,
     [issuerId, statement.period_kind, statement.fiscal_year, statement.fiscal_period, SEC_METRIC_KEYS_BY_FAMILY[statement.family]],
   );
-  const stale = new Map<string, string>();
+  // A metric can have rows from several filings: every contradicted one goes.
+  const stale = new Map<string, string[]>();
   for (const row of rows) {
     const line = statement.lines.find((candidate) => candidate.metric_key === row.metric_key);
     const otherDates = row.period_start !== statement.period_start || row.period_end !== statement.period_end;
     const contradicted = line
       ? otherDates || (row.stored_value === null ? null : Number(row.stored_value)) !== line.value_num
       : otherDates;
-    if (contradicted) stale.set(row.metric_key, row.fact_id);
+    if (contradicted) stale.set(row.metric_key, [...(stale.get(row.metric_key) ?? []), row.fact_id]);
   }
   return stale;
 }

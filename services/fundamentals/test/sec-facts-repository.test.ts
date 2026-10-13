@@ -214,6 +214,36 @@ test("the backfill replaces income facts the old period selector got wrong, keep
   assert.equal(reread?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
 });
 
+test("the backfill retires every wrong row of a metric, whichever filing stored it", async () => {
+  const db = new FakeFundamentalsDb();
+  await createSecBackedStatementRepository(db, {
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
+  const revenueOf = () => db.facts.filter((fact) => metricKeyFor(db.metrics, fact.metric_id) === "revenue");
+  // Two wrong rows for FY2024 revenue: one on the 10-K's own source (the
+  // identity a replacement would conflict with), one on another filing's.
+  const [onTarget] = revenueOf();
+  Object.assign(onTarget!, { value_num: 800, period_start: "2023-01-01", period_end: "2023-12-31" });
+  const otherFiling = { ...onTarget!, fact_id: crypto.randomUUID(), source_id: "33333333-3333-4333-8333-333333333333", value_num: 700 };
+  db.facts.push(otherFiling);
+
+  await backfillSecCompanionStatements(db, {
+    issuerId: ISSUER_ID,
+    fetcher: async () => companyFacts(),
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+  });
+
+  const active = revenueOf().filter((fact) => fact.invalidated_at === null);
+  assert.deepEqual(active.map((fact) => fact.value_num), [1000]);
+  for (const retired of [onTarget!, otherFiling]) {
+    assert.notEqual(retired.invalidated_at, null);
+    assert.equal(retired.superseded_by, active[0]!.fact_id);
+  }
+});
+
 test("the backfill retires a wrong income fact whose metric the filing no longer yields for the period", async () => {
   const db = new FakeFundamentalsDb();
   await createSecBackedStatementRepository(db, {
@@ -616,8 +646,7 @@ class FakeFundamentalsDb {
       return rows([]);
     }
     if (sql.includes("update facts") && sql.includes("set superseded_by")) {
-      const fact = this.facts.find((candidate) => candidate.fact_id === values[0]);
-      if (fact) fact.superseded_by = values[1] as string;
+      for (const fact of this.facts) if ((values[0] as string[]).includes(fact.fact_id)) fact.superseded_by = values[1] as string;
       return rows([]);
     }
     if (sql.includes("select max(f.fiscal_year)")) {
