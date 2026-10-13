@@ -85,7 +85,7 @@ const ORDINAL_QUARTERS: Readonly<Record<string, number>> = { first: 1, second: 2
 // "Reported" may follow any of them ("the latest reported quarter").
 // A bare "last quarter" often means the one before, so "last" counts only as
 // "last reported".
-const LATEST_QUARTER = /\b(?:(?:latest|most recent(?:ly)?|current|newest)\s+(?:reported\s+)?|last\s+reported\s+)quarter\b/i;
+const LATEST_QUARTER = /\b(?:(?:latest|most recent(?:ly)?|current|newest)\s+(?:reported\s+)?(?:fiscal\s+)?|last\s+reported\s+(?:fiscal\s+)?)quarter\b/i;
 // Where a list of things to remove ends: at the end of the sentence, or where
 // the next request starts ("drop AMD and AAPL, and add TSLA"). Commas and "and"
 // inside the list ("segments, margins and the window") are part of it.

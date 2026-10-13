@@ -846,17 +846,19 @@ export function scopeGapBlocks(
     const quarter = `fiscal ${scope.fiscal_quarter.fiscal_period} ${scope.fiscal_quarter.fiscal_year}`;
     if (scope.companies.length > 1) {
       notes.push(["gap:quarter", `A single quarter is not compared across companies here; each company is shown for a fiscal year, not ${quarter}.`]);
-    } else if (readsNamedQuarter(scope) && !showsQuarter(shown)) {
-      notes.push(["gap:quarter", `No figures for ${quarter} are on file for ${names}.`]);
-    } else if (scope.reads === "segments" || scope.reads === "statements") {
-      // Their readers take the latest period: said, never shown silently (#292
-      // review), and only when something is shown; with nothing, their own
-      // gap notes say what is missing.
-      const latestShown = scope.reads === "segments"
-        ? showsSegments(shown)
-        : statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key));
-      const what = scope.reads === "segments" ? "this breakdown" : "these statement figures";
-      if (latestShown) notes.push(["gap:quarter", `A named quarter is not read for ${what}; the latest available period is shown, not ${quarter}.`]);
+    } else {
+      if (readsNamedQuarter(scope) && !showsQuarter(shown)) {
+        notes.push(["gap:quarter", `No figures for ${quarter} are on file for ${names}.`]);
+      }
+      // The segment and statement readers take the latest period, whatever the
+      // route: each block shown beside a named quarter says so (#292 review);
+      // with none shown, their own gap notes say what is missing.
+      if (showsSegments(shown)) {
+        notes.push(["gap:quarter-segments", `A named quarter is not read for this breakdown; the latest available period is shown, not ${quarter}.`]);
+      }
+      if (statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key))) {
+        notes.push(["gap:quarter-statements", `A named quarter is not read for these statement figures; the latest available period is shown, not ${quarter}.`]);
+      }
     }
   }
   if (scope.benchmark) {
@@ -894,7 +896,9 @@ export function mayOfferOtherFacts(scope: ResearchScope, shown: ReadonlyArray<Bl
 // income figures (#290); segments and statements read their own periods.
 export function readsNamedQuarter(scope: ResearchScope): boolean {
   return scope.fiscal_quarter !== null && scope.companies.length === 1 &&
-    (scope.reads === "latest_quarter" || scope.reads === "trend" || scope.reads === "derived_margin");
+    (scope.reads === "latest_quarter" || scope.reads === "trend" || scope.reads === "derived_margin" ||
+      // A segment request that also asks for margins reads the income figures too (#292 review).
+      (scope.reads === "segments" && scope.margins));
 }
 
 // Whether the blocks show a named fiscal quarter (buildIssuerFactBlocks).
