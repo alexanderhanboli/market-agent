@@ -101,6 +101,13 @@ test("a release longer than one prompt is read whole, across prompts split betwe
   }
   // A short release is one prompt.
   assert.equal(releasePrompts(releaseExhibits(SUBMISSION)).length, 1);
+  // One block longer than a prompt is split between sentences (not after an
+  // abbreviation's full stop), so each is whole in some prompt.
+  const sentences = Array.from({ length: 1_500 }, (_, n) => `Sales in the U.S. Data Center market rose ${n}% on demand.`);
+  const block = releaseExhibits(`<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<p>${sentences.join(" ")}</p>\n</TEXT>\n</DOCUMENT>`);
+  const split = releasePrompts(block);
+  assert.ok(split.length > 1 && split.every((prompt) => prompt.length <= 60_000));
+  for (const sentence of sentences) assert.ok(split.some((prompt) => prompt.includes(sentence)), sentence);
 });
 
 test("the model's statements are read when well formed; unknown kinds or metrics are left out", () => {

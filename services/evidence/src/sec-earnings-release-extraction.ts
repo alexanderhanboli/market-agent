@@ -307,8 +307,8 @@ function endsSentence(exhibit: ReleaseExhibit, end: number): boolean {
 
 // The exhibits as prompts of at most MAX_PROMPT_CHARS each, so a long release
 // is read whole across several calls rather than losing its tail. An exhibit
-// longer than one is split between blocks (ponytail: a single block longer than
-// a prompt is cut where the prompt ends).
+// longer than one is split between blocks, or sentences (ponytail: a single
+// sentence longer than a prompt is cut where the prompt ends).
 export function releasePrompts(exhibits: ReadonlyArray<ReleaseExhibit>): string[] {
   const pieces = exhibits.flatMap((exhibit) => {
     const label = `[${exhibit.type}]\n`;
@@ -317,7 +317,13 @@ export function releasePrompts(exhibits: ReadonlyArray<ReleaseExhibit>): string[
     const parts: string[] = [];
     for (let from = 0; from < exhibit.text.length;) {
       let to = Math.min(exhibit.text.length, from + budget);
-      if (to < exhibit.text.length) to = edges.findLast((edge) => edge > from && edge <= to) ?? to;
+      if (to < exhibit.text.length) {
+        // Between blocks; else, in one block longer than a prompt, after the
+        // last sentence that ends within it.
+        const edge = edges.findLast((at) => at > from && at <= to);
+        if (edge !== undefined) to = edge;
+        else for (let at = to; at > from; at--) if (endsSentence(exhibit, at)) { to = at; break; }
+      }
       parts.push(label + exhibit.text.slice(from, to).trim());
       from = to;
     }

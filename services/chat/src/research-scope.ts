@@ -112,6 +112,10 @@ const SEGMENTS = /\bsegments?\b/i;
 // and asks why.
 // ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
 const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expects?|expected to|expectations? for|project(?:s|ed|ions?)?|targets?)\b/i;
+// A result set against guidance, a forecast or a target ("missed its forecast",
+// "below target", "beat guidance") asks why, not for guidance.
+const AGAINST_GUIDANCE =
+  /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:\w+\s+){0,2}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/i;
 
 // The income-statement items a question names, in earnings-release terms
 // (sec-earnings-release-extraction.ts): the scope reads them all as the income
@@ -472,7 +476,7 @@ export function resolveResearchScope(input: {
     price_window,
     benchmark,
     // Asked this turn, or by the answer an evidence follow-up re-reads.
-    ...(GUIDANCE.test(question) || (evidence && prior?.guidance) ? { guidance: true as const } : {}),
+    ...((GUIDANCE.test(question) && !AGAINST_GUIDANCE.test(question)) || (evidence && prior?.guidance) ? { guidance: true as const } : {}),
     ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };

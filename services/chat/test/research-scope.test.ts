@@ -113,7 +113,13 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     assert.equal(fresh(question, [NVDA]).guidance, true, question);
   }
   // A result set against past expectations asks why, not for guidance.
-  for (const question of ["Why were NVDA's margins lower than expected?", "Did NVDA's revenue come in as expected?"]) {
+  for (const question of [
+    "Why were NVDA's margins lower than expected?",
+    "Did NVDA's revenue come in as expected?",
+    "Why did NVDA's revenue miss its forecast?",
+    "Why were NVDA's margins below target?",
+    "Why did NVDA beat its guidance?",
+  ]) {
     assert.equal(fresh(question, [NVDA]).guidance, undefined, question);
   }
   assert.equal(fresh("What was NVDA's revenue?", [NVDA]).guidance, undefined);
