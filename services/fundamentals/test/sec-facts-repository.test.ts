@@ -57,6 +57,75 @@ test("SEC-backed statements persist companyfacts and repeat reads from facts", a
   assert.equal(fetchCount, 1);
 });
 
+test("SEC-backed statements store the filing's cash flow and balance sheet beside its income statement", async () => {
+  const db = new FakeFundamentalsDb();
+  const facts = companyFacts();
+  const usGaap = facts.facts["us-gaap"] as Record<string, unknown>;
+  usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
+  usGaap.PaymentsToAcquirePropertyPlantAndEquipment = annualUsd(50, 40);
+  usGaap.Assets = annualInstant(5000, 4000);
+  usGaap.CashAndCashEquivalentsAtCarryingValue = annualInstant(700, 600);
+  const statements = createSecBackedStatementRepository(db, {
+    fetcher: async () => facts,
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+  });
+
+  const income = await statements.find({
+    issuer_id: ISSUER_ID,
+    family: "income",
+    basis: "as_reported",
+    fiscal_year: 2024,
+    fiscal_period: "FY",
+  });
+
+  assert.equal(income?.family, "income");
+  const stored = (key: string) => db.facts.find((fact) => metricKeyFor(db.metrics, fact.metric_id) === key);
+  assert.equal(stored("operating_cash_flow")?.value_num, 300);
+  assert.equal(stored("operating_cash_flow")?.period_kind, "fiscal_y");
+  assert.equal(stored("capex")?.value_num, 50);
+  assert.equal(stored("total_assets")?.value_num, 5000);
+  assert.equal(stored("total_assets")?.period_kind, "point");
+  assert.equal(stored("total_assets")?.period_start, null);
+  assert.equal(stored("total_assets")?.period_end, "2024-12-31");
+  assert.equal(stored("cash_and_equivalents")?.value_num, 700);
+  // One filing, one source, one transaction.
+  assert.equal(db.facts.every((fact) => fact.source_id === income?.source_id), true);
+  assert.deepEqual(db.transactions, ["begin", "commit"]);
+});
+
+test("SEC-backed statements keep the income statement when another family cannot be extracted", async () => {
+  const db = new FakeFundamentalsDb();
+  const facts = companyFacts();
+  const usGaap = facts.facts["us-gaap"] as Record<string, unknown>;
+  usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
+  // A second concept for another period: the family's periods disagree.
+  const capex = annualUsd(50, 40);
+  capex.units.USD[0] = { ...capex.units.USD[0]!, start: "2024-02-01" };
+  usGaap.PaymentsToAcquirePropertyPlantAndEquipment = capex;
+  const warnings: unknown[][] = [];
+  const statements = createSecBackedStatementRepository(db, {
+    fetcher: async () => facts,
+    sourceId: SOURCE_ID,
+    clock: () => new Date("2026-05-08T00:00:00.000Z"),
+    logger: { warn: (...args: unknown[]) => warnings.push(args) },
+  });
+
+  const income = await statements.find({
+    issuer_id: ISSUER_ID,
+    family: "income",
+    basis: "as_reported",
+    fiscal_year: 2024,
+    fiscal_period: "FY",
+  });
+
+  assert.equal(income?.lines.find((line) => line.metric_key === "revenue")?.value_num, 1000);
+  assert.equal(db.facts.some((fact) => metricKeyFor(db.metrics, fact.metric_id) === "operating_cash_flow"), false);
+  assert.equal(warnings.length, 1);
+  assert.match(String((warnings[0]![1] as { error: string }).error), /disagrees/);
+  assert.equal((warnings[0]![1] as { family: string }).family, "cashflow");
+});
+
 test("SEC-backed statements persist quarterly companyfacts as fiscal_q facts", async () => {
   const db = new FakeFundamentalsDb();
   let fetchCount = 0;
@@ -359,6 +428,12 @@ function metricDefinitions(): MetricDefinition[] {
     ["eps_diluted", "currency"],
     ["shares_outstanding_basic", "count"],
     ["shares_outstanding_diluted", "count"],
+    ["operating_cash_flow", "currency"],
+    ["capex", "currency"],
+    ["total_assets", "currency"],
+    ["total_liabilities", "currency"],
+    ["total_equity", "currency"],
+    ["cash_and_equivalents", "currency"],
   ] as const;
   return defs.map(([metric_key, unit_class], index) => ({
     metric_id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
@@ -502,6 +577,15 @@ function annualPerShare(current: number, prior: number) {
 
 function annualShares(current: number, prior: number) {
   return { label: "", description: "", units: { shares: annualValues(current, prior) } };
+}
+
+// Balances: instants (no start) at each annual report's year end.
+function annualInstant(current: number, prior: number) {
+  return {
+    label: "",
+    description: "",
+    units: { USD: annualValues(current, prior).map(({ start: _start, ...instant }) => instant) },
+  };
 }
 
 function annualValues(current: number, prior: number): SecConceptValue[] {

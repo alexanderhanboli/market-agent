@@ -13,6 +13,7 @@ import {
   SEC_INCOME_METRIC_KEYS,
   US_GAAP_TO_METRIC_KEY,
   selectSecConceptValue,
+  type ExtractStatementInput,
   type SecCompanyFacts,
   type SecEdgarFetcher,
   type SecSourceToken,
@@ -102,21 +103,31 @@ export function createSecBackedStatementRepository(
               retrievedAt: asOf,
             })
           : options.sourceId;
-        const extracted = extractStatementWithTokens({
+        const target = {
           subject: { kind: "issuer", id: lookup.issuer_id },
           facts: companyFacts,
-          family: lookup.family,
           fiscal_year: lookup.fiscal_year,
           fiscal_period: lookup.fiscal_period,
           accession_number: accessionNumber ?? undefined,
           source_id: sourceId,
           as_of: asOf,
-        });
+        } as const;
+        const extracted = extractStatementWithTokens({ ...target, family: lookup.family });
         const statement = normalizedStatement(extracted.statement);
+        // The same filing's cash flow and balance sheet come with the download,
+        // so they are stored beside the income statement.
+        const all = [
+          { statement, tokens: extracted.tokens },
+          ...companionStatements(target, logger),
+        ];
 
-        const registry = await loadMetricRegistry(db, statement.lines.map((line) => line.metric_key));
-        const mapped = mapStatement(registry, statement);
-        await withPinnedTransaction(db, (client) => persistStatementFacts(client, mapped, clock, { cik: cikNumber, tokens: extracted.tokens }));
+        const registry = await loadMetricRegistry(db, all.flatMap((entry) => entry.statement.lines.map((line) => line.metric_key)));
+        const mapped = all.map((entry) => ({ mapped: mapStatement(registry, entry.statement), tokens: entry.tokens }));
+        await withPinnedTransaction(db, async (client) => {
+          for (const entry of mapped) {
+            await persistStatementFacts(client, entry.mapped, clock, { cik: cikNumber, tokens: entry.tokens });
+          }
+        });
         return statement;
       } catch (error) {
         const unavailable = classifySecIngestionError(error);
@@ -131,6 +142,42 @@ export function createSecBackedStatementRepository(
       }
     },
   };
+}
+
+// The cash flow and balance sheet for the filing an income lookup ingests. A
+// filer that tags none of a family's concepts has no such statement; any other
+// failure (concepts disagreeing on the period, a second currency) is logged and
+// costs only that family, never the income statement the caller asked for.
+function companionStatements(
+  target: Omit<ExtractStatementInput, "family">,
+  logger: Pick<Console, "warn">,
+): Array<{ statement: NormalizedStatement; tokens: ReadonlyMap<string, SecSourceToken> }> {
+  return COMPANION_FAMILIES.flatMap((family) => {
+    try {
+      const extracted = extractStatementWithTokens({ ...target, family });
+      return [{ statement: normalizedStatement(extracted.statement), tokens: extracted.tokens }];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isMissingCoverage(message)) {
+        logger.warn("sec_edgar statement extraction failed", {
+          issuer_id: target.subject.id,
+          family,
+          fiscal_year: target.fiscal_year,
+          fiscal_period: target.fiscal_period,
+          error: message,
+        });
+      }
+      return [];
+    }
+  });
+}
+
+const COMPANION_FAMILIES = ["cashflow", "balance"] as const;
+
+function isMissingCoverage(message: string): boolean {
+  return message.includes("no us-gaap values") ||
+    message.includes('has no "us-gaap" taxonomy') ||
+    message.includes("no monetary lines extracted");
 }
 
 async function upsertSecFilingSource(
@@ -325,11 +372,7 @@ function classifySecIngestionError(error: unknown): FundamentalsDataUnavailableE
   }
 
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    message.includes("no us-gaap values") ||
-    message.includes('has no "us-gaap" taxonomy') ||
-    message.includes("no monetary lines extracted")
-  ) {
+  if (isMissingCoverage(message)) {
     return null;
   }
 

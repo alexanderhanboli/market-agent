@@ -7,6 +7,7 @@ import {
   extractStatement,
   fetchCompanyFacts,
   SEC_INCOME_METRIC_KEYS,
+  SEC_METRIC_KEYS_BY_FAMILY,
   US_GAAP_TO_METRIC_KEY,
   type SecCompanyFacts,
   type SecConceptValue,
@@ -736,23 +737,139 @@ test("US_GAAP_TO_METRIC_KEY collapses revenue aliases to a single canonical key"
   );
 });
 
-test("extractStatement throws upfront for balance/cashflow families (income-only in this bead)", () => {
-  for (const family of ["balance", "cashflow"] as const) {
-    assert.throws(
-      () =>
-        extractStatement({
-          subject: aaplIssuer,
-          facts: aaplCompanyFactsFixture(),
-          family,
-          fiscal_year: 2024,
-          fiscal_period: "FY",
-          source_id: SEC_SOURCE_ID,
-          as_of: "2024-11-01T20:30:00.000Z",
-        }),
-      /not yet supported/,
-      `expected family=${family} to be rejected`,
+// NVDA FY2026 (ends 2026-01-25), real values: each 10-Q states cash flows year
+// to date, beside the prior year's comparatives, and balances at its own period
+// end beside the prior year end's.
+const NVDA_FILINGS = {
+  Q1: { fy: 2026, fp: "Q1", form: "10-Q", accn: "0001045810-25-000116", filed: "2025-05-28" },
+  Q2: { fy: 2026, fp: "Q2", form: "10-Q", accn: "0001045810-25-000209", filed: "2025-08-27" },
+  Q3: { fy: 2026, fp: "Q3", form: "10-Q", accn: "0001045810-25-000230", filed: "2025-11-19" },
+  FY: { fy: 2026, fp: "FY", form: "10-K", accn: "0001045810-26-000021", filed: "2026-02-25" },
+} as const;
+
+function nvdaCashAndBalanceFixture(): SecCompanyFacts {
+  const { Q1, Q2, Q3, FY } = NVDA_FILINGS;
+  const flow = (q1: number, h1: number, m9: number, fy: number, prior: [number, number, number, number]) => [
+    value({ val: prior[0], ...Q1, start: "2024-01-29", end: "2024-04-28", frame: "CY2024Q1" }),
+    value({ val: prior[1], ...Q2, start: "2024-01-29", end: "2024-07-28" }),
+    value({ val: prior[2], ...Q3, start: "2024-01-29", end: "2024-10-27" }),
+    value({ val: prior[3], ...FY, start: "2024-01-29", end: "2025-01-26", frame: "CY2024" }),
+    value({ val: q1, ...Q1, start: "2025-01-27", end: "2025-04-27" }),
+    value({ val: h1, ...Q2, start: "2025-01-27", end: "2025-07-27" }),
+    value({ val: m9, ...Q3, start: "2025-01-27", end: "2025-10-26" }),
+    value({ val: fy, ...FY, start: "2025-01-27", end: "2026-01-25", frame: "CY2025" }),
+  ];
+  const balance = (priorYearEnd: number, q1: number, q2: number, q3: number, fy: number) => [
+    ...[Q1, Q2, Q3, FY].map((filing) => value({ val: priorYearEnd, ...filing, end: "2025-01-26" })),
+    value({ val: q1, ...Q1, end: "2025-04-27" }),
+    value({ val: q2, ...Q2, end: "2025-07-27" }),
+    value({ val: q3, ...Q3, end: "2025-10-26" }),
+    value({ val: fy, ...FY, end: "2026-01-25" }),
+  ];
+  const concept = (values: SecConceptValue[]) => ({ label: "", description: "", units: { USD: values } });
+  return {
+    cik: 1045810,
+    entityName: "NVIDIA Corp",
+    facts: {
+      "us-gaap": {
+        NetCashProvidedByUsedInOperatingActivities: concept(
+          flow(27_414_000_000, 42_779_000_000, 66_530_000_000, 102_718_000_000, [15_345_000_000, 29_833_000_000, 47_460_000_000, 64_089_000_000]),
+        ),
+        PaymentsToAcquireProductiveAssets: concept(
+          flow(1_227_000_000, 3_122_000_000, 4_758_000_000, 6_042_000_000, [369_000_000, 1_346_000_000, 2_159_000_000, 3_236_000_000]),
+        ),
+        Assets: concept(balance(111_601_000_000, 125_254_000_000, 140_740_000_000, 161_148_000_000, 206_803_000_000)),
+        Liabilities: concept(balance(32_274_000_000, 41_411_000_000, 40_609_000_000, 42_251_000_000, 49_510_000_000)),
+        StockholdersEquity: concept(balance(79_327_000_000, 83_843_000_000, 100_131_000_000, 118_897_000_000, 157_293_000_000)),
+        CashAndCashEquivalentsAtCarryingValue: concept(balance(8_589_000_000, 15_234_000_000, 11_639_000_000, 11_486_000_000, 10_605_000_000)),
+      },
+    },
+  };
+}
+
+function nvdaStatement(family: "cashflow" | "balance", fiscal_period: "Q1" | "Q2" | "Q3" | "Q4" | "FY") {
+  const filing = NVDA_FILINGS[fiscal_period === "Q4" ? "FY" : fiscal_period];
+  return normalizedStatement(extractStatement({
+    subject: aaplIssuer,
+    facts: nvdaCashAndBalanceFixture(),
+    family,
+    fiscal_year: 2026,
+    fiscal_period,
+    accession_number: filing.accn,
+    source_id: SEC_SOURCE_ID,
+    as_of: RETRIEVED_AT,
+  }));
+}
+
+function lineValue(statement: ReturnType<typeof nvdaStatement>, key: string): number | null | undefined {
+  return statement.lines.find((line) => line.metric_key === key)?.value_num;
+}
+
+test("cash flow extraction turns year-to-date 10-Q values into discrete quarters", () => {
+  const expected = {
+    Q1: { start: "2025-01-27", end: "2025-04-27", ocf: 27_414_000_000, capex: 1_227_000_000 },
+    Q2: { start: "2025-04-28", end: "2025-07-27", ocf: 15_365_000_000, capex: 1_895_000_000 },
+    Q3: { start: "2025-07-28", end: "2025-10-26", ocf: 23_751_000_000, capex: 1_636_000_000 },
+    Q4: { start: "2025-10-27", end: "2026-01-25", ocf: 36_188_000_000, capex: 1_284_000_000 },
+    FY: { start: "2025-01-27", end: "2026-01-25", ocf: 102_718_000_000, capex: 6_042_000_000 },
+  } as const;
+  for (const [period, want] of Object.entries(expected) as Array<[keyof typeof expected, (typeof expected)[keyof typeof expected]]>) {
+    const statement = nvdaStatement("cashflow", period);
+    assert.equal(statement.family, "cashflow");
+    assert.equal(statement.period_kind, period === "FY" ? "fiscal_y" : "fiscal_q", period);
+    assert.equal(statement.period_start, want.start, period);
+    assert.equal(statement.period_end, want.end, period);
+    assert.equal(lineValue(statement, "operating_cash_flow"), want.ocf, period);
+    assert.equal(lineValue(statement, "capex"), want.capex, period);
+  }
+});
+
+test("cash flow extraction derives no quarter when the year-to-date values start on different days", () => {
+  const facts = nvdaCashAndBalanceFixture();
+  for (const concept of Object.values(facts.facts["us-gaap"]!)) {
+    concept.units.USD = concept.units.USD!.map((entry) =>
+      entry.fp === "Q1" && entry.start === "2025-01-27" ? { ...entry, start: "2025-01-20" } : entry,
     );
   }
+  assert.throws(
+    () => extractStatement({
+      subject: aaplIssuer,
+      facts,
+      family: "cashflow",
+      fiscal_year: 2026,
+      fiscal_period: "Q2",
+      source_id: SEC_SOURCE_ID,
+      as_of: RETRIEVED_AT,
+    }),
+    /no us-gaap values/,
+  );
+});
+
+test("balance sheet extraction reads the filing's own period-end instants as a point", () => {
+  const q2 = nvdaStatement("balance", "Q2");
+  assert.equal(q2.family, "balance");
+  assert.equal(q2.period_kind, "point");
+  assert.equal(q2.period_start, null);
+  assert.equal(q2.period_end, "2025-07-27");
+  assert.equal(q2.fiscal_period, "FY");
+  assert.equal(lineValue(q2, "total_assets"), 140_740_000_000);
+  assert.equal(lineValue(q2, "total_liabilities"), 40_609_000_000);
+  assert.equal(lineValue(q2, "total_equity"), 100_131_000_000);
+  assert.equal(lineValue(q2, "cash_and_equivalents"), 11_639_000_000);
+  // The fourth quarter ends with the year: the annual report's balance.
+  for (const period of ["Q4", "FY"] as const) {
+    const yearEnd = nvdaStatement("balance", period);
+    assert.equal(yearEnd.period_end, "2026-01-25", period);
+    assert.equal(lineValue(yearEnd, "total_assets"), 206_803_000_000, period);
+  }
+});
+
+test("each family extracts only its own concepts", () => {
+  assert.deepEqual(nvdaStatement("cashflow", "FY").lines.map((line) => line.metric_key).sort(), ["capex", "operating_cash_flow"]);
+  assert.deepEqual(
+    nvdaStatement("balance", "FY").lines.map((line) => line.metric_key).sort(),
+    ["cash_and_equivalents", "total_assets", "total_equity", "total_liabilities"],
+  );
 });
 
 test("extractStatement rejects a payload missing the us-gaap taxonomy", () => {
@@ -862,15 +979,12 @@ test("extractStatement output: lines are plain mutable inputs (NormalizedStateme
   assert.equal(Object.isFrozen(input.lines), false);
 });
 
-test("SEC_INCOME_METRIC_KEYS lists every income-family metric_key the extractor can emit", () => {
-  // Every metric_key reachable from the US_GAAP_TO_METRIC_KEY mapping for
-  // income-family concepts must be in SEC_INCOME_METRIC_KEYS so a registry
-  // built from these keys covers the extractor's full output range.
-  const set = new Set(SEC_INCOME_METRIC_KEYS);
-  for (const metricKey of Object.values(US_GAAP_TO_METRIC_KEY)) {
-    assert.ok(
-      set.has(metricKey),
-      `expected SEC_INCOME_METRIC_KEYS to include "${metricKey}"`,
-    );
+test("SEC_METRIC_KEYS_BY_FAMILY places every mapped metric_key in exactly one family", () => {
+  // A registry built from these keys must cover the extractor's full output
+  // range, and no metric may be read by two families.
+  assert.deepEqual(SEC_METRIC_KEYS_BY_FAMILY.income, SEC_INCOME_METRIC_KEYS);
+  for (const metricKey of new Set(Object.values(US_GAAP_TO_METRIC_KEY))) {
+    const families = Object.entries(SEC_METRIC_KEYS_BY_FAMILY).filter(([, keys]) => keys.includes(metricKey));
+    assert.equal(families.length, 1, `expected "${metricKey}" in exactly one family`);
   }
 });
