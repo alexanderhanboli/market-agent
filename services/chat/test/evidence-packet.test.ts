@@ -193,14 +193,17 @@ test("a route reads its predicate families first, from the start of the period i
   // management's explanation of the same metric at guidance's priority.
   assert.deepEqual(claimSelection(scope("What adjusted EPS guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 2), ["guidance.eps", "guidance."]);
   // The income-statement item it names before the rest of the statement.
+  // Revenue's include its segments' and products' ("other" in a release).
   assert.deepEqual(claimSelection(scope("What revenue guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 3), [
-    "guidance.revenue",
+    ["guidance.revenue", "guidance.other"],
     ["guidance.revenue", "guidance.gross_margin", "guidance.operating_expenses", "guidance.operating_income", "guidance.net_income"],
     "guidance.",
   ]);
   assert.deepEqual(claimSelection(scope("Why did NVDA's revenue decline, and what guidance did management give?"), CUTOFF).predicate_prefixes[0], [
     "guidance.revenue",
+    "guidance.other",
     "management.explanation.revenue",
+    "management.explanation.other",
   ]);
   assert.equal(claimSelection(scope("What is NVDA's outlook for next quarter?"), CUTOFF).predicate_prefixes[0], "guidance.");
   assert.ok(!claimSelection(scope("What was NVDA's revenue?"), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("guidance."));
@@ -211,6 +214,7 @@ test("a route reads its predicate families first, from the start of the period i
     "management.explanation.revenue",
     "management.explanation.operating_income",
     "management.explanation.net_income",
+    "management.explanation.other",
   ]);
   // So does each metric it asks about: free cash flow's explanations never
   // crowd out EPS's; their components follow.
@@ -231,6 +235,12 @@ test("a route reads its predicate families first, from the start of the period i
   assert.deepEqual(claimSelection(scope("Why did NVDA's revenue fall while operating income rose?"), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",
     "management.explanation.operating_income",
+    "management.explanation.other",
+  ]);
+  // A segment's revenue ("Gaming revenue") is explained as "other" in a release.
+  assert.deepEqual(claimSelection(scope("Why did NVDA's Gaming revenue grow?"), CUTOFF).predicate_prefixes[0], [
+    "management.explanation.revenue",
+    "management.explanation.other",
   ]);
   // Operating or net income is read as the income statement: the item named
   // first, then its other explanations alike.

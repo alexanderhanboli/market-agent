@@ -348,6 +348,19 @@ test("a release the model answers badly stays a candidate, with nothing stored",
   assert.equal(drainIncomplete({ extracted: 1, empty: 0, unparseable: 0, no_exhibits: 0, noop: 0, failed: 0 }), false);
 });
 
+test("a reply whose every quote fails verification is read again, not marked empty", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "release-unverified");
+  const client = await connectedClient(t, databaseUrl);
+  const seeded = await seedItem202(client);
+  const { llm } = fakeLlm(JSON.stringify({ statements: [
+    { kind: "explanation", metric: "revenue", quote: "Revenue grew because every hyperscaler doubled its orders." },
+  ] }));
+  const result = await runReleaseExtractionDrain({ db: client, llm, secClient: fakeSec(SUBMISSION) });
+  assert.equal(result.unparseable, 1);
+  assert.equal(result.empty, 0);
+  assert.deepEqual((await findReleaseCandidates(client)).map((candidate) => candidate.claimId), [seeded.claimId]);
+});
+
 test("a model call that fails is recorded for audit, and the filing stays a candidate", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "release-model-error");
   const client = await connectedClient(t, databaseUrl);

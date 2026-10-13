@@ -187,6 +187,9 @@ function explainedMetrics(scope: ResearchScope): Array<string | ReadonlyArray<st
       after.push(...components);
     }
   }
+  // Revenue's explanations include its segments' and products' ("Gaming
+  // revenue"), which a release files as "other".
+  if (top.includes("revenue")) top.push("other");
   const asked = [...new Set(top)];
   const metrics = [...(asked.length > 1 ? [asked] : asked), ...after];
   // Each once, at its first and highest priority.

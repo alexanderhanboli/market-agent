@@ -412,11 +412,18 @@ export async function extractReleaseStatements(
     if (statements === null) unparseable = true;
     else proposed.push(...statements);
   }
-  // A prompt answered badly leaves its text unread: nothing is stored or
-  // stamped, so the next drain reads the filing again (as after a transport
-  // error); the attempt is still recorded for audit. ponytail: one the model
-  // always answers badly is retried every run.
-  if (unparseable) {
+  // A sentence picked twice for the same metric is one claim; for two metrics,
+  // a claim for each.
+  const verified = [...new Map(proposed.flatMap((statement) => {
+    const found = verifyStatement(statement, exhibits);
+    return found ? [[`${found.kind}:${found.metric}:${found.exhibit}:${found.start}`, found] as const] : [];
+  })).values()];
+  // A prompt answered badly, or a reply none of whose quotes is in the filing,
+  // leaves its text unread: nothing is stored or stamped, so the next drain
+  // reads the filing again (as after a transport error); the attempt is still
+  // recorded for audit. Only a reply of no statements is "empty". ponytail: one
+  // the model always answers badly is retried every run.
+  if (unparseable || (proposed.length > 0 && verified.length === 0)) {
     await writeToolCallLog(deps.db, {
       tool_name: "extract_earnings_release",
       args: { claim_id: candidate.claimId, accession: candidate.accession, model },
@@ -425,12 +432,6 @@ export async function extractReleaseStatements(
     });
     return "unparseable";
   }
-  // A sentence picked twice for the same metric is one claim; for two metrics,
-  // a claim for each.
-  const verified = [...new Map(proposed.flatMap((statement) => {
-    const found = verifyStatement(statement, exhibits);
-    return found ? [[`${found.kind}:${found.metric}:${found.exhibit}:${found.start}`, found] as const] : [];
-  })).values()];
   const outcome: ExtractReleaseOutcome = exhibits.length === 0
     ? "no_exhibits"
     : verified.length > 0
