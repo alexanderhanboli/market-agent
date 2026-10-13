@@ -1424,3 +1424,14 @@ test("with rendering on, a rejected comparison never falls back to the model's p
   const off = await renderWithReply(reply, { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
   assert.match((off.block.segments as Array<{ text: string }>)[0]!.text, /AMD has the highest/);
 });
+
+test("with rendering on, a comparison rejected for its shape also keeps the prose out (#286 review)", async () => {
+  // One figure: rejected by the shape check, before the comparison check.
+  const reply = "AMD has the highest gross margin.\n\n```assertions\n" + JSON.stringify([
+    { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F4"] },
+  ]) + "\n```";
+  const { block, report } = await renderWithReply(reply);
+  assert.deepEqual((report.rejected as Array<{ reason: string }>).map((entry) => entry.reason), ["a comparison cites two or more figures, and only figures"]);
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.doesNotMatch(text, /AMD has the highest/);
+});

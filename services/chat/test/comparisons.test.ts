@@ -205,3 +205,9 @@ test("common direction and ranking words are comparative wording (#286 review)",
     assert.equal(statesComparison(text), true, text);
   }
 });
+
+test("past-tense and other inflected comparative wording is recognised (#286 review)", () => {
+  for (const text of ["AMD led NVDA.", "Margins gained ground.", "Revenue slipped.", "AMD topped NVDA.", "AMD lagged.", "Growth slowed.", "Margins fell back."]) {
+    assert.equal(statesComparison(text), true, text);
+  }
+});
