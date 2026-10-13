@@ -71,9 +71,8 @@ export type ResearchScope = {
   // earlier one, until a turn turns it off: its claims are read first. Absent
   // when not.
   guidance?: true;
-  // A cause asked for ("why", "what drove"): management's explanation is then
-  // read with the guidance. This turn's, or the answer an evidence follow-up
-  // re-reads. Absent when not.
+  // A cause asked for ("why", "what drove"), this turn or an earlier one:
+  // management's explanation is then read with the guidance. Absent when not.
   explains?: true;
   // The income-statement items the question names ("operating income"), which
   // its metrics read as the whole statement: their claims come first. This
@@ -496,7 +495,8 @@ export function resolveResearchScope(input: {
         (prior?.guidance && input.question.search(GUIDANCE_OFF) < 0)
       ? { guidance: true as const }
       : {}),
-    ...((evidence ? prior?.explains : EXPLAINS.test(question)) ? { explains: true as const } : {}),
+    // Asked this turn, or kept from an earlier one, as guidance is.
+    ...(EXPLAINS.test(question) || prior?.explains ? { explains: true as const } : {}),
     ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };

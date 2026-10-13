@@ -145,7 +145,12 @@ test("guidance is asked for in a turn's words, and kept until turned off", () =>
   assert.equal(off.guidance, undefined);
   // Asking why is recorded too: management's explanation then shares guidance's priority.
   assert.equal(asked.explains, undefined);
-  assert.equal(fresh("Why did NVDA's revenue decline, and what guidance did management give?", [NVDA]).explains, true);
+  const both = fresh("Why did NVDA's revenue decline, and what guidance did management give?", [NVDA]);
+  assert.equal(both.explains, true);
+  // Kept by a follow-up, as guidance is.
+  const howAbout = resolveResearchScope({ question: "How about operating income?", companies: [NVDA], prior: both, asOf: AS_OF });
+  assert.equal(howAbout.guidance, true);
+  assert.equal(howAbout.explains, true);
   // An evidence follow-up re-reads the answer it asks about, guidance first too.
   const sources = resolveResearchScope({ question: "What are your sources?", companies: [NVDA], prior: asked, asOf: AS_OF });
   assert.equal(sources.route, "evidence_followup");

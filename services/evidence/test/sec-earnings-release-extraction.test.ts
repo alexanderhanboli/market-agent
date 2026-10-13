@@ -171,6 +171,14 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
   );
   assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue increased due to stronger demand," }, qualifiedAfter), null);
   assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue increased due to stronger demand, partially offset by lower pricing." }, qualifiedAfter));
+  // Nor a block another runs on into ("but" / "revenue is..."): one that starts
+  // lower-case continues the sentence before it, at both ends.
+  const runOn = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance but</div><div>revenue is expected to grow 10% next year.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "revenue is expected to grow 10% next year." }, runOn), null);
+  assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "This is not company guidance but" }, runOn), null);
+  assert.ok(verifyStatement({ kind: "guidance", metric: "revenue", quote: "This is not company guidance but revenue is expected to grow 10% next year." }, runOn));
   // Nor when the colon (or a dash or comma) ends the block before it.
   for (const mark of [":", " &mdash;", ","]) {
     const split = releaseExhibits(
