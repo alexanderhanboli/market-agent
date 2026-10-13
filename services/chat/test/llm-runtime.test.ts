@@ -1577,3 +1577,16 @@ test("on a named-gap turn a heading left with no content goes too, and the fallb
   assert.equal(text, "No written answer is available for this question; try asking again.");
   assert.deepEqual(answered, [], "no model prose was shown, so no deployment answered");
 });
+
+test("on a named-gap turn a list marker left with no content goes too (#294 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "1. AMD's free cash flow was three billion dollars.\n- Its capex was twenty billion dollars." }),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join(""), "No written answer is available for this question; try asking again.");
+});

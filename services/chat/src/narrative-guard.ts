@@ -50,7 +50,7 @@ const FISCAL_AFTER = /^ fiscal\b/i;
 const SENTENCE_BREAK = /(?<=[.!?])(?<!\b[Vv]s\.)\s+/;
 // Markdown list markers ("- ", "* ", "1. ", "2) ") and headings ("## Margins",
 // a line that is only "**Margins**"; a bold sentence ending "." is prose).
-const LIST_MARKER = /^\s*(?:[-*+]|\d{1,2}[.)])\s+/;
+export const LIST_MARKER = /^\s*(?:[-*+]|\d{1,2}[.)])\s+/;
 const HEADING = /^\s*(?:#{1,6}\s|\*\*[^*]*[^*.!?]\*\*:?\s*$)/;
 const COMPARED_WITH = /(?:compared (?:with|to)|unlike|versus|vs\.?|than|relative to|against)\s+$/i;
 // Between a company and a figure it owns: nothing but a possessive or

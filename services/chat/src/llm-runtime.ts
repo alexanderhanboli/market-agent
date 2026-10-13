@@ -14,7 +14,7 @@ import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, t
 import { statesComparison } from "./comparisons.ts";
 import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
-import { keepSupportedSentences, keepUncausedSentences, withoutEmptySections } from "./narrative-guard.ts";
+import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
@@ -440,12 +440,14 @@ function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { t
   // nothing under it goes too, as in the guard (#294 review).
   const lines = guarded.text.split("\n").map((line) => {
     if (line.trim() === "") return line;
-    const kept = line.split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
+    // A list marker leads the line, not a sentence of it, as in the guard.
+    const lead = line.match(LIST_MARKER)?.[0] ?? "";
+    const kept = line.slice(lead.length).split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
       if (!WORDED_AMOUNT.test(sentence)) return true;
       removed.push(sentence.trim());
       return false;
     });
-    return kept.length === 0 ? null : kept.join(" ");
+    return kept.length === 0 ? null : `${lead}${kept.join(" ")}`;
   });
   return { text: withoutEmptySections(lines), removed };
 }
