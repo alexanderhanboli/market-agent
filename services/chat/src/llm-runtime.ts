@@ -360,9 +360,18 @@ export async function composeAnalystBlocksWithLlm(input: {
       console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
       input.onNarrativeRemoved?.(uncaused.removed);
     }
-    if (uncaused.text) answered();
+    // A named gap's turn gives the model no data (availableData false): any
+    // number it states is invented, unless a cited claim states it (#221).
+    const unnumbered = input.availableData === false
+      ? keepSupportedSentences(uncaused.text, claimTextsFromToolCalls(input.toolCalls), [], [], [], input.subjectLabels ?? [])
+      : { text: uncaused.text, removed: [] as string[] };
+    if (unnumbered.removed.length > 0) {
+      console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
+      input.onNarrativeRemoved?.(unnumbered.removed);
+    }
+    if (unnumbered.text) answered();
     // No figures are shown here, so the fallback points to none.
-    return rewriteFirstRichTextBlock(input.blocks, uncaused.text || NO_ANSWER_FALLBACK_TEXT);
+    return rewriteFirstRichTextBlock(input.blocks, unnumbered.text || NO_ANSWER_FALLBACK_TEXT);
   }
 
   const displayTexts = displayTextsForBlocks(input.factBlocks ?? []);

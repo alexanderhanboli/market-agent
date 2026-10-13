@@ -138,6 +138,12 @@ const CAUSAL = new RegExp(
   String.raw`\b${CONNECTIVE}\s+((?:(?!\b(?:although|though|but|while|whereas|yet|however|${CONNECTIVE})\b)[^,;:.])+)`,
   "gi",
 );
+// Whether a sentence states a cause ("driven by", "due to", ...): an assertion
+// classed as an observation or comparison may not (assertions.ts, #221).
+export function statesCause(text: string): boolean {
+  return new RegExp(CAUSAL.source, "i").test(text);
+}
+
 // A cause the data does not show is allowed only as a labelled hypothesis (#261):
 // a blockquote item with its confidence in words and one explanation, resting on
 // an observation the answer shows ("> **Unverified hypothesis (medium

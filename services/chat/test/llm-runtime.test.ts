@@ -1435,3 +1435,18 @@ test("with rendering on, a comparison rejected for its shape also keeps the pros
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.doesNotMatch(text, /AMD has the highest/);
 });
+
+test("on a named-gap turn the model sees no data, so a number in its prose is never shown (#221)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was $3.1B in fiscal 2025." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.match(text, /Free cash flow is not available for AMD in this data\./);
+  assert.doesNotMatch(text, /\$3\.1B/);
+});

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkAssertions, splitAssertions, statesValue } from "../src/assertions.ts";
+import { checkAssertions, rejectionCheck, splitAssertions, statesValue } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const PACKET: EvidencePacket = {
@@ -548,4 +548,39 @@ test("a parenthesized percentage is an aside, not an accounting negative (#208)"
   assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin (75.0%) was its highest.", evidence: ["F1"] }]).rejected, []);
   // Money in parentheses stays negative.
   assert.equal(check([{ kind: "observation", text: "AMD's revenue was ($75.0B).", evidence: ["F4"] }]).rejected.length, 1);
+});
+
+test("an evidence id listed twice is a duplicate reference (#221)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1", "F1"] }]).rejected.map((entry) => entry.reason),
+    ['evidence lists "F1" twice']);
+  assert.deepEqual(check([{ kind: "management_attribution", text: "Management credited a richer data-center mix.", evidence: ["C1", "C1"] }]).rejected.map((entry) => entry.reason),
+    ['evidence lists "C1" twice']);
+});
+
+test("an observation or comparison states no cause: a cause is attributed or unknown (#221)", () => {
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026, driven by a richer mix.", evidence: ["F1"] }]).rejected.map((entry) => entry.reason),
+    ["an observation states no cause: give it as a management attribution or an unknown cause"]);
+  assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was 75.0% in FY2026.", evidence: ["F1"] }]).rejected, []);
+});
+
+test("each rejection names the check that failed, so binding and comparative failures are told apart (#221)", () => {
+  const cases: Array<[string, string]> = [
+    ["99% is not a cited figure's value", "binding"],
+    ["75.0% names no company, and its evidence spans several", "binding"],
+    ["names AMD, which its evidence does not", "binding"],
+    ["March 2026 is not a cited date", "binding"],
+    ["comparison: F2 (74.6%) is higher than F4 (49.2%)", "comparative"],
+    ["comparison: leaves out AAPL, which shows gross margin too", "comparative"],
+    ['unknown evidence id "F99"', "reference"],
+    ['evidence lists "C1" twice', "reference"],
+    ["an observation cites figures, and only figures", "kind"],
+    ["an unknown cause cites a change: one company's metric, two periods, two values", "kind"],
+    ["an observation states no cause: give it as a management attribution or an unknown cause", "cause"],
+    ["an inference binds the accepted observations it rests on", "support"],
+    ["Free cash flow is not in the evidence: it is a named gap", "gap"],
+    ["more than 12 assertions", "limit"],
+    ['unknown kind "guess"', "format"],
+    ["its figure has no fact to seal, so it is not rendered", "rendering"],
+  ];
+  for (const [reason, check] of cases) assert.equal(rejectionCheck(reason), check, reason);
 });

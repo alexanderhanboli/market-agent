@@ -43,3 +43,24 @@ alone can move scores. If the settings can't be read, the run stops before sendi
 When fallbacks are configured, or unknown because the settings couldn't be read, the run is labelled with them and the
 report warns, because chat doesn't yet record which model answered each turn (#183). The report is saved after each
 question, so an error late in a run keeps the answers before it.
+
+## Held-out traps (#221)
+
+The owner-scored questions are the usefulness baseline, not a machine check. Beside them,
+`services/chat/test/holdout.integration.test.ts` runs a fixed, versioned set of research traps in CI, on the frozen
+data with recorded answers (no model, provider or credentials). The cases are in
+`services/chat/test/holdout/cases.ts`: three-company ordering, a mismatched fiscal year, a cause not in evidence,
+missing cash flow, a restated quarter, a redefined segment, an ambiguous follow-up, a low inside a window with its
+rebound, a follow-up that keeps its YTD scope, a cause in evidence, plus ties, negatives, rounding and missing
+quarters on explicit values.
+
+Each case declares what the turn must establish (companies, period or window, blocks or a named gap, whether it asks
+instead of answering) and is checked against the persisted answer, its research scope and the turn's assertion report.
+Its known-good recorded answer passes in full. Each mutation changes one thing (another company's figure, the wrong
+year, a dropped or duplicated reference, a stated cause, a superseded value, a wrong winner, an endpoint passed off as
+the low) and must fail one named check (`rejectionCheck` in `services/chat/src/assertions.ts`). The cases' digest is
+pinned with their version, so changing a case means a new version. Causal quality stays with the owner's scoring: no
+LLM judge or machine prose score.
+
+Rejected assertions in the reports above are counted by the check they failed, so a wrong number or citation
+(`binding`) reads apart from a wrong ranking or trend (`comparative`).

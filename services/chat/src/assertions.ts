@@ -9,6 +9,7 @@
 // controlled rendering from validated assertions is #208's second slice.
 
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
+import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
@@ -45,6 +46,29 @@ export type AssertionReport = {
 // answer's observations, a comparison per metric, the takeaway and the
 // counterpoint; at 8, counterpoints fell past the cap (2026-10-13 eval).
 export const MAX_ASSERTIONS = 12;
+
+// The check a rejection failed, named so a report can tell a wrong number or
+// citation (binding) from a wrong ranking or trend (comparative), and so a
+// held-out mutation fails one named check (#221).
+export type RejectionCheck =
+  | "binding" | "comparative" | "reference" | "kind" | "cause" | "support" | "gap" | "limit" | "format" | "rendering" | "other";
+
+const CHECKS: ReadonlyArray<readonly [RejectionCheck, RegExp]> = [
+  ["comparative", /^comparison:/],
+  ["rendering", /no fact to seal|states no ranking|narrative guard|left out of the answer|states no figures/],
+  ["cause", /states no cause/],
+  ["support", /inference binds|rests on/],
+  ["gap", /named gap/],
+  ["limit", /^more than \d+ assertions$/],
+  ["reference", /^unknown evidence id|twice$|evidence is not a list/],
+  ["binding", /is not a cited figure's value|names no company|which its evidence does not|is not a cited date/],
+  ["kind", /\bcites\b/],
+  ["format", /^not an assertion|^unknown kind|^only an? |^supports is not/],
+];
+
+export function rejectionCheck(reason: string): RejectionCheck {
+  return CHECKS.find(([, pattern]) => pattern.test(reason))?.[0] ?? "other";
+}
 
 // The list closes the answer in a fenced block the reader never sees. Wherever
 // it is, and closed or not, it is cut from the prose. open: the list never
@@ -121,6 +145,11 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       continue;
     }
     const evidence = listed as string[];
+    const twice = evidence.find((id, i) => evidence.indexOf(id) !== i);
+    if (twice !== undefined) {
+      reject(index, item, `evidence lists ${JSON.stringify(twice)} twice`);
+      continue;
+    }
     const unknown = evidence.find((id) => !figures.has(id) && !claims.has(id));
     if (unknown !== undefined) {
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
@@ -144,6 +173,11 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     const shape = shapeError(kind, figureIds, claimIds, (item.supports ?? []) as number[], accepted);
     if (shape) {
       reject(index, item, shape);
+      continue;
+    }
+    // What figures show is not why: a cause is a cited claim's or unknown.
+    if ((kind === "observation" || kind === "comparison") && statesCause(item.text)) {
+      reject(index, item, `an ${kind === "observation" ? "observation" : "comparison"} states no cause: give it as a management attribution or an unknown cause`);
       continue;
     }
     const supports = (item.supports ?? []) as number[];

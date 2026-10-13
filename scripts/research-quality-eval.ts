@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { rejectionCheck } from "../services/chat/src/assertions.ts";
 import { api, runTurn } from "../services/chat/scripts/golden-live-check.ts";
 import { QUESTIONS, RUBRIC, type CriterionId, type EvalQuestion } from "./research-quality-questions.ts";
 
@@ -130,14 +131,14 @@ export function renderReport(run: string, model: string, base: string, answered:
 }
 
 // A turn's assertion check: each accepted assertion with its evidence, each
-// rejected one with its reason.
+// rejected one with the check it failed and its reason (#221).
 function renderAssertions(report: AssertionReport): string[] {
   if (report.status !== "checked") return [`_Assertions (shadow): ${report.status}._`];
   return [
     `_Assertions (${report.rendered ? "rendered" : "shadow"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected${report.unchecked ? `, ${report.unchecked} unchecked (no figures shown)` : ""}:_`,
     "",
     ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]: ${entry.text}`),
-    ...report.rejected.map((entry) => `- ✗ ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
+    ...report.rejected.map((entry) => `- ✗ [${rejectionCheck(entry.reason)}] ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
   ];
 }
 
@@ -152,7 +153,15 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   const rejected = reports.reduce((sum, report) => sum + report.rejected.length, 0);
   const unchecked = reports.reduce((sum, report) => sum + (report.unchecked ?? 0), 0);
   const rendered = reports.filter((report) => report.rendered).length;
-  return `${accepted} accepted, ${rejected} rejected, ${unchecked} unchecked over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
+  // Rejections by the check they failed, so a wrong number or citation (binding)
+  // reads apart from a wrong ranking or trend (comparative) (#221).
+  const checks = new Map<string, number>();
+  for (const entry of reports.flatMap((report) => report.rejected)) {
+    const check = rejectionCheck(entry.reason);
+    checks.set(check, (checks.get(check) ?? 0) + 1);
+  }
+  const byCheck = checks.size > 0 ? ` (${[...checks].sort(([a], [b]) => a.localeCompare(b)).map(([check, n]) => `${check} ${n}`).join(", ")})` : "";
+  return `${accepted} accepted, ${rejected} rejected${byCheck}, ${unchecked} unchecked over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
 }
 
 // Sentences the narrative guard dropped, in total and per answered turn.
