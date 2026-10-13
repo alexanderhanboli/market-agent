@@ -273,6 +273,11 @@ export function verifyStatement(statement: ReleaseStatement, exhibits: ReadonlyA
 // counts only at a block edge.
 const SENTENCE_START = /^["'($•[0-9A-Z]/;
 
+// A block ending in a colon, semicolon, comma or dash runs on into the next
+// ("This is not company guidance -", "due to stronger demand,"): no sentence
+// ends at it, or starts after it.
+const CONTINUES = /[:;,-]\s*$/;
+
 // An abbreviation's full stop, which ends no sentence even before a capital
 // ("the U.S. Data Center market"): initials ("U.S.", "e.g.", "J.") or a word
 // shortened by convention ("Inc.", "approx."). ponytail: a sentence that ends
@@ -294,9 +299,7 @@ function endMarkBefore(text: string, at: number, marks: RegExp): boolean {
 // with. Not after a colon or semicolon: what follows one is part of a sentence
 // ("This is not company guidance: Revenue is expected to...").
 function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
-  // A block after one ending in a colon, semicolon, comma or dash continues its
-  // sentence ("This is not company guidance -").
-  if (exhibit.edges.has(start)) return !/[:;,-]\s*$/.test(exhibit.text.slice(Math.max(0, start - 3), start));
+  if (exhibit.edges.has(start)) return !CONTINUES.test(exhibit.text.slice(Math.max(0, start - 3), start));
   return /\s/.test(exhibit.text[start - 1] ?? "") &&
     endMarkBefore(exhibit.text, start - 1, /[.!?•]["')]?$/) &&
     SENTENCE_START.test(exhibit.text.slice(start));
@@ -305,7 +308,7 @@ function startsSentence(exhibit: ReleaseExhibit, start: number): boolean {
 // A sentence ends where a block ends, or with its own end mark (and a closing
 // quote or bracket), at the end of the text or before the next sentence.
 function endsSentence(exhibit: ReleaseExhibit, end: number): boolean {
-  if (exhibit.edges.has(end)) return true;
+  if (exhibit.edges.has(end)) return !CONTINUES.test(exhibit.text.slice(Math.max(0, end - 3), end));
   if (!endMarkBefore(exhibit.text, end, /[.!?]["')]?$/)) return false;
   return end === exhibit.text.length || (exhibit.text[end] === " " && SENTENCE_START.test(exhibit.text.slice(end + 1)));
 }
@@ -325,7 +328,7 @@ export function releasePrompts(exhibits: ReadonlyArray<ReleaseExhibit>): string[
       if (to < exhibit.text.length) {
         // Between blocks; else, in one block longer than a prompt, after the
         // last sentence that ends within it.
-        const edge = edges.findLast((at) => at > from && at <= to);
+        const edge = edges.findLast((at) => at > from && at <= to && endsSentence(exhibit, at));
         if (edge !== undefined) to = edge;
         else for (let at = to; at > from; at--) if (endsSentence(exhibit, at)) { to = at; break; }
       }

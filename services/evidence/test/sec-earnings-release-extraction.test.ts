@@ -164,6 +164,13 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
     "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>This is not company guidance: Revenue is expected to grow 10%.</div>\n</TEXT>\n</DOCUMENT>",
   );
   assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "Revenue is expected to grow 10%." }, qualified), null);
+  // A block ending in a comma (or colon, semicolon, dash) ends no sentence: its
+  // qualifier is in the next.
+  const qualifiedAfter = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Revenue increased due to stronger demand,</div><div>partially offset by lower pricing.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue increased due to stronger demand," }, qualifiedAfter), null);
+  assert.ok(verifyStatement({ kind: "explanation", metric: "revenue", quote: "Revenue increased due to stronger demand, partially offset by lower pricing." }, qualifiedAfter));
   // Nor when the colon (or a dash or comma) ends the block before it.
   for (const mark of [":", " &mdash;", ","]) {
     const split = releaseExhibits(
