@@ -121,7 +121,7 @@ const AGAINST_GUIDANCE =
   /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,5}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
 // Guidance turned off ("without using guidance", "no forecasts") is not asked for.
 const GUIDANCE_OFF =
-  /\b(?:without|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|leave out|don['’]t use|do not use)\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
+  /\b(?:without(?: including)?|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|leave out|(?:don['’]t|do not) (?:use|include))\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
 
 // The income-statement items a question names, in earnings-release terms
 // (sec-earnings-release-extraction.ts): the scope reads them all as the income

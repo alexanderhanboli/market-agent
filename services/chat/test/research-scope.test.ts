@@ -131,6 +131,7 @@ test("guidance is asked for by the turn's own words, not carried to the next", (
     // Turned off.
     "Why did NVDA's revenue fall, without using guidance?",
     "Explain NVDA's margin decline, no forecasts please",
+    "Why did NVDA's revenue fall? Don't include guidance.",
   ]) {
     assert.equal(fresh(question, [NVDA]).guidance, undefined, question);
   }

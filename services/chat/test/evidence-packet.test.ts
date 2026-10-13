@@ -189,12 +189,22 @@ test("a route reads its predicate families first, from the start of the period i
   // then any. Whatever the figures' route, a metric no reader serves included:
   // guidance is how management answers it.
   assert.equal(scope("What adjusted EPS guidance did NVDA give?").reads, "unavailable_metric");
-  assert.deepEqual(claimSelection(scope("What adjusted EPS guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 2), ["guidance.eps", "guidance."]);
+  // Its guidance shares the top priority with management's explanation of the
+  // same metric, so a question asking for both ("why ..., and what guidance?")
+  // gets both.
+  assert.deepEqual(claimSelection(scope("What adjusted EPS guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 2), [
+    ["guidance.eps", "management.explanation.eps"],
+    "guidance.",
+  ]);
   // The income-statement item it names before the rest of the statement.
   assert.deepEqual(claimSelection(scope("What revenue guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 3), [
-    "guidance.revenue",
+    ["guidance.revenue", "management.explanation.revenue"],
     ["guidance.revenue", "guidance.gross_margin", "guidance.operating_expenses", "guidance.operating_income", "guidance.net_income"],
     "guidance.",
+  ]);
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue decline, and what guidance did management give?"), CUTOFF).predicate_prefixes[0], [
+    "guidance.revenue",
+    "management.explanation.revenue",
   ]);
   assert.equal(claimSelection(scope("What is NVDA's outlook for next quarter?"), CUTOFF).predicate_prefixes[0], "guidance.");
   assert.ok(!claimSelection(scope("What was NVDA's revenue?"), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("guidance."));

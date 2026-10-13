@@ -108,14 +108,22 @@ export function claimSelection(
   // reader serves is answered.
   // A route without predicates of its own (a metric no reader serves) reads
   // every explanation next: one a release files as "other" (EBITDA) too.
-  const explained = [
+  let explained: Array<string | ReadonlyArray<string>> = [
     ...metrics.map(family("management.explanation.")),
     ...(route.length === 0 && scope.metrics.length > 0 ? ["management.explanation."] : []),
   ];
-  // A question asking for guidance reads it first, before any explanation:
-  // for the metrics it names, then any; whatever the figures' route (a metric
-  // no reader serves included).
-  const asked = scope.guidance ? [...metrics.map(family("guidance.")), "guidance."] : [];
+  // A question asking for guidance reads it first, before any other
+  // explanation: for the metrics it names, then any; whatever the figures'
+  // route (a metric no reader serves included). Management's explanation of
+  // those metrics shares the top priority, so a turn asking why as well
+  // ("why did revenue fall, and what guidance?") gets both.
+  let asked: Array<string | ReadonlyArray<string>> = scope.guidance ? [...metrics.map(family("guidance.")), "guidance."] : [];
+  if (scope.guidance && metrics.length > 0) {
+    const [guidance, ...guidanceRest] = asked;
+    const [explanation, ...explanationRest] = explained;
+    asked = [[guidance!, explanation!].flat(), ...guidanceRest];
+    explained = explanationRest;
+  }
   // A price window adds the events that move a price, whatever else is read.
   const prefixes = [...new Set([...asked, ...explained, ...route, ...(scope.price_window ? PRICE_PREDICATES : [])])];
   return {

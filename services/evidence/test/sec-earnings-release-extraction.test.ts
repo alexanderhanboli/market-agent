@@ -178,6 +178,12 @@ test("a statement is kept only as a verbatim quote of an exhibit, stored in the 
     );
     assert.equal(verifyStatement({ kind: "guidance", metric: "revenue", quote: "Revenue is expected to grow 10%." }, split), null, mark);
   }
+  // Nor an abbreviated month's ("as of Dec. 31").
+  const dated = releaseExhibits(
+    "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Cash and cash equivalents as of Dec. 31, 2025, were higher because of demand.</div>\n</TEXT>\n</DOCUMENT>",
+  );
+  assert.equal(verifyStatement({ kind: "explanation", metric: "other", quote: "31, 2025, were higher because of demand." }, dated), null);
+  assert.equal(verifyStatement({ kind: "explanation", metric: "other", quote: "Cash and cash equivalents as of Dec." }, dated), null);
   // Nor before a capitalized continuation ("the U.S. Data Center market").
   const continued = releaseExhibits(
     "<DOCUMENT>\n<TYPE>EX-99.1\n<TEXT>\n<div>Revenue did not decline in the U.S. Data Center market due to weaker demand.</div>\n</TEXT>\n</DOCUMENT>",
