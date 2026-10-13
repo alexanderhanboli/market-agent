@@ -5,6 +5,7 @@ import type { IssuerFundamentalFact } from "../../fundamentals/src/issuer-fundam
 import type { VerifierFact } from "../../snapshot/src/snapshot-verifier.ts";
 import {
   buildIssuerFactBlocks,
+  requestedFiscalQuarter,
   loadIssuerFactBlocks,
   comparisonTitle,
   displayedFigures,
@@ -492,4 +493,38 @@ test("other facts are offered only when nothing the turn asked for is a named ga
   assert.equal(mayOfferOtherFacts(scope("What is AMD's free cash flow?"), []), false);
   assert.equal(mayOfferOtherFacts(scope("Break down AMD's revenue by segment"), []), false);
   assert.equal(mayOfferOtherFacts(scope("Break down AMD's revenue by segment"), [{ kind: "metric_row", title: "Revenue by segment (Q2 2026)" }]), true);
+});
+
+test("a question's named fiscal quarter is read in its common spellings (#290)", () => {
+  const q = (fiscal_year: number, fiscal_period: string) => ({ fiscal_year, fiscal_period });
+  assert.deepEqual(requestedFiscalQuarter("Why did AMD's operating margin turn negative in Q2 2025?"), q(2025, "Q2"));
+  assert.deepEqual(requestedFiscalQuarter("What changed in NVDA's gross margin in Q1 fiscal 2026?"), q(2026, "Q1"));
+  assert.deepEqual(requestedFiscalQuarter("NVDA's Q4 FY2026 revenue"), q(2026, "Q4"));
+  assert.deepEqual(requestedFiscalQuarter("AMD in fiscal Q3 2025"), q(2025, "Q3"));
+  assert.deepEqual(requestedFiscalQuarter("Q1 FY26 margins"), q(2026, "Q1"));
+  assert.deepEqual(requestedFiscalQuarter("the second quarter of fiscal 2025"), q(2025, "Q2"));
+  assert.deepEqual(requestedFiscalQuarter("AMD's third quarter of 2025"), q(2025, "Q3"));
+  assert.equal(requestedFiscalQuarter("Analyze NVDA's latest quarter."), undefined);
+  assert.equal(requestedFiscalQuarter("Compare NVDA's and AAPL's fiscal 2025 revenue."), undefined);
+});
+
+function quarterBlocks(facts: ReadonlyArray<IssuerFundamentalFact>, quarter: { fiscal_year: number; fiscal_period: string }, wantsMarginTrend = false) {
+  return buildIssuerFactBlocks({ facts, verifierFacts: verifierFacts(facts), derived: derivedFor(facts), wantsMarginTrend, quarter, snapshotId: SNAPSHOT_ID, asOf: AS_OF });
+}
+
+test("a named quarter is the quarter shown, inside the trend; never the latest in its place (#290)", () => {
+  // quarters(14): Q1 2024 ... Q2 2027. Q2 2025 is the sixth.
+  const facts = quarters(14);
+  const [row, bars] = quarterBlocks(facts, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.equal(row!.title, "Fiscal Q2 2025");
+  assert.equal((row!.items as Array<{ label: string; format: string }>)[0]!.format, "$6.0B");
+  const labels = (bars!.bars as Array<{ label: string }>).map((bar) => bar.label);
+  assert.equal(labels.length, 8);
+  assert.ok(labels.includes("Q2 2025"));
+  // Within the latest eight, the window stays the latest eight.
+  const recent = quarterBlocks(facts, { fiscal_year: 2026, fiscal_period: "Q3" });
+  assert.equal(recent[0]!.title, "Fiscal Q3 2026");
+  assert.equal((recent[1]!.bars as Array<{ label: string }>).at(-1)!.label, "Q2 2027");
+  // A quarter with no facts: no blocks at all, not the latest quarter.
+  assert.deepEqual(quarterBlocks(facts, { fiscal_year: 2019, fiscal_period: "Q2" }), []);
 });

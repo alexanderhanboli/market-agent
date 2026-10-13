@@ -244,3 +244,10 @@ test("an auto-selected peer's claims name it as coverage does, even with no figu
   assert.ok(packet.coverage.some((entry) => entry.company === "issuer:60000000"));
   assert.equal(packet.claims[0]!.company, "issuer:60000000");
 });
+
+test("a named quarter's packet says which quarter was read, and reads claims from the year before it (#290)", () => {
+  const named = scope("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const packet = buildEvidencePacket({ scope: named, factBlocks: [], cutoff: CUTOFF });
+  assert.match(packet.query_bounds.periods!, /^fiscal Q2 2025/);
+  assert.equal(claimSelection(named, CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
+});

@@ -64,6 +64,8 @@ export async function loadTurnFactBlocks(
     wantsSegments?: boolean;
     // ...and one about margins, each margin across the quarters shown (#178).
     wantsMarginTrend?: boolean;
+    // A single company's named fiscal quarter, shown instead of the latest (#290).
+    fiscalQuarter?: FiscalQuarter;
     // A segment request reads segment facts only (#206).
     segmentsOnly?: boolean;
     snapshotId: string;
@@ -93,6 +95,7 @@ export async function loadTurnFactBlocks(
       snapshotId: input.snapshotId,
       asOf: input.asOf,
       wantsMarginTrend: input.wantsMarginTrend ?? false,
+      ...(input.fiscalQuarter ? { quarter: input.fiscalQuarter } : {}),
     });
     if (!input.wantsSegments) return blocks;
     return Object.freeze([...blocks, ...(await loadSegmentBlocks(db, { issuer: primary, snapshotId: input.snapshotId, asOf: input.asOf }))]);
@@ -153,6 +156,23 @@ export function requestedFiscalYear(question: string): number | undefined {
   const year = match?.[1] ?? match?.[2];
   if (year === undefined) return undefined;
   return year.length === 2 ? 2000 + Number(year) : Number(year);
+}
+
+// A fiscal quarter a question names ("Q2 2025", "Q1 fiscal 2026", "Q4 FY26",
+// "fiscal Q3 2025", "the second quarter of 2025") (#290). The quarter is each
+// company's own fiscal quarter, as its facts are filed.
+export type FiscalQuarter = { fiscal_year: number; fiscal_period: string };
+const NAMED_QUARTER = /\b(?:fiscal\s+)?Q([1-4])\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?'?)?(\d{4}|\d{2})\b/i;
+const SPELLED_QUARTER = /\b(first|second|third|fourth)\s+(?:fiscal\s+)?quarter\s+(?:of\s+)?(?:fiscal\s+(?:year\s+)?|FY\s?)?(\d{4})\b/i;
+const ORDINALS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4 };
+
+export function requestedFiscalQuarter(question: string): FiscalQuarter | undefined {
+  const named = NAMED_QUARTER.exec(question);
+  const spelled = named ? null : SPELLED_QUARTER.exec(question);
+  const quarter = named ? Number(named[1]) : spelled ? ORDINALS[spelled[1]!.toLowerCase()] : undefined;
+  const year = named?.[2] ?? spelled?.[2];
+  if (quarter === undefined || year === undefined) return undefined;
+  return { fiscal_year: year.length === 2 ? 2000 + Number(year) : Number(year), fiscal_period: `Q${quarter}` };
 }
 
 async function peersOf(db: QueryExecutor, issuer: IssuerSubjectRef): Promise<ReadonlyArray<IssuerSubjectRef>> {
@@ -524,7 +544,7 @@ function citedFact(fact: VerifierFact): CitedFact {
 // answer, so a failed read degrades to narrative only.
 export async function loadIssuerFactBlocks(
   db: QueryExecutor,
-  input: { issuer: IssuerSubjectRef | null; snapshotId: string; asOf: string; wantsMarginTrend?: boolean },
+  input: { issuer: IssuerSubjectRef | null; snapshotId: string; asOf: string; wantsMarginTrend?: boolean; quarter?: FiscalQuarter },
 ): Promise<ReadonlyArray<Block>> {
   if (input.issuer === null) return [];
   try {
@@ -539,8 +559,8 @@ export async function loadIssuerFactBlocks(
       fullCoverageOnly: true,
     });
     const verifierFacts = await loadVerifierFactsForRefs(db, { fact_refs: facts.map((fact) => fact.fact_id), cutoff: input.asOf, requireKnownByCutoff: true });
-    const derived = await loadDerivedQuarterMetrics(db, input.issuer, facts, verifierFacts, input.asOf, input.wantsMarginTrend ?? false);
-    return buildIssuerFactBlocks({ facts, verifierFacts, derived, wantsMarginTrend: input.wantsMarginTrend ?? false, snapshotId: input.snapshotId, asOf: input.asOf });
+    const derived = await loadDerivedQuarterMetrics(db, input.issuer, facts, verifierFacts, input.asOf, input.wantsMarginTrend ?? false, input.quarter);
+    return buildIssuerFactBlocks({ facts, verifierFacts, derived, wantsMarginTrend: input.wantsMarginTrend ?? false, quarter: input.quarter, snapshotId: input.snapshotId, asOf: input.asOf });
   } catch (reason) {
     console.warn("[chat] fact blocks unavailable; answering with narrative only", reason);
     return [];
@@ -560,14 +580,16 @@ async function loadDerivedQuarterMetrics(
   verifierFacts: ReadonlyArray<VerifierFact>,
   asOf: string,
   wantsMarginTrend: boolean,
+  quarter?: FiscalQuarter,
 ): Promise<ReadonlyArray<DerivedQuarterFact>> {
   try {
     const loadable = new Map(verifierFacts.map((fact) => [fact.fact_id, fact]));
-    const { byQuarter, revenue } = selectQuarters(facts, loadable);
+    const { byQuarter, revenue, shown } = selectQuarters(facts, loadable, quarter);
+    if (shown === undefined) return [];
     const specs = deriveQuarterMetrics({
       // Only the latest quarter renders unless the margin trend was asked for, so
       // mint just what is shown: each derived fact is a lookup and maybe an insert.
-      shownRevenue: wantsMarginTrend ? revenue : revenue.slice(-1),
+      shownRevenue: wantsMarginTrend ? revenue : [shown],
       fact: (metricKey, fiscalYear, fiscalPeriod) => byQuarter.get(quarterKey(metricKey, fiscalYear, fiscalPeriod)),
       period: (factId) => loadable.get(factId),
     });
@@ -587,14 +609,16 @@ async function loadDerivedQuarterMetrics(
 }
 
 // The facts the blocks may show: per metric and quarter, the first (newest) fully
-// covered fact the seal can load; and the last QUARTERS_SHOWN quarters of revenue,
-// oldest first. A partial or sparse value would be shown, and given to the model,
+// covered fact the seal can load; and QUARTERS_SHOWN quarters of revenue, oldest
+// first: the latest, or, for a named quarter, the latest that contain it (#290). shown is the quarter the answer is about: the
+// named one (undefined when it has no revenue fact) or the latest. A partial or sparse value would be shown, and given to the model,
 // as if it covered the whole quarter, so it is left out, and margins and growth
 // are only computed from full inputs (#239), as for segments.
 function selectQuarters(
   facts: ReadonlyArray<IssuerFundamentalFact>,
   loadable: ReadonlyMap<string, VerifierFact>,
-): { byQuarter: ReadonlyMap<string, IssuerFundamentalFact>; revenue: IssuerFundamentalFact[] } {
+  quarter?: FiscalQuarter,
+): { byQuarter: ReadonlyMap<string, IssuerFundamentalFact>; revenue: IssuerFundamentalFact[]; shown: IssuerFundamentalFact | undefined } {
   const byQuarter = new Map<string, IssuerFundamentalFact>();
   for (const fact of facts) {
     if (fact.value_num === null || fact.fiscal_year === null || !fact.fiscal_period) continue;
@@ -602,11 +626,16 @@ function selectQuarters(
     const key = quarterKey(fact.metric_key, fact.fiscal_year, fact.fiscal_period);
     if (!byQuarter.has(key)) byQuarter.set(key, fact);
   }
-  const revenue = [...byQuarter.values()]
-    .filter((fact) => fact.metric_key === "revenue")
-    .sort(byFiscalQuarter)
-    .slice(-QUARTERS_SHOWN);
-  return { byQuarter, revenue };
+  const all = [...byQuarter.values()].filter((fact) => fact.metric_key === "revenue").sort(byFiscalQuarter);
+  if (quarter === undefined) {
+    const revenue = all.slice(-QUARTERS_SHOWN);
+    return { byQuarter, revenue, shown: revenue.at(-1) };
+  }
+  const at = all.findIndex((fact) => fact.fiscal_year === quarter.fiscal_year && fact.fiscal_period === quarter.fiscal_period);
+  if (at === -1) return { byQuarter, revenue: [], shown: undefined };
+  // The latest QUARTERS_SHOWN that still contain it, so what followed it shows too.
+  const start = Math.max(0, Math.min(at, all.length - QUARTERS_SHOWN));
+  return { byQuarter, revenue: all.slice(start, start + QUARTERS_SHOWN), shown: all[at] };
 }
 
 export function buildIssuerFactBlocks(input: {
@@ -616,13 +645,14 @@ export function buildIssuerFactBlocks(input: {
   derived?: ReadonlyArray<DerivedQuarterFact>;
   // Per-quarter margin rows, for a question about margins.
   wantsMarginTrend?: boolean;
+  // A named fiscal quarter, shown instead of the latest (#290).
+  quarter?: FiscalQuarter;
   snapshotId: string;
   asOf: string;
 }): ReadonlyArray<Block> {
   // Only facts the seal can load and bind may render.
   const loadable = new Map(input.verifierFacts.map((fact) => [fact.fact_id, fact]));
-  const { byQuarter, revenue } = selectQuarters(input.facts, loadable);
-  const latest = revenue.at(-1);
+  const { byQuarter, revenue, shown: latest } = selectQuarters(input.facts, loadable, input.quarter);
   if (latest === undefined) return [];
   const derived = input.derived ?? [];
   for (const fact of derived) loadable.set(fact.fact_id, fact.binding);
@@ -642,7 +672,7 @@ export function buildIssuerFactBlocks(input: {
 
   const metricRow: Block = {
     ...blockBase("metric_row", input, withInputs([...latestFacts.map(({ fact }) => fact), ...latestDerived], latestDerived, loadable), loadable),
-    title: `Latest quarter (${period})`,
+    title: input.quarter ? `Fiscal ${period}` : `Latest quarter (${period})`,
     items: [
       ...latestFacts.map(({ fact, label }) => ({
         label,
@@ -759,6 +789,16 @@ export function scopeGapBlocks(
       ? ["gap:segments", `Revenue by segment is not available for ${names} in this data.`]
       : ["gap:segments", "Revenue by segment is not shown when comparing companies; ask about one company for its breakdown."]);
   }
+  // A named quarter (#290): one company's, shown or a gap; a comparison
+  // compares fiscal years, so it says the quarter is not compared.
+  if (scope.fiscal_quarter) {
+    const quarter = `fiscal ${scope.fiscal_quarter.fiscal_period} ${scope.fiscal_quarter.fiscal_year}`;
+    if (scope.companies.length > 1) {
+      notes.push(["gap:quarter", `A single quarter is not compared across companies here; each company is shown for a fiscal year, not ${quarter}.`]);
+    } else if (!showsQuarter(shown) && scope.reads !== "segments" && scope.reads !== "unavailable_metric" && scope.reads !== "financial_answer") {
+      notes.push(["gap:quarter", `No figures for ${quarter} are on file for ${names}.`]);
+    }
+  }
   if (scope.benchmark) {
     notes.push(["gap:benchmark", scope.companies.length > 1
       ? "A benchmark index is not in this data, so the companies are compared only with each other."
@@ -784,7 +824,14 @@ export function scopeGapBlocks(
 // breakdown with none to show), so nothing stands in for what it asked.
 export function mayOfferOtherFacts(scope: ResearchScope, shown: ReadonlyArray<Block>): boolean {
   if (scope.reads === "unavailable_metric" || scope.reads === "financial_answer") return false;
+  // A named quarter with no figures is a gap: no other quarter stands in (#290).
+  if (scope.fiscal_quarter && scope.companies.length === 1 && !showsQuarter(shown)) return false;
   return !(scope.reads === "segments" && !showsSegments(shown));
+}
+
+// Whether the blocks show a named fiscal quarter (buildIssuerFactBlocks).
+function showsQuarter(blocks: ReadonlyArray<Block>): boolean {
+  return blocks.some((block) => block.kind === "metric_row" && /^Fiscal Q[1-4] \d{4}$/.test(String(block.title)));
 }
 
 // Whether the blocks include a segment breakdown.

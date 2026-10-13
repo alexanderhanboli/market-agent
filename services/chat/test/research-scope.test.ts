@@ -43,6 +43,7 @@ test("a fresh question records what it asks for and inherits nothing", () => {
     margins: false,
     metrics: [{ metric_key: "income_statement", label: "Revenue, profit and margins", available: true }],
     fiscal_year: 2025,
+    fiscal_quarter: null,
     price_window: { kind: "ytd", cutoff: AS_OF },
     benchmark: false,
     inherited: [],
@@ -312,4 +313,19 @@ test("'no' turns a facet off only at the start of a clause", () => {
   assert.equal(next("No segments this time").segments, false);
   assert.equal(next("Same table, no segments").segments, false);
   assert.equal(next("Keep the margins and no segments").segments, false);
+});
+
+test("a named fiscal quarter is scoped, kept by a follow-up and can be turned off (#290)", () => {
+  const asked = fresh("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  assert.deepEqual(asked.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.equal(asked.route, "derived_margin");
+  const next = resolveResearchScope({ question: "And its gross margin?", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.deepEqual(next.fiscal_quarter, { fiscal_year: 2025, fiscal_period: "Q2" });
+  assert.ok(next.inherited.includes("fiscal_quarter"));
+  const latest = resolveResearchScope({ question: "Drop the quarter and show the latest", companies: [AMD], prior: asked, asOf: AS_OF });
+  assert.equal(latest.fiscal_quarter, null);
+  // Saved and read back; a scope saved before quarters were recorded has none.
+  assert.deepEqual(parseResearchScope(JSON.parse(JSON.stringify(asked)))!.fiscal_quarter, asked.fiscal_quarter);
+  const { fiscal_quarter: _q, ...older } = asked;
+  assert.equal(parseResearchScope(older)!.fiscal_quarter, null);
 });
