@@ -119,6 +119,9 @@ const GUIDANCE = /\b(?:guidance|guided?|outlook|forecast(?:s|ed)?|expects?|expec
 // out ("current guidance versus prior guidance" does).
 const AGAINST_GUIDANCE =
   /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,5}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
+// Guidance turned off ("without using guidance", "no forecasts") is not asked for.
+const GUIDANCE_OFF =
+  /\b(?:without|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|leave out|don['’]t use|do not use)\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
 
 // The income-statement items a question names, in earnings-release terms
 // (sec-earnings-release-extraction.ts): the scope reads them all as the income
@@ -479,7 +482,9 @@ export function resolveResearchScope(input: {
     price_window,
     benchmark,
     // Asked this turn, or by the answer an evidence follow-up re-reads.
-    ...(GUIDANCE.test(question.replace(AGAINST_GUIDANCE, " ")) || (evidence && prior?.guidance) ? { guidance: true as const } : {}),
+    ...(GUIDANCE.test(question.replace(AGAINST_GUIDANCE, " ").replace(GUIDANCE_OFF, " ")) || (evidence && prior?.guidance)
+      ? { guidance: true as const }
+      : {}),
     ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };

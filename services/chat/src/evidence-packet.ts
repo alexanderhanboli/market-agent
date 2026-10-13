@@ -104,7 +104,9 @@ export function claimSelection(
   const metrics = explainedMetrics(scope);
   const family = (prefix: string) => (entry: string | ReadonlyArray<string>) =>
     typeof entry === "string" ? `${prefix}${entry}` : entry.map((metric) => `${prefix}${metric}`);
-  const explained = route.length > 0 ? metrics.map(family("management.explanation.")) : [];
+  // Whatever the figures' route: management's explanation is how a metric no
+  // reader serves is answered.
+  const explained = metrics.map(family("management.explanation."));
   // A question asking for guidance reads it first, before any explanation:
   // for the metrics it names, then any; whatever the figures' route (a metric
   // no reader serves included).

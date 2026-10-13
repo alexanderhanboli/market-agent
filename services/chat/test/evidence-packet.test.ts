@@ -212,6 +212,12 @@ test("a route reads its predicate families first, from the start of the period i
     ["management.explanation.free_cash_flow", "management.explanation.eps"],
     ["management.explanation.operating_cash_flow", "management.explanation.capex"],
   ]);
+  // A metric no reader serves is still explained by management, first.
+  assert.equal(scope("Why did NVDA's adjusted operating income decline?").reads, "unavailable_metric");
+  assert.deepEqual(claimSelection(scope("Why did NVDA's adjusted operating income decline?"), CUTOFF).predicate_prefixes[0], [
+    "management.explanation.operating_income",
+    "management.explanation.net_income",
+  ]);
   // Every item it names shares the top priority: none crowds out another.
   assert.deepEqual(claimSelection(scope("Why did NVDA's revenue fall while operating income rose?"), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",

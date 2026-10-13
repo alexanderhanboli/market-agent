@@ -111,16 +111,19 @@ test("a release longer than one prompt is read whole, across prompts split betwe
   for (const sentence of sentences) assert.ok(split.some((prompt) => prompt.includes(sentence)), sentence);
 });
 
-test("the model's statements are read when well formed; unknown kinds or metrics are left out", () => {
+test("the model's statements are read when well formed; a reply with an unknown kind or metric is not", () => {
   const statements = parseReleaseStatements(
     '```json\n{"statements":[' +
       `{"kind":"explanation","metric":"gross_margin","quote":${JSON.stringify(H20_EXPLANATION)}},` +
-      '{"kind":"opinion","metric":"revenue","quote":"x"},' +
-      '{"kind":"guidance","metric":"stock_price","quote":"x"},' +
       `{"kind":"guidance","metric":"revenue","quote":${JSON.stringify(REVENUE_GUIDANCE)}}` +
       "]}\n```",
   );
   assert.deepEqual(statements?.map((statement) => [statement.kind, statement.metric]), [["explanation", "gross_margin"], ["guidance", "revenue"]]);
+  // A malformed entry makes the reply unparseable (the filing is read again),
+  // never an empty answer that would mark it done.
+  for (const entry of ['{"kind":"cause","metric":"revenue","quote":"x"}', '{"kind":"guidance","metric":"stock_price","quote":"x"}', '{"kind":"guidance","metric":"revenue"}']) {
+    assert.equal(parseReleaseStatements(`{"statements":[${entry}]}`), null, entry);
+  }
   assert.equal(parseReleaseStatements("I could not find any."), null);
   assert.equal(parseReleaseStatements('{"quotes":[]}'), null);
   assert.deepEqual(parseReleaseStatements('{"statements":[]}'), []);

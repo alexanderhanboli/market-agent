@@ -234,12 +234,14 @@ export function parseReleaseStatements(text: string): ReleaseStatement[] | null 
   const statements: ReleaseStatement[] = [];
   for (const item of items.slice(0, MAX_STATEMENTS)) {
     const { kind, metric, quote } = (item ?? {}) as Record<string, unknown>;
+    // A malformed entry makes the whole reply unparseable, so the filing is
+    // read again rather than marked done without it.
     if (
       typeof quote !== "string" ||
       !(RELEASE_STATEMENT_KINDS as ReadonlyArray<unknown>).includes(kind) ||
       !(RELEASE_METRICS as ReadonlyArray<unknown>).includes(metric)
     ) {
-      continue;
+      return null;
     }
     statements.push({ kind: kind as ReleaseStatementKind, metric: metric as ReleaseMetric, quote });
   }
