@@ -138,10 +138,13 @@ const CAUSAL = new RegExp(
   String.raw`\b${CONNECTIVE}\s+((?:(?!\b(?:although|though|but|while|whereas|yet|however|${CONNECTIVE})\b)[^,;:.])+)`,
   "gi",
 );
-// Whether a sentence states a cause ("driven by", "due to", ...): an assertion
-// classed as an observation or comparison may not (assertions.ts, #221).
+// Whether an assertion states a cause: an observation or comparison may not
+// (assertions.ts, #221). Only unambiguous connectives: "reflects" and "results
+// from" also describe ("the table reflects the reported figures", "the results
+// from FY2025"), so they are left to the guard's wider check on prose.
+const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from)\b/i;
 export function statesCause(text: string): boolean {
-  return new RegExp(CAUSAL.source, "i").test(text);
+  return STRICT_CAUSAL.test(text);
 }
 
 // A cause the data does not show is allowed only as a labelled hypothesis (#261):

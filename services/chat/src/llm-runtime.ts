@@ -361,9 +361,11 @@ export async function composeAnalystBlocksWithLlm(input: {
       input.onNarrativeRemoved?.(uncaused.removed);
     }
     // A named gap's turn gives the model no data (availableData false): any
-    // number it states is invented, unless a cited claim states it (#221).
+    // number it states is invented (#221). A claim's number is no support
+    // either: prose cannot bind it to the claim's metric (#294 review), so a
+    // claim is given as an attribution, which renders it whole.
     const unnumbered = input.availableData === false
-      ? keepSupportedSentences(uncaused.text, claimTextsFromToolCalls(input.toolCalls), [], [], [], input.subjectLabels ?? [])
+      ? keepSupportedSentences(uncaused.text, [], [], [], [], input.subjectLabels ?? [])
       : { text: uncaused.text, removed: [] as string[] };
     if (unnumbered.removed.length > 0) {
       console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);

@@ -1450,3 +1450,24 @@ test("on a named-gap turn the model sees no data, so a number in its prose is ne
   assert.match(text, /Free cash flow is not available for AMD in this data\./);
   assert.doesNotMatch(text, /\$3\.1B/);
 });
+
+test("on a named-gap turn a claim's number is no support for another metric (#294 review)", async () => {
+  const claim = {
+    tool_call_id: "tc-claim",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence: { claims: [{ claim_id: "c2210000-0000-4000-8000-000000000001", source_id: "s", text_canonical: "The restrictions led to approximately $800 million in inventory and related charges.", predicate: "kpi.commentary", polarity: "negative", published_at: "2025-08-05T00:00:00.000Z" }] } },
+  } as never;
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [claim],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. AMD's free cash flow was approximately $800 million." }),
+  });
+  const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
+  assert.match(text, /Free cash flow is not available for AMD in this data\./);
+  assert.doesNotMatch(text, /\$800 million/);
+});

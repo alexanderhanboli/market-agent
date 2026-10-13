@@ -584,3 +584,12 @@ test("each rejection names the check that failed, so binding and comparative fai
   ];
   for (const [reason, check] of cases) assert.equal(rejectionCheck(reason), check, reason);
 });
+
+test("descriptive wording is not a cause; causal connectives are (#294 review)", () => {
+  for (const text of ["The table reflects NVDA's gross margin of 75.0% in FY2026.", "The results from FY2026 include NVDA's gross margin of 75.0%."]) {
+    assert.deepEqual(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected, [], text);
+  }
+  for (const text of ["NVDA's gross margin was 75.0% in FY2026 because of a richer mix.", "NVDA's gross margin of 75.0% in FY2026 resulted from a richer mix."]) {
+    assert.equal(rejectionCheck(check([{ kind: "observation", text, evidence: ["F1"] }]).rejected[0]?.reason ?? ""), "cause", text);
+  }
+});
