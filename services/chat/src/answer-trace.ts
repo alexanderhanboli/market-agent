@@ -111,23 +111,36 @@ export function renderingEnv(trace: Pick<TurnTrace, "assertion_rendering">): Rec
   return { CHAT_ASSERTION_RENDERING: trace.assertion_rendering ? "1" : "" };
 }
 
-// Written only when CHAT_TRACE_DIR is set; a failed write never fails the turn.
-export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace): Promise<void> {
+// Written only when CHAT_TRACE_DIR is set; a failed write never fails the turn,
+// and a stalled one holds it at most waitMs (the write carries on behind it).
+export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, waitMs = 2_000): Promise<void> {
   if (!dir) return;
-  const ids = `thread=${trace.thread_id} run=${trace.run_id}`;
-  // The ids come from the request; neither may leave the trace directory.
-  if (![trace.thread_id, trace.run_id].every((id) => /^[\w-]+$/.test(id))) {
+  const ids = `thread=${trace.thread_id} run=${trace.run_id}${trace.turn_id ? ` turn=${trace.turn_id}` : ""}`;
+  // The ids come from the request; none may leave the trace directory.
+  if (![trace.thread_id, trace.run_id, trace.turn_id ?? "-"].every((id) => /^[\w-]+$/.test(id))) {
     console.warn(`[chat] trace not written: ${ids} is not a safe file name`);
     return;
   }
-  const path = join(dir, trace.thread_id, `${trace.run_id}.json`);
-  try {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify(trace, null, 2)}\n`);
-    console.info(`[chat] trace ${ids} ${path}`);
-  } catch (error) {
-    console.warn(`[chat] trace not written: ${ids}`, error);
-  }
+  // One run can carry several turns (coordinator.ts), each its own file.
+  const path = join(dir, trace.thread_id, `${trace.run_id}${trace.turn_id ? `.${trace.turn_id}` : ""}.json`);
+  const write = (async () => {
+    try {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, `${JSON.stringify(trace, null, 2)}\n`);
+      console.info(`[chat] trace ${ids} ${path}`);
+    } catch (error) {
+      console.warn(`[chat] trace not written: ${ids}`, error);
+    }
+  })();
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[chat] trace write still pending after ${waitMs} ms: ${ids}`);
+      resolve();
+    }, waitMs);
+  });
+  await Promise.race([write, late]);
+  clearTimeout(timer);
 }
 
 export type AnswerMetrics = {

@@ -44,6 +44,19 @@ test("a trace is written under its thread, one file per run", async () => {
   assert.deepEqual(JSON.parse(await readFile(join(dir, "thread-1", "run-1.json"), "utf8")), TRACE);
 });
 
+test("two turns of one run keep a trace each", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, { ...TRACE, turn_id: "turn-1" });
+  await writeTurnTrace(dir, { ...TRACE, turn_id: "turn-2" });
+  assert.deepEqual((await readdir(join(dir, "thread-1"))).sort(), ["run-1.turn-1.json", "run-1.turn-2.json"]);
+});
+
+test("a turn id that would leave the trace directory is not written", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, { ...TRACE, turn_id: "../escaped" });
+  assert.deepEqual(await readdir(dir), []);
+});
+
 test("a run id that would leave the trace directory is not written", async () => {
   const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
   await writeTurnTrace(dir, { ...TRACE, run_id: "../escaped" });
