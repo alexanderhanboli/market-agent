@@ -18,8 +18,12 @@ type ThreadReport = {
   answers: number
   fact_chips: number
   claim_chips: number
+  // In the model's narrative, the message's first rich text (local-runtime.ts
+  // puts the answer's own blocks before its fact blocks): what answer-lab counts.
   plain_numbers: number
   plain_samples: string[]
+  // In any further rich text (a gap note, a filed explanation), written by code.
+  note_numbers: number
   console_errors: string[]
   // Responses that failed, with their URLs: which service a console 503 came from.
   failed_requests: string[]
@@ -70,45 +74,75 @@ async function main(argv: string[]): Promise<number> {
       const answered = await prose.first().waitFor({ timeout: ANSWER_TIMEOUT_MS }).then(() => true, () => false)
       // Chips resolve once the snapshot manifest loads.
       await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
-      // The thread scrolls inside the app shell, not the page, and its message
-      // list mounts only what fits: a viewport as tall as the content lets the
-      // counts and the full-page screenshot see the same, whole thread.
-      // Newly mounted messages replace their estimated heights, so grow until it settles.
-      for (let pass = 0; pass < 5; pass++) {
-        const height = await page.evaluate(() => Math.max(...[...document.querySelectorAll('*')].map((element) => element.scrollHeight)))
-        // Full-height roots match the viewport itself: content that fits has settled.
-        if (height <= page.viewportSize()!.height) break
-        await page.setViewportSize({ width: 1280, height: Math.min(height + 200, 16_000) })
-        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-      }
-      const counts = answered
-        ? await prose.evaluateAll((blocks) => {
-          const plain: string[] = []
-          for (const block of blocks) {
-            const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
-            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-              if (node.parentElement?.closest('[data-ref-kind]')) continue
-              plain.push(...(node.textContent?.match(/\d+(?:[.,]\d+)*/g) ?? []))
-            }
-          }
-          return {
-            fact_chips: blocks.reduce((sum, block) => sum + block.querySelectorAll('[data-ref-kind="fact"]').length, 0),
-            claim_chips: blocks.reduce((sum, block) => sum + block.querySelectorAll('[data-ref-kind="claim"]').length, 0),
-            plain,
-          }
+      // The message list mounts only the messages near its scroll position, so
+      // it is walked top to bottom and each assistant message counted once, by id.
+      const seen = new Map<string, { fact_chips: number; claim_chips: number; plain: string[]; notes: number }>()
+      const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)))))
+      const scrollTo = (top: number) => page.evaluate((top) => {
+        const list = document.querySelector('[data-inspect-scroller]')
+        if (!list) return true
+        list.scrollTop = top
+        return list.scrollTop + list.clientHeight >= list.scrollHeight - 1
+      }, top)
+      if (answered) {
+        // The nearest ancestor of the messages that scrolls them.
+        await page.evaluate(() => {
+          let element = document.querySelector('[data-message-id]')?.parentElement ?? null
+          while (element && !(/auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight)) element = element.parentElement
+          element?.setAttribute('data-inspect-scroller', '')
         })
-        : { fact_chips: 0, claim_chips: 0, plain: [] }
+        const step = await page.evaluate(() => Math.max(100, Math.floor((document.querySelector('[data-inspect-scroller]')?.clientHeight ?? 0) / 2)))
+        for (let top = 0, pass = 0; pass < 500; top += step, pass++) {
+          const atEnd = await scrollTo(top)
+          await frames()
+          for (const message of await page.locator('[data-role="assistant"][data-message-id]').evaluateAll((items) => items.map((item) => {
+            const [narrative, ...notes] = [...item.querySelectorAll('[data-block-kind="rich_text"]')]
+            const numbers = (block: Element | undefined) => {
+              const found: string[] = []
+              if (!block) return found
+              const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (node.parentElement?.closest('[data-ref-kind]')) continue
+                found.push(...(node.textContent?.match(/\d+(?:[.,]\d+)*/g) ?? []))
+              }
+              return found
+            }
+            return {
+              id: item.getAttribute('data-message-id')!,
+              fact_chips: narrative?.querySelectorAll('[data-ref-kind="fact"]').length ?? 0,
+              claim_chips: narrative?.querySelectorAll('[data-ref-kind="claim"]').length ?? 0,
+              plain: numbers(narrative),
+              notes: notes.reduce((sum, note) => sum + numbers(note).length, 0),
+            }
+          }))) {
+            seen.set(message.id, message)
+          }
+          if (atEnd) break
+        }
+      }
+      const counts = [...seen.values()]
+      // The picture only: the app scrolls inside its shell, so a viewport as tall as
+      // the list shows most of the thread; the counts above do not depend on it.
+      const extra = await page.evaluate(() => {
+        const list = document.querySelector('[data-inspect-scroller]')
+        if (!list) return 0
+        list.scrollTop = 0
+        return list.scrollHeight - list.clientHeight
+      })
+      await page.setViewportSize({ width: 1280, height: Math.min(900 + extra, 16_000) })
+      await frames()
       const screenshot = join(values.out, `${thread}.png`)
       await page.screenshot({ path: screenshot, fullPage: true })
       reports.push({
         thread,
         url,
         screenshot,
-        answers: await page.locator('[data-role="assistant"]').count(),
-        fact_chips: counts.fact_chips,
-        claim_chips: counts.claim_chips,
-        plain_numbers: counts.plain.length,
-        plain_samples: counts.plain.slice(0, 12),
+        answers: counts.length,
+        fact_chips: counts.reduce((sum, message) => sum + message.fact_chips, 0),
+        claim_chips: counts.reduce((sum, message) => sum + message.claim_chips, 0),
+        plain_numbers: counts.reduce((sum, message) => sum + message.plain.length, 0),
+        plain_samples: counts.flatMap((message) => message.plain).slice(0, 12),
+        note_numbers: counts.reduce((sum, message) => sum + message.notes, 0),
         console_errors: consoleErrors,
         failed_requests: failedRequests,
       })
@@ -119,13 +153,14 @@ async function main(argv: string[]): Promise<number> {
   }
   writeFileSync(join(values.out, 'summary.json'), `${JSON.stringify(reports, null, 2)}\n`)
   const rows = [
-    ['thread', 'answers', 'fact chips', 'claim chips', 'plain #', 'console errors'],
+    ['thread', 'answers', 'fact chips', 'claim chips', 'plain #', 'note #', 'console errors'],
     ...reports.map((report) => [
       report.thread,
       String(report.answers),
       String(report.fact_chips),
       String(report.claim_chips),
       String(report.plain_numbers),
+      String(report.note_numbers),
       String(report.console_errors.length),
     ]),
   ]
