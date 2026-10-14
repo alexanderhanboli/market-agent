@@ -6,8 +6,8 @@
 //   node --experimental-strip-types scripts/research-quality-eval.ts run [base URL]
 //   (score: fill in <run>.scores.json)
 //   node --experimental-strip-types scripts/research-quality-eval.ts summary
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { rejectionCheck } from "../services/chat/src/rejection-check.ts";
@@ -15,6 +15,7 @@ import { api, runTurn } from "../services/chat/scripts/golden-live-check.ts";
 import { QUESTIONS, RUBRIC, type CriterionId, type EvalQuestion } from "./research-quality-questions.ts";
 
 export const RUNS_DIR = fileURLToPath(new URL("../docs/eval-runs/research-quality/", import.meta.url));
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 type Block = Record<string, unknown> & { kind?: string; title?: string };
 type Message = { role: string; blocks: Block[]; answered_by?: string | null };
@@ -28,6 +29,8 @@ export type ScoresFile = {
 export type AnsweredQuestion = {
   question: EvalQuestion;
   threadId: string;
+  // The thread's turn traces (services/chat/src/answer-trace.ts), relative to the repo root.
+  traces?: string[];
   // answeredBy: the deployment that wrote the turn's answer, as chat recorded it (#183).
   // usage: the answer call's tokens, from turn.completed (#181).
   // removed: sentences the narrative guard dropped, from turn.completed (#144).
@@ -110,8 +113,10 @@ export function renderReport(run: string, model: string, base: string, answered:
     "",
     ...RUBRIC.map((c) => `- **${c.id}**: ${c.question} 0 = ${c.anchors[0]}; 1 = ${c.anchors[1]}; 2 = ${c.anchors[2]}.`),
   ];
-  for (const { question, threadId, turns } of answered) {
-    lines.push("", `## ${question.id} (${question.kind})`, "", `Thread: ${base}/chat/${threadId}`, "", `**Expect:** ${question.expect}`);
+  for (const { question, threadId, turns, traces } of answered) {
+    lines.push("", `## ${question.id} (${question.kind})`, "", `Thread: ${base}/chat/${threadId}`);
+    if (traces?.length) lines.push(...traces.map((trace) => `Trace: ${trace}`));
+    lines.push("", `**Expect:** ${question.expect}`);
     if (question.notApplicable?.length) lines.push("", `N/A: ${question.notApplicable.join(", ")}`);
     for (const [i, turn] of turns.entries()) {
       const subject = question.turns[i]?.subjectText;
@@ -335,10 +340,24 @@ async function run(base: string): Promise<void> {
       turns.push({ message: turn.message, outcome, blocks: answer?.blocks ?? [], answeredBy: answer?.answered_by ?? null, usage, removed, assertions });
       answersSoFar = answers.length;
     }
-    answered.push({ question, threadId, turns });
+    answered.push({ question, threadId, turns, traces: threadTraces(TRACE_DIR, threadId, ROOT) });
     writeFileSync(report, renderReport(stamp, model, base, answered));
   }
   console.log(`\ndone: ${answered.length} questions in ${report}`);
+}
+
+// Where the chat service writes turn traces: dev-shell's default unless overridden.
+const TRACE_DIR = resolve(ROOT, process.env.CHAT_TRACE_DIR?.trim() || ".dev/traces");
+
+// A thread's trace files, oldest first, relative to root; none when tracing is off.
+export function threadTraces(dir: string, threadId: string, root: string): string[] {
+  const threadDir = join(dir, threadId);
+  if (!existsSync(threadDir)) return [];
+  return readdirSync(threadDir)
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => join(threadDir, name))
+    .sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs)
+    .map((path) => relative(root, path));
 }
 
 // The run's configured models, for the scores file; the report shows which of them

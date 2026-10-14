@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -17,6 +17,7 @@ import {
   renderReport,
   runStamp,
   summarize,
+  threadTraces,
   type ScoresFile,
 } from "./research-quality-eval.ts";
 import { QUESTIONS, RUBRIC } from "./research-quality-questions.ts";
@@ -131,6 +132,23 @@ test("the report shows the model that answered each turn, and the mix across the
   assert.match(report, /### Q: q2\n\n_Answered by `opencode-go\/kimi-k2\.7-code`\._/);
   assert.doesNotMatch(report, /Fallbacks may have answered/);
   assert.equal(answeredBySummary([{ question: first, threadId: "t", turns: [{ message: "q", outcome: "turn.error", blocks: [], answeredBy: null }] }]), "not recorded (1 turn)");
+});
+
+test("the report links each thread's turn traces, oldest first", async () => {
+  const root = await mkdtemp(join(tmpdir(), "eval-traces-"));
+  const threadDir = join(root, ".dev", "traces", "t1");
+  await mkdir(threadDir, { recursive: true });
+  await writeFile(join(threadDir, "run-b.json"), "{}");
+  await utimes(join(threadDir, "run-b.json"), new Date(2000), new Date(2000));
+  await writeFile(join(threadDir, "run-a.json"), "{}");
+  await writeFile(join(threadDir, "notes.txt"), "");
+  const traces = threadTraces(join(root, ".dev", "traces"), "t1", root);
+  assert.deepEqual(traces, [".dev/traces/t1/run-b.json", ".dev/traces/t1/run-a.json"]);
+  assert.deepEqual(threadTraces(join(root, ".dev", "traces"), "t2", root), []);
+
+  const [first] = QUESTIONS;
+  const report = renderReport("r", "m", "http://app", [{ question: first, threadId: "t1", traces, turns: [] }]);
+  assert.match(report, /Thread: http:\/\/app\/chat\/t1\nTrace: \.dev\/traces\/t1\/run-b\.json\nTrace: \.dev\/traces\/t1\/run-a\.json\n\n\*\*Expect/);
 });
 
 test("summary on a fresh checkout reads no runs instead of failing", async () => {
