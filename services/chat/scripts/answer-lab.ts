@@ -42,9 +42,16 @@ export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
       trace: JSON.parse(readFileSync(file, "utf8")) as TurnTrace,
     }));
   });
-  // Rows and comparisons key on the label: two traces sharing one keep their paths.
+  // Rows and comparisons key on the label: two traces sharing one keep their
+  // paths, and any label still taken gets its position.
   const shared = new Set(found.map(({ label }) => label).filter((label, i, all) => all.indexOf(label) !== i));
-  return found.map(({ file, label, trace }) => ({ label: shared.has(label) ? file.replace(/\.json$/, "") : label, trace }));
+  const taken = new Set<string>();
+  return found.map(({ file, label, trace }, i) => {
+    const named = shared.has(label) ? file.replace(/\.json$/, "") : label;
+    const unique = taken.has(named) ? `${named}#${i + 1}` : named;
+    taken.add(unique);
+    return { label: unique, trace };
+  });
 }
 
 type Row = { label: string } & { [K in keyof AnswerMetrics]: number };

@@ -32,3 +32,14 @@ test("two traces with one file name are told apart by their paths", () => {
   const labels = readTraces(dirs.map((dir) => join(dir, "run.json"))).map(({ label }) => label);
   assert.deepEqual(labels, dirs.map((dir) => join(dir, "run")));
 });
+
+test("a label made from a path stays unique beside a directory's own label", () => {
+  const [first] = TRACES;
+  const root = mkdtempSync(join(tmpdir(), "answer-lab-"));
+  for (const dir of ["baseline", "candidate", "fixtures/baseline"]) {
+    mkdirSync(join(root, dir), { recursive: true });
+    writeFileSync(join(root, dir, "run.json"), JSON.stringify(first!.trace));
+  }
+  const labels = readTraces([join(root, "baseline/run.json"), join(root, "candidate/run.json"), join(root, "fixtures")]).map(({ label }) => label);
+  assert.equal(new Set(labels).size, 3);
+});
