@@ -449,6 +449,17 @@ test("DEV_MODE=analyst: frozen dataset + the developer's live LLM, with per-comp
   assert.ok(lines("npm:").includes("chat:run seed:golden"), "the frozen dataset is seeded");
 });
 
+test("DEV_MODE=analyst resolves a relative CHAT_TRACE_DIR against the repo root", async () => {
+  const fixture = await createShellFixture({ DEV_MODE: "analyst", CHAT_TRACE_DIR: "traces", ...LIVE_LLM });
+  const result = await runBash(
+    ["MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh", 'printf "%s" "${CHAT_TRACE_DIR#"$ROOT"}"'].join("\n"),
+    fixture.root,
+  );
+  await rm(fixture.root, { recursive: true, force: true });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "/traces");
+});
+
 test("DEV_MODE=analyst fails fast without a deployable LLM, pointing at DEV_NO_KEYS", async () => {
   // LITELLM_MODEL is set but names no configured channel: the llm check says no.
   const { result, trace } = await traceUp({ DEV_MODE: "analyst", LITELLM_MODEL: "openai/gpt-4.1" }, [

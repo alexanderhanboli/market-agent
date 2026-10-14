@@ -337,7 +337,11 @@ configure_runtime_env() {
     # One line per model completion: model, latency, tokens (services/llm).
     export LLM_USAGE_LOG=true
     # Each answer turn's trace, for services/chat/scripts/answer-lab.ts.
-    export CHAT_TRACE_DIR="${CHAT_TRACE_DIR:-$ROOT/.dev/traces}"
+    # Relative to the repo root, as research-quality-eval.ts reads it: chat runs
+    # from its own directory and would resolve a relative one there.
+    CHAT_TRACE_DIR="${CHAT_TRACE_DIR:-.dev/traces}"
+    [[ "$CHAT_TRACE_DIR" == /* ]] || CHAT_TRACE_DIR="$ROOT/$CHAT_TRACE_DIR"
+    export CHAT_TRACE_DIR
   fi
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]]; then
     export DEV_PROVIDERS_ORIGIN
