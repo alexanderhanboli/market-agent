@@ -1,7 +1,7 @@
 // One answer turn as recorded: what the answer model was given, what it wrote
 // raw, what the checks did, and the blocks shown. Written under CHAT_TRACE_DIR;
 // replayed by scripts/answer-lab.ts.
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { LlmChatClient, LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
@@ -126,7 +126,10 @@ export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, 
   const write = (async () => {
     try {
       await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, `${JSON.stringify(trace, null, 2)}\n`);
+      // Written aside, then renamed: a reader never sees half a trace.
+      const partial = `${path}.partial`;
+      await writeFile(partial, `${JSON.stringify(trace, null, 2)}\n`);
+      await rename(partial, path);
       console.info(`[chat] trace ${ids} ${path}`);
     } catch (error) {
       console.warn(`[chat] trace not written: ${ids}`, error);
