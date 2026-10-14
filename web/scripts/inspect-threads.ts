@@ -21,6 +21,8 @@ type ThreadReport = {
   plain_numbers: number
   plain_samples: string[]
   console_errors: string[]
+  // Responses that failed, with their URLs: which service a console 503 came from.
+  failed_requests: string[]
 }
 
 const ANSWER_TIMEOUT_MS = 30_000
@@ -59,11 +61,21 @@ async function main(argv: string[]): Promise<number> {
         if (message.type() === 'error') consoleErrors.push(message.text())
       })
       page.on('pageerror', (error) => consoleErrors.push(error.message))
+      const failedRequests: string[] = []
+      page.on('response', (response) => {
+        if (response.status() >= 400) failedRequests.push(`${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`)
+      })
       await page.goto(url)
       const prose = page.locator('[data-role="assistant"] [data-block-kind="rich_text"]')
       const answered = await prose.first().waitFor({ timeout: ANSWER_TIMEOUT_MS }).then(() => true, () => false)
       // Chips resolve once the snapshot manifest loads.
       await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+      // The thread scrolls inside the app shell, not the page, and its message
+      // list mounts only what fits: a viewport as tall as the content lets the
+      // counts and the full-page screenshot see the same, whole thread.
+      const height = await page.evaluate(() => Math.max(...[...document.querySelectorAll('*')].map((element) => element.scrollHeight)))
+      await page.setViewportSize({ width: 1280, height: Math.min(height + 200, 16_000) })
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
       const counts = answered
         ? await prose.evaluateAll((blocks) => {
           const plain: string[] = []
@@ -81,10 +93,6 @@ async function main(argv: string[]): Promise<number> {
           }
         })
         : { fact_chips: 0, claim_chips: 0, plain: [] }
-      // The thread scrolls inside the app shell, not the page: a viewport as tall
-      // as its content makes the full-page screenshot hold the whole thread.
-      const height = await page.evaluate(() => Math.max(...[...document.querySelectorAll('*')].map((element) => element.scrollHeight)))
-      await page.setViewportSize({ width: 1280, height: Math.min(height + 200, 16_000) })
       const screenshot = join(values.out, `${thread}.png`)
       await page.screenshot({ path: screenshot, fullPage: true })
       reports.push({
@@ -97,6 +105,7 @@ async function main(argv: string[]): Promise<number> {
         plain_numbers: counts.plain.length,
         plain_samples: counts.plain.slice(0, 12),
         console_errors: consoleErrors,
+        failed_requests: failedRequests,
       })
       await page.close()
     }
