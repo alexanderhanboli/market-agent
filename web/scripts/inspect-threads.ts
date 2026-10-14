@@ -73,9 +73,14 @@ async function main(argv: string[]): Promise<number> {
       // The thread scrolls inside the app shell, not the page, and its message
       // list mounts only what fits: a viewport as tall as the content lets the
       // counts and the full-page screenshot see the same, whole thread.
-      const height = await page.evaluate(() => Math.max(...[...document.querySelectorAll('*')].map((element) => element.scrollHeight)))
-      await page.setViewportSize({ width: 1280, height: Math.min(height + 200, 16_000) })
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      // Newly mounted messages replace their estimated heights, so grow until it settles.
+      for (let pass = 0, last = 0; pass < 5; pass++) {
+        const height = await page.evaluate(() => Math.max(...[...document.querySelectorAll('*')].map((element) => element.scrollHeight)))
+        if (height === last) break
+        last = height
+        await page.setViewportSize({ width: 1280, height: Math.min(height + 200, 16_000) })
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      }
       const counts = answered
         ? await prose.evaluateAll((blocks) => {
           const plain: string[] = []

@@ -340,6 +340,9 @@ configure_runtime_env() {
     # Relative to the repo root, as research-quality-eval.ts reads it: chat runs
     # from its own directory and would resolve a relative one there.
     CHAT_TRACE_DIR="${CHAT_TRACE_DIR:-.dev/traces}"
+    # Trimmed, as chat and the eval trim it.
+    CHAT_TRACE_DIR="${CHAT_TRACE_DIR#"${CHAT_TRACE_DIR%%[![:space:]]*}"}"
+    CHAT_TRACE_DIR="${CHAT_TRACE_DIR%"${CHAT_TRACE_DIR##*[![:space:]]}"}"
     [[ "$CHAT_TRACE_DIR" == /* ]] || CHAT_TRACE_DIR="$ROOT/$CHAT_TRACE_DIR"
     export CHAT_TRACE_DIR
   fi
