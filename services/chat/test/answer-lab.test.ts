@@ -33,6 +33,19 @@ test("two traces with one file name are told apart by their paths", () => {
   assert.deepEqual(labels, dirs.map((dir) => join(dir, "run")));
 });
 
+test("labels do not depend on the order traces are given in", () => {
+  const [first] = TRACES;
+  const root = mkdtempSync(join(tmpdir(), "answer-lab-"));
+  for (const file of ["fixtures/baseline/run.json", "fixtures/baseline/run#3.json", "baseline/run.json", "candidate/run.json", "unrelated.json"]) {
+    mkdirSync(join(root, file, ".."), { recursive: true });
+    writeFileSync(join(root, file), JSON.stringify(first!.trace));
+  }
+  const inputs = ["fixtures", "baseline/run.json", "candidate/run.json", "unrelated.json"].map((path) => join(root, path));
+  const byLabel = (paths: string[]) => readTraces(paths).map(({ label }) => label).sort();
+  assert.equal(new Set(byLabel(inputs)).size, 5);
+  assert.deepEqual(byLabel([inputs[3]!, ...inputs.slice(0, 3)]), byLabel(inputs));
+});
+
 test("a label made from a path stays unique beside a directory's own label", () => {
   const [first] = TRACES;
   const root = mkdtempSync(join(tmpdir(), "answer-lab-"));

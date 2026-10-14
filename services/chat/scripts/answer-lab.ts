@@ -10,7 +10,7 @@
 // (LLM_SETTINGS_ENV_FILE, default .env.dev, as dev-shell sets it) and writes
 // docs/eval-runs/answer-lab/<stamp>.json.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 
@@ -37,21 +37,18 @@ export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
       ? readdirSync(path, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".json")).sort().map((name) => join(path, name))
       : [path];
     return files.map((file) => ({
-      file,
+      file: resolve(file),
       label: (statSync(path).isDirectory() ? relative(path, file) : basename(file)).replace(/\.json$/, ""),
-      trace: JSON.parse(readFileSync(file, "utf8")) as TurnTrace,
     }));
   });
-  // Rows and comparisons key on the label: two traces sharing one keep their
-  // paths, and any label still taken gets its position.
-  const shared = new Set(found.map(({ label }) => label).filter((label, i, all) => all.indexOf(label) !== i));
-  const taken = new Set<string>();
-  return found.map(({ file, label, trace }, i) => {
-    const named = shared.has(label) ? file.replace(/\.json$/, "") : label;
-    const unique = taken.has(named) ? `${named}#${i + 1}` : named;
-    taken.add(unique);
-    return { label: unique, trace };
-  });
+  // Rows and comparisons key on the label: short when every one differs,
+  // otherwise each trace's absolute path, which no two files share.
+  const files = [...new Map(found.map((entry) => [entry.file, entry])).values()];
+  const unique = new Set(files.map(({ label }) => label)).size === files.length;
+  return files.map(({ file, label }) => ({
+    label: unique ? label : file.replace(/\.json$/, ""),
+    trace: JSON.parse(readFileSync(file, "utf8")) as TurnTrace,
+  }));
 }
 
 type Row = { label: string } & { [K in keyof AnswerMetrics]: number };

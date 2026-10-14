@@ -74,10 +74,10 @@ async function main(argv: string[]): Promise<number> {
       // list mounts only what fits: a viewport as tall as the content lets the
       // counts and the full-page screenshot see the same, whole thread.
       // Newly mounted messages replace their estimated heights, so grow until it settles.
-      for (let pass = 0, last = 0; pass < 5; pass++) {
+      for (let pass = 0; pass < 5; pass++) {
         const height = await page.evaluate(() => Math.max(...[...document.querySelectorAll('*')].map((element) => element.scrollHeight)))
-        if (height === last) break
-        last = height
+        // Full-height roots match the viewport itself: content that fits has settled.
+        if (height <= page.viewportSize()!.height) break
         await page.setViewportSize({ width: 1280, height: Math.min(height + 200, 16_000) })
         await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
       }
