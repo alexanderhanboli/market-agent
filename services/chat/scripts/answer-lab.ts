@@ -46,6 +46,10 @@ export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
   const seen = new Map<string, string>();
   return files.map((file) => {
     const trace = JSON.parse(readFileSync(file, "utf8")) as TurnTrace;
+    const id = (value: unknown) => typeof value === "string" && /^[\w-]+$/.test(value);
+    if (!id(trace.thread_id) || !id(trace.run_id) || (trace.turn_id !== undefined && !id(trace.turn_id))) {
+      throw new Error(`${file} is not a turn trace: it needs thread_id and run_id (services/chat/src/answer-trace.ts)`);
+    }
     const key = traceKey(trace);
     const earlier = seen.get(key);
     if (earlier !== undefined) throw new Error(`turn ${key} is given twice: ${earlier} and ${file}`);
@@ -217,6 +221,13 @@ async function main(argv: string[]): Promise<number> {
     console.error("--samples and --concurrency take a positive integer");
     return 2;
   }
+  // Read before the model is called, so a baseline that cannot match costs no run.
+  const before = values.against === undefined ? undefined : JSON.parse(readFileSync(values.against, "utf8")) as LiveRun;
+  // A run from before traces were keyed by turn names them by file: nothing would match.
+  if (before && before.labels === undefined) {
+    console.error(`${values.against} is from an older answer-lab whose traces are not keyed by turn; rerun it`);
+    return 2;
+  }
   const run = await live(traces, samples, concurrency);
   mkdirSync(RUNS_DIR, { recursive: true });
   const file = join(RUNS_DIR, `${run.run}.json`);
@@ -226,8 +237,7 @@ async function main(argv: string[]): Promise<number> {
   const unanswered = run.traces.filter((key) => !rows.some((row) => row.key === key)).map((key) => run.labels?.[key] ?? key);
   console.log(`\n${table(rows)}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
   if (unanswered.length > 0) console.log(`no answer: ${unanswered.join(", ")}`);
-  if (values.against) {
-    const before = JSON.parse(readFileSync(values.against, "utf8")) as LiveRun;
+  if (before) {
     // Only traces both runs answered, so a failed one does not read as a change.
     const shared = liveRows(before).map((row) => row.key).filter((key) => rows.some((row) => row.key === key));
     console.log(`\nagainst ${values.against}, over the ${shared.length} traces both answered:\n${delta(totalRow(liveRows(before, shared)), totalRow(liveRows(run, shared)))}`);

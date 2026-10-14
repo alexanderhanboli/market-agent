@@ -57,3 +57,9 @@ test("one turn given twice is an error, not a guess", () => {
   const root = traceFiles({ "fixtures/run.json": first!.trace });
   assert.throws(() => readTraces([join(root, "fixtures"), join(root, "fixtures/run.json")]), /is given twice/);
 });
+
+test("a file without a turn's ids is refused, by name", () => {
+  const [first] = TRACES;
+  const root = traceFiles({ "handmade.json": { ...first!.trace, thread_id: undefined } });
+  assert.throws(() => readTraces([join(root, "handmade.json")]), /handmade\.json is not a turn trace/);
+});
