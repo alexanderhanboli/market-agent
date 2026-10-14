@@ -1,0 +1,2410 @@
+{
+  "version": 1,
+  "thread_id": "ec43de97-f546-4b8c-be52-3f096e97c9bc",
+  "run_id": "0af9dfb8-60a4-4a29-b9f5-d3eced7ccdbc",
+  "turn_id": "5348053d-4757-4110-ad4d-ca0978cdc360",
+  "question": "Explain the differences and show the evidence.",
+  "recorded_at": "2026-10-14T16:57:46.403Z",
+  "input": {
+    "context": {
+      "userIntent": "Explain the differences and show the evidence.",
+      "bundleId": "single_subject_analysis"
+    },
+    "blocks": [
+      {
+        "id": "715763ac-3c48-444d-8b14-4a570ff2f944",
+        "kind": "rich_text",
+        "snapshot_id": "1a0b612b-e7b3-497a-8da7-09654288d91e",
+        "data_ref": {
+          "kind": "rich_text",
+          "id": "715763ac-3c48-444d-8b14-4a570ff2f944"
+        },
+        "source_refs": [],
+        "as_of": "1970-01-01T00:00:00.000Z",
+        "title": "single_subject_analysis",
+        "segments": [
+          {
+            "type": "text",
+            "text": "Explain the differences and show the evidence.. Used get_quote from the single_subject_analysis bundle and produced snapshot-backed research blocks."
+          }
+        ]
+      }
+    ],
+    "toolCalls": [
+      {
+        "tool_call_id": "aa84c3c1-4ea5-49d7-8b1a-75ee0f2ceb44",
+        "tool_name": "get_quote",
+        "status": "ok",
+        "bundle_id": "single_subject_analysis",
+        "arguments": {
+          "query": "Explain the differences and show the evidence.",
+          "subject_ref": {
+            "id": "62000000-0000-4000-8000-000000000001",
+            "kind": "listing"
+          }
+        },
+        "result": {
+          "kind": "local_evidence_tool_result",
+          "status": "ok",
+          "tool_name": "get_quote",
+          "arguments": {
+            "query": "Explain the differences and show the evidence.",
+            "subject_ref": {
+              "id": "62000000-0000-4000-8000-000000000001",
+              "kind": "listing"
+            }
+          },
+          "evidence_status": "available",
+          "manifest_contribution": {
+            "subject_refs": [
+              {
+                "id": "62000000-0000-4000-8000-000000000001",
+                "kind": "listing"
+              },
+              {
+                "id": "62000000-0000-4000-8000-000000000002",
+                "kind": "listing"
+              }
+            ],
+            "claim_refs": [
+              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+            ],
+            "document_refs": [
+              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+            ],
+            "source_ids": [
+              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+            ]
+          },
+          "structured_context": {
+            "quote": {
+              "listing_id": "62000000-0000-4000-8000-000000000001",
+              "ticker": "NVDA",
+              "provider": "golden_fixture",
+              "price": 178.4,
+              "prev_close": 176.1,
+              "change_abs": 2.3000000000000114,
+              "change_pct": 0.013060760931289106,
+              "session_state": "closed",
+              "delay_class": "eod",
+              "currency": "USD",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "source_id": "00000000-0000-4000-a000-000000000009",
+              "expires_at": "2126-09-01T00:00:00.000Z",
+              "stale": false
+            },
+            "facts": [
+              {
+                "fact_id": "02dd3996-d5c8-49dc-a8f0-122c93babca8",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 148570000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ee1bcd1d-0e42-4096-8c86-cb3dd6d480e0",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 33853000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ca438679-ee66-4666-b3f3-1198c4a5f8fa",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 41849000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "135cfa5b-ccca-489f-a917-00af512d2209",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 46200000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "42637f5c-d6cf-4a5a-b1ad-ea159deb303e",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 26668000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "379dc1b9-e0fa-4d2f-ac70-2988e20a1bb4",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 26422000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d48808d6-7f1a-46c2-830c-50b528812198",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 112507000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "a8ffd3f4-80e8-4b61-aae1-93f25fd03e7e",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 35400000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "30ecf196-a0af-47ec-a2d2-38da35b87963",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 31910000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6b639d42-31fc-42d9-8ebb-ab7ed7a6115d",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 18775000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d1a1cf3c-83c5-4ca4-914d-7432437d3982",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 28440000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "9cf90468-1af3-466b-9716-7fb0cf02495b",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 36010000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "23f38739-b262-40b5-af8b-29931a4d8bae",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 40300000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "cb59bd4e-da16-42fc-adf8-371222ed64f2",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 21638000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "30a4c061-3d08-4bfe-96ad-63846b42f4fb",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 126388000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 209911000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "7c57f46c-7952-4491-8a6a-7b70c9b629e6",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 44062000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6f69c343-4f8b-448e-9337-c398c68ee8cf",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 46743000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6e54de8f-6a2b-4a17-9860-58d815710377",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 57006000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e6aabf62-8cd3-4775-99d7-253e0cdd830a",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 62100000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "179b146e-260e-457c-a4a4-b0b407abc44c",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 20406000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "0bb7d2a2-f43d-4ab4-b432-6cc9070ca577",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 97859000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "bac8175e-8520-4a3b-879f-f423005cf7fd",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 28723000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "65f10839-49ce-42fb-9846-da071c824aef",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 26156000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              }
+            ],
+            "source_ids": [
+              "00000000-0000-4000-a000-000000000001",
+              "00000000-0000-4000-a000-000000000009"
+            ],
+            "fact_recency": {
+              "latest_as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY",
+              "age_days": 0,
+              "stale": false
+            }
+          },
+          "evidence": {
+            "claims": [
+              {
+                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
+                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797",
+                "text_canonical": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.",
+                "predicate": "kpi.commentary",
+                "polarity": "negative",
+                "trust_tier": "primary",
+                "license_class": "public",
+                "provider": "sec_edgar",
+                "source_canonical_url": "https://www.sec.gov/Archives/edgar/data/2488/000000248825000106/q22025991.htm",
+                "source_disclosure": null,
+                "confidence": 0.95,
+                "document_title": "AMD Reports Second Quarter 2025 Financial Results (Form 8-K, Exhibit 99.1)",
+                "published_at": "2025-08-05T00:00:00.000Z",
+                "effective_time": "2025-06-28T00:00:00.000Z",
+                "subject_id": "60000000-0000-4000-8000-000000000002"
+              }
+            ],
+            "source_ids": [
+              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+            ],
+            "document_refs": [
+              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+            ],
+            "claim_refs": [
+              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+            ],
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000001"
+              },
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000002"
+              }
+            ],
+            "verifier_sources": [
+              {
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              }
+            ],
+            "verifier_documents": [
+              {
+                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              }
+            ],
+            "verifier_claims": [
+              {
+                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              }
+            ],
+            "truncated": false,
+            "contradictions": []
+          }
+        }
+      }
+    ],
+    "factBlocks": [
+      {
+        "id": "d6a36648-0aad-44f8-8a7d-316340d9653a",
+        "kind": "metrics_comparison",
+        "snapshot_id": "1a0b612b-e7b3-497a-8da7-09654288d91e",
+        "data_ref": {
+          "kind": "metrics_comparison",
+          "id": "d6a36648-0aad-44f8-8a7d-316340d9653a",
+          "params": {
+            "fact_bindings": [
+              {
+                "fact_id": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+                "unit": "currency",
+                "period_kind": "fiscal_y",
+                "period_start": "2025-01-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "7428cdaf-dd4c-4f07-9394-b66a05ff78b3",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2025-01-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "77abbf16-743a-4401-b55a-8a7dbcc5d9b6",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2025-01-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "10f1a19d-c198-4a40-915e-1e1765670876",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2025-01-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "ada48ac8-1fee-44e8-a71a-7471f9d25f31",
+                "unit": "currency",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-12-29",
+                "period_end": "2025-12-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "65750188-e851-4bdc-a55c-ad8a0114995b",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-12-29",
+                "period_end": "2025-12-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "60cffae0-8842-45ea-801b-b7f1695204bd",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-12-29",
+                "period_end": "2025-12-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "28d171a7-a56d-4b4e-94cb-efe6ea6bc6a1",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-12-29",
+                "period_end": "2025-12-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              }
+            ]
+          }
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000001"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "title": "Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)",
+        "subjects": [
+          {
+            "kind": "issuer",
+            "id": "60000000-0000-4000-8000-000000000001"
+          },
+          {
+            "kind": "issuer",
+            "id": "60000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "metrics": [
+          "Revenue",
+          "Gross Margin",
+          "Net Margin",
+          "Revenue Growth (YoY)"
+        ],
+        "cells": [
+          [
+            {
+              "value_ref": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+              "format": "$209.9B"
+            },
+            {
+              "value_ref": "7428cdaf-dd4c-4f07-9394-b66a05ff78b3",
+              "format": "70.8%",
+              "tone": "positive"
+            },
+            {
+              "value_ref": "77abbf16-743a-4401-b55a-8a7dbcc5d9b6",
+              "format": "53.6%",
+              "tone": "positive"
+            },
+            {
+              "value_ref": "10f1a19d-c198-4a40-915e-1e1765670876",
+              "format": "60.9%",
+              "tone": "positive"
+            }
+          ],
+          [
+            {
+              "value_ref": "ada48ac8-1fee-44e8-a71a-7471f9d25f31",
+              "format": "$34.7B"
+            },
+            {
+              "value_ref": "65750188-e851-4bdc-a55c-ad8a0114995b",
+              "format": "49.9%",
+              "tone": "negative"
+            },
+            {
+              "value_ref": "60cffae0-8842-45ea-801b-b7f1695204bd",
+              "format": "12.0%",
+              "tone": "negative"
+            },
+            {
+              "value_ref": "28d171a7-a56d-4b4e-94cb-efe6ea6bc6a1",
+              "format": "34.5%",
+              "tone": "negative"
+            }
+          ]
+        ],
+        "primary_subject_ref": {
+          "kind": "issuer",
+          "id": "60000000-0000-4000-8000-000000000001"
+        },
+        "subject_labels": [
+          "NVDA",
+          "AMD"
+        ],
+        "provenance_fact_refs": [
+          "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+          "7428cdaf-dd4c-4f07-9394-b66a05ff78b3",
+          "77abbf16-743a-4401-b55a-8a7dbcc5d9b6",
+          "10f1a19d-c198-4a40-915e-1e1765670876",
+          "ada48ac8-1fee-44e8-a71a-7471f9d25f31",
+          "65750188-e851-4bdc-a55c-ad8a0114995b",
+          "60cffae0-8842-45ea-801b-b7f1695204bd",
+          "28d171a7-a56d-4b4e-94cb-efe6ea6bc6a1"
+        ]
+      },
+      {
+        "id": "f110094b-281b-47f9-82fe-5d9de4238e1c",
+        "kind": "perf_comparison",
+        "snapshot_id": "1a0b612b-e7b3-497a-8da7-09654288d91e",
+        "data_ref": {
+          "kind": "perf_comparison",
+          "id": "f110094b-281b-47f9-82fe-5d9de4238e1c",
+          "params": {
+            "series_refs": [
+              "fb533c63-ff84-4329-8328-1c231f019f6b",
+              "5bc76349-361c-4885-8425-19c48f4c2517"
+            ]
+          }
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000009"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "title": "Price return YTD 2026 (split-adjusted, excluding dividends)",
+        "subject_refs": [
+          {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000001"
+          },
+          {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000002"
+          }
+        ],
+        "subject_labels": [
+          "NVDA",
+          "AMD"
+        ],
+        "default_range": "YTD 2026: 2025-12-31 close to 2026-08-31 close",
+        "basis": "split_adjusted",
+        "normalization": "pct_return",
+        "series": [
+          {
+            "name": "NVDA",
+            "unit": "%",
+            "points": [
+              {
+                "x": "2025-12-31",
+                "y": 0
+              },
+              {
+                "x": "2026-01-01",
+                "y": 0.03360545022585706
+              },
+              {
+                "x": "2026-01-02",
+                "y": 0.06721090045230414
+              },
+              {
+                "x": "2026-01-05",
+                "y": 0.10081635067814435
+              },
+              {
+                "x": "2026-01-06",
+                "y": 0.1344218009040014
+              },
+              {
+                "x": "2026-01-07",
+                "y": 0.16802725113044847
+              },
+              {
+                "x": "2026-01-08",
+                "y": 0.2016327013562887
+              },
+              {
+                "x": "2026-01-09",
+                "y": 0.23523815158214573
+              },
+              {
+                "x": "2026-01-12",
+                "y": 0.26884360180798594
+              },
+              {
+                "x": "2026-01-13",
+                "y": 0.302449052034433
+              },
+              {
+                "x": "2026-01-14",
+                "y": 0.3360545022602901
+              },
+              {
+                "x": "2026-01-15",
+                "y": 0.3696599524861303
+              },
+              {
+                "x": "2026-01-16",
+                "y": 0.4032654027125774
+              },
+              {
+                "x": "2026-01-19",
+                "y": 0.4368708529384176
+              },
+              {
+                "x": "2026-01-20",
+                "y": 0.47047630316427463
+              },
+              {
+                "x": "2026-01-21",
+                "y": 0.5040817533907217
+              },
+              {
+                "x": "2026-01-22",
+                "y": 0.5376872036165619
+              },
+              {
+                "x": "2026-01-23",
+                "y": 0.571292653842419
+              },
+              {
+                "x": "2026-01-26",
+                "y": 0.6048981040688491
+              },
+              {
+                "x": "2026-01-27",
+                "y": 0.6385035542947062
+              },
+              {
+                "x": "2026-01-28",
+                "y": 0.6721090045205633
+              },
+              {
+                "x": "2026-01-29",
+                "y": 0.7057144547464035
+              },
+              {
+                "x": "2026-01-30",
+                "y": 0.7393199049728506
+              },
+              {
+                "x": "2026-02-02",
+                "y": 0.7729253551986908
+              },
+              {
+                "x": "2026-02-03",
+                "y": 0.8065308054245478
+              },
+              {
+                "x": "2026-02-04",
+                "y": 0.840136255650995
+              },
+              {
+                "x": "2026-02-05",
+                "y": 0.8737417058768352
+              },
+              {
+                "x": "2026-02-06",
+                "y": 0.9073471561026922
+              },
+              {
+                "x": "2026-02-09",
+                "y": 0.9409526063291392
+              },
+              {
+                "x": "2026-02-10",
+                "y": 0.9745580565549795
+              },
+              {
+                "x": "2026-02-11",
+                "y": 1.0081635067808365
+              },
+              {
+                "x": "2026-02-12",
+                "y": 1.0417689570072668
+              },
+              {
+                "x": "2026-02-13",
+                "y": 1.0753744072331237
+              },
+              {
+                "x": "2026-02-16",
+                "y": 1.1089798574589809
+              },
+              {
+                "x": "2026-02-17",
+                "y": 1.142585307684821
+              },
+              {
+                "x": "2026-02-18",
+                "y": 1.1761907579112683
+              },
+              {
+                "x": "2026-02-19",
+                "y": 1.2097962081371083
+              },
+              {
+                "x": "2026-02-20",
+                "y": 1.2434016583629655
+              },
+              {
+                "x": "2026-02-23",
+                "y": 1.2770071085894124
+              },
+              {
+                "x": "2026-02-24",
+                "y": 1.3106125588152526
+              },
+              {
+                "x": "2026-02-25",
+                "y": 1.3442180090411098
+              },
+              {
+                "x": "2026-02-26",
+                "y": 1.37782345926754
+              },
+              {
+                "x": "2026-02-27",
+                "y": 1.4114289094933972
+              },
+              {
+                "x": "2026-03-02",
+                "y": 1.445034359719254
+              },
+              {
+                "x": "2026-03-03",
+                "y": 1.4786398099456843
+              },
+              {
+                "x": "2026-03-04",
+                "y": 1.5122452601715413
+              },
+              {
+                "x": "2026-03-05",
+                "y": 1.5458507103973815
+              },
+              {
+                "x": "2026-03-06",
+                "y": 1.5794561606232387
+              },
+              {
+                "x": "2026-03-09",
+                "y": 1.6130616108496858
+              },
+              {
+                "x": "2026-03-10",
+                "y": 1.6466670610755259
+              },
+              {
+                "x": "2026-03-11",
+                "y": 1.6802725113013828
+              },
+              {
+                "x": "2026-03-12",
+                "y": 1.7138779615278301
+              },
+              {
+                "x": "2026-03-13",
+                "y": 1.7474834117536704
+              },
+              {
+                "x": "2026-03-16",
+                "y": 1.7810888619795275
+              },
+              {
+                "x": "2026-03-17",
+                "y": 1.8146943122059576
+              },
+              {
+                "x": "2026-03-18",
+                "y": 1.8482997624318147
+              },
+              {
+                "x": "2026-03-19",
+                "y": 1.8819052126576716
+              },
+              {
+                "x": "2026-03-20",
+                "y": 1.9155106628835117
+              },
+              {
+                "x": "2026-03-23",
+                "y": 1.949116113109959
+              },
+              {
+                "x": "2026-03-24",
+                "y": 1.982721563335799
+              },
+              {
+                "x": "2026-03-25",
+                "y": 2.0163270135616562
+              },
+              {
+                "x": "2026-03-26",
+                "y": 2.049932463788103
+              },
+              {
+                "x": "2026-03-27",
+                "y": 2.0835379140139434
+              },
+              {
+                "x": "2026-03-30",
+                "y": 2.1171433642398005
+              },
+              {
+                "x": "2026-03-31",
+                "y": 2.150748814466231
+              },
+              {
+                "x": "2026-04-01",
+                "y": 2.1843542646920877
+              },
+              {
+                "x": "2026-04-02",
+                "y": 2.217959714917945
+              },
+              {
+                "x": "2026-04-03",
+                "y": 2.251565165144375
+              },
+              {
+                "x": "2026-04-06",
+                "y": 2.285170615370232
+              },
+              {
+                "x": "2026-04-07",
+                "y": 2.3187760655960723
+              },
+              {
+                "x": "2026-04-08",
+                "y": 2.3523815158219294
+              },
+              {
+                "x": "2026-04-09",
+                "y": 2.3859869660483763
+              },
+              {
+                "x": "2026-04-10",
+                "y": 2.4195924162742166
+              },
+              {
+                "x": "2026-04-13",
+                "y": 2.4531978665000738
+              },
+              {
+                "x": "2026-04-14",
+                "y": 2.486803316726521
+              },
+              {
+                "x": "2026-04-15",
+                "y": 2.520408766952361
+              },
+              {
+                "x": "2026-04-16",
+                "y": 2.554014217178218
+              },
+              {
+                "x": "2026-04-17",
+                "y": 2.587619667404648
+              },
+              {
+                "x": "2026-04-20",
+                "y": 2.6212251176305053
+              },
+              {
+                "x": "2026-04-21",
+                "y": 2.6548305678563624
+              },
+              {
+                "x": "2026-04-22",
+                "y": 2.6884360180827924
+              },
+              {
+                "x": "2026-04-23",
+                "y": 2.7220414683086496
+              },
+              {
+                "x": "2026-04-24",
+                "y": 2.75564691853449
+              },
+              {
+                "x": "2026-04-27",
+                "y": 2.789252368760347
+              },
+              {
+                "x": "2026-04-28",
+                "y": 2.8228578189867943
+              },
+              {
+                "x": "2026-04-29",
+                "y": 2.856463269212634
+              },
+              {
+                "x": "2026-04-30",
+                "y": 2.8900687194384913
+              },
+              {
+                "x": "2026-05-01",
+                "y": 2.9236741696649213
+              },
+              {
+                "x": "2026-05-04",
+                "y": 2.9572796198907785
+              },
+              {
+                "x": "2026-05-05",
+                "y": 2.9908850701166356
+              },
+              {
+                "x": "2026-05-06",
+                "y": 3.024490520343066
+              },
+              {
+                "x": "2026-05-07",
+                "y": 3.0580959705689232
+              },
+              {
+                "x": "2026-05-08",
+                "y": 3.091701420794763
+              },
+              {
+                "x": "2026-05-11",
+                "y": 3.12530687102121
+              },
+              {
+                "x": "2026-05-12",
+                "y": 3.158912321247067
+              },
+              {
+                "x": "2026-05-13",
+                "y": 3.1925177714729074
+              },
+              {
+                "x": "2026-05-14",
+                "y": 3.2261232216987645
+              },
+              {
+                "x": "2026-05-15",
+                "y": 3.259728671925212
+              },
+              {
+                "x": "2026-05-18",
+                "y": 3.2933341221510517
+              },
+              {
+                "x": "2026-05-19",
+                "y": 3.326939572376909
+              },
+              {
+                "x": "2026-05-20",
+                "y": 3.360545022603339
+              },
+              {
+                "x": "2026-05-21",
+                "y": 3.394150472829196
+              },
+              {
+                "x": "2026-05-22",
+                "y": 3.4277559230550527
+              },
+              {
+                "x": "2026-05-25",
+                "y": 3.461361373281483
+              },
+              {
+                "x": "2026-05-26",
+                "y": 3.494966823507341
+              },
+              {
+                "x": "2026-05-27",
+                "y": 3.5285722737331806
+              },
+              {
+                "x": "2026-05-28",
+                "y": 3.5621777239590378
+              },
+              {
+                "x": "2026-05-29",
+                "y": 3.595783174185485
+              },
+              {
+                "x": "2026-06-01",
+                "y": 3.629388624411325
+              },
+              {
+                "x": "2026-06-02",
+                "y": 3.6629940746371816
+              },
+              {
+                "x": "2026-06-03",
+                "y": 3.696599524863612
+              },
+              {
+                "x": "2026-06-04",
+                "y": 3.7302049750894692
+              },
+              {
+                "x": "2026-06-05",
+                "y": 3.763810425315327
+              },
+              {
+                "x": "2026-06-08",
+                "y": 3.797415875541757
+              },
+              {
+                "x": "2026-06-09",
+                "y": 3.831021325767614
+              },
+              {
+                "x": "2026-06-10",
+                "y": 3.864626775993454
+              },
+              {
+                "x": "2026-06-11",
+                "y": 3.898232226219901
+              },
+              {
+                "x": "2026-06-12",
+                "y": 3.9318376764457583
+              },
+              {
+                "x": "2026-06-15",
+                "y": 3.965443126671598
+              },
+              {
+                "x": "2026-06-16",
+                "y": 3.999048576897455
+              },
+              {
+                "x": "2026-06-17",
+                "y": 4.032654027123902
+              },
+              {
+                "x": "2026-06-18",
+                "y": 4.0662594773497425
+              },
+              {
+                "x": "2026-06-19",
+                "y": 4.0998649275756
+              },
+              {
+                "x": "2026-06-22",
+                "y": 4.1334703778020305
+              },
+              {
+                "x": "2026-06-23",
+                "y": 4.167075828027887
+              },
+              {
+                "x": "2026-06-24",
+                "y": 4.200681278253744
+              },
+              {
+                "x": "2026-06-25",
+                "y": 4.234286728480175
+              },
+              {
+                "x": "2026-06-26",
+                "y": 4.267892178706031
+              },
+              {
+                "x": "2026-06-29",
+                "y": 4.301497628931871
+              },
+              {
+                "x": "2026-06-30",
+                "y": 4.335103079158318
+              },
+              {
+                "x": "2026-07-01",
+                "y": 4.368708529384175
+              },
+              {
+                "x": "2026-07-02",
+                "y": 4.402313979610016
+              },
+              {
+                "x": "2026-07-03",
+                "y": 4.435919429835873
+              },
+              {
+                "x": "2026-07-06",
+                "y": 4.469524880062304
+              },
+              {
+                "x": "2026-07-07",
+                "y": 4.50313033028816
+              },
+              {
+                "x": "2026-07-08",
+                "y": 4.536735780514017
+              },
+              {
+                "x": "2026-07-09",
+                "y": 4.570341230740447
+              },
+              {
+                "x": "2026-07-10",
+                "y": 4.603946680966304
+              },
+              {
+                "x": "2026-07-13",
+                "y": 4.637552131192145
+              },
+              {
+                "x": "2026-07-14",
+                "y": 4.6711575814185915
+              },
+              {
+                "x": "2026-07-15",
+                "y": 4.704763031644449
+              },
+              {
+                "x": "2026-07-16",
+                "y": 4.738368481870289
+              },
+              {
+                "x": "2026-07-17",
+                "y": 4.771973932096736
+              },
+              {
+                "x": "2026-07-20",
+                "y": 4.805579382322593
+              },
+              {
+                "x": "2026-07-21",
+                "y": 4.839184832548433
+              },
+              {
+                "x": "2026-07-22",
+                "y": 4.87279028277429
+              },
+              {
+                "x": "2026-07-23",
+                "y": 4.90639573300072
+              },
+              {
+                "x": "2026-07-24",
+                "y": 4.9400011832265776
+              },
+              {
+                "x": "2026-07-27",
+                "y": 4.973606633452435
+              },
+              {
+                "x": "2026-07-28",
+                "y": 5.007212083678865
+              },
+              {
+                "x": "2026-07-29",
+                "y": 5.040817533904722
+              },
+              {
+                "x": "2026-07-30",
+                "y": 5.074422984130562
+              },
+              {
+                "x": "2026-07-31",
+                "y": 5.108028434357009
+              },
+              {
+                "x": "2026-08-03",
+                "y": 5.141633884582866
+              },
+              {
+                "x": "2026-08-04",
+                "y": 5.1752393348087065
+              },
+              {
+                "x": "2026-08-05",
+                "y": 5.208844785034564
+              },
+              {
+                "x": "2026-08-06",
+                "y": 5.242450235260994
+              },
+              {
+                "x": "2026-08-07",
+                "y": 5.276055685486851
+              },
+              {
+                "x": "2026-08-10",
+                "y": 5.309661135712708
+              },
+              {
+                "x": "2026-08-11",
+                "y": 5.343266585939138
+              },
+              {
+                "x": "2026-08-12",
+                "y": 5.376872036164995
+              },
+              {
+                "x": "2026-08-13",
+                "y": 5.410477486390835
+              },
+              {
+                "x": "2026-08-14",
+                "y": 5.444082936617282
+              },
+              {
+                "x": "2026-08-17",
+                "y": 5.477688386843139
+              },
+              {
+                "x": "2026-08-18",
+                "y": 5.51129383706898
+              },
+              {
+                "x": "2026-08-19",
+                "y": 5.544899287295427
+              },
+              {
+                "x": "2026-08-20",
+                "y": 5.578504737521284
+              },
+              {
+                "x": "2026-08-21",
+                "y": 5.612110187747124
+              },
+              {
+                "x": "2026-08-24",
+                "y": 5.645715637972981
+              },
+              {
+                "x": "2026-08-25",
+                "y": 5.679321088199411
+              },
+              {
+                "x": "2026-08-26",
+                "y": 5.712926538425268
+              },
+              {
+                "x": "2026-08-27",
+                "y": 5.7465319886511255
+              },
+              {
+                "x": "2026-08-28",
+                "y": 5.7801374388775555
+              },
+              {
+                "x": "2026-08-31",
+                "y": 5.813742889103413
+              }
+            ]
+          },
+          {
+            "name": "AMD",
+            "unit": "%",
+            "points": [
+              {
+                "x": "2025-12-31",
+                "y": 0
+              },
+              {
+                "x": "2026-01-01",
+                "y": 0.018307584610042272
+              },
+              {
+                "x": "2026-01-02",
+                "y": 0.03661516922010261
+              },
+              {
+                "x": "2026-01-05",
+                "y": 0.054922753830144874
+              },
+              {
+                "x": "2026-01-06",
+                "y": 0.07323033844018714
+              },
+              {
+                "x": "2026-01-07",
+                "y": 0.09153792305086174
+              },
+              {
+                "x": "2026-01-08",
+                "y": 0.10984550766090402
+              },
+              {
+                "x": "2026-01-09",
+                "y": 0.1281530922709463
+              },
+              {
+                "x": "2026-01-12",
+                "y": 0.14646067688098854
+              },
+              {
+                "x": "2026-01-13",
+                "y": 0.1647682614910489
+              },
+              {
+                "x": "2026-01-14",
+                "y": 0.18307584610109115
+              },
+              {
+                "x": "2026-01-15",
+                "y": 0.20138343071176576
+              },
+              {
+                "x": "2026-01-16",
+                "y": 0.21969101532180804
+              },
+              {
+                "x": "2026-01-19",
+                "y": 0.23799859993185032
+              },
+              {
+                "x": "2026-01-20",
+                "y": 0.2563061845418926
+              },
+              {
+                "x": "2026-01-21",
+                "y": 0.27461376915193486
+              },
+              {
+                "x": "2026-01-22",
+                "y": 0.2929213537619952
+              },
+              {
+                "x": "2026-01-23",
+                "y": 0.3112289383726698
+              },
+              {
+                "x": "2026-01-26",
+                "y": 0.3295365229827121
+              },
+              {
+                "x": "2026-01-27",
+                "y": 0.3478441075927543
+              },
+              {
+                "x": "2026-01-28",
+                "y": 0.3661516922027966
+              },
+              {
+                "x": "2026-01-29",
+                "y": 0.38445927681283887
+              },
+              {
+                "x": "2026-01-30",
+                "y": 0.4027668614228811
+              },
+              {
+                "x": "2026-02-02",
+                "y": 0.4210744460335738
+              },
+              {
+                "x": "2026-02-03",
+                "y": 0.4393820306436161
+              },
+              {
+                "x": "2026-02-04",
+                "y": 0.45768961525365837
+              },
+              {
+                "x": "2026-02-05",
+                "y": 0.47599719986370065
+              },
+              {
+                "x": "2026-02-06",
+                "y": 0.4943047844737428
+              },
+              {
+                "x": "2026-02-09",
+                "y": 0.5126123690837852
+              },
+              {
+                "x": "2026-02-10",
+                "y": 0.5309199536938274
+              },
+              {
+                "x": "2026-02-11",
+                "y": 0.5492275383045201
+              },
+              {
+                "x": "2026-02-12",
+                "y": 0.5675351229145624
+              },
+              {
+                "x": "2026-02-13",
+                "y": 0.5858427075246047
+              },
+              {
+                "x": "2026-02-16",
+                "y": 0.6041502921346469
+              },
+              {
+                "x": "2026-02-17",
+                "y": 0.6224578767446891
+              },
+              {
+                "x": "2026-02-18",
+                "y": 0.6407654613547314
+              },
+              {
+                "x": "2026-02-19",
+                "y": 0.6590730459654242
+              },
+              {
+                "x": "2026-02-20",
+                "y": 0.6773806305754664
+              },
+              {
+                "x": "2026-02-23",
+                "y": 0.6956882151855086
+              },
+              {
+                "x": "2026-02-24",
+                "y": 0.7139957997955508
+              },
+              {
+                "x": "2026-02-25",
+                "y": 0.7323033844055932
+              },
+              {
+                "x": "2026-02-26",
+                "y": 0.7506109690156354
+              },
+              {
+                "x": "2026-02-27",
+                "y": 0.7689185536263281
+              },
+              {
+                "x": "2026-03-02",
+                "y": 0.7872261382363703
+              },
+              {
+                "x": "2026-03-03",
+                "y": 0.8055337228464127
+              },
+              {
+                "x": "2026-03-04",
+                "y": 0.8238413074564549
+              },
+              {
+                "x": "2026-03-05",
+                "y": 0.8421488920664972
+              },
+              {
+                "x": "2026-03-06",
+                "y": 0.8604564766765395
+              },
+              {
+                "x": "2026-03-09",
+                "y": 0.8787640612872141
+              },
+              {
+                "x": "2026-03-10",
+                "y": 0.8970716458972744
+              },
+              {
+                "x": "2026-03-11",
+                "y": 0.9153792305073167
+              },
+              {
+                "x": "2026-03-12",
+                "y": 0.933686815117359
+              },
+              {
+                "x": "2026-03-13",
+                "y": 0.9519943997274013
+              },
+              {
+                "x": "2026-03-16",
+                "y": 0.9703019843374435
+              },
+              {
+                "x": "2026-03-17",
+                "y": 0.9886095689481181
+              },
+              {
+                "x": "2026-03-18",
+                "y": 1.0069171535581602
+              },
+              {
+                "x": "2026-03-19",
+                "y": 1.0252247381682207
+              },
+              {
+                "x": "2026-03-20",
+                "y": 1.043532322778263
+              },
+              {
+                "x": "2026-03-23",
+                "y": 1.0618399073883054
+              },
+              {
+                "x": "2026-03-24",
+                "y": 1.0801474919983476
+              },
+              {
+                "x": "2026-03-25",
+                "y": 1.0984550766090222
+              },
+              {
+                "x": "2026-03-26",
+                "y": 1.1167626612190644
+              },
+              {
+                "x": "2026-03-27",
+                "y": 1.1350702458291066
+              },
+              {
+                "x": "2026-03-30",
+                "y": 1.1533778304391669
+              },
+              {
+                "x": "2026-03-31",
+                "y": 1.1716854150492093
+              },
+              {
+                "x": "2026-04-01",
+                "y": 1.1899929996592515
+              },
+              {
+                "x": "2026-04-02",
+                "y": 1.2083005842699261
+              },
+              {
+                "x": "2026-04-03",
+                "y": 1.2266081688799684
+              },
+              {
+                "x": "2026-04-06",
+                "y": 1.2449157534900106
+              },
+              {
+                "x": "2026-04-07",
+                "y": 1.2632233381000528
+              },
+              {
+                "x": "2026-04-08",
+                "y": 1.2815309227101133
+              },
+              {
+                "x": "2026-04-09",
+                "y": 1.2998385073201555
+              },
+              {
+                "x": "2026-04-10",
+                "y": 1.31814609193083
+              },
+              {
+                "x": "2026-04-13",
+                "y": 1.3364536765408723
+              },
+              {
+                "x": "2026-04-14",
+                "y": 1.3547612611509146
+              },
+              {
+                "x": "2026-04-15",
+                "y": 1.373068845760957
+              },
+              {
+                "x": "2026-04-16",
+                "y": 1.3913764303709992
+              },
+              {
+                "x": "2026-04-17",
+                "y": 1.4096840149810597
+              },
+              {
+                "x": "2026-04-20",
+                "y": 1.4279915995911017
+              },
+              {
+                "x": "2026-04-21",
+                "y": 1.4462991842017765
+              },
+              {
+                "x": "2026-04-22",
+                "y": 1.4646067688118185
+              },
+              {
+                "x": "2026-04-23",
+                "y": 1.482914353421861
+              },
+              {
+                "x": "2026-04-24",
+                "y": 1.5012219380319032
+              },
+              {
+                "x": "2026-04-27",
+                "y": 1.5195295226419456
+              },
+              {
+                "x": "2026-04-28",
+                "y": 1.5378371072520058
+              },
+              {
+                "x": "2026-04-29",
+                "y": 1.5561446918626805
+              },
+              {
+                "x": "2026-04-30",
+                "y": 1.5744522764727227
+              },
+              {
+                "x": "2026-05-01",
+                "y": 1.592759861082765
+              },
+              {
+                "x": "2026-05-04",
+                "y": 1.6110674456928074
+              },
+              {
+                "x": "2026-05-05",
+                "y": 1.6293750303028494
+              },
+              {
+                "x": "2026-05-06",
+                "y": 1.6476826149128918
+              },
+              {
+                "x": "2026-05-07",
+                "y": 1.6659901995235842
+              },
+              {
+                "x": "2026-05-08",
+                "y": 1.6842977841336266
+              },
+              {
+                "x": "2026-05-11",
+                "y": 1.702605368743669
+              },
+              {
+                "x": "2026-05-12",
+                "y": 1.7209129533537113
+              },
+              {
+                "x": "2026-05-13",
+                "y": 1.7392205379637533
+              },
+              {
+                "x": "2026-05-14",
+                "y": 1.7575281225737958
+              },
+              {
+                "x": "2026-05-15",
+                "y": 1.7758357071844884
+              },
+              {
+                "x": "2026-05-18",
+                "y": 1.7941432917945306
+              },
+              {
+                "x": "2026-05-19",
+                "y": 1.812450876404573
+              },
+              {
+                "x": "2026-05-20",
+                "y": 1.8307584610146155
+              },
+              {
+                "x": "2026-05-21",
+                "y": 1.8490660456246575
+              },
+              {
+                "x": "2026-05-22",
+                "y": 1.8673736302346997
+              },
+              {
+                "x": "2026-05-25",
+                "y": 1.8856812148453743
+              },
+              {
+                "x": "2026-05-26",
+                "y": 1.9039887994554348
+              },
+              {
+                "x": "2026-05-27",
+                "y": 1.922296384065477
+              },
+              {
+                "x": "2026-05-28",
+                "y": 1.9406039686755194
+              },
+              {
+                "x": "2026-05-29",
+                "y": 1.9589115532855614
+              },
+              {
+                "x": "2026-06-01",
+                "y": 1.9772191378956039
+              },
+              {
+                "x": "2026-06-02",
+                "y": 1.9955267225062783
+              },
+              {
+                "x": "2026-06-03",
+                "y": 2.0138343071163205
+              },
+              {
+                "x": "2026-06-04",
+                "y": 2.032141891726381
+              },
+              {
+                "x": "2026-06-05",
+                "y": 2.0504494763364236
+              },
+              {
+                "x": "2026-06-08",
+                "y": 2.0687570609464654
+              },
+              {
+                "x": "2026-06-09",
+                "y": 2.0870646455565076
+              },
+              {
+                "x": "2026-06-10",
+                "y": 2.1053722301671822
+              },
+              {
+                "x": "2026-06-11",
+                "y": 2.123679814777225
+              },
+              {
+                "x": "2026-06-12",
+                "y": 2.141987399387267
+              },
+              {
+                "x": "2026-06-15",
+                "y": 2.1602949839973276
+              },
+              {
+                "x": "2026-06-16",
+                "y": 2.1786025686073693
+              },
+              {
+                "x": "2026-06-17",
+                "y": 2.196910153217412
+              },
+              {
+                "x": "2026-06-18",
+                "y": 2.215217737828086
+              },
+              {
+                "x": "2026-06-19",
+                "y": 2.233525322438129
+              },
+              {
+                "x": "2026-06-22",
+                "y": 2.251832907048171
+              },
+              {
+                "x": "2026-06-23",
+                "y": 2.2701404916582133
+              },
+              {
+                "x": "2026-06-24",
+                "y": 2.2884480762682733
+              },
+              {
+                "x": "2026-06-25",
+                "y": 2.306755660878316
+              },
+              {
+                "x": "2026-06-26",
+                "y": 2.325063245488358
+              },
+              {
+                "x": "2026-06-29",
+                "y": 2.343370830099033
+              },
+              {
+                "x": "2026-06-30",
+                "y": 2.361678414709075
+              },
+              {
+                "x": "2026-07-01",
+                "y": 2.3799859993191173
+              },
+              {
+                "x": "2026-07-02",
+                "y": 2.3982935839291595
+              },
+              {
+                "x": "2026-07-03",
+                "y": 2.41660116853922
+              },
+              {
+                "x": "2026-07-06",
+                "y": 2.434908753149262
+              },
+              {
+                "x": "2026-07-07",
+                "y": 2.4532163377599367
+              },
+              {
+                "x": "2026-07-08",
+                "y": 2.471523922369979
+              },
+              {
+                "x": "2026-07-09",
+                "y": 2.489831506980021
+              },
+              {
+                "x": "2026-07-10",
+                "y": 2.5081390915900634
+              },
+              {
+                "x": "2026-07-13",
+                "y": 2.5264466762001057
+              },
+              {
+                "x": "2026-07-14",
+                "y": 2.544754260810166
+              },
+              {
+                "x": "2026-07-15",
+                "y": 2.5630618454208407
+              },
+              {
+                "x": "2026-07-16",
+                "y": 2.5813694300308834
+              },
+              {
+                "x": "2026-07-17",
+                "y": 2.599677014640925
+              },
+              {
+                "x": "2026-07-20",
+                "y": 2.6179845992509674
+              },
+              {
+                "x": "2026-07-21",
+                "y": 2.63629218386101
+              },
+              {
+                "x": "2026-07-22",
+                "y": 2.6545997684710523
+              },
+              {
+                "x": "2026-07-23",
+                "y": 2.6729073530817447
+              },
+              {
+                "x": "2026-07-24",
+                "y": 2.6912149376917873
+              },
+              {
+                "x": "2026-07-27",
+                "y": 2.709522522301829
+              },
+              {
+                "x": "2026-07-28",
+                "y": 2.7278301069118713
+              },
+              {
+                "x": "2026-07-29",
+                "y": 2.746137691521914
+              },
+              {
+                "x": "2026-07-30",
+                "y": 2.7644452761319562
+              },
+              {
+                "x": "2026-07-31",
+                "y": 2.782752860742649
+              },
+              {
+                "x": "2026-08-03",
+                "y": 2.8010604453526913
+              },
+              {
+                "x": "2026-08-04",
+                "y": 2.819368029962733
+              },
+              {
+                "x": "2026-08-05",
+                "y": 2.8376756145727757
+              },
+              {
+                "x": "2026-08-06",
+                "y": 2.855983199182818
+              },
+              {
+                "x": "2026-08-07",
+                "y": 2.87429078379286
+              },
+              {
+                "x": "2026-08-10",
+                "y": 2.892598368403535
+              },
+              {
+                "x": "2026-08-11",
+                "y": 2.9109059530135952
+              },
+              {
+                "x": "2026-08-12",
+                "y": 2.929213537623637
+              },
+              {
+                "x": "2026-08-13",
+                "y": 2.9475211222336797
+              },
+              {
+                "x": "2026-08-14",
+                "y": 2.965828706843722
+              },
+              {
+                "x": "2026-08-17",
+                "y": 2.984136291453764
+              },
+              {
+                "x": "2026-08-18",
+                "y": 3.0024438760644387
+              },
+              {
+                "x": "2026-08-19",
+                "y": 3.0207514606744814
+              },
+              {
+                "x": "2026-08-20",
+                "y": 3.0390590452845414
+              },
+              {
+                "x": "2026-08-21",
+                "y": 3.0573666298945836
+              },
+              {
+                "x": "2026-08-24",
+                "y": 3.075674214504626
+              },
+              {
+                "x": "2026-08-25",
+                "y": 3.0939817991146685
+              },
+              {
+                "x": "2026-08-26",
+                "y": 3.1122893837253427
+              },
+              {
+                "x": "2026-08-27",
+                "y": 3.130596968335385
+              },
+              {
+                "x": "2026-08-28",
+                "y": 3.148904552945427
+              },
+              {
+                "x": "2026-08-31",
+                "y": 3.1672121375554876
+              }
+            ]
+          }
+        ],
+        "provenance_series_specs": [
+          {
+            "series_ref": "fb533c63-ff84-4329-8328-1c231f019f6b",
+            "source_id": "00000000-0000-4000-a000-000000000009",
+            "listing_id": "62000000-0000-4000-8000-000000000001",
+            "bar_range_id": "c003b0ae-1387-4f7c-9fef-62746b055c0d",
+            "bars_sha256": "a0ede3b2dcbd81e60667b22efb9b16aeb4e3b005ce2c0106cdc95f2b0dfb7bf1",
+            "interval": "1d",
+            "adjustment_basis": "split_adjusted",
+            "normalization": "pct_return",
+            "delay_class": "eod",
+            "range": {
+              "start": "2025-12-01T05:00:00.000Z",
+              "end": "2026-09-01T00:00:00.000Z"
+            },
+            "window": {
+              "kind": "ytd",
+              "year": 2026,
+              "baseline_date": "2025-12-31",
+              "end_date": "2026-08-31"
+            },
+            "as_of": "2026-09-01T00:00:00.000Z"
+          },
+          {
+            "series_ref": "5bc76349-361c-4885-8425-19c48f4c2517",
+            "source_id": "00000000-0000-4000-a000-000000000009",
+            "listing_id": "62000000-0000-4000-8000-000000000002",
+            "bar_range_id": "fdebd196-34ad-41f4-a6b8-b83b45dffc3f",
+            "bars_sha256": "a51f7243d97aa720707c3908b078014d65fd92d913acbcc78626b18733e1d9bd",
+            "interval": "1d",
+            "adjustment_basis": "split_adjusted",
+            "normalization": "pct_return",
+            "delay_class": "eod",
+            "range": {
+              "start": "2025-12-01T05:00:00.000Z",
+              "end": "2026-09-01T00:00:00.000Z"
+            },
+            "window": {
+              "kind": "ytd",
+              "year": 2026,
+              "baseline_date": "2025-12-31",
+              "end_date": "2026-08-31"
+            },
+            "as_of": "2026-09-01T00:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "required-disclosures",
+        "kind": "disclosure",
+        "snapshot_id": "1a0b612b-e7b3-497a-8da7-09654288d91e",
+        "data_ref": {
+          "kind": "disclosure_policy",
+          "id": "required"
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000009"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "disclosure_tier": "eod",
+        "items": [
+          "Market prices use end-of-day data as of 2026-09-01T00:00:00.000Z; intraday moves may not be reflected.",
+          "Returns are split-adjusted price returns; dividends are not included, so they are not total returns."
+        ]
+      }
+    ],
+    "subjectLabels": [
+      "NVDA",
+      "AMD"
+    ],
+    "conversation": [
+      {
+        "role": "user",
+        "text": "Analyze NVDA."
+      },
+      {
+        "role": "assistant",
+        "text": "NVDA delivered a strong latest quarter with revenue of $62.1B and net income of $35.4B for Q4 2026 (period ending January 2026), supported by margins well above typical semiconductor levels. The company continues to grow rapidly on a year-over-year basis, though the sequential pace has moderated.\n\nRevenue rose in every quarter shown across the eight-quarter window from Q1 2025 (period ending April 2024) through Q4 2026 (period ending January 2026). NVDA's revenue moved from $26.0B to $62.1B over that span, with no quarter showing a decline.\n\nProfitability is the standout. NVDA's gross margin of 74.4%, operating margin of 64.9%, and net margin of 57.0% for Q4 2026 are all exceptionally high. YoY revenue growth of 57.9% confirms the top-line expansion remains robust. The sequential growth rate of 8.9% for Q4 2026 is the figure to watch: it is positive but modest relative to the YoY rate, indicating the base is now large enough that even strong absolute gains translate into smaller percentage steps.\n\nA counterpoint grounded in the data: NVDA's QoQ revenue growth of 8.9% in Q4 2026 is notably lower than the YoY growth of 57.9% in the same period, which signals that the rate of sequential acceleration is slowing even as the year-over-year comparison remains favorable. This is consistent with a maturing growth curve rather than a collapse, but it does temper the narrative of unbounded expansion.\n\nThe data shown cannot tell us segment-level detail (such as data-center versus gaming revenue), cash flow, capital expenditure, balance-sheet position, or forward guidance. There is no prior-year quarterly breakdown beyond the single YoY growth figure, so quarter-by-quarter YoY comparisons are not available. No claims or management commentary were provided, so no management attribution can be offered."
+      },
+      {
+        "role": "user",
+        "text": "Compare it with AMD YTD."
+      },
+      {
+        "role": "assistant",
+        "text": "NVDA has outperformed AMD year-to-date in 2026 on both stock price and every fundamental metric shown. NVDA's YTD price return of 5.81% (Dec 2025 close through Aug 2026 close) exceeds AMD's 3.17% over the same window, and NVDA's full-year revenue, margins, and growth rate are all higher than AMD's.\n\nOnly one fiscal-year period is shown for each company, so there is no multi-period trend to trace. NVDA's FY2026 (ended January 2026) and AMD's FY2025 (ended December 2025) cover roughly the same calendar span but end about one month apart.\n\nNVDA is the stronger performer across every metric displayed. NVDA's revenue of $209.9B for FY2026 (ended January 2026) is far above AMD's $34.7B for FY2025 (ended December 2025). NVDA's gross margin of 70.8% and net margin of 53.6% for FY2026 are both higher than AMD's 49.9% gross margin and 12.0% net margin for FY2025. NVDA's YoY revenue growth of 60.9% for FY2026 also exceeds AMD's 34.5% for FY2025. On price, NVDA's YTD return of 5.81% is higher than AMD's 3.17%.\n\nA counterpoint: AMD's YoY revenue growth of 34.5% for FY2025 (ended December 2025) is still robust in absolute terms, and a management claim from August 2025 attributes roughly $800 million in inventory and related charges to U.S. export controls on AMD's MI308 data center GPU products, suggesting a specific regulatory headwind that depressed AMD's results rather than a broad competitive failure.\n\nThe data shown cannot tell us quarterly trajectories within the fiscal year, segment-level revenue breakdowns, cash flow, capital expenditure, balance-sheet health, or forward guidance for either company. No prior-year fiscal-year figures are shown for direct year-over-year margin comparison beyond the single growth-rate metric."
+      },
+      {
+        "role": "user",
+        "text": "Explain the differences and show the evidence."
+      }
+    ],
+    "availableData": true,
+    "scope": {
+      "route": "evidence_followup",
+      "reads": "comparison",
+      "companies": [
+        {
+          "label": "NVDA",
+          "issuer_id": "60000000-0000-4000-8000-000000000001"
+        },
+        {
+          "label": "AMD",
+          "issuer_id": "60000000-0000-4000-8000-000000000002"
+        }
+      ],
+      "peers": false,
+      "segments": false,
+      "margin_trend": false,
+      "margins": false,
+      "metrics": [],
+      "fiscal_year": null,
+      "fiscal_quarter": null,
+      "price_window": {
+        "kind": "ytd",
+        "cutoff": "2026-09-01T00:00:00.000Z"
+      },
+      "benchmark": false,
+      "explains": true,
+      "inherited": [
+        "price_window"
+      ]
+    },
+    "cutoff": "2026-09-01T00:00:00.000Z"
+  },
+  "assertion_rendering": false,
+  "exchange": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Quote a figure only exactly as it appears there, in a sentence that names its company exactly as given in company (e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\", and never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
+      },
+      {
+        "role": "user",
+        "content": "{\"question\":\"Explain the differences and show the evidence.\",\"conversation\":[{\"role\":\"user\",\"text\":\"Analyze NVDA.\"},{\"role\":\"assistant\",\"text\":\"NVDA delivered a strong latest quarter with revenue of $62.1B and net income of $35.4B for Q4 2026 (period ending January 2026), supported by margins well above typical semiconductor levels. The company continues to grow rapidly on a year-over-year basis, though the sequential pace has moderated.\\n\\nRevenue rose in every quarter shown across the eight-quarter window from Q1 2025 (period ending April 2024) through Q4 2026 (period ending January 2026). NVDA's revenue moved from $26.0B to $62.1B over that span, with no quarter showing a decline.\\n\\nProfitability is the standout. NVDA's gross margin of 74.4%, operating margin of 64.9%, and net margin of 57.0% for Q4 2026 are all exceptionally high. YoY revenue growth of 57.9% confirms the top-line expansion remains robust. The sequential growth rate of 8.9% for Q4 2026 is the figure to watch: it is positive but modest relative to the YoY rate, indicating the base is now large enough that even strong absolute gains translate into smaller percentage steps.\\n\\nA counterpoint grounded in the data: NVDA's QoQ revenue growth of 8.9% in Q4 2026 is notably lower than the YoY growth of 57.9% in the same period, which signals that the rate of sequential acceleration is slowing even as the year-over-year comparison remains favorable. This is consistent with a maturing growth curve rather than a collapse, but it does temper the narrative of unbounded expansion.\\n\\nThe data shown cannot tell us segment-level detail (such as data-center versus gaming revenue), cash flow, capital expenditure, balance-sheet position, or forward guidance. There is no prior-year quarterly breakdown beyond the single YoY growth figure, so quarter-by-quarter YoY comparisons are not available. No claims or management commentary were provided, so no management attribution can be offered.\"},{\"role\":\"user\",\"text\":\"Compare it with AMD YTD.\"},{\"role\":\"assistant\",\"text\":\"NVDA has outperformed AMD year-to-date in 2026 on both stock price and every fundamental metric shown. NVDA's YTD price return of 5.81% (Dec 2025 close through Aug 2026 close) exceeds AMD's 3.17% over the same window, and NVDA's full-year revenue, margins, and growth rate are all higher than AMD's.\\n\\nOnly one fiscal-year period is shown for each company, so there is no multi-period trend to trace. NVDA's FY2026 (ended January 2026) and AMD's FY2025 (ended December 2025) cover roughly the same calendar span but end about one month apart.\\n\\nNVDA is the stronger performer across every metric displayed. NVDA's revenue of $209.9B for FY2026 (ended January 2026) is far above AMD's $34.7B for FY2025 (ended December 2025). NVDA's gross margin of 70.8% and net margin of 53.6% for FY2026 are both higher than AMD's 49.9% gross margin and 12.0% net margin for FY2025. NVDA's YoY revenue growth of 60.9% for FY2026 also exceeds AMD's 34.5% for FY2025. On price, NVDA's YTD return of 5.81% is higher than AMD's 3.17%.\\n\\nA counterpoint: AMD's YoY revenue growth of 34.5% for FY2025 (ended December 2025) is still robust in absolute terms, and a management claim from August 2025 attributes roughly $800 million in inventory and related charges to U.S. export controls on AMD's MI308 data center GPU products, suggesting a specific regulatory headwind that depressed AMD's results rather than a broad competitive failure.\\n\\nThe data shown cannot tell us quarterly trajectories within the fiscal year, segment-level revenue breakdowns, cash flow, capital expenditure, balance-sheet health, or forward guidance for either company. No prior-year fiscal-year figures are shown for direct year-over-year margin comparison beyond the single growth-rate metric.\"},{\"role\":\"user\",\"text\":\"Explain the differences and show the evidence.\"}],\"evidence_packet\":{\"route\":\"evidence_followup\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"company\":\"NVDA\",\"metric\":\"Revenue\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"$209.9B\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F2\",\"company\":\"NVDA\",\"metric\":\"Gross Margin\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"70.8%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F3\",\"company\":\"NVDA\",\"metric\":\"Net Margin\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"53.6%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F4\",\"company\":\"NVDA\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"60.9%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F5\",\"company\":\"AMD\",\"metric\":\"Revenue\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"$34.7B\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F6\",\"company\":\"AMD\",\"metric\":\"Gross Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"49.9%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F7\",\"company\":\"AMD\",\"metric\":\"Net Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"12.0%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F8\",\"company\":\"AMD\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"34.5%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F9\",\"company\":\"NVDA\",\"metric\":\"Price return\",\"period\":\"YTD 2026: 2025-12-31 close to 2026-08-31 close\",\"value\":\"5.81%\",\"shown_in\":\"Price return YTD 2026 (split-adjusted, excluding dividends)\"},{\"id\":\"F10\",\"company\":\"AMD\",\"metric\":\"Price return\",\"period\":\"YTD 2026: 2025-12-31 close to 2026-08-31 close\",\"value\":\"3.17%\",\"shown_in\":\"Price return YTD 2026 (split-adjusted, excluding dividends)\"}],\"coverage\":[{\"company\":\"NVDA\",\"status\":\"shown\"},{\"company\":\"AMD\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"latest fiscal year per company\",\"price_window\":\"year to date, to the 2026-09-01 cutoff\",\"claims\":\"management, guidance, kpi, and material_event claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"claims\":[{\"id\":\"C1\",\"text\":\"As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\",\"predicate\":\"kpi.commentary\",\"stance\":\"challenging\",\"company\":\"AMD\",\"effective_time\":\"2025-06-28T00:00:00.000Z\",\"published_at\":\"2025-08-05T00:00:00.000Z\"}],\"staleness\":{\"quote\":[{\"ticker\":\"NVDA\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"FY\",\"age_days\":0,\"stale\":false}]}}}"
+      }
+    ],
+    "text": "NVDA leads AMD on every metric shown for their respective latest fiscal years and year-to-date price performance. The gap is widest in profitability, where NVDA's margins are substantially higher than AMD's.\n\nOnly one fiscal-year period is shown per company, so there is no multi-period trend to trace. NVDA's FY2026 ended in January 2026 and AMD's FY2025 ended in December 2025; the same fiscal year covers different months for each company, ending about one month apart.\n\nNVDA is stronger on every dimension displayed. NVDA's revenue of $209.9B for FY2026 (ended January 2026) is higher than AMD's revenue of $34.7B for FY2025 (ended December 2025). NVDA's gross margin of 70.8% for FY2026 (ended January 2026) is higher than AMD's gross margin of 49.9% for FY2025 (ended December 2025). NVDA's net margin of 53.6% for FY2026 (ended January 2026) is higher than AMD's net margin of 12.0% for FY2025 (ended December 2025). NVDA's YoY revenue growth of 60.9% for FY2026 (ended January 2026) is higher than AMD's YoY revenue growth of 34.5% for FY2025 (ended December 2025). On price, NVDA's YTD return of 5.81% (December 2025 close through August 2026 close) is higher than AMD's YTD return of 3.17% over the same window.\n\nA counterpoint grounded in the data: AMD's YoY revenue growth of 34.5% for FY2025 (ended December 2025) is still strong in absolute terms, and a management claim published in August 2025 attributes approximately $800 million in inventory and related charges to U.S. export controls on AMD's MI308 data center GPU products, suggesting a specific regulatory headwind depressed AMD's results rather than a broad competitive shortfall.\n\nThe data shown cannot tell us quarterly trajectories within each fiscal year, segment-level revenue breakdowns, cash flow, capital expenditure, balance-sheet health, or forward guidance for either company. No prior-year fiscal-year figures are shown for direct year-over-year margin comparison beyond the single growth-rate metric.\n\n```assertions\n[\n  {\"kind\":\"comparison\",\"text\":\"NVDA's revenue for FY2026 (ended January 2026) is higher than AMD's revenue for FY2025 (ended December 2025).\",\"evidence\":[\"F1\",\"F5\"],\"op\":\"highest\",\"result\":\"F1\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's gross margin for FY2026 (ended January 2026) is higher than AMD's gross margin for FY2025 (ended December 2025).\",\"evidence\":[\"F2\",\"F6\"],\"op\":\"highest\",\"result\":\"F2\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's net margin for FY2026 (ended January 2026) is higher than AMD's net margin for FY2025 (ended December 2025).\",\"evidence\":[\"F3\",\"F7\"],\"op\":\"highest\",\"result\":\"F3\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's YoY revenue growth for FY2026 (ended January 2026) is higher than AMD's YoY revenue growth for FY2025 (ended December 2025).\",\"evidence\":[\"F4\",\"F8\"],\"op\":\"highest\",\"result\":\"F4\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's YTD 2026 price return is higher than AMD's YTD 2026 price return.\",\"evidence\":[\"F9\",\"F10\"],\"op\":\"highest\",\"result\":\"F9\"},\n  {\"kind\":\"management_attribution\",\"text\":\"AMD management stated that U.S. export controls on MI308 data center GPU products led to approximately $800 million in inventory and related charges in the quarter ended June 2025.\",\"evidence\":[\"C1\"]},\n  {\"kind\":\"analyst_inference\",\"text\":\"NVDA leads AMD on every metric shown, with the widest gap in net margin, indicating superior profitability at scale.\",\"supports\":[0,1,2,3,4]},\n  {\"kind\":\"analyst_inference\",\"text\":\"AMD's lower margins and growth may partly reflect a specific regulatory headwind rather than purely competitive weakness, given management's attribution of $800 million in charges to export controls.\",\"supports\":[5]}\n]\n```",
+    "truncated": false,
+    "deployment": "opencode-go/qwen3.8-max",
+    "latency_ms": 31841,
+    "usage": {
+      "input_tokens": 2497,
+      "output_tokens": 1525,
+      "reasoning_tokens": 453
+    }
+  },
+  "assertions": {
+    "status": "checked",
+    "accepted": [
+      {
+        "index": 0,
+        "kind": "comparison",
+        "text": "NVDA's revenue for FY2026 (ended January 2026) is higher than AMD's revenue for FY2025 (ended December 2025).",
+        "evidence": [
+          "F1",
+          "F5"
+        ],
+        "op": "highest",
+        "result": "F1"
+      },
+      {
+        "index": 1,
+        "kind": "comparison",
+        "text": "NVDA's gross margin for FY2026 (ended January 2026) is higher than AMD's gross margin for FY2025 (ended December 2025).",
+        "evidence": [
+          "F2",
+          "F6"
+        ],
+        "op": "highest",
+        "result": "F2"
+      },
+      {
+        "index": 2,
+        "kind": "comparison",
+        "text": "NVDA's net margin for FY2026 (ended January 2026) is higher than AMD's net margin for FY2025 (ended December 2025).",
+        "evidence": [
+          "F3",
+          "F7"
+        ],
+        "op": "highest",
+        "result": "F3"
+      },
+      {
+        "index": 3,
+        "kind": "comparison",
+        "text": "NVDA's YoY revenue growth for FY2026 (ended January 2026) is higher than AMD's YoY revenue growth for FY2025 (ended December 2025).",
+        "evidence": [
+          "F4",
+          "F8"
+        ],
+        "op": "highest",
+        "result": "F4"
+      },
+      {
+        "index": 4,
+        "kind": "comparison",
+        "text": "NVDA's YTD 2026 price return is higher than AMD's YTD 2026 price return.",
+        "evidence": [
+          "F9",
+          "F10"
+        ],
+        "op": "highest",
+        "result": "F9"
+      },
+      {
+        "index": 5,
+        "kind": "management_attribution",
+        "text": "AMD management stated that U.S. export controls on MI308 data center GPU products led to approximately $800 million in inventory and related charges in the quarter ended June 2025.",
+        "evidence": [
+          "C1"
+        ]
+      },
+      {
+        "index": 6,
+        "kind": "analyst_inference",
+        "text": "NVDA leads AMD on every metric shown, with the widest gap in net margin, indicating superior profitability at scale.",
+        "evidence": [],
+        "supports": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    ],
+    "rejected": [
+      {
+        "index": 7,
+        "text": "AMD's lower margins and growth may partly reflect a specific regulatory headwind rather than purely competitive weakness, given management's attribution of $800 million in charges to export controls.",
+        "reason": "an inference binds the accepted observations it rests on"
+      }
+    ]
+  },
+  "removed": [
+    "On price, NVDA's YTD return of 5.81% (December 2025 close through August 2026 close) is higher than AMD's YTD return of 3.17% over the same window."
+  ],
+  "blocks": [
+    {
+      "id": "715763ac-3c48-444d-8b14-4a570ff2f944",
+      "kind": "rich_text",
+      "snapshot_id": "1a0b612b-e7b3-497a-8da7-09654288d91e",
+      "data_ref": {
+        "kind": "rich_text",
+        "id": "715763ac-3c48-444d-8b14-4a570ff2f944"
+      },
+      "source_refs": [],
+      "as_of": "1970-01-01T00:00:00.000Z",
+      "title": "single_subject_analysis",
+      "segments": [
+        {
+          "type": "text",
+          "text": "NVDA leads AMD on every metric shown for their respective latest fiscal years and year-to-date price performance. The gap is widest in profitability, where NVDA's margins are substantially higher than AMD's.\n\nOnly one fiscal-year period is shown per company, so there is no multi-period trend to trace. NVDA's FY2026 ended in January 2026 and AMD's FY2025 ended in December 2025; the same fiscal year covers different months for each company, ending about one month apart.\n\nNVDA is stronger on every dimension displayed. NVDA's revenue of $209.9B for FY2026 (ended January 2026) is higher than AMD's revenue of $34.7B for FY2025 (ended December 2025). NVDA's gross margin of 70.8% for FY2026 (ended January 2026) is higher than AMD's gross margin of 49.9% for FY2025 (ended December 2025). NVDA's net margin of 53.6% for FY2026 (ended January 2026) is higher than AMD's net margin of 12.0% for FY2025 (ended December 2025). NVDA's YoY revenue growth of 60.9% for FY2026 (ended January 2026) is higher than AMD's YoY revenue growth of 34.5% for FY2025 (ended December 2025).\n\nA counterpoint grounded in the data: AMD's YoY revenue growth of 34.5% for FY2025 (ended December 2025) is still strong in absolute terms, and a management claim published in August 2025 attributes approximately $800 million in inventory and related charges to U.S. export controls on AMD's MI308 data center GPU products, suggesting a specific regulatory headwind depressed AMD's results rather than a broad competitive shortfall.\n\nThe data shown cannot tell us quarterly trajectories within each fiscal year, segment-level revenue breakdowns, cash flow, capital expenditure, balance-sheet health, or forward guidance for either company. No prior-year fiscal-year figures are shown for direct year-over-year margin comparison beyond the single growth-rate metric."
+        }
+      ]
+    }
+  ]
+}

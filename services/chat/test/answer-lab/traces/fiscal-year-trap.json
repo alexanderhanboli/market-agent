@@ -1,0 +1,2519 @@
+{
+  "version": 1,
+  "thread_id": "2b567f53-c352-431e-bbe6-bb6d4d082282",
+  "run_id": "2b85cb74-92f3-4a5f-a12a-0d260cfe5b70",
+  "turn_id": "c9a499ff-7244-4bc9-9b34-ba5815af9495",
+  "question": "Compare NVDA's and AAPL's fiscal 2025 revenue.",
+  "recorded_at": "2026-10-14T16:54:38.068Z",
+  "input": {
+    "context": {
+      "userIntent": "Compare NVDA's and AAPL's fiscal 2025 revenue.",
+      "bundleId": "single_subject_analysis"
+    },
+    "blocks": [
+      {
+        "id": "92eb5358-6204-4998-8893-81651a977a6a",
+        "kind": "rich_text",
+        "snapshot_id": "f18057eb-a0d5-41e7-855e-04cb13e6a41d",
+        "data_ref": {
+          "kind": "rich_text",
+          "id": "92eb5358-6204-4998-8893-81651a977a6a"
+        },
+        "source_refs": [],
+        "as_of": "1970-01-01T00:00:00.000Z",
+        "title": "single_subject_analysis",
+        "segments": [
+          {
+            "type": "text",
+            "text": "Compare NVDA's and AAPL's fiscal 2025 revenue.. Used get_quote from the single_subject_analysis bundle and produced snapshot-backed research blocks."
+          }
+        ]
+      }
+    ],
+    "toolCalls": [
+      {
+        "tool_call_id": "4ff4b94e-555b-4446-8939-3c00723f9957",
+        "tool_name": "get_quote",
+        "status": "ok",
+        "bundle_id": "single_subject_analysis",
+        "arguments": {
+          "query": "Compare NVDA's and AAPL's fiscal 2025 revenue.",
+          "subject_ref": {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000001"
+          }
+        },
+        "result": {
+          "kind": "local_evidence_tool_result",
+          "status": "ok",
+          "tool_name": "get_quote",
+          "arguments": {
+            "query": "Compare NVDA's and AAPL's fiscal 2025 revenue.",
+            "subject_ref": {
+              "kind": "listing",
+              "id": "62000000-0000-4000-8000-000000000001"
+            }
+          },
+          "evidence_status": "available",
+          "manifest_contribution": {
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000001"
+              },
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000003"
+              }
+            ],
+            "claim_refs": [],
+            "document_refs": [],
+            "source_ids": []
+          },
+          "structured_context": {
+            "quote": {
+              "listing_id": "62000000-0000-4000-8000-000000000001",
+              "ticker": "NVDA",
+              "provider": "golden_fixture",
+              "price": 178.4,
+              "prev_close": 176.1,
+              "change_abs": 2.3000000000000114,
+              "change_pct": 0.013060760931289106,
+              "session_state": "closed",
+              "delay_class": "eod",
+              "currency": "USD",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "source_id": "00000000-0000-4000-a000-000000000009",
+              "expires_at": "2126-09-01T00:00:00.000Z",
+              "stale": false
+            },
+            "facts": [
+              {
+                "fact_id": "02dd3996-d5c8-49dc-a8f0-122c93babca8",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 148570000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ee1bcd1d-0e42-4096-8c86-cb3dd6d480e0",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 33853000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ca438679-ee66-4666-b3f3-1198c4a5f8fa",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 41849000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "135cfa5b-ccca-489f-a917-00af512d2209",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 46200000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "42637f5c-d6cf-4a5a-b1ad-ea159deb303e",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 26668000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "379dc1b9-e0fa-4d2f-ac70-2988e20a1bb4",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 26422000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d48808d6-7f1a-46c2-830c-50b528812198",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 112507000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "a8ffd3f4-80e8-4b61-aae1-93f25fd03e7e",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 35400000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "30ecf196-a0af-47ec-a2d2-38da35b87963",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 31910000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6b639d42-31fc-42d9-8ebb-ab7ed7a6115d",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 18775000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d1a1cf3c-83c5-4ca4-914d-7432437d3982",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 28440000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "9cf90468-1af3-466b-9716-7fb0cf02495b",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 36010000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "23f38739-b262-40b5-af8b-29931a4d8bae",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 40300000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "cb59bd4e-da16-42fc-adf8-371222ed64f2",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 21638000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "30a4c061-3d08-4bfe-96ad-63846b42f4fb",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 126388000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 209911000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "7c57f46c-7952-4491-8a6a-7b70c9b629e6",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 44062000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6f69c343-4f8b-448e-9337-c398c68ee8cf",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 46743000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6e54de8f-6a2b-4a17-9860-58d815710377",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 57006000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e6aabf62-8cd3-4775-99d7-253e0cdd830a",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 62100000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "179b146e-260e-457c-a4a4-b0b407abc44c",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 20406000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "0bb7d2a2-f43d-4ab4-b432-6cc9070ca577",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 97859000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "bac8175e-8520-4a3b-879f-f423005cf7fd",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 28723000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "65f10839-49ce-42fb-9846-da071c824aef",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 26156000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              }
+            ],
+            "source_ids": [
+              "00000000-0000-4000-a000-000000000001",
+              "00000000-0000-4000-a000-000000000009"
+            ],
+            "fact_recency": {
+              "latest_as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY",
+              "age_days": 0,
+              "stale": false
+            }
+          },
+          "evidence": {
+            "claims": [],
+            "source_ids": [],
+            "document_refs": [],
+            "claim_refs": [],
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000001"
+              },
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000003"
+              }
+            ],
+            "verifier_sources": [],
+            "verifier_documents": [],
+            "verifier_claims": [],
+            "truncated": false,
+            "contradictions": []
+          }
+        }
+      }
+    ],
+    "factBlocks": [
+      {
+        "id": "a8c294b0-6d4c-4a61-8482-a33848bfe40f",
+        "kind": "metrics_comparison",
+        "snapshot_id": "f18057eb-a0d5-41e7-855e-04cb13e6a41d",
+        "data_ref": {
+          "kind": "metrics_comparison",
+          "id": "a8c294b0-6d4c-4a61-8482-a33848bfe40f",
+          "params": {
+            "fact_bindings": [
+              {
+                "fact_id": "97d0d71c-6e00-4753-96fb-4732369043c8",
+                "unit": "currency",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-01-29",
+                "period_end": "2025-01-26",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "e28d8e10-90d4-45dc-b296-3d9b8a9e363e",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-01-29",
+                "period_end": "2025-01-26",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "5909ea85-4231-4c7b-a92f-edeb4d5e3801",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-01-29",
+                "period_end": "2025-01-26",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "4fbebff7-9ac1-4eb1-bf71-10bacaadf56e",
+                "unit": "currency",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-09-29",
+                "period_end": "2025-09-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "5ec37035-e612-48f9-87e0-7091d644c83b",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-09-29",
+                "period_end": "2025-09-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "e346491c-7411-4d3e-9cfd-844d96297c85",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-09-29",
+                "period_end": "2025-09-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              },
+              {
+                "fact_id": "81349faf-36a9-44e7-9c65-719c4562e2d3",
+                "unit": "ratio",
+                "period_kind": "fiscal_y",
+                "period_start": "2024-09-29",
+                "period_end": "2025-09-27",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2025,
+                "fiscal_period": "FY"
+              }
+            ]
+          }
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000001"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "title": "Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart",
+        "subjects": [
+          {
+            "kind": "issuer",
+            "id": "60000000-0000-4000-8000-000000000001"
+          },
+          {
+            "kind": "issuer",
+            "id": "60000000-0000-4000-8000-000000000003"
+          }
+        ],
+        "metrics": [
+          "Revenue",
+          "Gross Margin",
+          "Net Margin",
+          "Revenue Growth (YoY)"
+        ],
+        "cells": [
+          [
+            {
+              "value_ref": "97d0d71c-6e00-4753-96fb-4732369043c8",
+              "format": "$130.5B"
+            },
+            {
+              "value_ref": "e28d8e10-90d4-45dc-b296-3d9b8a9e363e",
+              "format": "75.0%",
+              "tone": "positive"
+            },
+            {
+              "value_ref": "5909ea85-4231-4c7b-a92f-edeb4d5e3801",
+              "format": "55.8%",
+              "tone": "positive"
+            },
+            null
+          ],
+          [
+            {
+              "value_ref": "4fbebff7-9ac1-4eb1-bf71-10bacaadf56e",
+              "format": "$416.2B"
+            },
+            {
+              "value_ref": "5ec37035-e612-48f9-87e0-7091d644c83b",
+              "format": "46.9%",
+              "tone": "negative"
+            },
+            {
+              "value_ref": "e346491c-7411-4d3e-9cfd-844d96297c85",
+              "format": "26.9%",
+              "tone": "negative"
+            },
+            {
+              "value_ref": "81349faf-36a9-44e7-9c65-719c4562e2d3",
+              "format": "6.4%"
+            }
+          ]
+        ],
+        "primary_subject_ref": {
+          "kind": "issuer",
+          "id": "60000000-0000-4000-8000-000000000001"
+        },
+        "subject_labels": [
+          "NVDA",
+          "AAPL"
+        ],
+        "provenance_fact_refs": [
+          "97d0d71c-6e00-4753-96fb-4732369043c8",
+          "e28d8e10-90d4-45dc-b296-3d9b8a9e363e",
+          "5909ea85-4231-4c7b-a92f-edeb4d5e3801",
+          "4fbebff7-9ac1-4eb1-bf71-10bacaadf56e",
+          "5ec37035-e612-48f9-87e0-7091d644c83b",
+          "e346491c-7411-4d3e-9cfd-844d96297c85",
+          "81349faf-36a9-44e7-9c65-719c4562e2d3"
+        ]
+      },
+      {
+        "id": "e8163f36-8b1d-4a89-8cc4-3458f9208654",
+        "kind": "perf_comparison",
+        "snapshot_id": "f18057eb-a0d5-41e7-855e-04cb13e6a41d",
+        "data_ref": {
+          "kind": "perf_comparison",
+          "id": "e8163f36-8b1d-4a89-8cc4-3458f9208654",
+          "params": {
+            "series_refs": [
+              "64d96d15-f965-432e-8c30-4812968dfaac",
+              "6f89dd21-7791-4e79-8669-1829a36f4053"
+            ]
+          }
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000009"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "title": "Price return (split-adjusted, excluding dividends)",
+        "subject_refs": [
+          {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000001"
+          },
+          {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000003"
+          }
+        ],
+        "subject_labels": [
+          "NVDA",
+          "AAPL"
+        ],
+        "default_range": "2025-12-01 to 2026-08-31",
+        "basis": "split_adjusted",
+        "normalization": "pct_return",
+        "series": [
+          {
+            "name": "NVDA",
+            "unit": "%",
+            "points": [
+              {
+                "x": "2025-12-01",
+                "y": 0
+              },
+              {
+                "x": "2025-12-02",
+                "y": 0.033855752543976436
+              },
+              {
+                "x": "2025-12-03",
+                "y": 0.06771150508735335
+              },
+              {
+                "x": "2025-12-04",
+                "y": 0.10156725763075247
+              },
+              {
+                "x": "2025-12-05",
+                "y": 0.1354230101747289
+              },
+              {
+                "x": "2025-12-08",
+                "y": 0.16927876271810582
+              },
+              {
+                "x": "2025-12-09",
+                "y": 0.20313451526148274
+              },
+              {
+                "x": "2025-12-10",
+                "y": 0.23699026780485966
+              },
+              {
+                "x": "2025-12-11",
+                "y": 0.2708460203488361
+              },
+              {
+                "x": "2025-12-12",
+                "y": 0.3047017728922352
+              },
+              {
+                "x": "2025-12-15",
+                "y": 0.3385575254356121
+              },
+              {
+                "x": "2025-12-16",
+                "y": 0.37241327797958856
+              },
+              {
+                "x": "2025-12-17",
+                "y": 0.4062690305229655
+              },
+              {
+                "x": "2025-12-18",
+                "y": 0.4401247830663424
+              },
+              {
+                "x": "2025-12-19",
+                "y": 0.47398053561031883
+              },
+              {
+                "x": "2025-12-22",
+                "y": 0.5078362881536957
+              },
+              {
+                "x": "2025-12-23",
+                "y": 0.5416920406970949
+              },
+              {
+                "x": "2025-12-24",
+                "y": 0.5755477932410491
+              },
+              {
+                "x": "2025-12-25",
+                "y": 0.6094035457844482
+              },
+              {
+                "x": "2025-12-26",
+                "y": 0.6432592983278251
+              },
+              {
+                "x": "2025-12-29",
+                "y": 0.677115050871202
+              },
+              {
+                "x": "2025-12-30",
+                "y": 0.7109708034151785
+              },
+              {
+                "x": "2025-12-31",
+                "y": 0.7448265559585554
+              },
+              {
+                "x": "2026-01-01",
+                "y": 0.7786823085019545
+              },
+              {
+                "x": "2026-01-02",
+                "y": 0.812538061045931
+              },
+              {
+                "x": "2026-01-05",
+                "y": 0.8463938135893079
+              },
+              {
+                "x": "2026-01-06",
+                "y": 0.8802495661326848
+              },
+              {
+                "x": "2026-01-07",
+                "y": 0.9141053186766834
+              },
+              {
+                "x": "2026-01-08",
+                "y": 0.9479610712200381
+              },
+              {
+                "x": "2026-01-09",
+                "y": 0.9818168237634373
+              },
+              {
+                "x": "2026-01-12",
+                "y": 1.0156725763068142
+              },
+              {
+                "x": "2026-01-13",
+                "y": 1.0495283288507906
+              },
+              {
+                "x": "2026-01-14",
+                "y": 1.0833840813941675
+              },
+              {
+                "x": "2026-01-15",
+                "y": 1.1172398339375444
+              },
+              {
+                "x": "2026-01-16",
+                "y": 1.151095586481543
+              },
+              {
+                "x": "2026-01-19",
+                "y": 1.1849513390248978
+              },
+              {
+                "x": "2026-01-20",
+                "y": 1.218807091568297
+              },
+              {
+                "x": "2026-01-21",
+                "y": 1.2526628441122734
+              },
+              {
+                "x": "2026-01-22",
+                "y": 1.2865185966556503
+              },
+              {
+                "x": "2026-01-23",
+                "y": 1.3203743491990272
+              },
+              {
+                "x": "2026-01-26",
+                "y": 1.3542301017430036
+              },
+              {
+                "x": "2026-01-27",
+                "y": 1.3880858542863805
+              },
+              {
+                "x": "2026-01-28",
+                "y": 1.4219416068297797
+              },
+              {
+                "x": "2026-01-29",
+                "y": 1.4557973593731566
+              },
+              {
+                "x": "2026-01-30",
+                "y": 1.489653111917133
+              },
+              {
+                "x": "2026-02-02",
+                "y": 1.52350886446051
+              },
+              {
+                "x": "2026-02-03",
+                "y": 1.5573646170038868
+              },
+              {
+                "x": "2026-02-04",
+                "y": 1.5912203695478855
+              },
+              {
+                "x": "2026-02-05",
+                "y": 1.6250761220912402
+              },
+              {
+                "x": "2026-02-06",
+                "y": 1.6589318746346393
+              },
+              {
+                "x": "2026-02-09",
+                "y": 1.6927876271786158
+              },
+              {
+                "x": "2026-02-10",
+                "y": 1.7266433797219927
+              },
+              {
+                "x": "2026-02-11",
+                "y": 1.7604991322653918
+              },
+              {
+                "x": "2026-02-12",
+                "y": 1.794354884809346
+              },
+              {
+                "x": "2026-02-13",
+                "y": 1.8282106373527451
+              },
+              {
+                "x": "2026-02-16",
+                "y": 1.862066389896122
+              },
+              {
+                "x": "2026-02-17",
+                "y": 1.895922142439499
+              },
+              {
+                "x": "2026-02-18",
+                "y": 1.9297778949834754
+              },
+              {
+                "x": "2026-02-19",
+                "y": 1.9636336475268523
+              },
+              {
+                "x": "2026-02-20",
+                "y": 1.9974894000702514
+              },
+              {
+                "x": "2026-02-23",
+                "y": 2.031345152614228
+              },
+              {
+                "x": "2026-02-24",
+                "y": 2.065200905157605
+              },
+              {
+                "x": "2026-02-25",
+                "y": 2.0990566577009817
+              },
+              {
+                "x": "2026-02-26",
+                "y": 2.132912410244958
+              },
+              {
+                "x": "2026-02-27",
+                "y": 2.166768162788335
+              },
+              {
+                "x": "2026-03-02",
+                "y": 2.200623915331734
+              },
+              {
+                "x": "2026-03-03",
+                "y": 2.2344796678756884
+              },
+              {
+                "x": "2026-03-04",
+                "y": 2.2683354204190875
+              },
+              {
+                "x": "2026-03-05",
+                "y": 2.3021911729624644
+              },
+              {
+                "x": "2026-03-06",
+                "y": 2.3360469255058414
+              },
+              {
+                "x": "2026-03-09",
+                "y": 2.369902678049818
+              },
+              {
+                "x": "2026-03-10",
+                "y": 2.4037584305931947
+              },
+              {
+                "x": "2026-03-11",
+                "y": 2.437614183136594
+              },
+              {
+                "x": "2026-03-12",
+                "y": 2.4714699356805703
+              },
+              {
+                "x": "2026-03-13",
+                "y": 2.505325688223947
+              },
+              {
+                "x": "2026-03-16",
+                "y": 2.539181440767324
+              },
+              {
+                "x": "2026-03-17",
+                "y": 2.5730371933113005
+              },
+              {
+                "x": "2026-03-18",
+                "y": 2.6068929458546775
+              },
+              {
+                "x": "2026-03-19",
+                "y": 2.6407486983980766
+              },
+              {
+                "x": "2026-03-20",
+                "y": 2.6746044509414535
+              },
+              {
+                "x": "2026-03-23",
+                "y": 2.70846020348543
+              },
+              {
+                "x": "2026-03-24",
+                "y": 2.742315956028807
+              },
+              {
+                "x": "2026-03-25",
+                "y": 2.7761717085721838
+              },
+              {
+                "x": "2026-03-26",
+                "y": 2.8100274611161824
+              },
+              {
+                "x": "2026-03-27",
+                "y": 2.843883213659537
+              },
+              {
+                "x": "2026-03-30",
+                "y": 2.8777389662029362
+              },
+              {
+                "x": "2026-03-31",
+                "y": 2.9115947187468905
+              },
+              {
+                "x": "2026-04-01",
+                "y": 2.9454504712902896
+              },
+              {
+                "x": "2026-04-02",
+                "y": 2.9793062238336665
+              },
+              {
+                "x": "2026-04-03",
+                "y": 3.013161976377643
+              },
+              {
+                "x": "2026-04-06",
+                "y": 3.04701772892102
+              },
+              {
+                "x": "2026-04-07",
+                "y": 3.0808734814643968
+              },
+              {
+                "x": "2026-04-08",
+                "y": 3.114729234007796
+              },
+              {
+                "x": "2026-04-09",
+                "y": 3.1485849865517723
+              },
+              {
+                "x": "2026-04-10",
+                "y": 3.1824407390951492
+              },
+              {
+                "x": "2026-04-13",
+                "y": 3.216296491638526
+              },
+              {
+                "x": "2026-04-14",
+                "y": 3.250152244182525
+              },
+              {
+                "x": "2026-04-15",
+                "y": 3.2840079967258795
+              },
+              {
+                "x": "2026-04-16",
+                "y": 3.3178637492692786
+              },
+              {
+                "x": "2026-04-17",
+                "y": 3.351719501813233
+              },
+              {
+                "x": "2026-04-20",
+                "y": 3.385575254356632
+              },
+              {
+                "x": "2026-04-21",
+                "y": 3.419431006900031
+              },
+              {
+                "x": "2026-04-22",
+                "y": 3.4532867594439853
+              },
+              {
+                "x": "2026-04-23",
+                "y": 3.4871425119873845
+              },
+              {
+                "x": "2026-04-24",
+                "y": 3.520998264530739
+              },
+              {
+                "x": "2026-04-27",
+                "y": 3.5548540170741383
+              },
+              {
+                "x": "2026-04-28",
+                "y": 3.5887097696181147
+              },
+              {
+                "x": "2026-04-29",
+                "y": 3.6225655221614916
+              },
+              {
+                "x": "2026-04-30",
+                "y": 3.6564212747048686
+              },
+              {
+                "x": "2026-05-01",
+                "y": 3.690277027248845
+              },
+              {
+                "x": "2026-05-04",
+                "y": 3.724132779792244
+              },
+              {
+                "x": "2026-05-05",
+                "y": 3.757988532335621
+              },
+              {
+                "x": "2026-05-06",
+                "y": 3.7918442848795975
+              },
+              {
+                "x": "2026-05-07",
+                "y": 3.8257000374229744
+              },
+              {
+                "x": "2026-05-08",
+                "y": 3.8595557899663513
+              },
+              {
+                "x": "2026-05-11",
+                "y": 3.8934115425103277
+              },
+              {
+                "x": "2026-05-12",
+                "y": 3.927267295053727
+              },
+              {
+                "x": "2026-05-13",
+                "y": 3.9611230475971038
+              },
+              {
+                "x": "2026-05-14",
+                "y": 3.9949788001404807
+              },
+              {
+                "x": "2026-05-15",
+                "y": 4.028834552684457
+              },
+              {
+                "x": "2026-05-18",
+                "y": 4.062690305227834
+              },
+              {
+                "x": "2026-05-19",
+                "y": 4.096546057771233
+              },
+              {
+                "x": "2026-05-20",
+                "y": 4.130401810315187
+              },
+              {
+                "x": "2026-05-21",
+                "y": 4.1642575628585865
+              },
+              {
+                "x": "2026-05-22",
+                "y": 4.198113315401963
+              },
+              {
+                "x": "2026-05-25",
+                "y": 4.23196906794594
+              },
+              {
+                "x": "2026-05-26",
+                "y": 4.265824820489317
+              },
+              {
+                "x": "2026-05-27",
+                "y": 4.299680573032694
+              },
+              {
+                "x": "2026-05-28",
+                "y": 4.333536325576093
+              },
+              {
+                "x": "2026-05-29",
+                "y": 4.367392078120069
+              },
+              {
+                "x": "2026-06-01",
+                "y": 4.401247830663446
+              },
+              {
+                "x": "2026-06-02",
+                "y": 4.435103583206823
+              },
+              {
+                "x": "2026-06-03",
+                "y": 4.4689593357507995
+              },
+              {
+                "x": "2026-06-04",
+                "y": 4.502815088294176
+              },
+              {
+                "x": "2026-06-05",
+                "y": 4.5366708408375755
+              },
+              {
+                "x": "2026-06-08",
+                "y": 4.57052659338153
+              },
+              {
+                "x": "2026-06-09",
+                "y": 4.604382345924929
+              },
+              {
+                "x": "2026-06-10",
+                "y": 4.638238098468306
+              },
+              {
+                "x": "2026-06-11",
+                "y": 4.672093851012282
+              },
+              {
+                "x": "2026-06-12",
+                "y": 4.705949603555659
+              },
+              {
+                "x": "2026-06-15",
+                "y": 4.739805356099036
+              },
+              {
+                "x": "2026-06-16",
+                "y": 4.773661108642435
+              },
+              {
+                "x": "2026-06-17",
+                "y": 4.807516861186412
+              },
+              {
+                "x": "2026-06-18",
+                "y": 4.8413726137297886
+              },
+              {
+                "x": "2026-06-19",
+                "y": 4.8752283662731655
+              },
+              {
+                "x": "2026-06-22",
+                "y": 4.909084118817142
+              },
+              {
+                "x": "2026-06-23",
+                "y": 4.942939871360519
+              },
+              {
+                "x": "2026-06-24",
+                "y": 4.976795623903918
+              },
+              {
+                "x": "2026-06-25",
+                "y": 5.010651376447872
+              },
+              {
+                "x": "2026-06-26",
+                "y": 5.044507128991271
+              },
+              {
+                "x": "2026-06-29",
+                "y": 5.078362881534648
+              },
+              {
+                "x": "2026-06-30",
+                "y": 5.112218634078625
+              },
+              {
+                "x": "2026-07-01",
+                "y": 5.146074386622024
+              },
+              {
+                "x": "2026-07-02",
+                "y": 5.1799301391653785
+              },
+              {
+                "x": "2026-07-03",
+                "y": 5.213785891708778
+              },
+              {
+                "x": "2026-07-06",
+                "y": 5.247641644252732
+              },
+              {
+                "x": "2026-07-07",
+                "y": 5.281497396796131
+              },
+              {
+                "x": "2026-07-08",
+                "y": 5.315353149339508
+              },
+              {
+                "x": "2026-07-09",
+                "y": 5.349208901883484
+              },
+              {
+                "x": "2026-07-10",
+                "y": 5.383064654426883
+              },
+              {
+                "x": "2026-07-13",
+                "y": 5.416920406970238
+              },
+              {
+                "x": "2026-07-14",
+                "y": 5.450776159514237
+              },
+              {
+                "x": "2026-07-15",
+                "y": 5.484631912057614
+              },
+              {
+                "x": "2026-07-16",
+                "y": 5.518487664600991
+              },
+              {
+                "x": "2026-07-17",
+                "y": 5.552343417144967
+              },
+              {
+                "x": "2026-07-20",
+                "y": 5.586199169688366
+              },
+              {
+                "x": "2026-07-21",
+                "y": 5.620054922231721
+              },
+              {
+                "x": "2026-07-22",
+                "y": 5.65391067477512
+              },
+              {
+                "x": "2026-07-23",
+                "y": 5.687766427319096
+              },
+              {
+                "x": "2026-07-24",
+                "y": 5.721622179862473
+              },
+              {
+                "x": "2026-07-27",
+                "y": 5.7554779324058725
+              },
+              {
+                "x": "2026-07-28",
+                "y": 5.789333684949827
+              },
+              {
+                "x": "2026-07-29",
+                "y": 5.823189437493226
+              },
+              {
+                "x": "2026-07-30",
+                "y": 5.8570451900365805
+              },
+              {
+                "x": "2026-07-31",
+                "y": 5.890900942580579
+              },
+              {
+                "x": "2026-08-03",
+                "y": 5.924756695123956
+              },
+              {
+                "x": "2026-08-04",
+                "y": 5.958612447667333
+              },
+              {
+                "x": "2026-08-05",
+                "y": 5.992468200210732
+              },
+              {
+                "x": "2026-08-06",
+                "y": 6.026323952754686
+              },
+              {
+                "x": "2026-08-07",
+                "y": 6.0601797052980855
+              },
+              {
+                "x": "2026-08-10",
+                "y": 6.094035457841462
+              },
+              {
+                "x": "2026-08-11",
+                "y": 6.127891210385439
+              },
+              {
+                "x": "2026-08-12",
+                "y": 6.161746962928816
+              },
+              {
+                "x": "2026-08-13",
+                "y": 6.195602715472193
+              },
+              {
+                "x": "2026-08-14",
+                "y": 6.229458468016169
+              },
+              {
+                "x": "2026-08-17",
+                "y": 6.263314220559568
+              },
+              {
+                "x": "2026-08-18",
+                "y": 6.297169973102945
+              },
+              {
+                "x": "2026-08-19",
+                "y": 6.331025725646922
+              },
+              {
+                "x": "2026-08-20",
+                "y": 6.3648814781902985
+              },
+              {
+                "x": "2026-08-21",
+                "y": 6.398737230733675
+              },
+              {
+                "x": "2026-08-24",
+                "y": 6.4325929832770745
+              },
+              {
+                "x": "2026-08-25",
+                "y": 6.466448735821029
+              },
+              {
+                "x": "2026-08-26",
+                "y": 6.500304488364428
+              },
+              {
+                "x": "2026-08-27",
+                "y": 6.534160240907805
+              },
+              {
+                "x": "2026-08-28",
+                "y": 6.568015993451781
+              },
+              {
+                "x": "2026-08-31",
+                "y": 6.601871745995158
+              }
+            ]
+          },
+          {
+            "name": "AAPL",
+            "unit": "%",
+            "points": [
+              {
+                "x": "2025-12-01",
+                "y": 0
+              },
+              {
+                "x": "2025-12-02",
+                "y": 0.03104991466531537
+              },
+              {
+                "x": "2025-12-03",
+                "y": 0.06209982933063074
+              },
+              {
+                "x": "2025-12-04",
+                "y": 0.09314974399594611
+              },
+              {
+                "x": "2025-12-05",
+                "y": 0.12419965866126148
+              },
+              {
+                "x": "2025-12-08",
+                "y": 0.15524957332655465
+              },
+              {
+                "x": "2025-12-09",
+                "y": 0.18629948799187002
+              },
+              {
+                "x": "2025-12-10",
+                "y": 0.2173494026571854
+              },
+              {
+                "x": "2025-12-11",
+                "y": 0.24839931732250076
+              },
+              {
+                "x": "2025-12-12",
+                "y": 0.2794492319878161
+              },
+              {
+                "x": "2025-12-15",
+                "y": 0.3104991466531315
+              },
+              {
+                "x": "2025-12-16",
+                "y": 0.34154906131842466
+              },
+              {
+                "x": "2025-12-17",
+                "y": 0.37259897598374003
+              },
+              {
+                "x": "2025-12-18",
+                "y": 0.4036488906490554
+              },
+              {
+                "x": "2025-12-19",
+                "y": 0.4346988053143708
+              },
+              {
+                "x": "2025-12-22",
+                "y": 0.46574871997968614
+              },
+              {
+                "x": "2025-12-23",
+                "y": 0.4967986346450015
+              },
+              {
+                "x": "2025-12-24",
+                "y": 0.5278485493102947
+              },
+              {
+                "x": "2025-12-25",
+                "y": 0.55889846397561
+              },
+              {
+                "x": "2025-12-26",
+                "y": 0.5899483786409254
+              },
+              {
+                "x": "2025-12-29",
+                "y": 0.6209982933062408
+              },
+              {
+                "x": "2025-12-30",
+                "y": 0.652048207971534
+              },
+              {
+                "x": "2025-12-31",
+                "y": 0.6830981226368715
+              },
+              {
+                "x": "2026-01-01",
+                "y": 0.7141480373021647
+              },
+              {
+                "x": "2026-01-02",
+                "y": 0.745197951967036
+              },
+              {
+                "x": "2026-01-05",
+                "y": 0.7762478666323291
+              },
+              {
+                "x": "2026-01-06",
+                "y": 0.8072977812976445
+              },
+              {
+                "x": "2026-01-07",
+                "y": 0.8383476959629599
+              },
+              {
+                "x": "2026-01-08",
+                "y": 0.8693976106282753
+              },
+              {
+                "x": "2026-01-09",
+                "y": 0.9004475252935684
+              },
+              {
+                "x": "2026-01-12",
+                "y": 0.931497439958906
+              },
+              {
+                "x": "2026-01-13",
+                "y": 0.9625473546241992
+              },
+              {
+                "x": "2026-01-14",
+                "y": 0.9935972692895145
+              },
+              {
+                "x": "2026-01-15",
+                "y": 1.02464718395483
+              },
+              {
+                "x": "2026-01-16",
+                "y": 1.0556970986201453
+              },
+              {
+                "x": "2026-01-19",
+                "y": 1.0867470132854384
+              },
+              {
+                "x": "2026-01-20",
+                "y": 1.117796927950776
+              },
+              {
+                "x": "2026-01-21",
+                "y": 1.1488468426160914
+              },
+              {
+                "x": "2026-01-22",
+                "y": 1.1798967572813845
+              },
+              {
+                "x": "2026-01-23",
+                "y": 1.2109466719467
+              },
+              {
+                "x": "2026-01-26",
+                "y": 1.2419965866120153
+              },
+              {
+                "x": "2026-01-27",
+                "y": 1.2730465012773307
+              },
+              {
+                "x": "2026-01-28",
+                "y": 1.3040964159426238
+              },
+              {
+                "x": "2026-01-29",
+                "y": 1.3351463306079614
+              },
+              {
+                "x": "2026-01-30",
+                "y": 1.3661962452732546
+              },
+              {
+                "x": "2026-02-02",
+                "y": 1.39724615993857
+              },
+              {
+                "x": "2026-02-03",
+                "y": 1.4282960746038853
+              },
+              {
+                "x": "2026-02-04",
+                "y": 1.4593459892692007
+              },
+              {
+                "x": "2026-02-05",
+                "y": 1.4903959039344938
+              },
+              {
+                "x": "2026-02-06",
+                "y": 1.5214458185998092
+              },
+              {
+                "x": "2026-02-09",
+                "y": 1.5524957332651246
+              },
+              {
+                "x": "2026-02-10",
+                "y": 1.58354564793044
+              },
+              {
+                "x": "2026-02-11",
+                "y": 1.6145955625957553
+              },
+              {
+                "x": "2026-02-12",
+                "y": 1.6456454772610707
+              },
+              {
+                "x": "2026-02-13",
+                "y": 1.6766953919263639
+              },
+              {
+                "x": "2026-02-16",
+                "y": 1.7077453065916792
+              },
+              {
+                "x": "2026-02-17",
+                "y": 1.7387952212569946
+              },
+              {
+                "x": "2026-02-18",
+                "y": 1.76984513592231
+              },
+              {
+                "x": "2026-02-19",
+                "y": 1.8008950505876253
+              },
+              {
+                "x": "2026-02-20",
+                "y": 1.8319449652529407
+              },
+              {
+                "x": "2026-02-23",
+                "y": 1.8629948799182339
+              },
+              {
+                "x": "2026-02-24",
+                "y": 1.8940447945835492
+              },
+              {
+                "x": "2026-02-25",
+                "y": 1.9250947092488646
+              },
+              {
+                "x": "2026-02-26",
+                "y": 1.95614462391418
+              },
+              {
+                "x": "2026-02-27",
+                "y": 1.9871945385794954
+              },
+              {
+                "x": "2026-03-02",
+                "y": 2.0182444532448107
+              },
+              {
+                "x": "2026-03-03",
+                "y": 2.049294367910126
+              },
+              {
+                "x": "2026-03-04",
+                "y": 2.0803442825754193
+              },
+              {
+                "x": "2026-03-05",
+                "y": 2.1113941972407346
+              },
+              {
+                "x": "2026-03-06",
+                "y": 2.14244411190605
+              },
+              {
+                "x": "2026-03-09",
+                "y": 2.1734940265713654
+              },
+              {
+                "x": "2026-03-10",
+                "y": 2.2045439412366585
+              },
+              {
+                "x": "2026-03-11",
+                "y": 2.23559385590153
+              },
+              {
+                "x": "2026-03-12",
+                "y": 2.266643770566845
+              },
+              {
+                "x": "2026-03-13",
+                "y": 2.2976936852321606
+              },
+              {
+                "x": "2026-03-16",
+                "y": 2.3287435998974537
+              },
+              {
+                "x": "2026-03-17",
+                "y": 2.359793514562769
+              },
+              {
+                "x": "2026-03-18",
+                "y": 2.3908434292280845
+              },
+              {
+                "x": "2026-03-19",
+                "y": 2.4218933438934
+              },
+              {
+                "x": "2026-03-20",
+                "y": 2.452943258558693
+              },
+              {
+                "x": "2026-03-23",
+                "y": 2.4839931732240306
+              },
+              {
+                "x": "2026-03-24",
+                "y": 2.5150430878893237
+              },
+              {
+                "x": "2026-03-25",
+                "y": 2.546093002554639
+              },
+              {
+                "x": "2026-03-26",
+                "y": 2.5771429172199545
+              },
+              {
+                "x": "2026-03-27",
+                "y": 2.60819283188527
+              },
+              {
+                "x": "2026-03-30",
+                "y": 2.639242746550563
+              },
+              {
+                "x": "2026-03-31",
+                "y": 2.6702926612158784
+              },
+              {
+                "x": "2026-04-01",
+                "y": 2.7013425758811938
+              },
+              {
+                "x": "2026-04-02",
+                "y": 2.732392490546509
+              },
+              {
+                "x": "2026-04-03",
+                "y": 2.7634424052118245
+              },
+              {
+                "x": "2026-04-06",
+                "y": 2.79449231987714
+              },
+              {
+                "x": "2026-04-07",
+                "y": 2.825542234542433
+              },
+              {
+                "x": "2026-04-08",
+                "y": 2.8565921492077484
+              },
+              {
+                "x": "2026-04-09",
+                "y": 2.8876420638730638
+              },
+              {
+                "x": "2026-04-10",
+                "y": 2.918691978538379
+              },
+              {
+                "x": "2026-04-13",
+                "y": 2.9497418932036945
+              },
+              {
+                "x": "2026-04-14",
+                "y": 2.98079180786901
+              },
+              {
+                "x": "2026-04-15",
+                "y": 3.0118417225343252
+              },
+              {
+                "x": "2026-04-16",
+                "y": 3.0428916371996184
+              },
+              {
+                "x": "2026-04-17",
+                "y": 3.073941551864934
+              },
+              {
+                "x": "2026-04-20",
+                "y": 3.104991466530249
+              },
+              {
+                "x": "2026-04-21",
+                "y": 3.1360413811955645
+              },
+              {
+                "x": "2026-04-22",
+                "y": 3.16709129586088
+              },
+              {
+                "x": "2026-04-23",
+                "y": 3.1981412105261953
+              },
+              {
+                "x": "2026-04-24",
+                "y": 3.2291911251914884
+              },
+              {
+                "x": "2026-04-27",
+                "y": 3.260241039856804
+              },
+              {
+                "x": "2026-04-28",
+                "y": 3.291290954522119
+              },
+              {
+                "x": "2026-04-29",
+                "y": 3.3223408691874345
+              },
+              {
+                "x": "2026-04-30",
+                "y": 3.3533907838527277
+              },
+              {
+                "x": "2026-05-01",
+                "y": 3.3844406985180653
+              },
+              {
+                "x": "2026-05-04",
+                "y": 3.4154906131833584
+              },
+              {
+                "x": "2026-05-05",
+                "y": 3.446540527848674
+              },
+              {
+                "x": "2026-05-06",
+                "y": 3.477590442513989
+              },
+              {
+                "x": "2026-05-07",
+                "y": 3.5086403571793046
+              },
+              {
+                "x": "2026-05-08",
+                "y": 3.5396902718445977
+              },
+              {
+                "x": "2026-05-11",
+                "y": 3.570740186509913
+              },
+              {
+                "x": "2026-05-12",
+                "y": 3.6017901011752285
+              },
+              {
+                "x": "2026-05-13",
+                "y": 3.632840015840544
+              },
+              {
+                "x": "2026-05-14",
+                "y": 3.663889930505859
+              },
+              {
+                "x": "2026-05-15",
+                "y": 3.6949398451711746
+              },
+              {
+                "x": "2026-05-18",
+                "y": 3.72598975983649
+              },
+              {
+                "x": "2026-05-19",
+                "y": 3.757039674501783
+              },
+              {
+                "x": "2026-05-20",
+                "y": 3.7880895891670985
+              },
+              {
+                "x": "2026-05-21",
+                "y": 3.8191395038319698
+              },
+              {
+                "x": "2026-05-22",
+                "y": 3.850189418497263
+              },
+              {
+                "x": "2026-05-25",
+                "y": 3.8812393331625783
+              },
+              {
+                "x": "2026-05-26",
+                "y": 3.9122892478278937
+              },
+              {
+                "x": "2026-05-27",
+                "y": 3.943339162493209
+              },
+              {
+                "x": "2026-05-28",
+                "y": 3.9743890771585244
+              },
+              {
+                "x": "2026-05-29",
+                "y": 4.005438991823818
+              },
+              {
+                "x": "2026-06-01",
+                "y": 4.036488906489155
+              },
+              {
+                "x": "2026-06-02",
+                "y": 4.067538821154448
+              },
+              {
+                "x": "2026-06-03",
+                "y": 4.098588735819764
+              },
+              {
+                "x": "2026-06-04",
+                "y": 4.129638650485079
+              },
+              {
+                "x": "2026-06-05",
+                "y": 4.160688565150394
+              },
+              {
+                "x": "2026-06-08",
+                "y": 4.191738479815688
+              },
+              {
+                "x": "2026-06-09",
+                "y": 4.222788394481003
+              },
+              {
+                "x": "2026-06-10",
+                "y": 4.253838309146318
+              },
+              {
+                "x": "2026-06-11",
+                "y": 4.284888223811634
+              },
+              {
+                "x": "2026-06-12",
+                "y": 4.315938138476949
+              },
+              {
+                "x": "2026-06-15",
+                "y": 4.346988053142264
+              },
+              {
+                "x": "2026-06-16",
+                "y": 4.378037967807558
+              },
+              {
+                "x": "2026-06-17",
+                "y": 4.409087882472873
+              },
+              {
+                "x": "2026-06-18",
+                "y": 4.440137797138188
+              },
+              {
+                "x": "2026-06-19",
+                "y": 4.471187711803504
+              },
+              {
+                "x": "2026-06-22",
+                "y": 4.502237626468797
+              },
+              {
+                "x": "2026-06-23",
+                "y": 4.5332875411341345
+              },
+              {
+                "x": "2026-06-24",
+                "y": 4.564337455799428
+              },
+              {
+                "x": "2026-06-25",
+                "y": 4.595387370464743
+              },
+              {
+                "x": "2026-06-26",
+                "y": 4.626437285130058
+              },
+              {
+                "x": "2026-06-29",
+                "y": 4.657487199795374
+              },
+              {
+                "x": "2026-06-30",
+                "y": 4.688537114460667
+              },
+              {
+                "x": "2026-07-01",
+                "y": 4.7195870291260045
+              },
+              {
+                "x": "2026-07-02",
+                "y": 4.75063694379132
+              },
+              {
+                "x": "2026-07-03",
+                "y": 4.781686858456613
+              },
+              {
+                "x": "2026-07-06",
+                "y": 4.812736773121928
+              },
+              {
+                "x": "2026-07-07",
+                "y": 4.843786687787244
+              },
+              {
+                "x": "2026-07-08",
+                "y": 4.874836602452559
+              },
+              {
+                "x": "2026-07-09",
+                "y": 4.905886517117852
+              },
+              {
+                "x": "2026-07-10",
+                "y": 4.93693643178319
+              },
+              {
+                "x": "2026-07-13",
+                "y": 4.967986346448483
+              },
+              {
+                "x": "2026-07-14",
+                "y": 4.999036261113798
+              },
+              {
+                "x": "2026-07-15",
+                "y": 5.030086175779114
+              },
+              {
+                "x": "2026-07-16",
+                "y": 5.061136090444429
+              },
+              {
+                "x": "2026-07-17",
+                "y": 5.092186005109722
+              },
+              {
+                "x": "2026-07-20",
+                "y": 5.123235919775038
+              },
+              {
+                "x": "2026-07-21",
+                "y": 5.154285834440353
+              },
+              {
+                "x": "2026-07-22",
+                "y": 5.185335749105668
+              },
+              {
+                "x": "2026-07-23",
+                "y": 5.216385663770984
+              },
+              {
+                "x": "2026-07-24",
+                "y": 5.247435578436299
+              },
+              {
+                "x": "2026-07-27",
+                "y": 5.278485493101592
+              },
+              {
+                "x": "2026-07-28",
+                "y": 5.309535407766464
+              },
+              {
+                "x": "2026-07-29",
+                "y": 5.340585322431757
+              },
+              {
+                "x": "2026-07-30",
+                "y": 5.371635237097072
+              },
+              {
+                "x": "2026-07-31",
+                "y": 5.4026851517623875
+              },
+              {
+                "x": "2026-08-03",
+                "y": 5.433735066427703
+              },
+              {
+                "x": "2026-08-04",
+                "y": 5.464784981093018
+              },
+              {
+                "x": "2026-08-05",
+                "y": 5.495834895758334
+              },
+              {
+                "x": "2026-08-06",
+                "y": 5.526884810423627
+              },
+              {
+                "x": "2026-08-07",
+                "y": 5.557934725088942
+              },
+              {
+                "x": "2026-08-10",
+                "y": 5.5889846397542575
+              },
+              {
+                "x": "2026-08-11",
+                "y": 5.620034554419573
+              },
+              {
+                "x": "2026-08-12",
+                "y": 5.651084469084888
+              },
+              {
+                "x": "2026-08-13",
+                "y": 5.682134383750204
+              },
+              {
+                "x": "2026-08-14",
+                "y": 5.713184298415497
+              },
+              {
+                "x": "2026-08-17",
+                "y": 5.744234213080812
+              },
+              {
+                "x": "2026-08-18",
+                "y": 5.7752841277461275
+              },
+              {
+                "x": "2026-08-19",
+                "y": 5.806334042411443
+              },
+              {
+                "x": "2026-08-20",
+                "y": 5.837383957076758
+              },
+              {
+                "x": "2026-08-21",
+                "y": 5.868433871742074
+              },
+              {
+                "x": "2026-08-24",
+                "y": 5.899483786407389
+              },
+              {
+                "x": "2026-08-25",
+                "y": 5.930533701072682
+              },
+              {
+                "x": "2026-08-26",
+                "y": 5.9615836157379976
+              },
+              {
+                "x": "2026-08-27",
+                "y": 5.992633530403313
+              },
+              {
+                "x": "2026-08-28",
+                "y": 6.023683445068628
+              },
+              {
+                "x": "2026-08-31",
+                "y": 6.0547333597339215
+              }
+            ]
+          }
+        ],
+        "provenance_series_specs": [
+          {
+            "series_ref": "64d96d15-f965-432e-8c30-4812968dfaac",
+            "source_id": "00000000-0000-4000-a000-000000000009",
+            "listing_id": "62000000-0000-4000-8000-000000000001",
+            "bar_range_id": "c003b0ae-1387-4f7c-9fef-62746b055c0d",
+            "bars_sha256": "c93509da4cd42d3b7b2ecfe958d3a2abd01e7e3d0c0d69e12306fb0b03477c77",
+            "interval": "1d",
+            "adjustment_basis": "split_adjusted",
+            "normalization": "pct_return",
+            "delay_class": "eod",
+            "range": {
+              "start": "2025-12-01T05:00:00.000Z",
+              "end": "2026-09-01T00:00:00.000Z"
+            },
+            "as_of": "2026-09-01T00:00:00.000Z"
+          },
+          {
+            "series_ref": "6f89dd21-7791-4e79-8669-1829a36f4053",
+            "source_id": "00000000-0000-4000-a000-000000000009",
+            "listing_id": "62000000-0000-4000-8000-000000000003",
+            "bar_range_id": "6ec51da8-09bd-4a9c-837a-ec85485b5221",
+            "bars_sha256": "bbc8d116ec6c6d88457516e57af9756302cf5a3858726e6f0e2e04c7df38eb61",
+            "interval": "1d",
+            "adjustment_basis": "split_adjusted",
+            "normalization": "pct_return",
+            "delay_class": "eod",
+            "range": {
+              "start": "2025-12-01T05:00:00.000Z",
+              "end": "2026-09-01T00:00:00.000Z"
+            },
+            "as_of": "2026-09-01T00:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "id": "required-disclosures",
+        "kind": "disclosure",
+        "snapshot_id": "f18057eb-a0d5-41e7-855e-04cb13e6a41d",
+        "data_ref": {
+          "kind": "disclosure_policy",
+          "id": "required"
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000009"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "disclosure_tier": "eod",
+        "items": [
+          "Market prices use end-of-day data as of 2026-09-01T00:00:00.000Z; intraday moves may not be reflected.",
+          "Returns are split-adjusted price returns; dividends are not included, so they are not total returns."
+        ]
+      }
+    ],
+    "subjectLabels": [
+      "NVDA",
+      "AAPL"
+    ],
+    "conversation": [
+      {
+        "role": "user",
+        "text": "Compare NVDA's and AAPL's fiscal 2025 revenue."
+      }
+    ],
+    "availableData": true,
+    "scope": {
+      "route": "comparison",
+      "reads": "comparison",
+      "companies": [
+        {
+          "issuer_id": "60000000-0000-4000-8000-000000000001",
+          "label": "NVDA"
+        },
+        {
+          "issuer_id": "60000000-0000-4000-8000-000000000003",
+          "label": "AAPL"
+        }
+      ],
+      "peers": false,
+      "segments": false,
+      "margin_trend": false,
+      "margins": false,
+      "metrics": [
+        {
+          "metric_key": "income_statement",
+          "label": "Revenue, profit and margins",
+          "available": true
+        }
+      ],
+      "fiscal_year": 2025,
+      "fiscal_quarter": null,
+      "price_window": null,
+      "benchmark": false,
+      "income_items": [
+        "revenue"
+      ],
+      "inherited": []
+    },
+    "cutoff": "2026-09-01T00:00:00.000Z"
+  },
+  "assertion_rendering": false,
+  "exchange": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Quote a figure only exactly as it appears there, in a sentence that names its company exactly as given in company (e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\", and never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
+      },
+      {
+        "role": "user",
+        "content": "{\"question\":\"Compare NVDA's and AAPL's fiscal 2025 revenue.\",\"conversation\":[{\"role\":\"user\",\"text\":\"Compare NVDA's and AAPL's fiscal 2025 revenue.\"}],\"evidence_packet\":{\"route\":\"comparison\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"company\":\"NVDA\",\"metric\":\"Revenue\",\"period\":\"FY2025\",\"period_end\":\"2025-01-26\",\"value\":\"$130.5B\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F2\",\"company\":\"NVDA\",\"metric\":\"Gross Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-01-26\",\"value\":\"75.0%\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F3\",\"company\":\"NVDA\",\"metric\":\"Net Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-01-26\",\"value\":\"55.8%\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F4\",\"company\":\"AAPL\",\"metric\":\"Revenue\",\"period\":\"FY2025\",\"period_end\":\"2025-09-27\",\"value\":\"$416.2B\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F5\",\"company\":\"AAPL\",\"metric\":\"Gross Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-09-27\",\"value\":\"46.9%\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F6\",\"company\":\"AAPL\",\"metric\":\"Net Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-09-27\",\"value\":\"26.9%\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F7\",\"company\":\"AAPL\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2025\",\"period_end\":\"2025-09-27\",\"value\":\"6.4%\",\"shown_in\":\"Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart\"},{\"id\":\"F8\",\"company\":\"NVDA\",\"metric\":\"Price return\",\"period\":\"2025-12-01 to 2026-08-31\",\"value\":\"6.6%\",\"shown_in\":\"Price return (split-adjusted, excluding dividends)\"},{\"id\":\"F9\",\"company\":\"AAPL\",\"metric\":\"Price return\",\"period\":\"2025-12-01 to 2026-08-31\",\"value\":\"6.05%\",\"shown_in\":\"Price return (split-adjusted, excluding dividends)\"}],\"coverage\":[{\"company\":\"NVDA\",\"status\":\"shown\"},{\"company\":\"AAPL\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"fiscal year 2025 per company\",\"claims\":\"management, guidance, and kpi claims from 2024-01-01 until 2026-04-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"staleness\":{\"quote\":[{\"ticker\":\"NVDA\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"FY\",\"age_days\":0,\"stale\":false}]}}}"
+      }
+    ],
+    "text": "**Takeaway:** AAPL's fiscal 2025 revenue is larger than NVDA's, but NVDA converts that revenue into profit at substantially higher margins. The two fiscal years end eight months apart, so the comparison is not like-for-like in calendar terms.\n\n**Trend:** Only one fiscal year is shown for each company, so no multi-period trend can be described from the data provided.\n\n**Strengths and weaknesses:** AAPL reported FY2025 revenue (period ending September 2025) of $416.2B, which is larger than NVDA's FY2025 revenue (period ending January 2025) of $130.5B. However, NVDA's gross margin of 75.0% and net margin of 55.8% for FY2025 (ending January 2025) are higher than AAPL's gross margin of 46.9% and net margin of 26.9% for FY2025 (ending September 2025). NVDA is the more profitable business on every margin metric shown.\n\n**Counterpoint:** AAPL's FY2025 revenue growth (YoY) is shown at 6.4% for the period ending September 2025, confirming that the larger revenue base is still expanding. No equivalent growth figure is shown for NVDA, so the data does not confirm whether NVDA's smaller revenue base is growing faster or slower.\n\n**What the data cannot tell:** No NVDA revenue growth rate is shown, so the pace of NVDA's top-line expansion relative to AAPL's 6.4% cannot be assessed. No prior-year revenue for either company is provided, no segment or geographic breakdown is shown, and no quarterly trajectory within either fiscal year is available. The eight-month gap between fiscal year-ends means overlapping calendar quarters are not isolated.\n\n```assertions\n[\n  {\"kind\":\"observation\",\"text\":\"NVDA's FY2025 revenue (period ending January 2025) was $130.5B.\",\"evidence\":[\"F1\"]},\n  {\"kind\":\"observation\",\"text\":\"AAPL's FY2025 revenue (period ending September 2025) was $416.2B.\",\"evidence\":[\"F4\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA's FY2025 gross margin was 75.0% and net margin was 55.8%.\",\"evidence\":[\"F2\",\"F3\"]},\n  {\"kind\":\"observation\",\"text\":\"AAPL's FY2025 gross margin was 46.9% and net margin was 26.9%.\",\"evidence\":[\"F5\",\"F6\"]},\n  {\"kind\":\"observation\",\"text\":\"AAPL's FY2025 revenue growth (YoY) was 6.4%.\",\"evidence\":[\"F7\"]},\n  {\"kind\":\"comparison\",\"text\":\"AAPL's FY2025 revenue is larger than NVDA's FY2025 revenue.\",\"evidence\":[\"F1\",\"F4\"],\"op\":\"highest\",\"result\":\"F4\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's FY2025 gross margin is higher than AAPL's FY2025 gross margin.\",\"evidence\":[\"F2\",\"F5\"],\"op\":\"highest\",\"result\":\"F2\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's FY2025 net margin is higher than AAPL's FY2025 net margin.\",\"evidence\":[\"F3\",\"F6\"],\"op\":\"highest\",\"result\":\"F3\"},\n  {\"kind\":\"unknown_cause\",\"text\":\"No NVDA revenue growth rate is shown, so the data does not indicate whether NVDA's revenue is growing faster or slower than AAPL's 6.4%.\",\"evidence\":[\"F1\",\"F7\"]},\n  {\"kind\":\"analyst_inference\",\"text\":\"AAPL has the larger revenue base but NVDA is more profitable on both gross and net margin; the fiscal years end eight months apart, limiting direct comparability.\",\"evidence\":[],\"supports\":[0,1,2,3,5,6,7]},\n  {\"kind\":\"analyst_inference\",\"text\":\"AAPL's positive 6.4% YoY revenue growth shows the larger base is still expanding, but without NVDA's growth figure the relative momentum cannot be judged.\",\"evidence\":[],\"supports\":[4,8]}\n]\n```",
+    "truncated": false,
+    "deployment": "opencode-go/qwen3.8-max",
+    "latency_ms": 32500,
+    "usage": {
+      "input_tokens": 277,
+      "output_tokens": 1433,
+      "reasoning_tokens": 466
+    }
+  },
+  "assertions": {
+    "status": "checked",
+    "accepted": [
+      {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVDA's FY2025 revenue (period ending January 2025) was $130.5B.",
+        "evidence": [
+          "F1"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "AAPL's FY2025 revenue (period ending September 2025) was $416.2B.",
+        "evidence": [
+          "F4"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "NVDA's FY2025 gross margin was 75.0% and net margin was 55.8%.",
+        "evidence": [
+          "F2",
+          "F3"
+        ]
+      },
+      {
+        "index": 3,
+        "kind": "observation",
+        "text": "AAPL's FY2025 gross margin was 46.9% and net margin was 26.9%.",
+        "evidence": [
+          "F5",
+          "F6"
+        ]
+      },
+      {
+        "index": 4,
+        "kind": "observation",
+        "text": "AAPL's FY2025 revenue growth (YoY) was 6.4%.",
+        "evidence": [
+          "F7"
+        ]
+      },
+      {
+        "index": 5,
+        "kind": "comparison",
+        "text": "AAPL's FY2025 revenue is larger than NVDA's FY2025 revenue.",
+        "evidence": [
+          "F1",
+          "F4"
+        ],
+        "op": "highest",
+        "result": "F4"
+      },
+      {
+        "index": 6,
+        "kind": "comparison",
+        "text": "NVDA's FY2025 gross margin is higher than AAPL's FY2025 gross margin.",
+        "evidence": [
+          "F2",
+          "F5"
+        ],
+        "op": "highest",
+        "result": "F2"
+      },
+      {
+        "index": 7,
+        "kind": "comparison",
+        "text": "NVDA's FY2025 net margin is higher than AAPL's FY2025 net margin.",
+        "evidence": [
+          "F3",
+          "F6"
+        ],
+        "op": "highest",
+        "result": "F3"
+      },
+      {
+        "index": 9,
+        "kind": "analyst_inference",
+        "text": "AAPL has the larger revenue base but NVDA is more profitable on both gross and net margin; the fiscal years end eight months apart, limiting direct comparability.",
+        "evidence": [],
+        "supports": [
+          0,
+          1,
+          2,
+          3,
+          5,
+          6,
+          7
+        ]
+      }
+    ],
+    "rejected": [
+      {
+        "index": 8,
+        "text": "No NVDA revenue growth rate is shown, so the data does not indicate whether NVDA's revenue is growing faster or slower than AAPL's 6.4%.",
+        "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
+      },
+      {
+        "index": 10,
+        "text": "AAPL's positive 6.4% YoY revenue growth shows the larger base is still expanding, but without NVDA's growth figure the relative momentum cannot be judged.",
+        "reason": "an inference binds the accepted observations it rests on"
+      }
+    ]
+  },
+  "removed": [
+    "**Strengths and weaknesses:** AAPL reported FY2025 revenue (period ending September 2025) of $416.2B, which is larger than NVDA's FY2025 revenue (period ending January 2025) of $130.5B."
+  ],
+  "blocks": [
+    {
+      "id": "92eb5358-6204-4998-8893-81651a977a6a",
+      "kind": "rich_text",
+      "snapshot_id": "f18057eb-a0d5-41e7-855e-04cb13e6a41d",
+      "data_ref": {
+        "kind": "rich_text",
+        "id": "92eb5358-6204-4998-8893-81651a977a6a"
+      },
+      "source_refs": [],
+      "as_of": "1970-01-01T00:00:00.000Z",
+      "title": "single_subject_analysis",
+      "segments": [
+        {
+          "type": "text",
+          "text": "**Takeaway:** AAPL's fiscal 2025 revenue is larger than NVDA's, but NVDA converts that revenue into profit at substantially higher margins. The two fiscal years end eight months apart, so the comparison is not like-for-like in calendar terms.\n\n**Trend:** Only one fiscal year is shown for each company, so no multi-period trend can be described from the data provided.\n\nHowever, NVDA's gross margin of 75.0% and net margin of 55.8% for FY2025 (ending January 2025) are higher than AAPL's gross margin of 46.9% and net margin of 26.9% for FY2025 (ending September 2025). NVDA is the more profitable business on every margin metric shown.\n\n**Counterpoint:** AAPL's FY2025 revenue growth (YoY) is shown at 6.4% for the period ending September 2025, confirming that the larger revenue base is still expanding. No equivalent growth figure is shown for NVDA, so the data does not confirm whether NVDA's smaller revenue base is growing faster or slower.\n\n**What the data cannot tell:** No NVDA revenue growth rate is shown, so the pace of NVDA's top-line expansion relative to AAPL's 6.4% cannot be assessed. No prior-year revenue for either company is provided, no segment or geographic breakdown is shown, and no quarterly trajectory within either fiscal year is available. The eight-month gap between fiscal year-ends means overlapping calendar quarters are not isolated."
+        }
+      ]
+    }
+  ]
+}

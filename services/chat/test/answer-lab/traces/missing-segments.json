@@ -1,0 +1,651 @@
+{
+  "version": 1,
+  "thread_id": "81ce8442-f9ac-4870-9c14-1b6912b48262",
+  "run_id": "7082c7cf-8fb9-47ee-be5b-2bb015a90c22",
+  "turn_id": "d43d9d1a-79a3-4fd1-95cd-e31ad9cd97fa",
+  "question": "Break down AMD's revenue by segment.",
+  "recorded_at": "2026-10-14T16:55:18.956Z",
+  "input": {
+    "context": {
+      "userIntent": "Break down AMD's revenue by segment.",
+      "bundleId": "single_subject_analysis"
+    },
+    "blocks": [
+      {
+        "id": "1d065051-7da1-4db0-8ba5-3051d03f136c",
+        "kind": "rich_text",
+        "snapshot_id": "715fef87-deff-4136-8191-c5b5e298e5e4",
+        "data_ref": {
+          "kind": "rich_text",
+          "id": "1d065051-7da1-4db0-8ba5-3051d03f136c"
+        },
+        "source_refs": [],
+        "as_of": "1970-01-01T00:00:00.000Z",
+        "title": "single_subject_analysis",
+        "segments": [
+          {
+            "type": "text",
+            "text": "Break down AMD's revenue by segment.. Used get_quote from the single_subject_analysis bundle and produced snapshot-backed research blocks."
+          }
+        ]
+      }
+    ],
+    "toolCalls": [
+      {
+        "tool_call_id": "9ccebe33-2b6a-4dad-8ce0-28232131c0be",
+        "tool_name": "get_quote",
+        "status": "ok",
+        "bundle_id": "single_subject_analysis",
+        "arguments": {
+          "query": "Break down AMD's revenue by segment.",
+          "subject_ref": {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000002"
+          }
+        },
+        "result": {
+          "kind": "local_evidence_tool_result",
+          "status": "ok",
+          "tool_name": "get_quote",
+          "arguments": {
+            "query": "Break down AMD's revenue by segment.",
+            "subject_ref": {
+              "kind": "listing",
+              "id": "62000000-0000-4000-8000-000000000002"
+            }
+          },
+          "evidence_status": "available",
+          "manifest_contribution": {
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000002"
+              }
+            ],
+            "claim_refs": [
+              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+            ],
+            "document_refs": [
+              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+            ],
+            "source_ids": [
+              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+            ]
+          },
+          "structured_context": {
+            "quote": {
+              "listing_id": "62000000-0000-4000-8000-000000000002",
+              "ticker": "AMD",
+              "provider": "golden_fixture",
+              "price": 162.3,
+              "prev_close": 164.9,
+              "change_abs": -2.5999999999999943,
+              "change_pct": -0.01576713159490597,
+              "session_state": "closed",
+              "delay_class": "eod",
+              "currency": "USD",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "source_id": "00000000-0000-4000-a000-000000000009",
+              "expires_at": "2126-09-01T00:00:00.000Z",
+              "stale": false
+            },
+            "facts": [
+              {
+                "fact_id": "b5b04bd2-e71c-44ce-bd2b-12a0b3848efb",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 5780000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "9a6198de-14cb-495b-9c82-e0e3eb473ab6",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 6050000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "aaa650ae-d3bd-4d0b-9a2d-22de860bda38",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 1480000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "938a8721-8cfb-431a-b981-c100eb0ce381",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 1400000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "37c60b6a-b59c-42db-ad92-f92f68e469ca",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 1610000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "b3b3ee1f-73b7-4c6b-a763-85ebd8d99a6b",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 1520000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 11200000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 10700000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 3059000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "709e4333-5b47-4d4a-8e87-e958f7e4a852",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 5560000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e3b1078a-f548-4aac-915f-3d7355f889c7",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 17307000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "68039ebd-f398-4813-be1d-bd0496a96d05",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 3735000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ac0b4a55-9359-48eb-be41-f9d2670d0f3a",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 4953000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "4fee5421-aa31-40d6-a12e-91a3205efe1e",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 872000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "0bd03868-2af6-4add-93a9-5e30af46002e",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 1243000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e1fb301b-278d-4605-9bf8-f272249181eb",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 1350000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "1233911f-23a5-4715-8012-c547643b056b",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 4174000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "f0dbd7e3-3f29-4c52-9815-843fd5f358fd",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 709000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e83f425e-2ae8-405a-827a-e255734e0c81",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 806000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "09618da8-d6e7-4944-8a2b-469d4eb78b24",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 1450000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "b3a0e458-bf3b-4393-89fe-be9d62824f96",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 1270000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": -134000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "8e512042-d79b-4ae5-b052-4dbebb99140b",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 3392000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 7685000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              }
+            ],
+            "source_ids": [
+              "00000000-0000-4000-a000-000000000001",
+              "00000000-0000-4000-a000-000000000009"
+            ],
+            "fact_recency": {
+              "latest_as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q1",
+              "age_days": 0,
+              "stale": false
+            }
+          },
+          "evidence": {
+            "claims": [
+              {
+                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
+                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797",
+                "text_canonical": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.",
+                "predicate": "kpi.commentary",
+                "polarity": "negative",
+                "trust_tier": "primary",
+                "license_class": "public",
+                "provider": "sec_edgar",
+                "source_canonical_url": "https://www.sec.gov/Archives/edgar/data/2488/000000248825000106/q22025991.htm",
+                "source_disclosure": null,
+                "confidence": 0.95,
+                "document_title": "AMD Reports Second Quarter 2025 Financial Results (Form 8-K, Exhibit 99.1)",
+                "published_at": "2025-08-05T00:00:00.000Z",
+                "effective_time": "2025-06-28T00:00:00.000Z",
+                "subject_id": "60000000-0000-4000-8000-000000000002"
+              }
+            ],
+            "source_ids": [
+              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+            ],
+            "document_refs": [
+              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+            ],
+            "claim_refs": [
+              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+            ],
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000002"
+              }
+            ],
+            "verifier_sources": [
+              {
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              }
+            ],
+            "verifier_documents": [
+              {
+                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              }
+            ],
+            "verifier_claims": [
+              {
+                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
+                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              }
+            ],
+            "truncated": false,
+            "contradictions": []
+          }
+        }
+      }
+    ],
+    "factBlocks": [
+      {
+        "id": "9b9c4b2e-1e98-487b-85b8-b3e88fdd455e",
+        "kind": "rich_text",
+        "snapshot_id": "715fef87-deff-4136-8191-c5b5e298e5e4",
+        "data_ref": {
+          "kind": "rich_text",
+          "id": "9b9c4b2e-1e98-487b-85b8-b3e88fdd455e"
+        },
+        "source_refs": [],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "segments": [
+          {
+            "type": "text",
+            "text": "Revenue by segment is not available for AMD in this data."
+          }
+        ]
+      }
+    ],
+    "subjectLabels": [
+      "AMD"
+    ],
+    "conversation": [
+      {
+        "role": "user",
+        "text": "Break down AMD's revenue by segment."
+      }
+    ],
+    "availableData": false,
+    "scope": {
+      "route": "segments",
+      "reads": "segments",
+      "companies": [
+        {
+          "issuer_id": "60000000-0000-4000-8000-000000000002",
+          "label": "AMD"
+        }
+      ],
+      "peers": false,
+      "segments": true,
+      "margin_trend": false,
+      "margins": false,
+      "metrics": [
+        {
+          "metric_key": "income_statement",
+          "label": "Revenue, profit and margins",
+          "available": true
+        }
+      ],
+      "fiscal_year": null,
+      "fiscal_quarter": null,
+      "price_window": null,
+      "benchmark": false,
+      "income_items": [
+        "revenue"
+      ],
+      "inherited": []
+    },
+    "cutoff": "2026-09-01T00:00:00.000Z"
+  },
+  "assertion_rendering": false,
+  "exchange": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Quote a figure only exactly as it appears there, in a sentence that names its company exactly as given in company (e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\", and never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
+      },
+      {
+        "role": "user",
+        "content": "{\"question\":\"Break down AMD's revenue by segment.\",\"conversation\":[{\"role\":\"user\",\"text\":\"Break down AMD's revenue by segment.\"}],\"evidence_packet\":{\"route\":\"segments\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[],\"coverage\":[{\"company\":\"AMD\",\"status\":\"not_shown\"}],\"gaps\":[\"Revenue by segment is not available for AMD in this data.\"],\"query_bounds\":{\"periods\":\"latest quarter's segments\",\"claims\":\"management, segment, and guidance claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"claims\":[{\"id\":\"C1\",\"text\":\"As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\",\"predicate\":\"kpi.commentary\",\"stance\":\"challenging\",\"company\":\"AMD\",\"effective_time\":\"2025-06-28T00:00:00.000Z\",\"published_at\":\"2025-08-05T00:00:00.000Z\"}],\"staleness\":{\"quote\":[{\"ticker\":\"AMD\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"Q1\",\"age_days\":0,\"stale\":false}]}}}"
+      }
+    ],
+    "text": "Revenue by segment is not available for AMD in this data. The system could not retrieve a segment-level breakdown for the latest quarter.\n\nOne related claim is available: AMD stated (published August 2025, effective for the quarter ending June 2025) that U.S. Government export controls on AMD Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in that quarter. This touches on the Data Center segment but does not provide a full revenue split across segments.\n\n```assertions\n[\n  {\"kind\": \"management_attribution\", \"text\": \"AMD stated that U.S. export controls on Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in the quarter ending June 2025.\", \"evidence\": [\"C1\"]},\n  {\"kind\": \"analyst_inference\", \"text\": \"The requested segment-level revenue breakdown for AMD is not present in the available data, so no segment comparison can be made.\", \"evidence\": [], \"supports\": []}\n]\n```",
+    "truncated": false,
+    "deployment": "opencode-go/qwen3.8-max",
+    "latency_ms": 9763,
+    "usage": {
+      "input_tokens": 637,
+      "output_tokens": 381,
+      "reasoning_tokens": 143
+    }
+  },
+  "assertions": {
+    "status": "checked",
+    "accepted": [
+      {
+        "index": 0,
+        "kind": "management_attribution",
+        "text": "AMD stated that U.S. export controls on Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in the quarter ending June 2025.",
+        "evidence": [
+          "C1"
+        ]
+      }
+    ],
+    "rejected": [
+      {
+        "index": 1,
+        "text": "The requested segment-level revenue breakdown for AMD is not present in the available data, so no segment comparison can be made.",
+        "reason": "an inference binds the accepted observations it rests on"
+      }
+    ]
+  },
+  "removed": [
+    "Government export controls on AMD Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in that quarter.",
+    "One related claim is available: AMD stated (published August 2025, effective for the quarter ending June 2025) that U.S."
+  ],
+  "blocks": [
+    {
+      "id": "1d065051-7da1-4db0-8ba5-3051d03f136c",
+      "kind": "rich_text",
+      "snapshot_id": "715fef87-deff-4136-8191-c5b5e298e5e4",
+      "data_ref": {
+        "kind": "rich_text",
+        "id": "1d065051-7da1-4db0-8ba5-3051d03f136c"
+      },
+      "source_refs": [],
+      "as_of": "1970-01-01T00:00:00.000Z",
+      "title": "single_subject_analysis",
+      "segments": [
+        {
+          "type": "text",
+          "text": "Revenue by segment is not available for AMD in this data. The system could not retrieve a segment-level breakdown for the latest quarter.\n\nThis touches on the Data Center segment but does not provide a full revenue split across segments."
+        }
+      ]
+    }
+  ]
+}
