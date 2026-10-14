@@ -13,6 +13,8 @@ import { chromium } from '@playwright/test'
 
 type ThreadReport = {
   thread: string
+  // False when the walk stopped before the end of the list: the counts are partial.
+  complete: boolean
   url: string
   screenshot: string
   answers: number
@@ -70,12 +72,12 @@ async function main(argv: string[]): Promise<number> {
         if (response.status() >= 400) failedRequests.push(`${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`)
       })
       await page.goto(url)
-      const prose = page.locator('[data-role="assistant"] [data-block-kind="rich_text"]')
-      const answered = await prose.first().waitFor({ timeout: ANSWER_TIMEOUT_MS }).then(() => true, () => false)
+      const answered = await page.locator('[data-role="assistant"]').first().waitFor({ timeout: ANSWER_TIMEOUT_MS }).then(() => true, () => false)
       // Chips resolve once the snapshot manifest loads.
       await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
       // The message list mounts only the messages near its scroll position, so
       // it is walked top to bottom and each assistant message counted once, by id.
+      let complete = !answered
       const seen = new Map<string, { fact_chips: number; claim_chips: number; plain: string[]; notes: number }>()
       const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)))))
       const scrollTo = (top: number) => page.evaluate((top) => {
@@ -117,7 +119,10 @@ async function main(argv: string[]): Promise<number> {
           }))) {
             seen.set(message.id, message)
           }
-          if (atEnd) break
+          if (atEnd) {
+            complete = true
+            break
+          }
         }
       }
       const counts = [...seen.values()]
@@ -135,6 +140,7 @@ async function main(argv: string[]): Promise<number> {
       await page.screenshot({ path: screenshot, fullPage: true })
       reports.push({
         thread,
+        complete,
         url,
         screenshot,
         answers: counts.length,
@@ -153,9 +159,10 @@ async function main(argv: string[]): Promise<number> {
   }
   writeFileSync(join(values.out, 'summary.json'), `${JSON.stringify(reports, null, 2)}\n`)
   const rows = [
-    ['thread', 'answers', 'fact chips', 'claim chips', 'plain #', 'note #', 'console errors'],
+    ['thread', 'complete', 'answers', 'fact chips', 'claim chips', 'plain #', 'note #', 'console errors'],
     ...reports.map((report) => [
       report.thread,
+      report.complete ? 'yes' : 'NO',
       String(report.answers),
       String(report.fact_chips),
       String(report.claim_chips),
