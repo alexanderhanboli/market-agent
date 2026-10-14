@@ -1,6 +1,7 @@
 import {
   createLlmRouterFromEnv,
   type LlmChatClient,
+  type LlmChatRequest,
   type LlmExecutionControls,
   type LlmSettingsLoaderEnv,
 } from "../../llm/src/index.ts";
@@ -14,14 +15,15 @@ import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, t
 import { statesComparison } from "./comparisons.ts";
 import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
 import type { ResearchScope } from "./research-scope.ts";
+import type { ModelExchange } from "./answer-trace.ts";
 import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
-const FACT_BLOCKS_FALLBACK_TEXT =
+export const FACT_BLOCKS_FALLBACK_TEXT =
   "The reported figures below come from the company's filings; select any value to see its source.";
 // The same case for an answer without figures to point to.
-const NO_ANSWER_FALLBACK_TEXT = "No written answer is available for this question; try asking again.";
+export const NO_ANSWER_FALLBACK_TEXT = "No written answer is available for this question; try asking again.";
 
 // A provider can accept a request and never answer (one held a turn 516 s, #184).
 // Each attempt gets a deadline, after which the router tries the next deployment: the
@@ -119,6 +121,8 @@ export async function composeAnalystBlocksWithLlm(input: {
   onUsage?: (usage: AnswerUsage) => void;
   // Receives the check of the answer's assertion list, in shadow (#208).
   onAssertions?: (report: AssertionReport) => void;
+  // Receives what the model was sent and wrote, raw, for turn traces (answer-trace.ts).
+  onModelExchange?: (exchange: ModelExchange) => void;
   deadlines?: ModelDeadlines;
 }): Promise<ReadonlyArray<Record<string, unknown>>> {
   const router = await createLlmRouterFromEnv(input.env ?? process.env, {
@@ -127,7 +131,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (!router) return input.blocks;
   const packet = turnPacket(input);
 
-  const result = await router.complete({
+  const request: LlmChatRequest = {
     messages: [
       {
         role: "system",
@@ -215,14 +219,23 @@ export async function composeAnalystBlocksWithLlm(input: {
     // reasoning model spent it all thinking and answered nothing (#124 baseline, #175).
     reasoning: "low",
     maxTokens: 8192,
-  }, withDeadlines(input.deadlines ?? ANSWER_DEADLINES));
-  if (result.usage) {
-    input.onUsage?.({
-      input_tokens: result.usage.inputTokens,
-      output_tokens: result.usage.outputTokens,
-      ...(result.usage.reasoningTokens === undefined ? {} : { reasoning_tokens: result.usage.reasoningTokens }),
-    });
-  }
+  };
+  const startedAt = performance.now();
+  const result = await router.complete(request, withDeadlines(input.deadlines ?? ANSWER_DEADLINES));
+  const usage: AnswerUsage | undefined = result.usage && {
+    input_tokens: result.usage.inputTokens,
+    output_tokens: result.usage.outputTokens,
+    ...(result.usage.reasoningTokens === undefined ? {} : { reasoning_tokens: result.usage.reasoningTokens }),
+  };
+  input.onModelExchange?.({
+    messages: request.messages,
+    text: result.text,
+    truncated: result.truncated === true,
+    deployment: `${result.deployment.channel}/${result.deployment.model}`,
+    latency_ms: Math.round(performance.now() - startedAt),
+    ...(usage ? { usage } : {}),
+  });
+  if (usage) input.onUsage?.(usage);
   // The deployment is reported only when some of its prose is shown: a fallback
   // sentence in its place was written by no model (#183).
   const answered = () => input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
@@ -676,7 +689,7 @@ function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>
 // inference stating a ranking, answers lose most counterpoints (2026-10-13
 // eval, 99 vs 109/116 off), so it stays opt-in until a checked counterpoint
 // form exists.
-function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
+export function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
   return /^(?:1|true|yes|on)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
 }
 

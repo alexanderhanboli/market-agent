@@ -436,13 +436,13 @@ test("DEV_MODE=analyst: frozen dataset + the developer's live LLM, with per-comp
   const result = await runBash(
     [
       "MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh",
-      'printf "%s|%s|<%s>|%s" "$LLM_CHANNELS" "$LITELLM_MODEL" "${LLM_REPLAY_FILE:-}" "${LLM_USAGE_LOG:-}"',
+      'printf "%s|%s|<%s>|%s|%s" "$LLM_CHANNELS" "$LITELLM_MODEL" "${LLM_REPLAY_FILE:-}" "${LLM_USAGE_LOG:-}" "${CHAT_TRACE_DIR#"$ROOT"}"',
     ].join("\n"),
     fixture.root,
   );
   await rm(fixture.root, { recursive: true, force: true });
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "openai|openai/gpt-4.1|<>|true");
+  assert.equal(result.stdout.trim(), "openai|openai/gpt-4.1|<>|true|/.dev/traces");
 
   const { result: up, lines } = await traceUp({ DEV_MODE: "analyst", ...LIVE_LLM }, NPM_TRACE);
   assert.equal(up.code, 0, up.stderr);
