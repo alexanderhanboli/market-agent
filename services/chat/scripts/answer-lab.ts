@@ -32,15 +32,19 @@ export type LabeledTrace = { label: string; trace: TurnTrace };
 // Every *.json under each path (a trace or a directory of them), labelled by
 // its path below the directory it was found in, without .json.
 export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
-  return paths.flatMap((path) => {
+  const found = paths.flatMap((path) => {
     const files = statSync(path).isDirectory()
       ? readdirSync(path, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".json")).sort().map((name) => join(path, name))
       : [path];
     return files.map((file) => ({
+      file,
       label: (statSync(path).isDirectory() ? relative(path, file) : basename(file)).replace(/\.json$/, ""),
       trace: JSON.parse(readFileSync(file, "utf8")) as TurnTrace,
     }));
   });
+  // Rows and comparisons key on the label: two traces sharing one keep their paths.
+  const shared = new Set(found.map(({ label }) => label).filter((label, i, all) => all.indexOf(label) !== i));
+  return found.map(({ file, label, trace }) => ({ label: shared.has(label) ? file.replace(/\.json$/, "") : label, trace }));
 }
 
 type Row = { label: string } & { [K in keyof AnswerMetrics]: number };
@@ -123,6 +127,8 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
         const answer = await composeTraced(trace.input, {
           env: { ...process.env, LLM_SETTINGS_ENV_FILE: settingsFile, ...renderingEnv(trace) },
         });
+        // No deployment configured: the placeholder came back and no model answered.
+        if (answer.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
         results.push({
           trace: label,
           sample,
