@@ -14,6 +14,7 @@ import { basename, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 
+import { LlmRouterError } from "../../llm/src/index.ts";
 import {
   answerMetrics,
   composeTraced,
@@ -131,8 +132,8 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
         });
         console.log(`done  ${label} #${sample}  (${((answer.exchange?.latency_ms ?? 0) / 1000).toFixed(1)}s)`);
       } catch (error) {
-        results.push({ trace: label, sample, error: error instanceof Error ? error.message : String(error) });
-        console.log(`error ${label} #${sample}: ${error instanceof Error ? error.message : error}`);
+        results.push({ trace: label, sample, error: failure(error) });
+        console.log(`error ${label} #${sample}: ${failure(error)}`);
       }
     }
   };
@@ -148,10 +149,20 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
   };
 }
 
-function liveRows(run: LiveRun): Row[] {
-  return run.traces.map((label) =>
-    meanRow(label, run.results.flatMap((result) => (result.trace === label && result.metrics ? [result.metrics] : [])))
-  );
+// Each attempt's deployment and code: the router's message alone names neither.
+function failure(error: unknown): string {
+  if (error instanceof LlmRouterError) {
+    return `${error.message} (${error.attempts.map((attempt) => `${attempt.deployment.channel}/${attempt.deployment.model}: ${attempt.code}`).join("; ")})`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+// A row per trace with an answer; a trace whose every sample failed has none.
+function liveRows(run: LiveRun, labels: ReadonlyArray<string> = run.traces): Row[] {
+  return labels.flatMap((label) => {
+    const answered = run.results.flatMap((result) => (result.trace === label && result.metrics ? [result.metrics] : []));
+    return answered.length > 0 ? [meanRow(label, answered)] : [];
+  });
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -190,10 +201,14 @@ async function main(argv: string[]): Promise<number> {
   writeFileSync(file, `${JSON.stringify(run, null, 2)}\n`, { flag: "wx" });
   const rows = liveRows(run);
   const errors = run.results.filter((result) => result.error).length;
+  const unanswered = run.traces.filter((label) => !rows.some((row) => row.label === label));
   console.log(`\n${table(rows)}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
+  if (unanswered.length > 0) console.log(`no answer: ${unanswered.join(", ")}`);
   if (values.against) {
     const before = JSON.parse(readFileSync(values.against, "utf8")) as LiveRun;
-    console.log(`\nagainst ${values.against}:\n${delta(totalRow(liveRows(before)), totalRow(rows))}`);
+    // Only traces both runs answered, so a failed one does not read as a change.
+    const shared = liveRows(before).map((row) => row.label).filter((label) => rows.some((row) => row.label === label));
+    console.log(`\nagainst ${values.against}, over the ${shared.length} traces both answered:\n${delta(totalRow(liveRows(before, shared)), totalRow(liveRows(run, shared)))}`);
   }
   return errors > 0 ? 1 : 0;
 }
