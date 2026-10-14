@@ -233,7 +233,9 @@ start_process() {
 
   (
     cd "$dir"
-    nohup bash -lc "$command" </dev/null >"$log_file" 2>&1 &
+    # A login shell's profile may put another node first (an x86 one beside
+    # arm64), so the service would not run on the node that installed it.
+    nohup bash -lc "export PATH=$(printf '%q' "$PATH"):\"\$PATH\"; $command" </dev/null >"$log_file" 2>&1 &
     echo $! >"$pid_file"
   )
 }

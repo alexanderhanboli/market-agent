@@ -691,6 +691,29 @@ test("up starts the unofficial dev provider sidecar only when explicitly enabled
   await rm(fixture.root, { recursive: true, force: true });
 });
 
+test("services launch with the caller's PATH first, whatever the login profile puts first", async () => {
+  const fixture = await createShellFixture();
+  const home = join(fixture.root, "home");
+  await mkdir(home);
+  await writeFile(join(home, ".bash_profile"), 'export PATH="/profile-first:$PATH"\n');
+  const out = join(fixture.root, "path.txt");
+  const result = await runBash(
+    [
+      "MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh",
+      'mkdir -p "$PID_DIR" "$LOG_DIR"',
+      'export PATH="/caller first:$PATH"',
+      `HOME="${home}" start_process probe "$ROOT" 'printf "%s" "$PATH" > "${out}.tmp" && mv "${out}.tmp" "${out}"'`,
+      `for _ in $(seq 1 50); do [[ -f "${out}" ]] && break; sleep 0.1; done`,
+      'printf "%s" "$PATH"',
+    ].join("\n"),
+    fixture.root,
+  );
+  assert.equal(result.code, 0, result.stderr);
+  const launched = await readFile(out, "utf8");
+  await rm(fixture.root, { recursive: true, force: true });
+  assert.ok(launched.startsWith(`${result.stdout}:`), `launched PATH: ${launched}`);
+});
+
 test("down stops compose services without deleting dev database containers", async () => {
   const fixture = await createShellFixture();
   const traceFile = join(fixture.root, "trace.log");
