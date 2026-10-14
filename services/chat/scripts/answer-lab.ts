@@ -10,7 +10,7 @@
 // (LLM_SETTINGS_ENV_FILE, default .env.dev, as dev-shell sets it) and writes
 // docs/eval-runs/answer-lab/<stamp>.json.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 
@@ -27,31 +27,34 @@ import {
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const RUNS_DIR = join(ROOT, "docs/eval-runs/answer-lab");
 
-export type LabeledTrace = { label: string; trace: TurnTrace };
+// key: the turn the trace records, which rows and comparisons match on;
+// label: its file name, shown only.
+export type LabeledTrace = { key: string; label: string; trace: TurnTrace };
 
-// Every *.json under each path (a trace or a directory of them), labelled by
-// its path below the directory it was found in, without .json.
-export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
-  const found = paths.flatMap((path) => {
-    const files = statSync(path).isDirectory()
-      ? readdirSync(path, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".json")).sort().map((name) => join(path, name))
-      : [path];
-    return files.map((file) => ({
-      file: resolve(file),
-      label: (statSync(path).isDirectory() ? relative(path, file) : basename(file)).replace(/\.json$/, ""),
-    }));
-  });
-  // Rows and comparisons key on the label: short when every one differs,
-  // otherwise each trace's absolute path, which no two files share.
-  const files = [...new Map(found.map((entry) => [entry.file, entry])).values()];
-  const unique = new Set(files.map(({ label }) => label)).size === files.length;
-  return files.map(({ file, label }) => ({
-    label: unique ? label : file.replace(/\.json$/, ""),
-    trace: JSON.parse(readFileSync(file, "utf8")) as TurnTrace,
-  }));
+export function traceKey(trace: Pick<TurnTrace, "thread_id" | "run_id" | "turn_id">): string {
+  return `${trace.thread_id}/${trace.run_id}${trace.turn_id ? `.${trace.turn_id}` : ""}`;
 }
 
-type Row = { label: string } & { [K in keyof AnswerMetrics]: number };
+// Every *.json under each path (a trace or a directory of them). One turn
+// given twice is an error rather than a guess at which to keep.
+export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
+  const files = paths.flatMap((path) =>
+    statSync(path).isDirectory()
+      ? readdirSync(path, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".json")).sort().map((name) => join(path, name))
+      : [path]
+  );
+  const seen = new Map<string, string>();
+  return files.map((file) => {
+    const trace = JSON.parse(readFileSync(file, "utf8")) as TurnTrace;
+    const key = traceKey(trace);
+    const earlier = seen.get(key);
+    if (earlier !== undefined) throw new Error(`turn ${key} is given twice: ${earlier} and ${file}`);
+    seen.set(key, file);
+    return { key, label: basename(file, ".json"), trace };
+  });
+}
+
+type Row = { key: string; label: string } & { [K in keyof AnswerMetrics]: number };
 const COLUMNS: ReadonlyArray<[keyof AnswerMetrics, string]> = [
   ["figure_refs", "refs"],
   ["plain_numbers", "plain#"],
@@ -64,15 +67,15 @@ const COLUMNS: ReadonlyArray<[keyof AnswerMetrics, string]> = [
 ];
 
 // A trace's row: the mean of its samples.
-function meanRow(label: string, samples: ReadonlyArray<AnswerMetrics>): Row {
+function meanRow(trace: { key: string; label: string }, samples: ReadonlyArray<AnswerMetrics>): Row {
   const mean = (key: keyof AnswerMetrics) =>
     samples.length === 0 ? 0 : samples.reduce((sum, metrics) => sum + Number(metrics[key]), 0) / samples.length;
-  return Object.fromEntries([["label", label], ...COLUMNS.map(([key]) => [key, mean(key)])]) as Row;
+  return Object.fromEntries([["key", trace.key], ["label", trace.label], ...COLUMNS.map(([key]) => [key, mean(key)])]) as Row;
 }
 
 // Counts add up across traces; tokens and latency are per answer.
 function totalRow(rows: ReadonlyArray<Row>): Row {
-  const total = Object.fromEntries([["label", "total"], ...COLUMNS.map(([key]) => [key, rows.reduce((sum, row) => sum + row[key], 0)])]) as Row;
+  const total = Object.fromEntries([["key", ""], ["label", "total"], ...COLUMNS.map(([key]) => [key, rows.reduce((sum, row) => sum + row[key], 0)])]) as Row;
   if (rows.length > 0) {
     total.output_tokens /= rows.length;
     total.latency_ms /= rows.length;
@@ -103,11 +106,12 @@ function delta(before: Row, after: Row): string {
 
 // Each trace replayed with its recorded reply; differs: the blocks are not the
 // recorded ones.
-async function recorded(traces: ReadonlyArray<LabeledTrace>): Promise<Array<{ label: string; metrics: AnswerMetrics; differs: boolean }>> {
+async function recorded(traces: ReadonlyArray<LabeledTrace>): Promise<Array<{ key: string; label: string; metrics: AnswerMetrics; differs: boolean }>> {
   const results = [];
-  for (const { label, trace } of traces) {
+  for (const { key, label, trace } of traces) {
     const replayed = await replayRecorded(trace);
     results.push({
+      key,
       label,
       metrics: answerMetrics(replayed),
       differs: !isDeepStrictEqual(JSON.parse(JSON.stringify(replayed.blocks)), trace.blocks),
@@ -117,16 +121,17 @@ async function recorded(traces: ReadonlyArray<LabeledTrace>): Promise<Array<{ la
 }
 
 type LiveSample = { trace: string; sample: number; deployment?: string; metrics?: AnswerMetrics; text?: string; error?: string };
-type LiveRun = { run: string; samples: number; wall_ms: number; traces: string[]; results: LiveSample[] };
+// traces: the turns' keys; labels: their file names, for display.
+type LiveRun = { run: string; samples: number; wall_ms: number; traces: string[]; labels?: Record<string, string>; results: LiveSample[] };
 
 async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concurrency: number): Promise<LiveRun> {
   const startedAt = Date.now();
-  const jobs = traces.flatMap(({ label, trace }) => Array.from({ length: samples }, (_, sample) => ({ label, trace, sample })));
+  const jobs = traces.flatMap(({ key, label, trace }) => Array.from({ length: samples }, (_, sample) => ({ key, label, trace, sample })));
   const results: LiveSample[] = [];
   const settingsFile = process.env.LLM_SETTINGS_ENV_FILE ?? join(ROOT, ".env.dev");
   const worker = async () => {
     for (let job = jobs.shift(); job; job = jobs.shift()) {
-      const { label, trace, sample } = job;
+      const { key, label, trace, sample } = job;
       try {
         const answer = await composeTraced(trace.input, {
           env: { ...process.env, LLM_SETTINGS_ENV_FILE: settingsFile, ...renderingEnv(trace) },
@@ -134,7 +139,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
         // No deployment configured: the placeholder came back and no model answered.
         if (answer.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
         results.push({
-          trace: label,
+          trace: key,
           sample,
           deployment: answer.exchange?.deployment,
           metrics: answerMetrics(answer),
@@ -142,19 +147,20 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
         });
         console.log(`done  ${label} #${sample}  (${((answer.exchange?.latency_ms ?? 0) / 1000).toFixed(1)}s)`);
       } catch (error) {
-        results.push({ trace: label, sample, error: failure(error) });
+        results.push({ trace: key, sample, error: failure(error) });
         console.log(`error ${label} #${sample}: ${failure(error)}`);
       }
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
-  const order = new Map(traces.map(({ label }, i) => [label, i]));
+  const order = new Map(traces.map(({ key }, i) => [key, i]));
   results.sort((a, b) => order.get(a.trace)! - order.get(b.trace)! || a.sample - b.sample);
   return {
     run: new Date(startedAt).toISOString().slice(0, 19).replace(/:/g, ""),
     samples,
     wall_ms: Date.now() - startedAt,
-    traces: traces.map(({ label }) => label),
+    traces: traces.map(({ key }) => key),
+    labels: Object.fromEntries(traces.map(({ key, label }) => [key, label])),
     results,
   };
 }
@@ -168,10 +174,10 @@ function failure(error: unknown): string {
 }
 
 // A row per trace with an answer; a trace whose every sample failed has none.
-function liveRows(run: LiveRun, labels: ReadonlyArray<string> = run.traces): Row[] {
-  return labels.flatMap((label) => {
-    const answered = run.results.flatMap((result) => (result.trace === label && result.metrics ? [result.metrics] : []));
-    return answered.length > 0 ? [meanRow(label, answered)] : [];
+function liveRows(run: LiveRun, keys: ReadonlyArray<string> = run.traces): Row[] {
+  return keys.flatMap((key) => {
+    const answered = run.results.flatMap((result) => (result.trace === key && result.metrics ? [result.metrics] : []));
+    return answered.length > 0 ? [meanRow({ key, label: run.labels?.[key] ?? key }, answered)] : [];
   });
 }
 
@@ -191,11 +197,17 @@ async function main(argv: string[]): Promise<number> {
     console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check] | live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>]");
     return 2;
   }
-  const traces = readTraces(paths);
+  let traces: LabeledTrace[];
+  try {
+    traces = readTraces(paths);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
   if (mode === "recorded") {
     const results = await recorded(traces);
-    const differs = new Set(results.filter((result) => result.differs).map((result) => result.label));
-    console.log(table(results.map(({ label, metrics }) => meanRow(label, [metrics])), (row) => (differs.has(row.label) ? "  DIFFERS" : "")));
+    const differs = new Set(results.filter((result) => result.differs).map((result) => result.key));
+    console.log(table(results.map((result) => meanRow(result, [result.metrics])), (row) => (differs.has(row.key) ? "  DIFFERS" : "")));
     console.log(`\n${traces.length - differs.size} of ${traces.length} replayed to the recorded blocks`);
     return values.check && differs.size > 0 ? 1 : 0;
   }
@@ -211,13 +223,13 @@ async function main(argv: string[]): Promise<number> {
   writeFileSync(file, `${JSON.stringify(run, null, 2)}\n`, { flag: "wx" });
   const rows = liveRows(run);
   const errors = run.results.filter((result) => result.error).length;
-  const unanswered = run.traces.filter((label) => !rows.some((row) => row.label === label));
+  const unanswered = run.traces.filter((key) => !rows.some((row) => row.key === key)).map((key) => run.labels?.[key] ?? key);
   console.log(`\n${table(rows)}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
   if (unanswered.length > 0) console.log(`no answer: ${unanswered.join(", ")}`);
   if (values.against) {
     const before = JSON.parse(readFileSync(values.against, "utf8")) as LiveRun;
     // Only traces both runs answered, so a failed one does not read as a change.
-    const shared = liveRows(before).map((row) => row.label).filter((label) => rows.some((row) => row.label === label));
+    const shared = liveRows(before).map((row) => row.key).filter((key) => rows.some((row) => row.key === key));
     console.log(`\nagainst ${values.against}, over the ${shared.length} traces both answered:\n${delta(totalRow(liveRows(before, shared)), totalRow(liveRows(run, shared)))}`);
   }
   return errors > 0 ? 1 : 0;

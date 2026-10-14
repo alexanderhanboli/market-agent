@@ -22,37 +22,38 @@ for (const { label, trace } of TRACES) {
   });
 }
 
-test("two traces with one file name are told apart by their paths", () => {
-  const [first] = TRACES;
-  const dirs = ["a", "b"].map((name) => join(mkdtempSync(join(tmpdir(), "answer-lab-")), name));
-  for (const dir of dirs) {
-    mkdirSync(dir);
-    writeFileSync(join(dir, "run.json"), JSON.stringify(first!.trace));
-  }
-  const labels = readTraces(dirs.map((dir) => join(dir, "run.json"))).map(({ label }) => label);
-  assert.deepEqual(labels, dirs.map((dir) => join(dir, "run")));
-});
-
-test("labels do not depend on the order traces are given in", () => {
-  const [first] = TRACES;
+// Writes each trace as its file under a fresh directory; returns that directory.
+function traceFiles(files: Record<string, object>): string {
   const root = mkdtempSync(join(tmpdir(), "answer-lab-"));
-  for (const file of ["fixtures/baseline/run.json", "fixtures/baseline/run#3.json", "baseline/run.json", "candidate/run.json", "unrelated.json"]) {
+  for (const [file, trace] of Object.entries(files)) {
     mkdirSync(join(root, file, ".."), { recursive: true });
-    writeFileSync(join(root, file), JSON.stringify(first!.trace));
+    writeFileSync(join(root, file), JSON.stringify(trace));
   }
-  const inputs = ["fixtures", "baseline/run.json", "candidate/run.json", "unrelated.json"].map((path) => join(root, path));
-  const byLabel = (paths: string[]) => readTraces(paths).map(({ label }) => label).sort();
-  assert.equal(new Set(byLabel(inputs)).size, 5);
-  assert.deepEqual(byLabel([inputs[3]!, ...inputs.slice(0, 3)]), byLabel(inputs));
+  return root;
+}
+
+test("traces are keyed by the turn they record, whatever their file names", () => {
+  const [first] = TRACES;
+  const turn = (run_id: string) => ({ ...first!.trace, run_id, turn_id: undefined });
+  const root = traceFiles({ "a/run.json": turn("run-a"), "b/run.json": turn("run-b"), "run": turn("run-c") });
+  const keyed = readTraces(["a/run.json", "b/run.json", "run"].map((file) => join(root, file)));
+  assert.deepEqual(keyed.map(({ key, label }) => [key, label]), [
+    [`${first!.trace.thread_id}/run-a`, "run"],
+    [`${first!.trace.thread_id}/run-b`, "run"],
+    [`${first!.trace.thread_id}/run-c`, "run"],
+  ]);
 });
 
-test("a label made from a path stays unique beside a directory's own label", () => {
+test("the keys do not depend on the order traces are given in", () => {
+  const [first, second, third] = TRACES;
+  const root = traceFiles({ "fixtures/x.json": first!.trace, "y.json": second!.trace, "z.json": third!.trace });
+  const inputs = ["fixtures", "y.json", "z.json"].map((path) => join(root, path));
+  const keys = (paths: string[]) => readTraces(paths).map(({ key }) => key).sort();
+  assert.deepEqual(keys([inputs[2]!, inputs[0]!, inputs[1]!]), keys(inputs));
+});
+
+test("one turn given twice is an error, not a guess", () => {
   const [first] = TRACES;
-  const root = mkdtempSync(join(tmpdir(), "answer-lab-"));
-  for (const dir of ["baseline", "candidate", "fixtures/baseline"]) {
-    mkdirSync(join(root, dir), { recursive: true });
-    writeFileSync(join(root, dir, "run.json"), JSON.stringify(first!.trace));
-  }
-  const labels = readTraces([join(root, "baseline/run.json"), join(root, "candidate/run.json"), join(root, "fixtures")]).map(({ label }) => label);
-  assert.equal(new Set(labels).size, 3);
+  const root = traceFiles({ "fixtures/run.json": first!.trace });
+  assert.throws(() => readTraces([join(root, "fixtures"), join(root, "fixtures/run.json")]), /is given twice/);
 });
