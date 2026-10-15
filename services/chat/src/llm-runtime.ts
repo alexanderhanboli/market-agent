@@ -177,8 +177,8 @@ export async function composeAnalystBlocksWithLlm(input: {
           "reference (\"$7.7B [[F3]]\" is wrong; \"[[F3]]\" is right). Write a cited claim's content as [[C2]], in",
           "place of the claim's words, never a paraphrase with [[C2]] after it; a number a claim states may",
           "appear only this way. Never write any other digit, except in a period label (Q4, FY2026, fiscal",
-          "2026, a month and year) or a product name a cited claim writes (\"MI308\", in a sentence citing that",
-          "claim); write counts in words (\"eight quarters\"). A sentence that types a",
+          "2026, a month and year); a product named only in a claim (\"MI308\") appears by citing the claim; write",
+          "counts in words (\"eight quarters\"). A sentence that types a",
           "figure or a claim's number is removed from the answer. Never compute new figures such as growth rates,",
           "margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words",
           // Wrong comparisons in words the guard cannot see (#228): "nine times" for 12.8x.

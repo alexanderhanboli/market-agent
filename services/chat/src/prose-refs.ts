@@ -24,12 +24,10 @@ export type ReferenceTable = {
   // The four-digit years the prose may write as a period: those of the
   // packet's periods, dates, bounds and cutoff, and of the blocks' titles.
   years: ReadonlySet<string>;
-  // Names with digits the prose may write anywhere: those in the metric,
-  // segment and block names, and the company labels' tokens ("0700" of "0700.HK").
+  // Names with digits the prose may write: those in the metric, segment and
+  // block names and the company labels. A name only a claim writes ("MI308")
+  // reaches the answer by citing the claim, which renders its words.
   words: ReadonlySet<string>;
-  // Names with digits each claim writes ("MI308"), allowed only in a sentence
-  // that cites that claim: there they quote the evidence the sentence names.
-  claimWords: ReadonlyMap<string, ReadonlySet<string>>;
 };
 
 // The only syntax read out of the model's prose: a packet id in double brackets.
@@ -59,8 +57,7 @@ export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray
   return {
     references,
     years: new Set(dated.flatMap((text) => text.match(YEAR) ?? [])),
-    words: new Set([...names.flatMap(namesIn), ...packet.companies.flatMap((company) => company.match(DIGIT_WORD) ?? [])]),
-    claimWords: new Map(packet.claims.map((claim) => [claim.id, new Set(namesIn(claim.text))])),
+    words: new Set([...names, ...packet.companies].flatMap(namesIn)),
   };
 }
 
@@ -82,15 +79,12 @@ export function displayOf(reference: Reference): string {
 }
 
 // Whether every word with a digit outside a reference is a period label (an
-// allowed year, FY and one, Q1-Q4, H1-H2), a name the turn's names write, or a
-// name a claim the same sentence cites writes.
-export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words" | "claimWords">): boolean {
-  const cited = [...text.matchAll(REFERENCE)].flatMap((match) => [...(allowed.claimWords.get(match[1]!) ?? [])]);
-  const names = new Set([...allowed.words, ...cited]);
+// allowed year, FY and one, Q1-Q4, H1-H2) or a name the turn's names write.
+export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words">): boolean {
   return (text.replace(REFERENCE, " ").match(DIGIT_WORD) ?? []).every((word) =>
-    PERIOD_SHAPE.test(word) && !allowed.words.has(word)
+    PERIOD_SHAPE.test(word)
       ? allowed.years.has(word) || /^(?:Q[1-4]|H[12])$/.test(word) || allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "")
-      : names.has(word)
+      : allowed.words.has(word)
   );
 }
 
