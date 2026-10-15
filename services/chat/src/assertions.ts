@@ -298,10 +298,13 @@ function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<st
   }
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
-  // An attribution renders its claim's quote, never its own text, so what the
-  // claim writes ("MI308", "$800") may stand in that text too.
-  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) })
-    .filter((token) => kind !== "management_attribution" || !claims.some((claim) => claim.text.includes(token)));
+  // An attribution renders its claim's quote, never its own text, so a token
+  // the claim writes ("MI308", "$800", whole, not "$80" of it) may stand in
+  // that text too.
+  const quoted = new Set(kind === "management_attribution"
+    ? claims.flatMap((claim) => typedDigits(claim.text, { years: new Set(), words: new Set(), companies: [] }))
+    : []);
+  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) }).filter((token) => !quoted.has(token));
   if (typed !== undefined) return /^(?:FY)?\d{4}$/.test(typed) ? `${typed} is not a period of its evidence` : `types ${typed}; write its reference`;
   // A claim with no company is no company's (its record named none).
   if (claims.some((claim) => claim.company === undefined)) return null;

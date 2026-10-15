@@ -290,6 +290,14 @@ export async function composeAnalystBlocksWithLlm(input: {
     // The guard reads each rendered assertion with its values as references,
     // so a template's own periods ("Q4 2026") pass and its values are the packet's.
     const guarded = new Set(rendered.filter((entry) => drops(entry.reference_text, entry.kind).length > 0).map((entry) => entry.index));
+    // An inference's label states what its comparisons checked: only those
+    // still on the page, so it never names one the guard removed.
+    const surviving = report.accepted.filter((assertion) => !guarded.has(assertion.index));
+    for (const [i, entry] of rendered.entries()) {
+      if (entry.kind === "analyst_inference" && entry.supports.some((n) => guarded.has(n))) {
+        rendered[i] = { ...entry, ...renderAssertion(report.accepted.find((assertion) => assertion.index === entry.index)!, packet, factBlocks, surviving) };
+      }
+    }
     // An inference goes when the guard removed every assertion it rests on:
     // none of its support is on the page.
     const orphaned = new Set(rendered.filter((entry) =>

@@ -540,12 +540,15 @@ test("an attribution may write what its cited claim writes, a product or an amou
     { kind: "observation", text: "AMD's MI308 revenue was [[F4]].", evidence: ["F4"] },
     // An amount its claim does not write.
     { kind: "management_attribution", text: "AMD said the controls cost $900 million: [[C3]]", evidence: ["C3"] },
+    // Part of the claim's token is not the token.
+    { kind: "management_attribution", text: "AMD said the controls cost $80 million: [[C3]]", evidence: ["C3"] },
   ], packet);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [0]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [1, "types MI308; write its reference"],
     [2, "types MI308; write its reference"],
     [3, "types $900; write its reference"],
+    [4, "types $80; write its reference"],
   ]);
 });
 
