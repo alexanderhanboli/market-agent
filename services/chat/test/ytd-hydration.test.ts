@@ -112,6 +112,7 @@ test("a market failure or a hung market never fails the turn", async (t) => {
 test("frozen data modes answer at the golden dataset's cutoff, whatever the year; live modes at the wall clock (#259)", () => {
   assert.equal(FROZEN_AS_OF, GOLDEN_AS_OF);
   assert.equal(turnNow({ DEV_NO_KEYS: "true" }), GOLDEN_AS_OF);
+  assert.equal(turnNow({ DEV_NO_KEYS: "traces" }), GOLDEN_AS_OF);
   assert.equal(turnNow({ DEV_MODE: "analyst" }), GOLDEN_AS_OF);
   for (const env of [{}, { DEV_MODE: "data" }]) {
     const now = Date.parse(turnNow(env));

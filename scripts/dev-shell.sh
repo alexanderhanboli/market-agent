@@ -109,6 +109,11 @@ install_node_packages() {
   ensure_install "$ROOT/services/llm"
   # Imported as sources by chat and others; resolves ajv/decimal.js from its own node_modules.
   ensure_install "$ROOT/services/financial-core"
+  # Nothing the stack runs needs these; their own tests and type checks do.
+  ensure_install "$ROOT/services/app"
+  ensure_install "$ROOT/services/financial-engine"
+  ensure_install "$ROOT/services/screener-artifacts"
+  ensure_install "$ROOT/services/shared"
 }
 
 ensure_python_service_install() {

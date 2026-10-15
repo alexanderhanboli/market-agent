@@ -100,11 +100,13 @@ test("the traces' reply fixture answers each traced question as recorded, and a 
   const file = join(dir, "replies.json");
   writeFileSync(file, JSON.stringify(replyFixture(traces, golden)));
   const reply = await createReplayLlmChatClient(file);
-  const ask = async (...contents: string[]) =>
-    (await reply({} as never, { messages: contents.map((content) => ({ role: "user", content })) } as never)).text;
+  const ask = async (content: string) => (await reply({} as never, { messages: [{ role: "user", content }] } as never)).text;
+  // Each trace's own recorded request gets its own reply.
+  for (const { label, trace } of traces) {
+    assert.equal(await ask(trace.exchange!.messages.map((message) => message.content).join("\n")), trace.exchange!.text, label);
+  }
+  // A short question asked after a longer one in its thread: the history quotes the longer one.
   const recorded = (question: string) => traces.find(({ trace }) => trace.question === question)!.trace.exchange!.text;
-  assert.equal(await ask("Analyze NVDA's latest quarter."), recorded("Analyze NVDA's latest quarter."));
-  // A follow-up's request repeats the earlier question; the longer, later one answers.
-  assert.equal(await ask("Analyze NVDA.", "Compare it with AMD YTD."), recorded("Compare it with AMD YTD."));
+  assert.equal(await ask(JSON.stringify({ conversation: ["Analyze NVDA's latest quarter."], question: "Analyze NVDA." })), recorded("Analyze NVDA."));
   assert.equal(await ask("Create a short, specific research chat title for: Compare NVDA with AMD."), "NVDA research");
 });

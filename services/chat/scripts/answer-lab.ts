@@ -162,14 +162,15 @@ type LiveRun = {
 
 const GOLDEN_REPLIES = fileURLToPath(new URL("../test/golden/llm-replies.json", import.meta.url));
 
-// Each traced question answered by its recorded reply, longest question first:
-// a reply matches when its question appears anywhere in the request, and a
-// follow-up's request repeats the questions before it ("Analyze NVDA." within
-// "Analyze NVDA's latest quarter."). The golden fixture's thread-title reply
-// goes first, as the title request quotes the question too.
+// Each traced question answered by its recorded reply. A reply matches by
+// substring, so it keys on the answer request's own `"question":"..."` field:
+// the question alone would match a later turn whose history repeats it. The
+// golden fixture's thread-title reply goes first, as the title request quotes
+// the question too.
 export function replyFixture(traces: ReadonlyArray<LabeledTrace>, golden: LlmReplayFixture): LlmReplayFixture {
-  const answers = traces.flatMap(({ trace }) => (trace.exchange?.text ? [{ match: trace.question, text: trace.exchange.text }] : []))
-    .sort((a, b) => b.match.length - a.match.length);
+  const answers = traces.flatMap(({ trace }) =>
+    trace.exchange?.text ? [{ match: `"question":${JSON.stringify(trace.question)}`, text: trace.exchange.text }] : []
+  );
   return { replies: [...golden.replies.filter((reply) => reply.match.startsWith("Create a short")), ...answers] };
 }
 

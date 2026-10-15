@@ -22,7 +22,7 @@ export type HydrationListing = { id: string; timeZone: string };
 // The frozen data modes answer from the seeded golden dataset: nothing refreshes
 // its prices, so their YTD window is charted whatever its age (#256).
 export function frozenDataMode(env: NodeJS.ProcessEnv): boolean {
-  return env.DEV_NO_KEYS === "true" || env.DEV_MODE === "analyst";
+  return env.DEV_NO_KEYS === "true" || env.DEV_NO_KEYS === "traces" || env.DEV_MODE === "analyst";
 }
 
 // The golden dataset's cutoff (test/golden/dataset.ts seeds at it). The frozen
