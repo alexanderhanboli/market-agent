@@ -125,7 +125,8 @@ function templateSegments(
         clauses.set(clause, [...(clauses.get(clause) ?? []), ...(metric ? [metric] : [])]);
       }
       const label = [...clauses].map(([clause, metrics]) => (metrics.length > 0 ? `${clause} ${new Intl.ListFormat("en").format(metrics)}` : clause));
-      text(`> **Analyst inference${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
+      const on = assertion.subject ? ` on ${assertion.subject}` : "";
+      text(`> **Analyst inference${on}${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
       break;
     }
     case "data_gap":

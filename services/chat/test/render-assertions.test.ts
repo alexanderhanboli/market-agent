@@ -238,4 +238,11 @@ test("an inference's label states each supporting comparison's checked result; o
     { index: 0, kind: "comparison", op: "highest", result: "F1", text: "x", evidence: ["F1", "F2"] },
     { index: 1, kind: "comparison", op: "highest", result: "F4", text: "x", evidence: ["F4", "F5"] },
   ]), "> **Analyst inference** (NVDA highest on gross margin and net margin): The loss quarter was a one-off.");
+  // A subject is named in the label, beside what its comparisons checked (#308).
+  const on = (supports: number[], accepted: ReadonlyArray<Assertion & { index: number }>) =>
+    plainText(renderAssertion({ index: 9, kind: "analyst_inference", subject: "AMD", text: "Its net margin may understate underlying profitability.", evidence: [], supports }, margins, [], accepted).segments);
+  assert.equal(on([1], [{ index: 1, kind: "comparison", op: "highest", result: "F4", text: "x", evidence: ["F4", "F5"] }]),
+    "> **Analyst inference on AMD** (NVDA highest on net margin): Its net margin may understate underlying profitability.");
+  assert.equal(on([3], [{ index: 3, kind: "observation", text: "x", evidence: ["F5"] }]),
+    "> **Analyst inference on AMD:** Its net margin may understate underlying profitability.");
 });

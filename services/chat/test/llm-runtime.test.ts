@@ -1404,6 +1404,20 @@ test("across companies, an inference names none: its label states what its compa
   assert.equal(wrong.report.rendered, undefined);
 });
 
+test("across companies, an inference's subject is named in its label, through the guard (#308)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", subject: "AMD", text: "Its thinner margin leaves less room to invest.", evidence: [], supports: [0] },
+  ]));
+  assert.equal(
+    (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
+    "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026, ended Jan 2026), AMD 49.2% (FY2025, ended Dec 2025)." +
+      "\n\n> **Analyst inference on AMD** (NVDA highest on gross margin): Its thinner margin leaves less room to invest." +
+      "\n\nThe periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025.",
+  );
+  assert.deepEqual(report.rejected, []);
+});
+
 test("an observation a kept comparison already writes in full is not said twice; it still supports an inference (#301)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
