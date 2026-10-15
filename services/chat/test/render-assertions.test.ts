@@ -163,54 +163,15 @@ test("an observation names each period once, and segments and acronyms read as w
   );
 });
 
-test("an inference's numbers render as fact refs when each is one supported figure's (#208)", () => {
-  const inference = (text: string, supported: string[]) =>
-    renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, supported);
-  const linked = inference("NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.", ["F1", "F2"]);
-  assert.equal(plainText(linked.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.");
-  assert.deepEqual(linked.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
-  assert.equal(linked.unsealed, false);
-  // A number no supported figure holds cannot link, so the inference is not rendered.
-  assert.equal(inference("NVDA's 74.6% margin outruns AMD's 49.2%.", ["F1"]).unsealed, true);
-  // Years and periods are not values.
-  assert.equal(inference("NVDA held its edge through FY2026.", ["F1"]).unsealed, false);
-});
-
-test("an inference's packet references render as their sealed values, beside any typed figure it links (prose-refs)", () => {
+test("an inference's packet references render as their sealed values, a unit typed beside one dropped (prose-refs)", () => {
   const inference = (text: string) =>
-    renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, ["F1", "F2"]);
-  const rendered = inference("NVDA's [[F1]] margin outruns AMD's [[F2]], a durable edge.");
+    renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, PACKET, FACT_BLOCKS);
+  const rendered = inference("NVDA's [[F1]] margin outruns AMD's [[F2]]%, a durable edge.");
   assert.equal(plainText(rendered.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.");
   assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
+  assert.deepEqual(rendered.fact_bindings.map((binding) => binding.fact_id), [NVDA_GM, AMD_GM]);
   assert.equal(rendered.unsealed, false);
-  const mixed = inference("NVDA's [[F1]] margin outruns AMD's 49.2%.");
-  assert.equal(plainText(mixed.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%.");
-  assert.deepEqual(mixed.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
+  // A figure with no fact to seal leaves the inference unsealed, so it is not rendered.
+  assert.equal(inference("AMD's [[F3]] EPS trails.").unsealed, true);
 });
 
-test("a typed value written beside its own reference renders once, as one chip (PR #300 review)", () => {
-  const rendered = renderAssertion({ index: 1, kind: "analyst_inference", text: "NVDA's 74.6% [[F1]] margin is a durable edge.", evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, ["F1"]);
-  assert.equal(plainText(rendered.segments), "> **Analyst inference:** NVDA's 74.6% margin is a durable edge.");
-  assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM]);
-});
-
-test("a year in an inference is a period, never an unlinkable figure (#208)", () => {
-  const rendered = renderAssertion(
-    { index: 1, kind: "analyst_inference", text: "The Q1 2026 dip was a one-quarter event, recovered by Q4 2026 and through 2025.", evidence: [], supports: [0] },
-    PACKET, FACT_BLOCKS, ["F1"],
-  );
-  assert.equal(rendered.unsealed, false);
-  assert.equal(rendered.segments.some((segment) => segment.type === "ref"), false);
-});
-
-test("a comma-grouped four-digit value is a figure to link, not a year (#208 review)", () => {
-  const packet: EvidencePacket = { ...PACKET, figures: [
-    { id: "F1", company: "NVDA", metric: "Employees", period: "FY2026", value: "2,025", fact_id: NVDA_GM, source_ids: [] },
-  ], companies: ["NVDA"] };
-  const render = (text: string) => renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, packet, FACT_BLOCKS, ["F1"]);
-  const linked = render("NVDA's 2,025 employees run a lean operation.");
-  assert.deepEqual(linked.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM]);
-  // Unlinkable four-digit quantities leave the inference unsealed rather than passing as years.
-  assert.equal(render("NVDA's 3,100 contractors run a lean operation.").unsealed, true);
-  assert.equal(render("NVDA ran lean through 2025 and in Q1 2026.").unsealed, false);
-});

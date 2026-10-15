@@ -997,7 +997,7 @@ async function renderA(list: unknown[]) {
 
 test("with rendering on, the answer is written from its accepted assertions, values as sealed refs (#208)", async () => {
   const { block, report } = await renderWithReply(withList([
-    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
     { kind: "observation", text: "NVDA's revenue was $99B.", evidence: ["F1"] },
     // Two companies in one period show no change.
     { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F4"] },
@@ -1015,7 +1015,7 @@ test("with rendering on, the answer is written from its accepted assertions, val
   assert.deepEqual(block.source_refs, ["s-nvda", "s-amd"]);
   assert.equal(report.rendered, true);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [1, "$99B is not a cited figure's value"],
+    [1, "types $99B; write its reference"],
     [2, "an unknown cause cites a change: one company's metric, two periods, two values"],
   ]);
 });
@@ -1023,7 +1023,7 @@ test("with rendering on, the answer is written from its accepted assertions, val
 test("rendering keeps the narrative guard as its backstop, assertion by assertion (#208)", async () => {
   // A template's own digits are periods; an inference's magnitude in words is the model's (#228).
   const { block, report } = await renderWithReply(withList([
-    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", text: "NVDA's margin has doubled.", evidence: [], supports: [0] },
   ]));
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
@@ -1058,7 +1058,7 @@ test("a reply citing a sealed figure renders a fact ref with its binding; an inv
 
 test("with rendering off, or nothing accepted, the guarded prose stands (#208)", async () => {
   // Both companies' figures, so only the flag keeps the prose.
-  const both = [{ kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] }];
+  const both = [{ kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] }];
   const off = await renderWithReply(withList(both), { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
   assert.equal((off.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(off.report.rendered, undefined);
@@ -1094,7 +1094,7 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
 
   const { text, removed } = await renderA([
     { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
-    { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
+    { kind: "observation", text: "A's gross margin was [[F2]].", evidence: ["F2"] },
     { kind: "analyst_inference", text: "A's margin has doubled.", evidence: [], supports: [1] },
   ]);
   // A one-letter ticker's observation renders as any other's: its value is the packet's.
@@ -1118,7 +1118,7 @@ test("a rendered answer keeps a stale-data warning; a sourced causal claim rende
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [stale],
     factBlocks: RENDER_BLOCKS,
-    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] }]) }),
+    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] }]) }),
   });
   const staleText = (staleAnswer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(staleText, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).\n\nThe latest reported figures are 190 days old and may be out of date. The quote, as of Jun 2026, may be out of date.");
@@ -1142,22 +1142,23 @@ test("a rendered answer keeps a stale-data warning; a sourced causal claim rende
   assert.equal(claimText, "According to a source dated Feb 2026: Margins rose due to a richer mix.");
 });
 
-test("a rendered inference's figures are its supports' fact refs; one it cannot link is not rendered (#208)", async () => {
+test("a rendered inference's figures are its references, sealed; one that types a figure is never rendered (#208, #302 item 2)", async () => {
   const { block, report } = await renderWithReply(withList([
-    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
-    { kind: "analyst_inference", text: "NVDA's 74.6% margin outruns AMD's 49.2%.", evidence: [], supports: [0] },
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "NVDA's [[F2]] margin outruns AMD's [[F4]].", evidence: [], supports: [0] },
     { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
-    // 74.6% is NVDA's figure, so it cannot be AMD's: the binding check rejects it.
-    { kind: "analyst_inference", text: "AMD's 74.6% margin stands out.", evidence: [], supports: [0] },
+    // A value typed beside its own reference would show twice.
+    { kind: "analyst_inference", text: "NVDA's 74.6% [[F2]] margin is a durable edge.", evidence: [], supports: [0] },
   ]));
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
   const text = segments.map((segment) => segment.text ?? segment.format).join("");
   assert.match(text, /> \*\*Analyst inference:\*\* NVDA's 74\.6% margin outruns AMD's 49\.2%\./);
   assert.match(text, /> \*\*Analyst inference:\*\* NVDA appears to hold pricing power\.$/);
+  assert.doesNotMatch(text, /74\.6% 74\.6%|durable edge/);
   // The observation's two refs, then the inference's, all sealed facts.
   assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(2), FACT(4)]);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [3, "74.6% is not a cited figure's value for AMD"],
+    [3, "types 74.6%; write its reference"],
   ]);
 });
 
@@ -1169,7 +1170,7 @@ test("a rendered answer says which compared companies it shows no figures for (#
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
     factBlocks: nvdaOnly,
-    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] }]) }),
+    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]) }),
   });
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).\n\nNo figures are shown for AMD.");
@@ -1207,7 +1208,7 @@ test("a rendered answer keeps the other side of a stored disagreement (#208)", a
 });
 
 test("a rendered comparison covers every company it shows figures for, and warns of calendars across observations (#208)", async () => {
-  const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] }]));
+  const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]));
   assert.equal((oneSided.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(oneSided.report.rendered, undefined);
 
@@ -1222,8 +1223,8 @@ test("a rendered comparison covers every company it shows figures for, and warns
     toolCalls: [],
     factBlocks: sameYear,
     createClient: () => async () => ({ text: withList([
-      { kind: "observation", text: "NVDA's gross margin was 74.6%.", evidence: ["F2"] },
-      { kind: "observation", text: "AMD's gross margin was 49.2%.", evidence: ["F4"] },
+      { kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] },
+      { kind: "observation", text: "AMD's gross margin was [[F4]].", evidence: ["F4"] },
     ]) }),
   });
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
@@ -1251,7 +1252,7 @@ test("a rendered answer says when more claims matched, or none could be read (#2
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [unreadable],
     factBlocks: RENDER_BLOCKS,
-    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] }]) }),
+    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] }]) }),
   });
   assert.match((answer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), /\n\nResearch claims could not be read for this answer\.$/);
 });
@@ -1267,7 +1268,7 @@ test("an observation whose value cannot be sealed is not rendered (#208)", async
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
     factBlocks: perf,
-    createClient: () => async () => ({ text: `NVDA returned [[F1]] this year.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "observation", text: "NVDA returned 12.5%.", evidence: ["F1"] }])}\n\`\`\`` }),
+    createClient: () => async () => ({ text: `NVDA returned [[F1]] this year.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "observation", text: "NVDA returned [[F1]].", evidence: ["F1"] }])}\n\`\`\`` }),
     onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
   });
   // The guarded prose stands, its reference rendered as the chart's value in plain text.
@@ -1283,7 +1284,7 @@ test("a comparison renders its checked result through the guard; an inference's 
   const { block, report } = await renderWithReply(withList([
     { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [0] },
-    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", text: "AMD trails NVDA on profitability.", evidence: [], supports: [2] },
   ]));
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
@@ -1375,8 +1376,8 @@ test("an inference whose support was left out of the answer is left out too (#20
     toolCalls: [],
     factBlocks: [...RENDER_BLOCKS, perf],
     createClient: () => async () => ({ text: withList([
-      { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
-      { kind: "observation", text: "NVDA's price return was 5.81% and AMD's 3.17%.", evidence: ["F5", "F6"] },
+      { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
+      { kind: "observation", text: "NVDA's price return was [[F5]] and AMD's [[F6]].", evidence: ["F5", "F6"] },
       { kind: "analyst_inference", text: "Momentum remains with NVDA.", evidence: [], supports: [1] },
       { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
     ]) }),

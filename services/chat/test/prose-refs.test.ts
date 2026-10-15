@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { EvidencePacket } from "../src/evidence-packet.ts";
-import { displayOf, onlyPeriodDigits, proseSegments, referenceTable, referenceText } from "../src/prose-refs.ts";
+import { displayOf, proseSegments, referenceTable, referenceText, typedDigits } from "../src/prose-refs.ts";
 
 const NVDA_REVENUE = "a1000000-0000-4000-8000-000000000001";
 const AMD_MARGIN = "a1000000-0000-4000-8000-000000000002";
@@ -39,39 +39,39 @@ test("a name with digits passes only from the turn's names: a segment, metric, t
   const packet = { ...PACKET, figures: [...PACKET.figures, { id: "F5", company: "AMD", metric: "Revenue", segment: "MI300 accelerators", period: "FY2025", value: "$5.0B", source_ids: [] }] };
   const table = referenceTable(packet, BLOCKS);
   assert.deepEqual([...table.words].sort(), ["MI300"]);
-  assert.equal(onlyPeriodDigits("MI300 sales rose.", table), true);
-  assert.equal(onlyPeriodDigits("Export rules on the MI308 weighed on AMD, as [[C1]] says.", table), false);
+  assert.deepEqual(typedDigits("MI300 sales rose.", table), []);
+  assert.deepEqual(typedDigits("Export rules on the MI308 weighed on AMD, as [[C1]] says.", table), ["MI308"]);
 });
 
 test("a company label passes whole, numeric tickers included; its digits open nothing else", () => {
   const packet = { ...PACKET, companies: ["700", "2025.HK", "BRK3"] };
   const table = { ...referenceTable(packet, BLOCKS), years: new Set<string>() };
-  assert.equal(onlyPeriodDigits("700's revenue was [[F1]].", table), true);
-  assert.equal(onlyPeriodDigits("2025.HK reported.", table), true);
-  assert.equal(onlyPeriodDigits("BRK3 reported.", table), true);
-  assert.equal(onlyPeriodDigits("Revenue rose in 2025.", table), false);
-  assert.equal(onlyPeriodDigits("Revenue was 7000.", table), false);
+  assert.deepEqual(typedDigits("700's revenue was [[F1]].", table), []);
+  assert.deepEqual(typedDigits("2025.HK reported.", table), []);
+  assert.deepEqual(typedDigits("BRK3 reported.", table), []);
+  assert.deepEqual(typedDigits("Revenue rose in 2025.", table), ["2025"]);
+  assert.deepEqual(typedDigits("Revenue was 7000.", table), ["7000"]);
 });
 
 test("a period-shaped word is judged only as a period, and an amount never passes as a name", () => {
   const packet = { ...PACKET, claims: [{ ...PACKET.claims[0]!, text: "Charges totaled USD800M in FY2025 on MI308 parts." }] };
   const table = referenceTable(packet, BLOCKS);
   const noYears = { ...table, years: new Set<string>() };
-  assert.equal(onlyPeriodDigits("Revenue was USD800M.", table), false);
-  assert.equal(onlyPeriodDigits("Revenue in FY2025, per [[C1]].", noYears), false);
-  assert.equal(onlyPeriodDigits("Charges hit MI308 parts, per [[C1]].", table), false);
-  assert.equal(onlyPeriodDigits("Revenue in FY２０２５.", table), false);
+  assert.deepEqual(typedDigits("Revenue was USD800M.", table), ["USD800M"]);
+  assert.deepEqual(typedDigits("Revenue in FY2025, per [[C1]].", noYears), ["FY2025"]);
+  assert.deepEqual(typedDigits("Charges hit MI308 parts, per [[C1]].", table), ["MI308"]);
+  assert.deepEqual(typedDigits("Revenue in FY２０２５.", table), ["FY２０２５"]);
 });
 
 test("a product name shaped like a half-year label (H100) is a name, not a period", () => {
   const table = referenceTable(PACKET, [...BLOCKS, { kind: "metric_row", title: "H100 systems revenue" }]);
-  assert.equal(onlyPeriodDigits("H100 demand held up.", table), true);
-  assert.equal(onlyPeriodDigits("Revenue in H1 2026.", table), true);
+  assert.deepEqual(typedDigits("H100 demand held up.", table), []);
+  assert.deepEqual(typedDigits("Revenue in H1 2026.", table), []);
 });
 
 test("digits in any script are digits: full-width and Arabic-Indic numbers do not pass", () => {
-  assert.equal(onlyPeriodDigits("Revenue was ２ billion.", TABLE), false);
-  assert.equal(onlyPeriodDigits("Revenue was ٣ billion.", TABLE), false);
+  assert.deepEqual(typedDigits("Revenue was ２ billion.", TABLE), ["２"]);
+  assert.deepEqual(typedDigits("Revenue was ٣ billion.", TABLE), ["٣"]);
 });
 
 test("the table holds every packet figure and claim by id, and the years of its periods, dates, bounds and titles", () => {
@@ -89,25 +89,25 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
     "The [[C1]] restrictions weighed on Q2.",
     "No digits here.",
   ]) {
-    assert.equal(onlyPeriodDigits(kept, TABLE), true, kept);
+    assert.deepEqual(typedDigits(kept, TABLE), [], kept);
   }
-  for (const dropped of [
-    "Revenue grew 38% year over year.",
-    "The window ran from December 31, 2025.",
-    "Eight quarters are shown, 8 in all.",
-    "Revenue was $209.9B.",
-    "Q5 2026 is no quarter.",
-    "Results since 2019.",
-    "Q42026 is the stored form, not a period label.",
-    "Demand for the H200 rose.",
-    "Export rules on the MI308 weighed on AMD.",
-    "AMD sold 308 units.",
+  for (const [dropped, typed] of [
+    ["Revenue grew 38% year over year.", "38%"],
+    ["The window ran from December 31, 2025.", "31"],
+    ["Eight quarters are shown, 8 in all.", "8"],
+    ["Revenue was $209.9B.", "$209.9B"],
+    ["Q5 2026 is no quarter.", "Q5"],
+    ["Results since 2019.", "2019"],
+    ["Q42026 is the stored form, not a period label.", "Q42026"],
+    ["Demand for the H200 rose.", "H200"],
+    ["Export rules on the MI308 weighed on AMD.", "MI308"],
+    ["AMD sold 308 units.", "308"],
   ]) {
-    assert.equal(onlyPeriodDigits(dropped, TABLE), false, dropped);
+    assert.deepEqual(typedDigits(dropped!, TABLE), [typed], dropped);
   }
   // With no years allowed, any year is a digit; a quarter label still passes.
-  assert.equal(onlyPeriodDigits("Revenue in FY2026.", { years: new Set(), words: new Set(), companies: [] }), false);
-  assert.equal(onlyPeriodDigits("Revenue in Q4.", { years: new Set(), words: new Set(), companies: [] }), true);
+  assert.deepEqual(typedDigits("Revenue in FY2026.", { years: new Set(), words: new Set(), companies: [] }), ["FY2026"]);
+  assert.deepEqual(typedDigits("Revenue in Q4.", { years: new Set(), words: new Set(), companies: [] }), []);
 });
 
 test("prose converts to segments: a sealed fact ref, a claim ref, and plain text for a figure with no fact to seal", () => {

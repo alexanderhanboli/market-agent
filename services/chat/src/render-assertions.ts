@@ -5,13 +5,14 @@
 // the packet); a management attribution quotes its claim, dated; an unknown
 // cause says the figures do not show why; an inference is labelled. The model's
 // own wording survives only in an inference, which the check has bound to the
-// observations it rests on. A comparison states the high or low, ranking or
-// trend its check derived, never the model's wording of it.
+// observations it rests on, with every figure a packet reference. A comparison
+// states the high or low, ranking or trend its check derived, never the
+// model's wording of it.
 
-import { linkFigures, type Assertion } from "./assertions.ts";
+import type { Assertion } from "./assertions.ts";
 import { checkComparison, periodText, type CheckedComparison } from "./comparisons.ts";
 import type { EvidencePacket, PacketFigure } from "./evidence-packet.ts";
-import { createSealer, REFERENCE, type Segment } from "./prose-refs.ts";
+import { createSealer, referenceSegments, referenceTable, type Segment } from "./prose-refs.ts";
 
 type Block = Record<string, unknown>;
 
@@ -32,8 +33,6 @@ export function renderAssertion(
   assertion: Assertion & { index: number },
   packet: EvidencePacket,
   factBlocks: ReadonlyArray<Block>,
-  // An inference's supported evidence: its observations' and comparisons' F ids.
-  supported: ReadonlyArray<string> = [],
 ): RenderedAssertion {
   const figures = assertion.evidence.flatMap((id) => packet.figures.filter((figure) => figure.id === id));
   const claims = assertion.evidence.flatMap((id) => packet.claims.filter((claim) => claim.id === id));
@@ -43,8 +42,6 @@ export function renderAssertion(
   };
   const seal = createSealer(factBlocks);
   const { value, quote } = seal;
-  // An inference's text could not be linked: its numbers stay plain, unsealed.
-  let unlinked = false;
 
   const segments: Segment[] = [];
   const text = (value: string) => segments.push({ type: "text", text: value });
@@ -89,48 +86,15 @@ export function renderAssertion(
       text(`The figures do not show why ${changed.join(" and ")} changed.`);
       break;
     }
-    case "analyst_inference": {
-      // Its references (checked to be its evidence's) and its typed numbers
-      // (its supports' figures) each render as a ref; references are blanked
-      // for linking, so their digits are no number. A number that binds to no
-      // single supported figure leaves it unsealed (not rendered).
+    case "analyst_inference":
+      // Its references, which the check bound to its evidence, render as the
+      // packet's values; the check rejected any figure it typed itself.
       text("> **Analyst inference:** ");
-      const links = linkFigures(assertion.text.replace(REFERENCE, (reference) => " ".repeat(reference.length)), [...assertion.evidence, ...supported], packet);
-      if (!links) {
-        unlinked = true;
-        text(assertion.text);
-        break;
-      }
-      // A typed value beside its own reference ("74.6% [[F1]]") is one span:
-      // the figure renders once.
-      const spans = [
-        ...links.map((link) => ({ at: link.at, length: link.length, id: link.figureId })),
-        ...[...assertion.text.matchAll(REFERENCE)].map((match) => ({ at: match.index, length: match[0].length, id: match[1]! })),
-      ].sort((a, b) => a.at - b.at).reduce<Array<{ at: number; length: number; id: string }>>((merged, span) => {
-        const last = merged.at(-1);
-        if (last?.id === span.id && /^\s*$/.test(assertion.text.slice(last.at + last.length, span.at))) {
-          last.length = span.at + span.length - last.at;
-        } else {
-          merged.push(span);
-        }
-        return merged;
-      }, []);
-      let from = 0;
-      for (const span of spans) {
-        text(assertion.text.slice(from, span.at));
-        const figure = packet.figures.find((entry) => entry.id === span.id);
-        const claim = packet.claims.find((entry) => entry.id === span.id);
-        if (figure) segments.push(value(figure));
-        else if (claim) segments.push(quote(claim));
-        else unlinked = true;
-        from = span.at + span.length;
-      }
-      text(assertion.text.slice(from));
+      segments.push(...referenceSegments(assertion.text, referenceTable(packet, factBlocks).references, seal));
       break;
-    }
   }
   const { fact_bindings, source_refs, unsealed } = seal.sealed();
-  return { index: assertion.index, segments, fact_bindings, source_refs, unsealed: unsealed || unlinked };
+  return { index: assertion.index, segments, fact_bindings, source_refs, unsealed };
 }
 
 type Writer = {
