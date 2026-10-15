@@ -1915,38 +1915,6 @@
     "status": "checked",
     "accepted": [
       {
-        "index": 0,
-        "kind": "observation",
-        "text": "AMD's operating margin was 10.6% in Q3 2024, 11.4% in Q4 2024, 10.8% in Q1 2025, -1.7% in Q2 2025, 13.7% in Q3 2025, 14.1% in Q4 2025, 14.2% in Q1 2026, and 14.4% in Q2 2026.",
-        "evidence": [
-          "F26",
-          "F27",
-          "F28",
-          "F29",
-          "F30",
-          "F31",
-          "F32",
-          "F33"
-        ]
-      },
-      {
-        "index": 2,
-        "kind": "comparison",
-        "text": "Q2 2026 operating margin of 14.4% is the highest in the eight-quarter window.",
-        "evidence": [
-          "F26",
-          "F27",
-          "F28",
-          "F29",
-          "F30",
-          "F31",
-          "F32",
-          "F33"
-        ],
-        "op": "highest",
-        "result": "F33"
-      },
-      {
         "index": 6,
         "kind": "unknown_cause",
         "text": "The data does not show which segment or product line drove the steady operating margin improvement from Q3 2025 through Q2 2026.",
@@ -1960,14 +1928,24 @@
     ],
     "rejected": [
       {
+        "index": 0,
+        "text": "AMD's operating margin was 10.6% in Q3 2024, 11.4% in Q4 2024, 10.8% in Q1 2025, -1.7% in Q2 2025, 13.7% in Q3 2025, 14.1% in Q4 2025, 14.2% in Q1 2026, and 14.4% in Q2 2026.",
+        "reason": "types 10.6%; write its reference"
+      },
+      {
         "index": 1,
         "text": "Operating margin trended upward over the eight quarters, with the Q2 2025 dip as the sole decline and four consecutive quarters of improvement thereafter.",
         "reason": "comparison: operating margin did not rise in every period"
       },
       {
+        "index": 2,
+        "text": "Q2 2026 operating margin of 14.4% is the highest in the eight-quarter window.",
+        "reason": "types 14.4%; write its reference"
+      },
+      {
         "index": 3,
         "text": "Management attributed the Q2 2025 operating margin decline to approximately $800 million in inventory and related charges from U.S. export controls on MI308 data center GPU products.",
-        "reason": "2 is not a cited figure's value"
+        "reason": "types $800; write its reference"
       },
       {
         "index": 4,

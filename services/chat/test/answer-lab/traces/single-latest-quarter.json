@@ -883,25 +883,6 @@
     "status": "checked",
     "accepted": [
       {
-        "index": 0,
-        "kind": "observation",
-        "text": "Q4 fiscal 2026 revenue was $62.1B with net income of $35.4B and net margin of 57.0%.",
-        "evidence": [
-          "F1",
-          "F4",
-          "F7"
-        ]
-      },
-      {
-        "index": 1,
-        "kind": "observation",
-        "text": "Gross margin was 74.4% and operating margin was 64.9% in Q4 fiscal 2026.",
-        "evidence": [
-          "F5",
-          "F6"
-        ]
-      },
-      {
         "index": 2,
         "kind": "comparison",
         "text": "Revenue rose every quarter across the eight quarters shown, from Q1 fiscal 2025 through Q4 fiscal 2026.",
@@ -917,38 +898,34 @@
         ],
         "op": "trend",
         "result": "rose_throughout"
-      },
-      {
-        "index": 3,
-        "kind": "observation",
-        "text": "QoQ revenue growth was 8.9% while YoY revenue growth was 57.9% in Q4 fiscal 2026.",
-        "evidence": [
-          "F8",
-          "F9"
-        ]
-      },
-      {
-        "index": 4,
-        "kind": "analyst_inference",
-        "text": "The large gap between YoY and QoQ growth rates indicates sequential momentum is moderating even though the company is still growing rapidly on a year-over-year basis.",
-        "evidence": [],
-        "supports": [
-          2,
-          3
-        ]
-      },
-      {
-        "index": 5,
-        "kind": "analyst_inference",
-        "text": "The absolute revenue increase from Q2 to Q3 fiscal 2026 was larger than from Q3 to Q4 fiscal 2026, consistent with decelerating sequential growth on a larger base.",
-        "evidence": [],
-        "supports": [
-          2,
-          3
-        ]
       }
     ],
     "rejected": [
+      {
+        "index": 0,
+        "text": "Q4 fiscal 2026 revenue was $62.1B with net income of $35.4B and net margin of 57.0%.",
+        "reason": "types $62.1B; write its reference"
+      },
+      {
+        "index": 1,
+        "text": "Gross margin was 74.4% and operating margin was 64.9% in Q4 fiscal 2026.",
+        "reason": "types 74.4%; write its reference"
+      },
+      {
+        "index": 3,
+        "text": "QoQ revenue growth was 8.9% while YoY revenue growth was 57.9% in Q4 fiscal 2026.",
+        "reason": "types 8.9%; write its reference"
+      },
+      {
+        "index": 4,
+        "text": "The large gap between YoY and QoQ growth rates indicates sequential momentum is moderating even though the company is still growing rapidly on a year-over-year basis.",
+        "reason": "an inference binds the accepted observations it rests on"
+      },
+      {
+        "index": 5,
+        "text": "The absolute revenue increase from Q2 to Q3 fiscal 2026 was larger than from Q3 to Q4 fiscal 2026, consistent with decelerating sequential growth on a larger base.",
+        "reason": "an inference binds the accepted observations it rests on"
+      },
       {
         "index": 6,
         "text": "The data does not show why sequential growth decelerated; no segment breakdown or management commentary is available to explain the shift.",
