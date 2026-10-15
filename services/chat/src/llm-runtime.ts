@@ -14,6 +14,7 @@ import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimReco
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { statesComparison } from "./comparisons.ts";
 import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
+import { proseSegments, referenceTable, referenceText, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
 import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, withoutEmptySections } from "./narrative-guard.ts";
@@ -130,6 +131,10 @@ export async function composeAnalystBlocksWithLlm(input: {
   });
   if (!router) return input.blocks;
   const packet = turnPacket(input);
+  const factBlocks = input.factBlocks ?? [];
+  // The references the prose may cite, rendered as the packet's values (prose-refs.ts).
+  const table = referenceTable(packet, factBlocks);
+  const asProse = (text: string) => rewriteFirstRichTextBlockWith(input.blocks, [proseSegments(text, table, factBlocks)], []);
 
   const request: LlmChatRequest = {
     messages: [
@@ -164,11 +169,13 @@ export async function composeAnalystBlocksWithLlm(input: {
           "> **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>.",
           "Use only the context provided; do not invent citations or data.",
           "The figures shown to the user are listed in evidence_packet.figures, each with the metric",
-          "and, in a comparison, the company it belongs to. Quote a figure only exactly as it",
-          "appears there, in a sentence that names its company exactly as given in company",
-          // The guard credits a figure only within its sentence (#142), so "Its" drops (#240).
-          "(e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\",",
-          "and never compute new figures such as growth rates,",
+          "and, in a comparison, the company it belongs to. Write a figure only as its packet reference,",
+          // The reference renders as the packet's value, sealed to its fact (prose-refs.ts).
+          "[[F3]] for the figure with id F3: it renders as the displayed value, linked to its source, with",
+          "its unit, so do not add $, %, B or x around it. Write a cited claim's content as [[C2]], which",
+          "renders as the claim's text; a number a claim states may appear only by citing the claim.",
+          "Never write any other digit, except in a period label (Q4, FY2026, fiscal 2026, a month and",
+          "year); write counts in words (\"eight quarters\"). Never compute new figures such as growth rates,",
           "margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words",
           // Wrong comparisons in words the guard cannot see (#228): "nine times" for 12.8x.
           "(\"roughly double\", \"six times\", \"larger than X's whole revenue\"):",
@@ -268,7 +275,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     const supportedEvidence = (assertion: (typeof report.accepted)[number]) =>
       report.accepted.filter((entry) => assertion.supports?.includes(entry.index)).flatMap((entry) => entry.evidence);
     const rendered = report.accepted.map((assertion) => ({
-      ...renderAssertion(assertion, packet, input.factBlocks ?? [], supportedEvidence(assertion)),
+      ...renderAssertion(assertion, packet, factBlocks, supportedEvidence(assertion)),
       kind: assertion.kind,
       supports: assertion.supports ?? [],
     }));
@@ -283,7 +290,9 @@ export async function composeAnalystBlocksWithLlm(input: {
       entry.kind === "analyst_inference" && !excluded.has(entry.index) && statesComparison(plainText(entry.segments))
     ).map((entry) => entry.index));
     for (const index of unranked) excluded.add(index);
-    const guarded = new Set(rendered.filter((entry) => !excluded.has(entry.index) && drops(plainText(entry.segments), entry.kind).length > 0).map((entry) => entry.index));
+    // The guard reads each rendered assertion with its refs as references, so
+    // a template's own periods ("Q4 2026") pass and its values are the packet's.
+    const guarded = new Set(rendered.filter((entry) => !excluded.has(entry.index) && drops(referenceText(entry.segments, table), entry.kind).length > 0).map((entry) => entry.index));
     // An inference goes with any assertion it rests on that the guard removed
     // or that was left out (unsealed): its stated support is not on the page.
     const orphaned = new Set(rendered.filter((entry) =>
@@ -326,7 +335,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     const otherSides = [...new Set(packet.disagreements.flatMap(({ claims: [a, b] }) =>
       shownClaims.has(a) && !shownClaims.has(b) ? [b] : shownClaims.has(b) && !shownClaims.has(a) ? [a] : []
     ))].map((id, i) => {
-      const side = renderAssertion({ index: -1 - i, kind: "management_attribution", text: "", evidence: [id] }, packet, input.factBlocks ?? []);
+      const side = renderAssertion({ index: -1 - i, kind: "management_attribution", text: "", evidence: [id] }, packet, factBlocks);
       return { ...side, segments: [{ type: "text" as const, text: "A source disagrees. " }, ...side.segments] };
     });
     // What the rendered assertions cannot say themselves: a compared company
@@ -350,14 +359,15 @@ export async function composeAnalystBlocksWithLlm(input: {
     // Pointing to "the reported figures below" needs figures shown, not a gap note.
     return rewriteFirstRichTextBlock(
       input.blocks,
-      displayedFigures(input.factBlocks ?? []).length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT,
+      displayedFigures(factBlocks).length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT,
     );
   }
+  const claimTexts = claimTextsFromToolCalls(input.toolCalls);
   // The guard limits prose to the figures shown; with none shown (no fact blocks,
   // or only a gap note or chart), the model answers from available_data
   // instead, so no figure is guarded (#181), but no cause may be stated outside
   // a labelled hypothesis either (#263). One condition decides both.
-  const shown = displayedFigures(input.factBlocks ?? []);
+  const shown = displayedFigures(factBlocks);
   if (shown.length === 0) {
     // A claim-only answer renders; one also standing on available_data (its
     // figure assertions unchecked, with no fact to render) keeps its prose.
@@ -373,11 +383,10 @@ export async function composeAnalystBlocksWithLlm(input: {
       console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
     }
     // A named gap's turn gives the model no data (availableData false): any
-    // number it states is invented (#221). A claim's number is no support
-    // either: prose cannot bind it to the claim's metric (#294 review), so a
-    // claim is given as an attribution, which renders it whole.
+    // digit it types is invented, a year included (#221). A claim's number
+    // appears only by citing the claim, which renders it whole (#294 review).
     const unnumbered = input.availableData === false
-      ? withoutWordedAmounts(keepSupportedSentences(uncaused.text, [], [], [], [], input.subjectLabels ?? []))
+      ? withoutWordedAmounts(keepSupportedSentences(uncaused.text, { ...table, years: new Set() }, claimTexts, input.subjectLabels ?? []))
       : { text: uncaused.text, removed: [] as string[] };
     if (unnumbered.removed.length > 0) {
       console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
@@ -387,30 +396,20 @@ export async function composeAnalystBlocksWithLlm(input: {
     if (removedHere.length > 0) input.onNarrativeRemoved?.(removedHere);
     if (unnumbered.text) answered();
     // No figures are shown here, so the fallback points to none.
-    return rewriteFirstRichTextBlock(input.blocks, unnumbered.text || NO_ANSWER_FALLBACK_TEXT);
+    return unnumbered.text ? asProse(unnumbered.text) : rewriteFirstRichTextBlock(input.blocks, NO_ANSWER_FALLBACK_TEXT);
   }
 
-  const displayTexts = displayTextsForBlocks(input.factBlocks ?? []);
+  // The words a stated cause or a hypothesis's basis may use: what the blocks
+  // display, the cited claims, and each figure's period end as a rendered
+  // observation names it ("ended Jan 2026", #208).
   const guard = (text: string) => keepSupportedSentences(
     text,
+    table,
     [
-      ...displayTexts.map(withoutDays),
-      ...claimTextsFromToolCalls(input.toolCalls),
-      // Each figure's period end, as a rendered observation names it ("ended Jan 2026", #208).
+      ...displayTextsForBlocks(factBlocks),
+      ...claimTexts,
       ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
     ],
-    shown.flatMap((figure) =>
-      figure.company === undefined ? [] : [
-        { company: figure.company, value: figure.value, metric: figure.metric },
-        // So is its fiscal year: the title shows every company's, so "NVDA's FY2025"
-        // must not pass when NVDA's figures are FY2026 (#180). A year every company
-        // shares is no one's in particular (narrative-guard.ts).
-        ...(figure.period ? [{ company: figure.company, value: withoutDays(figure.period) }] : []),
-      ]
-    ),
-    // A chart window's dates, which the narrative may write with their day (#240).
-    displayTexts.flatMap((text) => text.match(/\d{4}-\d{2}-\d{2}/g) ?? []),
-    shown.flatMap((figure) => figure.metric ?? []),
     input.subjectLabels ?? [],
   );
   const rendered = renderAccepted((text) => guard(text).removed);
@@ -434,7 +433,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     input.onNarrativeRemoved?.(guarded.removed);
   }
   if (guarded.text) answered();
-  return rewriteFirstRichTextBlock(input.blocks, guarded.text || FACT_BLOCKS_FALLBACK_TEXT);
+  return guarded.text ? asProse(guarded.text) : rewriteFirstRichTextBlock(input.blocks, FACT_BLOCKS_FALLBACK_TEXT);
 }
 
 // An amount in words: any magnitude or unit word ("three billion dollars",
@@ -474,12 +473,6 @@ function claimTextsFromToolCalls(toolCalls: ReadonlyArray<ChatAnalystToolRuntime
     claim.text_canonical,
     ...[claim.effective_time, claim.published_at].flatMap((date) => (date ? [monthYear(date)] : [])),
   ]);
-}
-
-// A chart's window is shown as dates ("2025-12-31 close to 2026-08-31"); the
-// guard reads them as month and year, so a day ("31") never passes as a return.
-function withoutDays(text: string): string {
-  return text.replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date));
 }
 
 function shortMonthYear(iso: string): string {
@@ -636,11 +629,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// The narrative block as rendered assertions: their segments, paragraph by
-// paragraph, with the fact bindings and sources their refs seal with.
+// The narrative block as segments (the guarded prose, or rendered assertions
+// paragraph by paragraph), with the fact bindings and sources their refs seal with.
 function rewriteFirstRichTextBlockWith(
   blocks: ReadonlyArray<Record<string, unknown>>,
-  rendered: ReadonlyArray<ReturnType<typeof renderAssertion>>,
+  rendered: ReadonlyArray<ProseSegments>,
   notes: ReadonlyArray<string>,
 ): ReadonlyArray<Record<string, unknown>> {
   const segments = [
