@@ -51,6 +51,7 @@ export function AssistantTurn({
 }
 
 // The sent-message bubble gradient is intentionally theme-independent so it
-// reads as "your message" in both light and dark.
+// reads as "your message" in both light and dark; so is its text, which the
+// blocks inside would otherwise set to the theme's (dark on light, #303).
 export const USER_BUBBLE_CLASS =
-  'max-w-[80%] rounded-2xl rounded-br-md border border-[#244a6e] bg-linear-to-b from-[#1d3a59] to-[#16314c] px-3.5 py-2.5 text-[#dcebff] shadow-md'
+  'max-w-[80%] rounded-2xl rounded-br-md border border-[#244a6e] bg-linear-to-b from-[#1d3a59] to-[#16314c] px-3.5 py-2.5 text-[#dcebff] shadow-md **:text-inherit'
