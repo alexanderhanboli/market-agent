@@ -97,7 +97,7 @@ test("an observation names each period's end month; one fiscal year that ends mo
     { kind: "observation", text: "x", evidence: ["F1"] },
     { kind: "observation", text: "x", evidence: ["F2"] },
   ];
-  assert.equal(calendarNote(observations, ended), "The periods compared end in different months, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2026 ended Dec 2025.");
+  assert.equal(calendarNote(observations, ended), "The periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2026 ended Dec 2025.");
   assert.equal(calendarNote(observations, PACKET), undefined);
 });
 
@@ -112,7 +112,13 @@ test("across companies, compared figures whose periods end in different months a
   const revenue: Assertion = { kind: "comparison", op: "highest", result: "F4", text: "x", evidence: ["F4", "F5"] };
   assert.equal(
     calendarNote([margin, revenue, { kind: "observation", text: "x", evidence: ["F1", "F2"] }], yearEnds),
-    "The periods compared end in different months, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025.",
+    "The periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025.",
+  );
+  // The same month a year apart does not line up either, and the note does not say "different months" (#307 review).
+  const yearApart = { ...yearEnds, figures: yearEnds.figures.map((figure) => ({ ...figure, period_end: figure.company === "AMD" ? "2024-12-28" : "2025-12-27" })) };
+  assert.equal(
+    calendarNote([margin, revenue], yearApart),
+    "The periods compared end at different times, so they do not line up: NVDA's FY2026 ended Dec 2025 and AMD's FY2025 ended Dec 2024.",
   );
   // Set side by side by no comparison, differently named periods are each company's own.
   assert.equal(calendarNote([{ kind: "observation", text: "x", evidence: ["F1", "F2"] }], yearEnds), undefined);

@@ -270,7 +270,7 @@ export function calendarNote(assertions: ReadonlyArray<Assertion>, packet: Evide
   ))];
   return named.length === 0
     ? undefined
-    : `The periods compared end in different months, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
+    : `The periods compared end at different times, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
 }
 
 // What the data cannot show, under one label: an answer's several gaps read
