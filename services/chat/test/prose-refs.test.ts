@@ -35,16 +35,34 @@ const PACKET: EvidencePacket = {
 };
 const TABLE = referenceTable(PACKET, BLOCKS);
 
-test("a word with digits passes only as the evidence writes it", () => {
-  assert.deepEqual([...TABLE.words].sort(), ["FY2025", "FY2026", "MI308"]);
+test("a claim's words are its own: a name with digits passes only in a sentence that cites the claim", () => {
+  assert.deepEqual([...TABLE.words].sort(), []);
+  assert.deepEqual([...TABLE.claimWords.get("C1")!], ["MI308"]);
 });
 
 test("an evidence word must start with a letter: a claim's $800M whitelists nothing; a company label passes whole", () => {
   const packet = { ...PACKET, companies: ["0700.HK", "NVDA"], claims: [{ ...PACKET.claims[0]!, text: "Restrictions on MI308 parts resulted in $800M of charges." }] };
   const table = referenceTable(packet, BLOCKS);
   assert.equal(onlyPeriodDigits("AMD's free cash flow was $800M.", table), false);
-  assert.equal(onlyPeriodDigits("Demand for MI308 parts fell.", table), true);
+  assert.equal(onlyPeriodDigits("Demand for MI308 parts fell, per [[C1]].", table), true);
   assert.equal(onlyPeriodDigits("0700.HK reported in FY2026.", table), true);
+});
+
+test("a period-shaped word is judged only as a period, and an amount never passes as a name", () => {
+  const packet = { ...PACKET, claims: [{ ...PACKET.claims[0]!, text: "Charges totaled USD800M in FY2025 on MI308 parts." }] };
+  const table = referenceTable(packet, BLOCKS);
+  const noYears = { ...table, years: new Set<string>() };
+  assert.equal(onlyPeriodDigits("Revenue was USD800M.", table), false);
+  assert.equal(onlyPeriodDigits("Revenue in FY2025, per [[C1]].", noYears), false);
+  assert.equal(onlyPeriodDigits("Revenue in FY２０２５.", table), false);
+});
+
+test("a product name shaped like a half-year label (H100) is a name, not a period", () => {
+  const packet = { ...PACKET, claims: [{ ...PACKET.claims[0]!, text: "Demand for H100 systems stayed strong." }] };
+  const table = referenceTable(packet, BLOCKS);
+  assert.equal(onlyPeriodDigits("H100 demand held up, per [[C1]].", table), true);
+  assert.equal(onlyPeriodDigits("H100 demand held up.", table), false);
+  assert.equal(onlyPeriodDigits("Revenue in H1 2026.", table), true);
 });
 
 test("digits in any script are digits: full-width and Arabic-Indic numbers do not pass", () => {
@@ -66,7 +84,7 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
     "Revenue grew over 2025-2026.",
     "The [[C1]] restrictions weighed on Q2.",
     "No digits here.",
-    "Export rules on the MI308 weighed on AMD.",
+    "Export rules on the MI308 weighed on AMD, as [[C1]] says.",
   ]) {
     assert.equal(onlyPeriodDigits(kept, TABLE), true, kept);
   }
@@ -79,13 +97,14 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
     "Results since 2019.",
     "Q42026 is the stored form, not a period label.",
     "Demand for the H200 rose.",
+    "Export rules on the MI308 weighed on AMD.",
     "AMD sold 308 units.",
   ]) {
     assert.equal(onlyPeriodDigits(dropped, TABLE), false, dropped);
   }
   // With no years allowed, any year is a digit; a quarter label still passes.
-  assert.equal(onlyPeriodDigits("Revenue in FY2026.", { years: new Set(), words: new Set() }), false);
-  assert.equal(onlyPeriodDigits("Revenue in Q4.", { years: new Set(), words: new Set() }), true);
+  assert.equal(onlyPeriodDigits("Revenue in FY2026.", { years: new Set(), words: new Set(), claimWords: new Map() }), false);
+  assert.equal(onlyPeriodDigits("Revenue in Q4.", { years: new Set(), words: new Set(), claimWords: new Map() }), true);
 });
 
 test("prose converts to segments: a sealed fact ref, a claim ref, and plain text for a figure with no fact to seal", () => {

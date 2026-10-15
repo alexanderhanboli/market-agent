@@ -24,9 +24,12 @@ export type ReferenceTable = {
   // The four-digit years the prose may write as a period: those of the
   // packet's periods, dates, bounds and cutoff, and of the blocks' titles.
   years: ReadonlySet<string>;
-  // Words that mix letters and digits as the evidence writes them ("MI308",
-  // "FY2026"): a product or label the prose may name, never a figure.
+  // Names with digits the prose may write anywhere: those in the metric,
+  // segment and block names, and the company labels' tokens ("0700" of "0700.HK").
   words: ReadonlySet<string>;
+  // Names with digits each claim writes ("MI308"), allowed only in a sentence
+  // that cites that claim: there they quote the evidence the sentence names.
+  claimWords: ReadonlyMap<string, ReadonlySet<string>>;
 };
 
 // The only syntax read out of the model's prose: a packet id in double brackets.
@@ -49,21 +52,28 @@ export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray
     ...Object.values(packet.query_bounds),
     ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
   ];
-  const written = [
-    ...packet.claims.map((claim) => claim.text),
+  const names = [
     ...packet.figures.flatMap((figure) => [figure.metric, figure.segment ?? ""]),
     ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
   ];
   return {
     references,
     years: new Set(dated.flatMap((text) => text.match(YEAR) ?? [])),
-    // A name starts with a letter ("MI308"); one starting with a digit is a
-    // figure ("800M" in a claim's "$800M"). A company label passes whole ("0700.HK").
-    words: new Set([
-      ...written.flatMap((text) => (text.match(DIGIT_WORD) ?? []).filter((word) => /^[A-Za-z]/.test(word))),
-      ...packet.companies.flatMap((company) => company.match(DIGIT_WORD) ?? []),
-    ]),
+    words: new Set([...names.flatMap(namesIn), ...packet.companies.flatMap((company) => company.match(DIGIT_WORD) ?? [])]),
+    claimWords: new Map(packet.claims.map((claim) => [claim.id, new Set(namesIn(claim.text))])),
   };
+}
+
+// A period label's shape: judged by the period rule alone, never as a name.
+const PERIOD_SHAPE = /^(?:\d+|FY\d+|[QH]\d)$/;
+
+// The names in a text: ASCII words that start with letters and hold a digit
+// ("MI308"), not a period's shape. A word led by digits ("800M") is a figure,
+// and so is one with an amount's unit after its digits ("USD800M").
+function namesIn(text: string): string[] {
+  return (text.match(DIGIT_WORD) ?? []).filter((word) =>
+    /^[A-Za-z]+[0-9]+[A-Za-z0-9]*$/.test(word) && !PERIOD_SHAPE.test(word) && !/[0-9](?:[KMBT]|bn|mn)$/.test(word)
+  );
 }
 
 // What a reference reads as: the figure's displayed value or the claim's text.
@@ -72,13 +82,15 @@ export function displayOf(reference: Reference): string {
 }
 
 // Whether every word with a digit outside a reference is a period label (an
-// allowed year, FY and one, or Q1-Q4, H1-H2) or a word the evidence writes.
-export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words">): boolean {
+// allowed year, FY and one, Q1-Q4, H1-H2), a name the turn's names write, or a
+// name a claim the same sentence cites writes.
+export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words" | "claimWords">): boolean {
+  const cited = [...text.matchAll(REFERENCE)].flatMap((match) => [...(allowed.claimWords.get(match[1]!) ?? [])]);
+  const names = new Set([...allowed.words, ...cited]);
   return (text.replace(REFERENCE, " ").match(DIGIT_WORD) ?? []).every((word) =>
-    allowed.years.has(word) ||
-    /^(?:Q[1-4]|H[12])$/.test(word) ||
-    allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "") ||
-    allowed.words.has(word)
+    PERIOD_SHAPE.test(word) && !allowed.words.has(word)
+      ? allowed.years.has(word) || /^(?:Q[1-4]|H[12])$/.test(word) || allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "")
+      : names.has(word)
   );
 }
 
