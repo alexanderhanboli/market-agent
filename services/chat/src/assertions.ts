@@ -3,7 +3,8 @@
 // Company, metric, period and value come from the cited packet entries, never
 // typed by the model, so a binding cannot name the wrong company or scale; the
 // check here is that every id exists, that each kind cites what it must, and
-// that the assertion's numbers and companies are its evidence's.
+// that the text writes each figure or claim only as its evidence's reference
+// ([[F3]], prose-refs.ts) and names only its evidence's periods and companies.
 //
 // Shadow: the report goes to evals and logs; the prose shown is unchanged. The
 // controlled rendering from validated assertions is #208's second slice.
@@ -11,7 +12,7 @@
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
-import { REFERENCE } from "./prose-refs.ts";
+import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
@@ -75,7 +76,13 @@ export function splitAssertions(text: string): { prose: string; list: unknown[] 
   }
 }
 
-export function checkAssertions(list: unknown[] | null | undefined, packet: EvidencePacket): AssertionReport {
+// table: the turn's references and the names its text may write (prose-refs.ts);
+// from the packet alone, its names are the figures' metrics and segments.
+export function checkAssertions(
+  list: unknown[] | null | undefined,
+  packet: EvidencePacket,
+  table: ReferenceTable = referenceTable(packet, []),
+): AssertionReport {
   if (packet.figures.length === 0 && packet.claims.length === 0) return { status: "skipped", accepted: [], rejected: [] };
   if (list === undefined) return { status: "missing", accepted: [], rejected: [] };
   if (list === null) return { status: "malformed", accepted: [], rejected: [] };
@@ -185,7 +192,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     const cited = kind === "analyst_inference"
       ? [...evidence, ...accepted.filter((entry) => supports.includes(entry.index)).flatMap((entry) => entry.evidence)]
       : evidence;
-    const binding = bindingError(item.text, cited, packet);
+    const binding = bindingError(item.text, cited, packet, table);
     if (binding) {
       reject(index, item, binding);
       continue;
@@ -217,56 +224,8 @@ function restsOnObservations(supports: unknown, observations: ReadonlySet<number
   return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
 }
 
-// A year said as a time: after a preposition of time or a month ("since
-// 2025", "in Feb 2026"); a bare "2025 employees", or one after "to" or "of"
-// ("grew to 2025"), is a figure.
-const TIME_BEFORE = new RegExp(String.raw`(?:\b(?:in|since|from|by|through|until|during|before|after|fiscal(?: year)?|calendar(?: year)?)|\b(?:${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].join("|")})[a-z]*\.?)\s+$`, "i");
-
-// A figure's value in the text: a number other than a year said as a time or
-// a period's ("FY2025", "Q3"). A rendered inference may state none (#208).
-export function statesValue(text: string, companies: ReadonlyArray<string>): boolean {
-  // A company's name is not a value, even with digits in it ("3M").
-  const masked = withoutCompanies(text, companies);
-  return quantities(masked).some((quantity) => !quantity.period && !(
-    /^\d{4}$/.test(quantity.value) && !quantity.unit && !quantity.currency && !quantity.negative && !quantity.positive &&
-    TIME_BEFORE.test(masked.slice(0, quantity.at))
-  ));
-}
-
 // Every cited figure: the template says each cited metric changed. The
 // other period may be any shown, so the figure that moved alone will do.
-// Each figure value an inference states, bound to the one cited figure it is
-// (its fact): where it sits in the text, so it can render as a fact ref.
-// Null when a value binds to no cited figure or to several different facts.
-export function linkFigures(
-  text: string,
-  cited: ReadonlyArray<string>,
-  packet: EvidencePacket,
-): Array<{ at: number; length: number; figureId: string }> | null {
-  const figures = packet.figures.filter((figure) => cited.includes(figure.id));
-  const companyOf = (company: string | undefined) => company ?? packet.companies[0];
-  const prefixes = currencyPrefixes(packet);
-  const masked = withoutCompanies(text, packet.companies);
-  const links: Array<{ at: number; length: number; figureId: string }> = [];
-  for (const quantity of quantities(masked, prefixes)) {
-    // A period's number ("Q4") or a year said as a time ("Q1 2026", "through
-    // 2025") is never a value to link; a grouped "2,025" is a quantity.
-    if (quantity.period) continue;
-    if (/^\d{4}$/.test(quantity.raw) && (TIME_BEFORE.test(masked.slice(0, quantity.at)) || /\b(?:Q[1-4]|H[12]|FY)\s*$/.test(masked.slice(0, quantity.at)))) continue;
-    const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies) ?? lastCompanyBefore(text, quantity.at, packet.companies);
-    const matches = figures.filter((figure) =>
-      (named === undefined || companyOf(figure.company) === named) &&
-      quantities(figure.value, prefixes).some((shown) => sameQuantity(quantity, shown))
-    );
-    const facts = new Set(matches.map((figure) => figure.fact_id ?? figure.id));
-    if (facts.size !== 1) return null;
-    // Accounting parentheses are outside the match.
-    const length = quantity.raw.startsWith("(") ? quantity.raw.length - 2 : quantity.raw.length;
-    links.push({ at: quantity.at, length, figureId: matches[0]!.id });
-  }
-  return links;
-}
-
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>, shown: EvidencePacket["figures"]): boolean {
   return cited.length > 0 && cited.every((a) => shown.some((b) =>
     a.company === b.company && a.metric === b.metric && a.segment === b.segment && a.period !== undefined && b.period !== undefined &&
@@ -303,198 +262,26 @@ function shapeError(
   }
 }
 
-// Every number the text states binds to one piece of its evidence, which
-// belongs to the company the text last named before it: a cited figure's value
-// (in its unit, sign allowing), its period or year, or a number a cited claim
-// states. A bare number may match any of them; one with a unit, sign or
-// currency must match in kind. Every company the text names must be its
-// evidence's.
-// ponytail: the metric is not matched; two cited figures with the same value
-// and unit under different metrics are interchangeable here.
-function bindingError(written: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
-  // A packet reference is checked by membership, never parsed: it is one its
-  // evidence holds, and its digits are no value (prose-refs.ts).
-  for (const [reference, id] of written.matchAll(REFERENCE)) {
-    if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return `unknown reference ${reference}`;
+// The text names only what its evidence holds: each reference is one its
+// evidence cites; any digit it typed itself is a period label of its
+// evidence's years (prose-refs.ts), so a figure or a claim's number is written
+// only as its reference, and a year from elsewhere in the turn is not this
+// assertion's; and every company it names is its evidence's.
+function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket, table: ReferenceTable): string | null {
+  for (const [reference, id] of text.matchAll(REFERENCE)) {
+    if (!table.references.has(id!)) return `unknown reference ${reference}`;
     if (!cited.includes(id!)) return `${reference} is not in its evidence`;
   }
-  const text = written.replace(REFERENCE, " ");
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
-  // A figure with no company is the only company's; a claim with none is no
-  // company's (its record named none), so it binds a number for any.
-  const companyOf = (company: string | undefined) => company ?? packet.companies[0];
-  // Each candidate keeps its role: a figure's value, its period, or a claim's
-  // number. A period's number in the text ("Q4") binds only a period.
-  const sources = [
-    ...figures.flatMap((figure) => [
-      { source: figure.value, role: "value" },
-      { source: figure.period ?? "", role: "period" },
-      { source: figure.period_end?.slice(0, 4) ?? "", role: "period" },
-    ].map((entry) => ({ ...entry, company: companyOf(figure.company) }))),
-    ...claims.flatMap((claim) => [
-      { source: claim.text, role: "claim" },
-      { source: claim.effective_time?.slice(0, 4) ?? "", role: "period" },
-      { source: claim.published_at?.slice(0, 4) ?? "", role: "period" },
-    ].map((entry) => ({ ...entry, company: claim.company }))),
-  ];
-  const prefixes = currencyPrefixes(packet);
-  // A stored quarter ("Q42026") reads as prose writes it ("Q4 2026").
-  const evidence = sources.flatMap(({ source, role, company }) =>
-    quantities(source.replace(/\bQ([1-4])(?=\d{4}\b)/g, "Q$1 "), prefixes).map((quantity) => ({ quantity, role, company }))
-  );
-  // Evidence spanning companies leaves a value's company to its phrasing; one
-  // with no company named before it (or right after it, "for AMD") is unbound
-  // rather than guessed ("75.0% was AMD's margin").
-  const spans = new Set(evidence.flatMap((entry) => (entry.company ? [entry.company] : []))).size > 1;
-  // A company's name is not a value, even with digits in it ("3M Company").
-  for (const quantity of quantities(withoutCompanies(text, packet.companies), prefixes)) {
-    // A period's number ("Q3") binds only a period: a figure's, a claim's
-    // dates, or one a claim's text writes as a period.
-    const candidates = evidence.filter((entry) => sameQuantity(quantity, entry.quantity) &&
-      (!quantity.period || entry.role === "period" || (entry.role === "claim" && entry.quantity.period)));
-    if (candidates.length === 0) return `${quantity.raw} is not a cited figure's value`;
-    const named = companyAfter(text, quantity.at + quantity.raw.length, packet.companies)
-      ?? lastCompanyBefore(text, quantity.at, packet.companies);
-    if (named === undefined && spans && (quantity.unit || quantity.currency || quantity.negative || quantity.positive)) {
-      return `${quantity.raw} names no company, and its evidence spans several`;
-    }
-    if (named !== undefined && !candidates.some((entry) => entry.company === named || entry.company === undefined)) {
-      return `${quantity.raw} is not a cited figure's value for ${named}`;
-    }
-  }
-  // A month the text dates something by is a cited date's: a claim's, the
-  // month a figure's period ends in, or a date its window names ("YTD 2026:
-  // 2025-12-31 close to ...").
-  const months = new Set([
-    ...claims.flatMap((claim) => [claim.effective_time, claim.published_at]),
-    ...figures.flatMap((figure) => [figure.period_end, ...(figure.period?.match(/\d{4}-\d{2}-\d{2}/g) ?? [])]),
-  ].flatMap((date) => (date ? [monthYear(date)] : [])));
-  for (const match of text.matchAll(MONTH_YEAR)) {
-    const month = `${MONTHS.find((name) => name.slice(0, 3).toLowerCase() === match[1]!.slice(0, 3).toLowerCase())} ${match[2]}`;
-    if (!months.has(month)) return `${month} is not a cited date`;
-  }
+  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) });
+  if (typed !== undefined) return /^(?:FY)?\d{4}$/.test(typed) ? `${typed} is not a period of its evidence` : `types ${typed}; write its reference`;
+  // A claim with no company is no company's (its record named none).
   if (claims.some((claim) => claim.company === undefined)) return null;
-  const own = new Set([...figures.map((figure) => companyOf(figure.company)), ...claims.map((claim) => claim.company)]);
+  // A figure with no company is the only company's.
+  const own = new Set([...figures.map((figure) => figure.company ?? packet.companies[0]), ...claims.map((claim) => claim.company)]);
   const other = packet.companies.find((company) => !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
-}
-
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-// Full or abbreviated ("Mar", "Sept."), each read as its full name.
-const MONTH_YEAR = new RegExp(`\\b(${MONTHS.map((month) => `${month.slice(0, 3)}(?:${month.slice(3)}${month === "September" ? "|t" : ""})?`).join("|")})\\.?\\s+(\\d{4})\\b`, "gi");
-
-function monthYear(iso: string): string {
-  return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
-}
-
-// currency: its prefix as written ("$", "€", "CN¥"), "" for none.
-// period: written as a period's number ("Q4", "FY2026", "H1").
-type Quantity = { raw: string; at: number; value: string; unit: string; currency: string; negative: boolean; positive: boolean; period: boolean };
-
-// Numbers with their sign, currency prefix and unit; the value compared as a number,
-// so "75%" is the "75.0%" shown while "7.5" is not "75". A currency prefix is
-// any with a currency symbol ("$", "₹", "CN¥") or a letter prefix the packet's
-// figures are written with ("CHF 3.1B", "F CFA 3.1B"); letters alone are never
-// taken for one otherwise, so "FY 2026" is not a currency.
-// A denomination after a magnitude ("75 million dollars") is its currency.
-const DENOMINATIONS: Readonly<Record<string, string>> = { dollar: "$", euro: "€", pound: "£", yen: "¥", yuan: "CN¥", rupee: "₹", franc: "CHF" };
-const DENOMINATION = String.raw`(?:[Dd]ollars?|[Ee]uros?|[Pp]ounds?|[Yy]en|[Yy]uan|[Rr]upees?|[Ff]rancs?)\b`;
-// Units written as words ("75 dollars", "75 shares"): stated, so never taken
-// for an omitted unit; no figure is formatted with one, so none matches
-// (except "times", which is the "x" a multiple is shown with).
-const WORDED = String.raw`(?:[Dd]ollars?|[Ee]uros?|[Pp]ounds?|[Yy]en|[Yy]uan|[Ff]rancs?|[Rr]upees?|[Ss]hares?|[Uu]nits?|[Tt]imes)\b`;
-// Case-sensitive, so a currency code is never a word ("top 3" is not TOP).
-const UNIT = String.raw`%|x\b|×|[KMBTkmbt]\b|[Bb]n\b|[Mm]n\b|[Tt]housand\b|[Mm]illion\b|[Bb]illion\b|[Tt]rillion\b|[Bb]asis points?\b|bps?\b|[Pp]ercentage points?\b|pp\b|[Pp]ercent\b|[Pp]er cent\b|${WORDED}`;
-// Every ISO currency code ("USD 3.1B"), so one the evidence lacks is a mismatch.
-const ISO_CODES = String.raw`(?<![A-Za-z])(?:${Intl.supportedValuesOf("currency").join("|")})(?=${"[ \u00a0\u202f]"}?[\d.])`;
-const SPACE = String.raw`[ \u00a0\u202f]`;
-
-function quantityPattern(prefixes: ReadonlyArray<string>): RegExp {
-  const known = [...prefixes].sort((a, b) => b.length - a.length)
-    .map((prefix) => `(?<![A-Za-z])${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, SPACE)}`);
-  const currency = [...known, ISO_CODES, String.raw`(?:(?<![A-Za-z])[A-Z]{1,2})?\p{Sc}`].join("|");
-  // A sign may stand apart from a currency prefix ("- $75B"), never from bare
-  // digits (a list's "- 3.1%").
-  return new RegExp(String.raw`(?<![\d.])(?:([-−+])(?:${SPACE}(?=${currency.replace(/\(\?<!\[A-Za-z\]\)/g, "")}))?)?((?:${currency})${SPACE}?)?(\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)(?:\s*(${UNIT}))?(?:\s+(${DENOMINATION}))?`, "gu");
-}
-
-// The currency prefixes a packet's figures are written with: whatever stands
-// between a value's sign and its digits.
-function currencyPrefixes(packet: EvidencePacket): string[] {
-  return [...new Set(packet.figures.flatMap((figure) => {
-    const prefix = /^[-−]?(\D*?)\s*[\d.]/.exec(figure.value)?.[1]?.trim();
-    return prefix ? [prefix] : [];
-  }))];
-}
-
-const UNITS: Readonly<Record<string, string>> = {
-  thousand: "K", million: "M", mn: "M", billion: "B", bn: "B", trillion: "T",
-  "basis point": "bp", "basis points": "bp", bp: "bp", bps: "bp",
-  "percentage point": "pt", "percentage points": "pt", pp: "pt",
-  percent: "%", "per cent": "%",
-  times: "x",
-};
-
-function quantities(text: string, prefixes: ReadonlyArray<string> = []): Quantity[] {
-  return [...text.matchAll(quantityPattern(prefixes))].map((match) => {
-    const unit = (match[4] ?? "").toLowerCase();
-    const denomination = DENOMINATIONS[(match[5] ?? "").toLowerCase().replace(/s$/, "")];
-    const currency = (match[2] ?? "").trim().replace(/\s+/g, " ").replace(/^US\$$/, "$") || denomination || "";
-    // Accounting parentheses ("($3.1B)") make an amount negative; a percentage
-    // in parentheses is prose's aside ("gross margin (75.0%)").
-    const parenthesized = currency !== "" &&
-      /\(\s*$/.test(text.slice(0, match.index)) && /^\s*\)/.test(text.slice(match.index + match[0].length));
-    return {
-      raw: parenthesized ? `(${match[0].trim()})` : match[0].trim(),
-      at: match.index,
-      value: String(Number(match[3]!.replace(/,/g, ""))),
-      unit: UNITS[unit] ?? (unit === "%" || unit === "x" ? unit : unit === "×" ? "x" : unit.toUpperCase()),
-      currency,
-      negative: parenthesized || (match[1] !== undefined && match[1] !== "+"),
-      positive: match[1] === "+",
-      period: /(?:\bQ|\bFY ?|\bH)$/.test(text.slice(0, match.index)),
-    };
-  });
-}
-
-// The same value in the same unit. A sign the text adds must be the figure's;
-// a negative figure may be told in words ("fell 3.2%"). A unit or currency the
-// text leaves out is not a mismatch ("62.1" of "$62.1B").
-function sameQuantity(text: Quantity, figure: Quantity): boolean {
-  if (text.value !== figure.value) return false;
-  if (text.negative && !figure.negative) return false;
-  if (text.positive && figure.negative) return false;
-  if (text.unit && text.unit !== figure.unit) return false;
-  return !text.currency || text.currency === figure.currency;
-}
-
-// A company named right after the number, by a preposition ("49.4% for AMD").
-function companyAfter(text: string, end: number, companies: ReadonlyArray<string>): string | undefined {
-  const rest = text.slice(end);
-  return companies.find((company) => {
-    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`^\\s*(?:for|at|of|from|by|in)\\s+${escaped}(?![A-Za-z0-9])`).test(rest);
-  });
-}
-
-// The text with each company's name blanked to spaces, keeping offsets.
-function withoutCompanies(text: string, companies: ReadonlyArray<string>): string {
-  return companies.reduce((masked, company) => {
-    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return masked.replace(new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "g"), (name) => " ".repeat(name.length));
-  }, text);
-}
-
-function lastCompanyBefore(text: string, at: number, companies: ReadonlyArray<string>): string | undefined {
-  let last: { company: string; at: number } | undefined;
-  for (const company of companies) {
-    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    for (const match of text.slice(0, at).matchAll(new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "g"))) {
-      if (!last || match.index > last.at) last = { company, at: match.index };
-    }
-  }
-  return last?.company;
 }
 
 function mentions(text: string, company: string): boolean {

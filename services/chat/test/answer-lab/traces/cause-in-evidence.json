@@ -1892,34 +1892,6 @@
     "status": "checked",
     "accepted": [
       {
-        "index": 0,
-        "kind": "observation",
-        "text": "Operating margin was -1.7% in Q2 2025 (period ending June 2025), with operating income of -$134.0M.",
-        "evidence": [
-          "F28",
-          "F3"
-        ]
-      },
-      {
-        "index": 2,
-        "kind": "observation",
-        "text": "Revenue in Q2 2025 was $7.7B, in line with Q4 2024 and slightly above Q1 2025.",
-        "evidence": [
-          "F10",
-          "F11",
-          "F12"
-        ]
-      },
-      {
-        "index": 3,
-        "kind": "observation",
-        "text": "Net income was $872.0M and net margin was 11.3% in Q2 2025 despite negative operating income.",
-        "evidence": [
-          "F4",
-          "F36"
-        ]
-      },
-      {
         "index": 7,
         "kind": "unknown_cause",
         "text": "The data does not show how the charge was allocated between gross profit and operating expenses.",
@@ -1927,41 +1899,52 @@
           "F20",
           "F28"
         ]
-      },
-      {
-        "index": 9,
-        "kind": "analyst_inference",
-        "text": "Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin.",
-        "evidence": [],
-        "supports": [
-          3
-        ]
       }
     ],
     "rejected": [
       {
+        "index": 0,
+        "text": "Operating margin was -1.7% in Q2 2025 (period ending June 2025), with operating income of -$134.0M.",
+        "reason": "types -1.7%; write its reference"
+      },
+      {
         "index": 1,
         "text": "Gross margin fell to 39.8% in Q2 2025 from roughly 50% in each of the three prior quarters shown.",
-        "reason": "50% is not a cited figure's value"
+        "reason": "types 39.8%; write its reference"
+      },
+      {
+        "index": 2,
+        "text": "Revenue in Q2 2025 was $7.7B, in line with Q4 2024 and slightly above Q1 2025.",
+        "reason": "types $7.7B; write its reference"
+      },
+      {
+        "index": 3,
+        "text": "Net income was $872.0M and net margin was 11.3% in Q2 2025 despite negative operating income.",
+        "reason": "types $872.0M; write its reference"
       },
       {
         "index": 4,
         "text": "Operating margin fell from the 10-11% range in Q3 2024 through Q1 2025 to -1.7% in Q2 2025, then recovered to 13-14% from Q3 2025 onward.",
-        "reason": "10 is not a cited figure's value"
+        "reason": "types 10-11%; write its reference"
       },
       {
         "index": 5,
         "text": "Gross margin dropped sharply in Q2 2025 relative to all other quarters shown, then recovered and stabilized in the low-to-mid 50s.",
-        "reason": "50 is not a cited figure's value"
+        "reason": "types 50s; write its reference"
       },
       {
         "index": 6,
         "text": "Management stated that Q2 2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
-        "reason": "2 is not a cited figure's value"
+        "reason": "types MI308; write its reference"
       },
       {
         "index": 8,
         "text": "The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
+        "reason": "an inference binds the accepted observations it rests on"
+      },
+      {
+        "index": 9,
+        "text": "Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin.",
         "reason": "an inference binds the accepted observations it rests on"
       },
       {

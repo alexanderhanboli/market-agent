@@ -18,7 +18,7 @@
     },
     {
       "match": "Why did AMD's operating margin turn negative in Q2 2025?",
-      "text": "AMD's operating margin turned negative in its second quarter of fiscal 2025. According to AMD's earnings release, filed with the SEC in August 2025: [[C1]]\n\n```assertions\n[{\"kind\":\"management_attribution\",\"text\":\"AMD said the U.S. Government's export control on its AMD Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges for the quarter.\",\"evidence\":[\"C1\"]}]\n```"
+      "text": "AMD's operating margin turned negative in its second quarter of fiscal 2025. According to AMD's earnings release, filed with the SEC in August 2025: [[C1]]\n\n```assertions\n[{\"kind\":\"management_attribution\",\"text\":\"AMD said [[C1]]\",\"evidence\":[\"C1\"]}]\n```"
     },
     {
       "match": "Write a concise investment research answer",

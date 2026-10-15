@@ -216,8 +216,8 @@ export async function composeAnalystBlocksWithLlm(input: {
           "The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as",
           "an analyst_inference, and what the data cannot tell about a change as an unknown_cause.",
           "text restates the assertion in one sentence, written as the answer is: each figure or claim only as its",
-          "reference from the assertion's evidence ([[F3]], [[C2]]), no other number but a period label, and only",
-          "companies its evidence holds.",
+          "reference from the assertion's evidence ([[F3]], [[C2]]), no other number but a period label of that evidence's",
+          "periods or dates, and only companies its evidence holds.",
           "When evidence_packet has neither figures nor claims, omit the block.",
         ].join(" "),
       },
@@ -254,7 +254,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   const answered = () => input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
   // The assertion list is checked, never shown (#208).
   const { prose, list, open } = splitAssertions(result.text.trim());
-  const report = checkAssertions(list, packet);
+  const report = checkAssertions(list, packet, table);
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }
@@ -277,16 +277,12 @@ export async function composeAnalystBlocksWithLlm(input: {
   // off.
   const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
     if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
-    // An inference's numbers render as its supports' fact refs (render-assertions.ts).
-    const supportedEvidence = (assertion: (typeof report.accepted)[number]) =>
-      report.accepted.filter((entry) => assertion.supports?.includes(entry.index)).flatMap((entry) => entry.evidence);
     const rendered = report.accepted.map((assertion) => ({
-      ...renderAssertion(assertion, packet, factBlocks, supportedEvidence(assertion)),
+      ...renderAssertion(assertion, packet, factBlocks),
       kind: assertion.kind,
       supports: assertion.supports ?? [],
     }));
-    // A value with no fact behind it (or an inference's number that is no
-    // single supported figure) would be unsealed text: not rendered.
+    // A value with no fact behind it would be unsealed text: not rendered.
     const unsealed = new Set(rendered.filter((entry) => entry.unsealed).map((entry) => entry.index));
     const excluded = new Set(unsealed);
     // Who leads and which way a metric moved are the comparisons' to say, in

@@ -14,7 +14,7 @@
 // case-sensitively, and never by a one-letter ticker (the article "A"); the
 // prompt asks the model to use the label.
 
-import { onlyPeriodDigits, REFERENCE, renderedText, type ReferenceTable } from "./prose-refs.ts";
+import { REFERENCE, renderedText, typedDigits, type ReferenceTable } from "./prose-refs.ts";
 
 // The formatter writes no dotted currency prefix (a dotted symbol becomes its
 // ISO code, #150), so every period before whitespace ends a sentence.
@@ -283,7 +283,7 @@ export function keepSupportedSentences(
         return false;
       }
       // Any digit the model typed itself is a period label, or the sentence goes.
-      if (!onlyPeriodDigits(written, table)) {
+      if (typedDigits(written, table).length > 0) {
         removed.push(written);
         return false;
       }

@@ -2404,7 +2404,7 @@
       {
         "index": 10,
         "text": "AMD stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in Q2 2025.",
-        "reason": "2 is not a cited figure's value"
+        "reason": "types MI308; write its reference"
       },
       {
         "index": 11,
