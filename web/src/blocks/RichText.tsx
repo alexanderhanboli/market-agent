@@ -9,59 +9,40 @@ import { Markdown } from './Markdown.tsx'
 type RichTextProps = { block: RichTextBlock }
 
 // Inline emphasis for toned text runs (the video's green "+127% YoY" deltas).
-// Neutral tone is intentionally unstyled — it exists so emitters can be
+// Neutral tone is intentionally unstyled: it exists so emitters can be
 // explicit without changing rendering.
-const TONE_CLASS: Readonly<Record<TextSegmentTone, string>> = {
+const TONE_CLASS: Readonly<Record<Exclude<TextSegmentTone, 'neutral'>, string>> = {
   positive: 'font-medium text-positive',
   negative: 'font-medium text-negative',
-  neutral: '',
 }
 
+// The block is one Markdown document. Plain text runs are Markdown source,
+// concatenated verbatim; refs and toned runs are embedded inline, so a ref's
+// format and a toned delta render literally wherever the Markdown puts them.
 export function RichText({ block }: RichTextProps): ReactElement {
   const manifest = useSnapshotManifest()
-  // A block that is a single text segment is whole-block prose — render it as
-  // block-level Markdown so GFM tables, headings, and lists work (the redesign's
-  // goal). A block that interleaves text and ref segments is an inline cited
-  // sentence; rendering each text run as block Markdown (<div>/<p>) would split
-  // the refs onto their own lines, so render those text runs inline instead and
-  // keep the refs in flow. A positively/negatively toned single segment takes
-  // the inline path (Markdown has no tone treatment); neutral is by definition
-  // unstyled, so it keeps the Markdown fast-path.
-  const onlySegment = block.segments.length === 1 ? block.segments[0] : null
-  const children =
-    onlySegment &&
-    !isRefSegment(onlySegment) &&
-    (onlySegment.tone === undefined || onlySegment.tone === 'neutral')
-    ? <Markdown text={onlySegment.text} />
-    : block.segments.map((segment, index) =>
-        isRefSegment(segment)
-          ? (
-            <RefSegmentSpan
-              key={`${block.id}-seg-${index}`}
-              snapshotId={block.snapshot_id}
-              blockId={block.id}
-              index={index}
-              segment={segment}
-              manifest={manifest}
-            />
-          )
-          : (
-            <span
-              key={`${block.id}-seg-${index}`}
-              data-tone={segment.tone}
-              className={segment.tone !== undefined ? TONE_CLASS[segment.tone] : undefined}
-            >
-              {segment.text}
-            </span>
-          ),
+  const parts = block.segments.map((segment, index) => {
+    if (isRefSegment(segment)) {
+      return (
+        <RefSegmentSpan
+          snapshotId={block.snapshot_id}
+          blockId={block.id}
+          index={index}
+          segment={segment}
+          manifest={manifest}
+        />
       )
+    }
+    if (segment.tone === undefined || segment.tone === 'neutral') return segment.text
+    return { inline: <span data-tone={segment.tone} className={TONE_CLASS[segment.tone]}>{segment.text}</span> }
+  })
   return (
     <div
       data-testid={`block-rich-text-${block.id}`}
       data-block-kind="rich_text"
       className="text-sm leading-6 text-fg-soft"
     >
-      {children}
+      <Markdown text={parts} />
     </div>
   )
 }

@@ -89,3 +89,11 @@ test('Markdown sets an unverified hypothesis apart as a styled blockquote (#261)
   assert.match(html, /<blockquote class="[^"]*border-l-2[^"]*">/)
   assert.match(html, /<strong[^>]*>Unverified hypothesis \(medium confidence\):<\/strong>/)
 })
+
+test('Markdown embeds elements inline inside a heading and a blockquote, unparsed', async () => {
+  const html = await renderHtml(
+    <Markdown text={['# Revenue ', <span data-embed="a">$1*2*</span>, '\n\n> **Hypothesis:** margin ', <span data-embed="b">71|%</span>, ' holds']} />,
+  )
+  assert.match(html, /<h1[^>]*>Revenue <span data-embed="a">\$1\*2\*<\/span><\/h1>/)
+  assert.match(html, /<blockquote[^>]*>\s*<p[^>]*><strong[^>]*>Hypothesis:<\/strong> margin <span data-embed="b">71\|%<\/span> holds<\/p>/)
+})
