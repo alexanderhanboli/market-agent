@@ -38,6 +38,9 @@ const YEAR = /(?<!\d)\d{4}(?!\d)/g;
 // A run of letters and digits with a digit in it, in any script: what the digit
 // rule judges.
 const DIGIT_WORD = /[\p{L}\p{N}]*\p{N}[\p{L}\p{N}]*/gu;
+// A unit written right after a reference: dropped when the value carries it
+// ("[[F5]]%"), a typed figure when it does not ("[[F2]]x" for a margin).
+const REFERENCE_SUFFIX = /^(?:[%‰×]|[xBMKT](?![A-Za-z]))/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray<Block>): ReferenceTable {
@@ -101,7 +104,7 @@ export function typedDigits(text: string, allowed: Pick<ReferenceTable, "years" 
     if (!reference) return [];
     const value = displayOf(reference);
     const before = text.slice(0, match.index).match(/\p{Sc}$/u)?.[0];
-    const after = text.slice(match.index + match[0].length).match(/^[%‰×]/u)?.[0];
+    const after = text.slice(match.index + match[0].length).match(REFERENCE_SUFFIX)?.[0];
     return [
       ...(before && !value.replace(/^[-−]/, "").startsWith(before) ? [`${before}${match[0]}`] : []),
       ...(after && !value.endsWith(after) ? [`${match[0]}${after}`] : []),
@@ -194,7 +197,7 @@ export function referenceSegments(text: string, references: ReferenceTable["refe
       const value = reference.figure.value;
       const prefix = before.match(/\p{Sc}$/u)?.[0];
       if (prefix && value.replace(/^[-−]/, "").startsWith(prefix)) before = before.slice(0, -prefix.length);
-      const suffix = text.slice(from).match(/^(?:%|[x×]|[BMKT](?![A-Za-z]))/)?.[0];
+      const suffix = text.slice(from).match(REFERENCE_SUFFIX)?.[0];
       if (suffix && value.endsWith(suffix)) from += suffix.length;
     }
     write(before);

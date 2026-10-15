@@ -164,3 +164,10 @@ test("every numeral is a digit, circled and superscript ones too", () => {
   assert.deepEqual(typedDigits("NVDA's ②% margin.", TABLE), ["②%"]);
   assert.deepEqual(typedDigits("Margin of ²%.", TABLE), ["²%."].map((token) => token.replace(/\.$/, "")));
 });
+
+test("a suffix the renderer would keep beside a reference is a unit its value must carry", () => {
+  assert.deepEqual(typedDigits("AMD's [[F2]]x margin.", TABLE), ["[[F2]]x"]);
+  assert.deepEqual(typedDigits("AMD's [[F2]]B margin.", TABLE), ["[[F2]]B"]);
+  assert.deepEqual(typedDigits("NVDA's [[F4]]x multiple and [[F1]]B revenue.", TABLE), []);
+  assert.deepEqual(typedDigits("AMD's [[F2]] Billing grew.", TABLE), []);
+});
