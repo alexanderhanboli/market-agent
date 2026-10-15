@@ -3,19 +3,22 @@
 // fresh replies from the live model (live), and tabulates what the answer shows.
 //
 //   node --experimental-strip-types scripts/answer-lab.ts recorded <trace dir|files...> [--check | --update]
-//   node --experimental-strip-types scripts/answer-lab.ts live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>]
+//   node --experimental-strip-types scripts/answer-lab.ts live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>]
 //
 // recorded is deterministic and offline; --check exits 1 when a replay's blocks
 // differ from the recorded ones; --update writes each replay over its trace
 // (blocks, removals, assertions), for a deliberate change to post-processing. live uses the stack's LLM settings
 // (LLM_SETTINGS_ENV_FILE, default .env.dev, as dev-shell sets it) and writes
-// docs/eval-runs/answer-lab/<stamp>.json.
+// docs/eval-runs/answer-lab/<stamp>.json; --rendering sets
+// CHAT_ASSERTION_RENDERING for every trace (recorded, the default: each
+// trace's own), so one command shows the answers rendered or as prose.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 
 import { LlmRouterError } from "../../llm/src/index.ts";
+import type { AssertionKind } from "../src/assertions.ts";
 import {
   answerMetrics,
   composeTraced,
@@ -126,11 +129,42 @@ async function recorded(traces: ReadonlyArray<LabeledTrace>, update = false): Pr
   return results;
 }
 
-type LiveSample = { trace: string; sample: number; deployment?: string; metrics?: AnswerMetrics; text?: string; error?: string };
-// traces: the turns' keys; labels: their file names, for display.
-type LiveRun = { run: string; samples: number; wall_ms: number; traces: string[]; labels?: Record<string, string>; results: LiveSample[] };
+export const RENDERING_MODES = ["on", "off", "recorded"] as const;
+export type RenderingMode = (typeof RENDERING_MODES)[number];
 
-async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concurrency: number): Promise<LiveRun> {
+// text: the model's raw reply; answer: the rich_text the user reads, each
+// value as displayed; assertions: what rendering accepted, by kind, and why
+// the rest went.
+type LiveSample = {
+  trace: string;
+  sample: number;
+  deployment?: string;
+  metrics?: AnswerMetrics;
+  text?: string;
+  answer?: string;
+  assertions?: { rendered: boolean; accepted: AssertionKind[]; rejected: string[] };
+  error?: string;
+};
+// traces: the turns' keys; labels: their file names, for display.
+type LiveRun = {
+  run: string;
+  samples: number;
+  rendering?: RenderingMode;
+  wall_ms: number;
+  traces: string[];
+  labels?: Record<string, string>;
+  results: LiveSample[];
+};
+
+// The rich_text blocks as read: text as written, each ref its displayed value.
+export function answerText(blocks: ReadonlyArray<Record<string, unknown>>): string {
+  return blocks.filter((block) => block.kind === "rich_text")
+    .map((block) => (Array.isArray(block.segments) ? block.segments as Array<{ type?: string; text?: string; format?: string }> : [])
+      .map((segment) => (segment.type === "text" ? segment.text ?? "" : segment.format ?? "")).join(""))
+    .join("\n\n");
+}
+
+async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concurrency: number, rendering: RenderingMode): Promise<LiveRun> {
   const startedAt = Date.now();
   const jobs = traces.flatMap(({ key, label, trace }) => Array.from({ length: samples }, (_, sample) => ({ key, label, trace, sample })));
   const results: LiveSample[] = [];
@@ -140,7 +174,11 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
       const { key, label, trace, sample } = job;
       try {
         const answer = await composeTraced(trace.input, {
-          env: { ...process.env, LLM_SETTINGS_ENV_FILE: settingsFile, ...renderingEnv(trace) },
+          env: {
+            ...process.env,
+            LLM_SETTINGS_ENV_FILE: settingsFile,
+            ...renderingEnv(rendering === "recorded" ? trace : { assertion_rendering: rendering === "on" }),
+          },
         });
         // No deployment configured: the placeholder came back and no model answered.
         if (answer.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
@@ -150,6 +188,16 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
           deployment: answer.exchange?.deployment,
           metrics: answerMetrics(answer),
           text: answer.exchange?.text,
+          answer: answerText(answer.blocks),
+          ...(answer.assertions
+            ? {
+              assertions: {
+                rendered: answer.assertions.rendered === true,
+                accepted: answer.assertions.accepted.map((entry) => entry.kind),
+                rejected: answer.assertions.rejected.map((entry) => entry.reason),
+              },
+            }
+            : {}),
         });
         console.log(`done  ${label} #${sample}  (${((answer.exchange?.latency_ms ?? 0) / 1000).toFixed(1)}s)`);
       } catch (error) {
@@ -164,6 +212,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
   return {
     run: new Date(startedAt).toISOString().slice(0, 19).replace(/:/g, ""),
     samples,
+    rendering,
     wall_ms: Date.now() - startedAt,
     traces: traces.map(({ key }) => key),
     labels: Object.fromEntries(traces.map(({ key, label }) => [key, label])),
@@ -177,6 +226,24 @@ function failure(error: unknown): string {
     return `${error.message} (${error.attempts.map((attempt) => `${attempt.deployment.channel}/${attempt.deployment.model}: ${attempt.code}`).join("; ")})`;
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+// How many answers were rendered, the kinds rendering accepted, and the
+// rejections by reason, most frequent first.
+export function assertionSummary(run: Pick<LiveRun, "results">): string {
+  const answered = run.results.filter((result) => result.metrics);
+  const count = (values: ReadonlyArray<string>) =>
+    [...values.reduce((counts, value) => counts.set(value, (counts.get(value) ?? 0) + 1), new Map<string, number>())]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const rendered = answered.filter((result) => result.assertions?.rendered).length;
+  const kinds = count(answered.flatMap((result) => result.assertions?.accepted ?? []));
+  const reasons = count(answered.flatMap((result) => result.assertions?.rejected ?? []));
+  return [
+    `rendered: ${rendered} of ${answered.length} answers`,
+    `accepted: ${kinds.map(([kind, n]) => `${n} ${kind}`).join(", ") || "none"}`,
+    "rejected:",
+    ...reasons.map(([reason, n]) => `  ${String(n).padStart(3)}  ${reason}`),
+  ].join("\n");
 }
 
 // A row per trace with an answer; a trace whose every sample failed has none.
@@ -197,11 +264,12 @@ async function main(argv: string[]): Promise<number> {
       samples: { type: "string", default: "1" },
       concurrency: { type: "string", default: "2" },
       against: { type: "string" },
+      rendering: { type: "string", default: "recorded" },
     },
   });
   const [mode, ...paths] = positionals;
   if ((mode !== "recorded" && mode !== "live") || paths.length === 0) {
-    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] | live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>]");
+    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] | live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>]");
     return 2;
   }
   let traces: LabeledTrace[];
@@ -224,6 +292,11 @@ async function main(argv: string[]): Promise<number> {
     console.error("--samples and --concurrency take a positive integer");
     return 2;
   }
+  const rendering = values.rendering as RenderingMode;
+  if (!RENDERING_MODES.includes(rendering)) {
+    console.error(`--rendering takes ${RENDERING_MODES.join(", ")}`);
+    return 2;
+  }
   // Read before the model is called, so a baseline that cannot match costs no run.
   const before = values.against === undefined ? undefined : JSON.parse(readFileSync(values.against, "utf8")) as LiveRun;
   // A run from before traces were keyed by turn names them by file: nothing would match.
@@ -231,14 +304,14 @@ async function main(argv: string[]): Promise<number> {
     console.error(`${values.against} is from an older answer-lab whose traces are not keyed by turn; rerun it`);
     return 2;
   }
-  const run = await live(traces, samples, concurrency);
+  const run = await live(traces, samples, concurrency, rendering);
   mkdirSync(RUNS_DIR, { recursive: true });
   const file = join(RUNS_DIR, `${run.run}.json`);
   writeFileSync(file, `${JSON.stringify(run, null, 2)}\n`, { flag: "wx" });
   const rows = liveRows(run);
   const errors = run.results.filter((result) => result.error).length;
   const unanswered = run.traces.filter((key) => !rows.some((row) => row.key === key)).map((key) => run.labels?.[key] ?? key);
-  console.log(`\n${table(rows)}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
+  console.log(`\n${table(rows)}\n\n${assertionSummary(run)}\n\n${run.results.length - errors} answers, ${errors} errors, rendering ${rendering}, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
   if (unanswered.length > 0) console.log(`no answer: ${unanswered.join(", ")}`);
   if (before) {
     // Only traces both runs answered, so a failed one does not read as a change.
