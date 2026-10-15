@@ -1085,14 +1085,26 @@ test("a reply citing a sealed figure renders a fact ref with its binding; an inv
   assert.deepEqual(removed, [["AMD's revenue grew 38%.", "AMD's margin was [[F9]]."]]);
 });
 
+test("rendering is on unless CHAT_ASSERTION_RENDERING turns it off (#288)", async () => {
+  const reply = withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] }]);
+  const shown = async (value?: string) => {
+    const { block } = await renderWithReply(reply, value === undefined ? BASE_ENV : { ...BASE_ENV, CHAT_ASSERTION_RENDERING: value });
+    return (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  };
+  const rendered = "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).";
+  const prose = "NVDA earns more on each sale than AMD.";
+  assert.deepEqual(
+    await Promise.all([undefined, "", "1", "on", "0", "false", " NO ", "Off"].map(shown)),
+    [rendered, rendered, rendered, rendered, prose, prose, prose, prose],
+  );
+});
+
 test("with rendering off, or nothing accepted, the guarded prose stands (#208)", async () => {
   // Both companies' figures, so only the flag keeps the prose.
   const both = [{ kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] }];
   const off = await renderWithReply(withList(both), { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" });
   assert.equal((off.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(off.report.rendered, undefined);
-  // Unset is off.
-  assert.equal((await renderWithReply(withList(both), BASE_ENV)).report.rendered, undefined);
   const none = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was 99%.", evidence: ["F2"] }]));
   assert.equal((none.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(none.report.rendered, undefined);

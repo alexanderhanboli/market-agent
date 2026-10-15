@@ -108,7 +108,7 @@ const RECORDED_CHANNEL = {
 };
 
 export function renderingEnv(trace: Pick<TurnTrace, "assertion_rendering">): Record<string, string> {
-  return { CHAT_ASSERTION_RENDERING: trace.assertion_rendering ? "1" : "" };
+  return { CHAT_ASSERTION_RENDERING: trace.assertion_rendering ? "1" : "0" };
 }
 
 // Written only when CHAT_TRACE_DIR is set; a failed write never fails the turn,

@@ -10,8 +10,9 @@
 // answer shows is a template's value from the packet. A data gap says in words
 // what the shown data cannot tell, held to the inference's word rule.
 //
-// Shadow: the report goes to evals and logs; the prose shown is unchanged. The
-// controlled rendering from validated assertions is #208's second slice.
+// The report goes to evals and logs; the answer is written from the accepted
+// assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
+// when it is checked in shadow and the guarded prose is shown.
 
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";

@@ -277,7 +277,7 @@ export async function composeAnalystBlocksWithLlm(input: {
         ...(rendered && repeated.length > 0 ? { repeated } : {}),
       }
       : report);
-  // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
+  // Controlled rendering (#208), unless CHAT_ASSERTION_RENDERING is off: the answer
   // written from the accepted assertions, with the turn's guard still the
   // backstop on each (its drops reported as narrative removals). Null when
   // there is nothing to render, so the guarded prose stands, as with the flag
@@ -692,10 +692,10 @@ function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>
   ];
 }
 
-// Off unless turned on (CHAT_ASSERTION_RENDERING=1), until rendered answers
-// are shown to read as well as the prose (#301).
+// On unless turned off (CHAT_ASSERTION_RENDERING=0, false, no or off): an
+// answer is written from its checked assertions (#288).
 export function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
-  return /^(?:1|true|yes|on)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
+  return !/^(?:0|false|no|off)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
 }
 
 function rewriteFirstRichTextBlock(
