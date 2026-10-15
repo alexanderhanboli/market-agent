@@ -2,11 +2,12 @@
 // through today's post-processing, with the recorded model reply (recorded) or
 // fresh replies from the live model (live), and tabulates what the answer shows.
 //
-//   node --experimental-strip-types scripts/answer-lab.ts recorded <trace dir|files...> [--check]
+//   node --experimental-strip-types scripts/answer-lab.ts recorded <trace dir|files...> [--check | --update]
 //   node --experimental-strip-types scripts/answer-lab.ts live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>]
 //
 // recorded is deterministic and offline; --check exits 1 when a replay's blocks
-// differ from the recorded ones. live uses the stack's LLM settings
+// differ from the recorded ones; --update writes each replay over its trace
+// (blocks, removals, assertions), for a deliberate change to post-processing. live uses the stack's LLM settings
 // (LLM_SETTINGS_ENV_FILE, default .env.dev, as dev-shell sets it) and writes
 // docs/eval-runs/answer-lab/<stamp>.json.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -29,7 +30,7 @@ const RUNS_DIR = join(ROOT, "docs/eval-runs/answer-lab");
 
 // key: the turn the trace records, which rows and comparisons match on;
 // label: its file name, shown only.
-export type LabeledTrace = { key: string; label: string; trace: TurnTrace };
+export type LabeledTrace = { key: string; label: string; file: string; trace: TurnTrace };
 
 export function traceKey(trace: Pick<TurnTrace, "thread_id" | "run_id" | "turn_id">): string {
   return `${trace.thread_id}/${trace.run_id}${trace.turn_id ? `.${trace.turn_id}` : ""}`;
@@ -54,7 +55,7 @@ export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
     const earlier = seen.get(key);
     if (earlier !== undefined) throw new Error(`turn ${key} is given twice: ${earlier} and ${file}`);
     seen.set(key, file);
-    return { key, label: basename(file, ".json"), trace };
+    return { key, label: basename(file, ".json"), file, trace };
   });
 }
 
@@ -110,10 +111,11 @@ function delta(before: Row, after: Row): string {
 
 // Each trace replayed with its recorded reply; differs: the blocks are not the
 // recorded ones.
-async function recorded(traces: ReadonlyArray<LabeledTrace>): Promise<Array<{ key: string; label: string; metrics: AnswerMetrics; differs: boolean }>> {
+async function recorded(traces: ReadonlyArray<LabeledTrace>, update = false): Promise<Array<{ key: string; label: string; metrics: AnswerMetrics; differs: boolean }>> {
   const results = [];
-  for (const { key, label, trace } of traces) {
+  for (const { key, label, file, trace } of traces) {
     const replayed = await replayRecorded(trace);
+    if (update) writeFileSync(file, `${JSON.stringify(replayed, null, 2)}\n`);
     results.push({
       key,
       label,
@@ -191,6 +193,7 @@ async function main(argv: string[]): Promise<number> {
     allowPositionals: true,
     options: {
       check: { type: "boolean", default: false },
+      update: { type: "boolean", default: false },
       samples: { type: "string", default: "1" },
       concurrency: { type: "string", default: "2" },
       against: { type: "string" },
@@ -198,7 +201,7 @@ async function main(argv: string[]): Promise<number> {
   });
   const [mode, ...paths] = positionals;
   if ((mode !== "recorded" && mode !== "live") || paths.length === 0) {
-    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check] | live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>]");
+    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] | live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>]");
     return 2;
   }
   let traces: LabeledTrace[];
@@ -209,7 +212,7 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
   if (mode === "recorded") {
-    const results = await recorded(traces);
+    const results = await recorded(traces, values.update);
     const differs = new Set(results.filter((result) => result.differs).map((result) => result.key));
     console.log(table(results.map((result) => meanRow(result, [result.metrics])), (row) => (differs.has(row.key) ? "  DIFFERS" : "")));
     console.log(`\n${traces.length - differs.size} of ${traces.length} replayed to the recorded blocks`);

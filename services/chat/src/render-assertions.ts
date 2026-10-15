@@ -10,11 +10,8 @@
 
 import { linkFigures, type Assertion } from "./assertions.ts";
 import { checkComparison, periodText, type CheckedComparison } from "./comparisons.ts";
-import type { EvidencePacket, PacketClaim, PacketFigure } from "./evidence-packet.ts";
-
-type Segment =
-  | { type: "text"; text: string }
-  | { type: "ref"; ref_kind: "fact" | "claim"; ref_id: string; format: string };
+import type { EvidencePacket, PacketFigure } from "./evidence-packet.ts";
+import { createSealer, REFERENCE, type Segment } from "./prose-refs.ts";
 
 type Block = Record<string, unknown>;
 
@@ -30,7 +27,6 @@ export type RenderedAssertion = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function renderAssertion(
   assertion: Assertion & { index: number },
@@ -41,31 +37,14 @@ export function renderAssertion(
 ): RenderedAssertion {
   const figures = assertion.evidence.flatMap((id) => packet.figures.filter((figure) => figure.id === id));
   const claims = assertion.evidence.flatMap((id) => packet.claims.filter((claim) => claim.id === id));
-  const bindings = bindingsByFact(factBlocks);
   const owner = (figure: PacketFigure) => {
     const company = figure.company ?? (packet.companies.length === 1 ? packet.companies[0] : undefined);
     return company ? `${company}'s ` : "";
   };
-  const fact_bindings: Array<Record<string, unknown>> = [];
-  let unsealed = false;
-  const source_refs = new Set<string>();
-  // A value is a fact ref only when its fact can seal here: a UUID with the
-  // binding the fact block carries; otherwise it is plain text.
-  const value = (figure: PacketFigure): Segment => {
-    const binding = figure.fact_id ? bindings.get(figure.fact_id) : undefined;
-    if (!figure.fact_id || !UUID.test(figure.fact_id) || !binding) {
-      unsealed = true;
-      return { type: "text", text: figure.value };
-    }
-    fact_bindings.push(binding);
-    figure.source_ids.forEach((id) => source_refs.add(id));
-    return { type: "ref", ref_kind: "fact", ref_id: figure.fact_id, format: figure.value };
-  };
-  const quote = (claim: PacketClaim): Segment => {
-    if (!UUID.test(claim.claim_id)) return { type: "text", text: claim.text };
-    source_refs.add(claim.source_id);
-    return { type: "ref", ref_kind: "claim", ref_id: claim.claim_id, format: claim.text };
-  };
+  const seal = createSealer(factBlocks);
+  const { value, quote } = seal;
+  // An inference's text could not be linked: its numbers stay plain, unsealed.
+  let unlinked = false;
 
   const segments: Segment[] = [];
   const text = (value: string) => segments.push({ type: "text", text: value });
@@ -111,26 +90,47 @@ export function renderAssertion(
       break;
     }
     case "analyst_inference": {
-      // Its numbers are its supports' figures, each a fact ref; one that
-      // binds to no single supported figure leaves it unsealed (not rendered).
+      // Its references (checked to be its evidence's) and its typed numbers
+      // (its supports' figures) each render as a ref; references are blanked
+      // for linking, so their digits are no number. A number that binds to no
+      // single supported figure leaves it unsealed (not rendered).
       text("> **Analyst inference:** ");
-      const links = linkFigures(assertion.text, [...assertion.evidence, ...supported], packet);
+      const links = linkFigures(assertion.text.replace(REFERENCE, (reference) => " ".repeat(reference.length)), [...assertion.evidence, ...supported], packet);
       if (!links) {
-        unsealed = true;
+        unlinked = true;
         text(assertion.text);
         break;
       }
+      // A typed value beside its own reference ("74.6% [[F1]]") is one span:
+      // the figure renders once.
+      const spans = [
+        ...links.map((link) => ({ at: link.at, length: link.length, id: link.figureId })),
+        ...[...assertion.text.matchAll(REFERENCE)].map((match) => ({ at: match.index, length: match[0].length, id: match[1]! })),
+      ].sort((a, b) => a.at - b.at).reduce<Array<{ at: number; length: number; id: string }>>((merged, span) => {
+        const last = merged.at(-1);
+        if (last?.id === span.id && /^\s*$/.test(assertion.text.slice(last.at + last.length, span.at))) {
+          last.length = span.at + span.length - last.at;
+        } else {
+          merged.push(span);
+        }
+        return merged;
+      }, []);
       let from = 0;
-      for (const link of links) {
-        text(assertion.text.slice(from, link.at));
-        segments.push(value(packet.figures.find((figure) => figure.id === link.figureId)!));
-        from = link.at + link.length;
+      for (const span of spans) {
+        text(assertion.text.slice(from, span.at));
+        const figure = packet.figures.find((entry) => entry.id === span.id);
+        const claim = packet.claims.find((entry) => entry.id === span.id);
+        if (figure) segments.push(value(figure));
+        else if (claim) segments.push(quote(claim));
+        else unlinked = true;
+        from = span.at + span.length;
       }
       text(assertion.text.slice(from));
       break;
     }
   }
-  return { index: assertion.index, segments, fact_bindings, source_refs: [...source_refs], unsealed };
+  const { fact_bindings, source_refs, unsealed } = seal.sealed();
+  return { index: assertion.index, segments, fact_bindings, source_refs, unsealed: unsealed || unlinked };
 }
 
 type Writer = {
@@ -254,16 +254,4 @@ function capitalize(text: string): string {
 
 function monthYear(iso: string): string {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
-}
-
-function bindingsByFact(blocks: ReadonlyArray<Block>): Map<string, Record<string, unknown>> {
-  return new Map(blocks.flatMap((block) => {
-    const params = (block.data_ref as { params?: { fact_bindings?: unknown } } | undefined)?.params;
-    const list = Array.isArray(params?.fact_bindings) ? params.fact_bindings : [];
-    return list.flatMap((binding) =>
-      binding !== null && typeof binding === "object" && typeof (binding as { fact_id?: unknown }).fact_id === "string"
-        ? [[(binding as { fact_id: string }).fact_id, binding as Record<string, unknown>] as const]
-        : []
-    );
-  }));
 }

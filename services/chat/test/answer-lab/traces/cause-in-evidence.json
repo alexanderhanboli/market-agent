@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "thread_id": "1b548426-f721-49c3-a39a-e927e7d4abe8",
-  "run_id": "e2382327-2212-431c-8655-47ea048f61ce",
-  "turn_id": "eabf9354-26a1-4b31-bf19-bb8dbba6f815",
+  "thread_id": "ecebb405-10b5-4b20-8590-2c21b3e20b46",
+  "run_id": "ee10f375-0e70-4f16-beba-25cd90246e77",
+  "turn_id": "73251a60-64e9-4c18-a762-7081a84b99c8",
   "question": "Why did AMD's operating margin turn negative in Q2 2025?",
-  "recorded_at": "2026-10-14T16:52:28.178Z",
+  "recorded_at": "2026-10-15T00:56:39.427Z",
   "input": {
     "context": {
       "userIntent": "Why did AMD's operating margin turn negative in Q2 2025?",
@@ -12,12 +12,12 @@
     },
     "blocks": [
       {
-        "id": "c3aac0a9-e323-43ca-879f-bc2a1f891456",
+        "id": "b966b6a4-0f18-4f7e-8534-15e8dbd08ddd",
         "kind": "rich_text",
-        "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+        "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
         "data_ref": {
           "kind": "rich_text",
-          "id": "c3aac0a9-e323-43ca-879f-bc2a1f891456"
+          "id": "b966b6a4-0f18-4f7e-8534-15e8dbd08ddd"
         },
         "source_refs": [],
         "as_of": "1970-01-01T00:00:00.000Z",
@@ -32,7 +32,7 @@
     ],
     "toolCalls": [
       {
-        "tool_call_id": "4e3a636f-dcde-41d2-826d-541d2f429947",
+        "tool_call_id": "2e68ed4b-f372-4689-8c0d-d4fba6500ffc",
         "tool_name": "get_quote",
         "status": "ok",
         "bundle_id": "single_subject_analysis",
@@ -63,13 +63,13 @@
               }
             ],
             "claim_refs": [
-              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+              "6d499c74-bc94-43d6-8468-ae34d0becda2"
             ],
             "document_refs": [
-              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+              "2bbee508-442b-420a-87be-8f0325191c3e"
             ],
             "source_ids": [
-              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              "138fef65-4ad7-48cf-b641-6c099b2d0a60"
             ]
           },
           "structured_context": {
@@ -91,22 +91,7 @@
             },
             "facts": [
               {
-                "fact_id": "b5b04bd2-e71c-44ce-bd2b-12a0b3848efb",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 5780000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q1",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "9a6198de-14cb-495b-9c82-e0e3eb473ab6",
+                "fact_id": "f189e2e6-cc56-4d4e-834d-e9b2f9fba586",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 6050000000,
@@ -121,7 +106,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "aaa650ae-d3bd-4d0b-9a2d-22de860bda38",
+                "fact_id": "605b3c26-6039-4b9e-8a0d-d405e8051cb0",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 5780000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "3f4f8a8d-0363-4955-9efd-7530a2a3b090",
                 "metric_key": "net_income",
                 "display_name": "Net Income",
                 "value_num": 1480000000,
@@ -136,7 +136,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "938a8721-8cfb-431a-b981-c100eb0ce381",
+                "fact_id": "4eca7c11-69b6-4907-b0b1-3d07db39fb27",
                 "metric_key": "net_income",
                 "display_name": "Net Income",
                 "value_num": 1400000000,
@@ -151,7 +151,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "37c60b6a-b59c-42db-ad92-f92f68e469ca",
+                "fact_id": "67c113d7-8d41-457e-a096-23cd24b5b2d4",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": 1610000000,
@@ -166,7 +166,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "b3b3ee1f-73b7-4c6b-a763-85ebd8d99a6b",
+                "fact_id": "aab4fdd1-b0bb-4e38-822a-5d8037525288",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": 1520000000,
@@ -181,22 +181,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
-                "metric_key": "revenue",
-                "display_name": "Revenue",
-                "value_num": 11200000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q2",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+                "fact_id": "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
                 "metric_key": "revenue",
                 "display_name": "Revenue",
                 "value_num": 10700000000,
@@ -211,22 +196,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 3059000000,
+                "fact_id": "dad226bf-5195-4a3d-a0a9-02fe9e8b1646",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 11200000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
-                "fiscal_year": 2025,
+                "fiscal_year": 2026,
                 "fiscal_period": "Q2",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "709e4333-5b47-4d4a-8e87-e958f7e4a852",
+                "fact_id": "7b966bcd-49bb-4ab2-85d2-960041029498",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 5560000000,
@@ -241,22 +226,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "e3b1078a-f548-4aac-915f-3d7355f889c7",
+                "fact_id": "33ee100f-8307-47d6-8cc7-0a781793009d",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
-                "value_num": 17307000000,
+                "value_num": 3059000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2025,
-                "fiscal_period": "FY",
+                "fiscal_period": "Q2",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "68039ebd-f398-4813-be1d-bd0496a96d05",
+                "fact_id": "88f966e8-f87a-42f7-8748-7b3e63fdea46",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 3735000000,
@@ -271,7 +256,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "ac0b4a55-9359-48eb-be41-f9d2670d0f3a",
+                "fact_id": "dc5d742c-39ba-450a-9b83-76d6c28d715e",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 17307000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "3ab4276d-1591-4d5b-8108-8354e9515923",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 4953000000,
@@ -286,67 +286,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "4fee5421-aa31-40d6-a12e-91a3205efe1e",
-                "metric_key": "net_income",
-                "display_name": "Net Income",
-                "value_num": 872000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2025,
-                "fiscal_period": "Q2",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "0bd03868-2af6-4add-93a9-5e30af46002e",
-                "metric_key": "net_income",
-                "display_name": "Net Income",
-                "value_num": 1243000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2025,
-                "fiscal_period": "Q3",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "e1fb301b-278d-4605-9bf8-f272249181eb",
-                "metric_key": "net_income",
-                "display_name": "Net Income",
-                "value_num": 1350000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2025,
-                "fiscal_period": "Q4",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "1233911f-23a5-4715-8012-c547643b056b",
-                "metric_key": "net_income",
-                "display_name": "Net Income",
-                "value_num": 4174000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2025,
-                "fiscal_period": "FY",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "f0dbd7e3-3f29-4c52-9815-843fd5f358fd",
+                "fact_id": "715e27ea-bd4e-470f-a53c-d17075c80e56",
                 "metric_key": "net_income",
                 "display_name": "Net Income",
                 "value_num": 709000000,
@@ -361,25 +301,40 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "e83f425e-2ae8-405a-827a-e255734e0c81",
-                "metric_key": "operating_income",
-                "display_name": "Operating Income",
-                "value_num": 806000000,
+                "fact_id": "d09c7dce-3319-4368-8f94-66ef3110983e",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 872000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2025,
-                "fiscal_period": "Q1",
+                "fiscal_period": "Q2",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "09618da8-d6e7-4944-8a2b-469d4eb78b24",
-                "metric_key": "operating_income",
-                "display_name": "Operating Income",
-                "value_num": 1450000000,
+                "fact_id": "c01062d5-b258-45ec-ad6d-a1573b77a620",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 1243000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d5b1bf32-c0e0-4b4b-8443-7c4a09d15bd1",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 1350000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
@@ -391,7 +346,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "b3a0e458-bf3b-4393-89fe-be9d62824f96",
+                "fact_id": "d8d71161-f84c-4c6a-b3fd-efbcb3695b0b",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 4174000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "78fd32f4-29c2-42cb-9cee-f7c95e65cdd7",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": 1270000000,
@@ -406,7 +376,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
+                "fact_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": -134000000,
@@ -421,7 +391,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "8e512042-d79b-4ae5-b052-4dbebb99140b",
+                "fact_id": "9b5a9690-39a7-4aa7-b2f7-d84032cf8877",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": 3392000000,
@@ -436,16 +406,46 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
-                "metric_key": "revenue",
-                "display_name": "Revenue",
-                "value_num": 7685000000,
+                "fact_id": "58dd12ee-4cd0-42c8-b229-f6689f463d92",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 1450000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2025,
-                "fiscal_period": "Q2",
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "12c3bcad-422e-4d0b-9bbe-e616869a85ed",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 806000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "1559775f-eac3-4d94-a122-dcaaad42dceb",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 9246000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
@@ -458,7 +458,7 @@
             "fact_recency": {
               "latest_as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2026,
-              "fiscal_period": "Q1",
+              "fiscal_period": "Q2",
               "age_days": 0,
               "stale": false
             }
@@ -466,9 +466,9 @@
           "evidence": {
             "claims": [
               {
-                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
-                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797",
+                "claim_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+                "document_id": "2bbee508-442b-420a-87be-8f0325191c3e",
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60",
                 "text_canonical": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.",
                 "predicate": "kpi.commentary",
                 "polarity": "negative",
@@ -485,13 +485,13 @@
               }
             ],
             "source_ids": [
-              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              "138fef65-4ad7-48cf-b641-6c099b2d0a60"
             ],
             "document_refs": [
-              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+              "2bbee508-442b-420a-87be-8f0325191c3e"
             ],
             "claim_refs": [
-              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+              "6d499c74-bc94-43d6-8468-ae34d0becda2"
             ],
             "subject_refs": [
               {
@@ -501,19 +501,19 @@
             ],
             "verifier_sources": [
               {
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60"
               }
             ],
             "verifier_documents": [
               {
-                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+                "document_id": "2bbee508-442b-420a-87be-8f0325191c3e",
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60"
               }
             ],
             "verifier_claims": [
               {
-                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+                "claim_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60"
               }
             ],
             "truncated": false,
@@ -524,16 +524,16 @@
     ],
     "factBlocks": [
       {
-        "id": "261a87d2-22ee-451f-847b-3f73b1cddbea",
+        "id": "f0eaf5c0-3758-4a7d-8e54-d8fe8528f51b",
         "kind": "metric_row",
-        "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+        "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
         "data_ref": {
           "kind": "metric_row",
-          "id": "261a87d2-22ee-451f-847b-3f73b1cddbea",
+          "id": "f0eaf5c0-3758-4a7d-8e54-d8fe8528f51b",
           "params": {
             "fact_bindings": [
               {
-                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
+                "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -543,7 +543,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
+                "fact_id": "33ee100f-8307-47d6-8cc7-0a781793009d",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -553,7 +553,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
+                "fact_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -563,7 +563,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "4fee5421-aa31-40d6-a12e-91a3205efe1e",
+                "fact_id": "d09c7dce-3319-4368-8f94-66ef3110983e",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -573,7 +573,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "2420521c-7119-462b-b3e0-4c7d33fdc8c3",
+                "fact_id": "506570de-d34e-4477-902d-79a73f8426e5",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -583,7 +583,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "fb9c3454-a8ea-4be8-bf18-74c2f519e7be",
+                "fact_id": "02303148-4a24-4de7-95c7-2e399af2d181",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -593,7 +593,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "badcb4a5-d3f8-4402-b5e4-9fd8482dae1d",
+                "fact_id": "87b1606e-5f32-4126-a195-0b962cff2ef1",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -603,7 +603,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "abc27d79-5bb3-4aad-ba81-f457c6a49a43",
+                "fact_id": "6e9f9474-909f-4620-99dd-4e1712e86b6d",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -613,7 +613,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
+                "fact_id": "7be6cc26-0771-4991-959e-984cc3141466",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -630,71 +630,71 @@
         ],
         "as_of": "2026-09-01T00:00:00.000Z",
         "provenance_fact_refs": [
-          "a1215df0-d304-4efa-806a-f716168fe530",
-          "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
-          "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
-          "4fee5421-aa31-40d6-a12e-91a3205efe1e",
-          "2420521c-7119-462b-b3e0-4c7d33fdc8c3",
-          "fb9c3454-a8ea-4be8-bf18-74c2f519e7be",
-          "badcb4a5-d3f8-4402-b5e4-9fd8482dae1d",
-          "abc27d79-5bb3-4aad-ba81-f457c6a49a43",
-          "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7"
+          "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "33ee100f-8307-47d6-8cc7-0a781793009d",
+          "65235eee-6ded-441b-a83c-7283ccbdde93",
+          "d09c7dce-3319-4368-8f94-66ef3110983e",
+          "506570de-d34e-4477-902d-79a73f8426e5",
+          "02303148-4a24-4de7-95c7-2e399af2d181",
+          "87b1606e-5f32-4126-a195-0b962cff2ef1",
+          "6e9f9474-909f-4620-99dd-4e1712e86b6d",
+          "7be6cc26-0771-4991-959e-984cc3141466"
         ],
         "title": "Fiscal Q2 2025",
         "items": [
           {
             "label": "Revenue",
-            "value_ref": "a1215df0-d304-4efa-806a-f716168fe530",
+            "value_ref": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
             "format": "$7.7B"
           },
           {
             "label": "Gross profit",
-            "value_ref": "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
+            "value_ref": "33ee100f-8307-47d6-8cc7-0a781793009d",
             "format": "$3.1B"
           },
           {
             "label": "Operating income",
-            "value_ref": "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
+            "value_ref": "65235eee-6ded-441b-a83c-7283ccbdde93",
             "format": "-$134.0M"
           },
           {
             "label": "Net income",
-            "value_ref": "4fee5421-aa31-40d6-a12e-91a3205efe1e",
+            "value_ref": "d09c7dce-3319-4368-8f94-66ef3110983e",
             "format": "$872.0M"
           },
           {
             "label": "Gross margin",
-            "value_ref": "2420521c-7119-462b-b3e0-4c7d33fdc8c3",
+            "value_ref": "506570de-d34e-4477-902d-79a73f8426e5",
             "format": "39.8%"
           },
           {
             "label": "Operating margin",
-            "value_ref": "fb9c3454-a8ea-4be8-bf18-74c2f519e7be",
+            "value_ref": "02303148-4a24-4de7-95c7-2e399af2d181",
             "format": "-1.7%"
           },
           {
             "label": "Net margin",
-            "value_ref": "badcb4a5-d3f8-4402-b5e4-9fd8482dae1d",
+            "value_ref": "87b1606e-5f32-4126-a195-0b962cff2ef1",
             "format": "11.3%"
           },
           {
             "label": "Revenue growth (QoQ)",
-            "value_ref": "abc27d79-5bb3-4aad-ba81-f457c6a49a43",
+            "value_ref": "6e9f9474-909f-4620-99dd-4e1712e86b6d",
             "format": "3.3%"
           }
         ]
       },
       {
-        "id": "10f6872b-35a3-4b65-8e95-fcd656da50cd",
+        "id": "d0904084-02b8-4865-8dec-b0898b44e97c",
         "kind": "revenue_bars",
-        "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+        "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
         "data_ref": {
           "kind": "revenue_bars",
-          "id": "10f6872b-35a3-4b65-8e95-fcd656da50cd",
+          "id": "d0904084-02b8-4865-8dec-b0898b44e97c",
           "params": {
             "fact_bindings": [
               {
-                "fact_id": "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
+                "fact_id": "e4897f3a-1c1c-45b7-834a-62506f680391",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -704,7 +704,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
+                "fact_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -714,7 +714,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
+                "fact_id": "7be6cc26-0771-4991-959e-984cc3141466",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -724,7 +724,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
+                "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -734,7 +734,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
+                "fact_id": "1559775f-eac3-4d94-a122-dcaaad42dceb",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -744,7 +744,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "65837b2f-4e20-42f2-8906-c8477d7a26f5",
+                "fact_id": "18e0887f-4205-46ad-b5f6-453a590361c3",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -754,7 +754,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+                "fact_id": "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -764,7 +764,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
+                "fact_id": "dad226bf-5195-4a3d-a0a9-02fe9e8b1646",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -784,75 +784,75 @@
         "bars": [
           {
             "label": "Q3 2024",
-            "value_ref": "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
+            "value_ref": "e4897f3a-1c1c-45b7-834a-62506f680391",
             "magnitude": 0.6088392857142857,
             "format": "$6.8B"
           },
           {
             "label": "Q4 2024",
-            "value_ref": "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
+            "value_ref": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
             "magnitude": 0.68375,
             "format": "$7.7B"
           },
           {
             "label": "Q1 2025",
-            "value_ref": "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
+            "value_ref": "7be6cc26-0771-4991-959e-984cc3141466",
             "magnitude": 0.6641071428571429,
             "format": "$7.4B"
           },
           {
             "label": "Q2 2025",
-            "value_ref": "a1215df0-d304-4efa-806a-f716168fe530",
+            "value_ref": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
             "magnitude": 0.6861607142857142,
             "format": "$7.7B"
           },
           {
             "label": "Q3 2025",
-            "value_ref": "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
+            "value_ref": "1559775f-eac3-4d94-a122-dcaaad42dceb",
             "magnitude": 0.8255357142857143,
             "format": "$9.2B"
           },
           {
             "label": "Q4 2025",
-            "value_ref": "65837b2f-4e20-42f2-8906-c8477d7a26f5",
+            "value_ref": "18e0887f-4205-46ad-b5f6-453a590361c3",
             "magnitude": 0.9196428571428571,
             "format": "$10.3B"
           },
           {
             "label": "Q1 2026",
-            "value_ref": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+            "value_ref": "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
             "magnitude": 0.9553571428571429,
             "format": "$10.7B"
           },
           {
             "label": "Q2 2026",
-            "value_ref": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
+            "value_ref": "dad226bf-5195-4a3d-a0a9-02fe9e8b1646",
             "magnitude": 1,
             "format": "$11.2B"
           }
         ],
         "provenance_fact_refs": [
-          "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
-          "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
-          "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
-          "a1215df0-d304-4efa-806a-f716168fe530",
-          "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
-          "65837b2f-4e20-42f2-8906-c8477d7a26f5",
-          "05ec1ac5-d068-45f7-a2f8-de252645195e",
-          "1092baf7-fa09-4de3-8083-63a5a4bbcafd"
+          "e4897f3a-1c1c-45b7-834a-62506f680391",
+          "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+          "7be6cc26-0771-4991-959e-984cc3141466",
+          "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "1559775f-eac3-4d94-a122-dcaaad42dceb",
+          "18e0887f-4205-46ad-b5f6-453a590361c3",
+          "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
+          "dad226bf-5195-4a3d-a0a9-02fe9e8b1646"
         ]
       },
       {
-        "id": "b604409e-0ebe-404d-85ae-386010c6a3e8",
+        "id": "feafe513-674a-4ffc-863c-89a278842338",
         "kind": "metric_row",
-        "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+        "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
         "data_ref": {
           "kind": "metric_row",
-          "id": "b604409e-0ebe-404d-85ae-386010c6a3e8",
+          "id": "feafe513-674a-4ffc-863c-89a278842338",
           "params": {
             "fact_bindings": [
               {
-                "fact_id": "ae3b6870-e097-4035-9fa6-f4b05874ae1f",
+                "fact_id": "c0e84104-e68f-4aa0-9eea-dde53ed5ce4c",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -862,7 +862,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "cbb96215-f46d-4554-aa66-922db89b6703",
+                "fact_id": "412f2827-331d-46f2-8df0-c05f422750bc",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -872,7 +872,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "6d77571c-dfb0-4539-adb7-b51703a86b46",
+                "fact_id": "b6640235-f31e-4e18-8786-325a40c60bb7",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -882,7 +882,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "2420521c-7119-462b-b3e0-4c7d33fdc8c3",
+                "fact_id": "506570de-d34e-4477-902d-79a73f8426e5",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -892,7 +892,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "7908bb81-b150-4a25-ad96-98fbb150da63",
+                "fact_id": "94e4ecb7-5cc6-4dbc-94d0-b534345c0755",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -902,7 +902,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "b041c02c-d44d-4467-b1ed-b37c3f3e68ff",
+                "fact_id": "5891315c-1625-41a9-9744-302649ef11ad",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -912,7 +912,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "cee01403-2a72-4b61-9e39-59abbace1790",
+                "fact_id": "92934914-3055-4aa7-a86e-0d9ed7c28d7d",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -922,7 +922,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "9d537227-a5d8-4d5b-b7d1-91e46eeac6f3",
+                "fact_id": "b9b9fd18-8a7e-44b6-8dfa-744cc6c0361f",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -932,7 +932,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "fd4b2f03-05fb-4169-a441-b9b960b1eae7",
+                "fact_id": "97b7a9da-42e7-4e7a-9256-596b6097bf63",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -942,7 +942,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
+                "fact_id": "e4897f3a-1c1c-45b7-834a-62506f680391",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -952,7 +952,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "174ae102-87ab-4e62-a9ee-95484758d7ea",
+                "fact_id": "73c90fe1-6608-458c-b240-dfc041197bd4",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -962,7 +962,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
+                "fact_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -972,7 +972,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "68039ebd-f398-4813-be1d-bd0496a96d05",
+                "fact_id": "88f966e8-f87a-42f7-8748-7b3e63fdea46",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -982,7 +982,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
+                "fact_id": "7be6cc26-0771-4991-959e-984cc3141466",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -992,7 +992,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
+                "fact_id": "33ee100f-8307-47d6-8cc7-0a781793009d",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1002,7 +1002,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
+                "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1012,7 +1012,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "ac0b4a55-9359-48eb-be41-f9d2670d0f3a",
+                "fact_id": "3ab4276d-1591-4d5b-8108-8354e9515923",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1022,7 +1022,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
+                "fact_id": "1559775f-eac3-4d94-a122-dcaaad42dceb",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1032,7 +1032,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "709e4333-5b47-4d4a-8e87-e958f7e4a852",
+                "fact_id": "7b966bcd-49bb-4ab2-85d2-960041029498",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1042,7 +1042,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "65837b2f-4e20-42f2-8906-c8477d7a26f5",
+                "fact_id": "18e0887f-4205-46ad-b5f6-453a590361c3",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1052,7 +1052,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "b5b04bd2-e71c-44ce-bd2b-12a0b3848efb",
+                "fact_id": "605b3c26-6039-4b9e-8a0d-d405e8051cb0",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1062,7 +1062,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+                "fact_id": "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1072,7 +1072,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "9a6198de-14cb-495b-9c82-e0e3eb473ab6",
+                "fact_id": "f189e2e6-cc56-4d4e-834d-e9b2f9fba586",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1082,7 +1082,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
+                "fact_id": "dad226bf-5195-4a3d-a0a9-02fe9e8b1646",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1099,86 +1099,86 @@
         ],
         "as_of": "2026-09-01T00:00:00.000Z",
         "provenance_fact_refs": [
-          "ae3b6870-e097-4035-9fa6-f4b05874ae1f",
-          "cbb96215-f46d-4554-aa66-922db89b6703",
-          "6d77571c-dfb0-4539-adb7-b51703a86b46",
-          "2420521c-7119-462b-b3e0-4c7d33fdc8c3",
-          "7908bb81-b150-4a25-ad96-98fbb150da63",
-          "b041c02c-d44d-4467-b1ed-b37c3f3e68ff",
-          "cee01403-2a72-4b61-9e39-59abbace1790",
-          "9d537227-a5d8-4d5b-b7d1-91e46eeac6f3",
-          "fd4b2f03-05fb-4169-a441-b9b960b1eae7",
-          "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
-          "174ae102-87ab-4e62-a9ee-95484758d7ea",
-          "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
-          "68039ebd-f398-4813-be1d-bd0496a96d05",
-          "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
-          "e81b1295-62e8-496a-b1a7-f5d86f9ca77a",
-          "a1215df0-d304-4efa-806a-f716168fe530",
-          "ac0b4a55-9359-48eb-be41-f9d2670d0f3a",
-          "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
-          "709e4333-5b47-4d4a-8e87-e958f7e4a852",
-          "65837b2f-4e20-42f2-8906-c8477d7a26f5",
-          "b5b04bd2-e71c-44ce-bd2b-12a0b3848efb",
-          "05ec1ac5-d068-45f7-a2f8-de252645195e",
-          "9a6198de-14cb-495b-9c82-e0e3eb473ab6",
-          "1092baf7-fa09-4de3-8083-63a5a4bbcafd"
+          "c0e84104-e68f-4aa0-9eea-dde53ed5ce4c",
+          "412f2827-331d-46f2-8df0-c05f422750bc",
+          "b6640235-f31e-4e18-8786-325a40c60bb7",
+          "506570de-d34e-4477-902d-79a73f8426e5",
+          "94e4ecb7-5cc6-4dbc-94d0-b534345c0755",
+          "5891315c-1625-41a9-9744-302649ef11ad",
+          "92934914-3055-4aa7-a86e-0d9ed7c28d7d",
+          "b9b9fd18-8a7e-44b6-8dfa-744cc6c0361f",
+          "97b7a9da-42e7-4e7a-9256-596b6097bf63",
+          "e4897f3a-1c1c-45b7-834a-62506f680391",
+          "73c90fe1-6608-458c-b240-dfc041197bd4",
+          "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+          "88f966e8-f87a-42f7-8748-7b3e63fdea46",
+          "7be6cc26-0771-4991-959e-984cc3141466",
+          "33ee100f-8307-47d6-8cc7-0a781793009d",
+          "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "3ab4276d-1591-4d5b-8108-8354e9515923",
+          "1559775f-eac3-4d94-a122-dcaaad42dceb",
+          "7b966bcd-49bb-4ab2-85d2-960041029498",
+          "18e0887f-4205-46ad-b5f6-453a590361c3",
+          "605b3c26-6039-4b9e-8a0d-d405e8051cb0",
+          "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
+          "f189e2e6-cc56-4d4e-834d-e9b2f9fba586",
+          "dad226bf-5195-4a3d-a0a9-02fe9e8b1646"
         ],
         "title": "Gross margin by quarter",
         "items": [
           {
             "label": "Q3 2024",
-            "value_ref": "ae3b6870-e097-4035-9fa6-f4b05874ae1f",
+            "value_ref": "c0e84104-e68f-4aa0-9eea-dde53ed5ce4c",
             "format": "50.1%"
           },
           {
             "label": "Q4 2024",
-            "value_ref": "cbb96215-f46d-4554-aa66-922db89b6703",
+            "value_ref": "412f2827-331d-46f2-8df0-c05f422750bc",
             "format": "51.0%"
           },
           {
             "label": "Q1 2025",
-            "value_ref": "6d77571c-dfb0-4539-adb7-b51703a86b46",
+            "value_ref": "b6640235-f31e-4e18-8786-325a40c60bb7",
             "format": "50.2%"
           },
           {
             "label": "Q2 2025",
-            "value_ref": "2420521c-7119-462b-b3e0-4c7d33fdc8c3",
+            "value_ref": "506570de-d34e-4477-902d-79a73f8426e5",
             "format": "39.8%"
           },
           {
             "label": "Q3 2025",
-            "value_ref": "7908bb81-b150-4a25-ad96-98fbb150da63",
+            "value_ref": "94e4ecb7-5cc6-4dbc-94d0-b534345c0755",
             "format": "53.6%"
           },
           {
             "label": "Q4 2025",
-            "value_ref": "b041c02c-d44d-4467-b1ed-b37c3f3e68ff",
+            "value_ref": "5891315c-1625-41a9-9744-302649ef11ad",
             "format": "54.0%"
           },
           {
             "label": "Q1 2026",
-            "value_ref": "cee01403-2a72-4b61-9e39-59abbace1790",
+            "value_ref": "92934914-3055-4aa7-a86e-0d9ed7c28d7d",
             "format": "54.0%"
           },
           {
             "label": "Q2 2026",
-            "value_ref": "9d537227-a5d8-4d5b-b7d1-91e46eeac6f3",
+            "value_ref": "b9b9fd18-8a7e-44b6-8dfa-744cc6c0361f",
             "format": "54.0%"
           }
         ]
       },
       {
-        "id": "1b3113f0-57cb-428f-8950-48627f857262",
+        "id": "41b053c8-cf20-4a9b-87c2-7df0f1f23091",
         "kind": "metric_row",
-        "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+        "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
         "data_ref": {
           "kind": "metric_row",
-          "id": "1b3113f0-57cb-428f-8950-48627f857262",
+          "id": "41b053c8-cf20-4a9b-87c2-7df0f1f23091",
           "params": {
             "fact_bindings": [
               {
-                "fact_id": "1bfb1870-6819-47fb-861c-99b277cd4bf0",
+                "fact_id": "ce00c50a-f51f-4bd2-8cf2-7023d2076ba4",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -1188,7 +1188,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "5ee53211-ae1e-4d41-90fc-5b9c65a381c1",
+                "fact_id": "4cabf3fa-490b-4764-a458-0cdf1ae92a63",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -1198,7 +1198,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "11c04271-36fe-4d8a-a641-898bc7356b24",
+                "fact_id": "d56714a3-f542-4cba-b141-b83c58ceb8e7",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -1208,7 +1208,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "fb9c3454-a8ea-4be8-bf18-74c2f519e7be",
+                "fact_id": "02303148-4a24-4de7-95c7-2e399af2d181",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1218,7 +1218,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "2e357302-0b59-447e-93ee-6877690f0335",
+                "fact_id": "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1228,7 +1228,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "2145e876-2e9f-4954-8de8-7ff1320bd2e1",
+                "fact_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1238,7 +1238,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "93084b04-27be-4082-9b78-5b4e4f029c93",
+                "fact_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1248,7 +1248,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "1ef20270-d1e3-4203-adf8-42dd5ddbd792",
+                "fact_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1258,7 +1258,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "d215861a-8bf7-44c7-8794-1f66365312b7",
+                "fact_id": "5e7c1a0d-ee15-438f-8ca7-6920630a5c60",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -1268,7 +1268,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
+                "fact_id": "e4897f3a-1c1c-45b7-834a-62506f680391",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -1278,7 +1278,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "00d78f03-da55-455d-8db2-ae34a239b701",
+                "fact_id": "85e4a9e7-fea9-423e-9297-db51e4c65d81",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -1288,7 +1288,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
+                "fact_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -1298,7 +1298,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "e83f425e-2ae8-405a-827a-e255734e0c81",
+                "fact_id": "12c3bcad-422e-4d0b-9bbe-e616869a85ed",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -1308,7 +1308,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
+                "fact_id": "7be6cc26-0771-4991-959e-984cc3141466",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -1318,7 +1318,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
+                "fact_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1328,7 +1328,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
+                "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1338,7 +1338,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "b3a0e458-bf3b-4393-89fe-be9d62824f96",
+                "fact_id": "78fd32f4-29c2-42cb-9cee-f7c95e65cdd7",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1348,7 +1348,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
+                "fact_id": "1559775f-eac3-4d94-a122-dcaaad42dceb",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1358,7 +1358,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "09618da8-d6e7-4944-8a2b-469d4eb78b24",
+                "fact_id": "58dd12ee-4cd0-42c8-b229-f6689f463d92",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1368,7 +1368,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "65837b2f-4e20-42f2-8906-c8477d7a26f5",
+                "fact_id": "18e0887f-4205-46ad-b5f6-453a590361c3",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1378,7 +1378,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "b3b3ee1f-73b7-4c6b-a763-85ebd8d99a6b",
+                "fact_id": "aab4fdd1-b0bb-4e38-822a-5d8037525288",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1388,7 +1388,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+                "fact_id": "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1398,7 +1398,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "37c60b6a-b59c-42db-ad92-f92f68e469ca",
+                "fact_id": "67c113d7-8d41-457e-a096-23cd24b5b2d4",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1408,7 +1408,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
+                "fact_id": "dad226bf-5195-4a3d-a0a9-02fe9e8b1646",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1425,86 +1425,86 @@
         ],
         "as_of": "2026-09-01T00:00:00.000Z",
         "provenance_fact_refs": [
-          "1bfb1870-6819-47fb-861c-99b277cd4bf0",
-          "5ee53211-ae1e-4d41-90fc-5b9c65a381c1",
-          "11c04271-36fe-4d8a-a641-898bc7356b24",
-          "fb9c3454-a8ea-4be8-bf18-74c2f519e7be",
-          "2e357302-0b59-447e-93ee-6877690f0335",
-          "2145e876-2e9f-4954-8de8-7ff1320bd2e1",
-          "93084b04-27be-4082-9b78-5b4e4f029c93",
-          "1ef20270-d1e3-4203-adf8-42dd5ddbd792",
-          "d215861a-8bf7-44c7-8794-1f66365312b7",
-          "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
-          "00d78f03-da55-455d-8db2-ae34a239b701",
-          "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
-          "e83f425e-2ae8-405a-827a-e255734e0c81",
-          "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
-          "ea7d3fab-a76d-43de-9118-9aab56c0d8e0",
-          "a1215df0-d304-4efa-806a-f716168fe530",
-          "b3a0e458-bf3b-4393-89fe-be9d62824f96",
-          "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
-          "09618da8-d6e7-4944-8a2b-469d4eb78b24",
-          "65837b2f-4e20-42f2-8906-c8477d7a26f5",
-          "b3b3ee1f-73b7-4c6b-a763-85ebd8d99a6b",
-          "05ec1ac5-d068-45f7-a2f8-de252645195e",
-          "37c60b6a-b59c-42db-ad92-f92f68e469ca",
-          "1092baf7-fa09-4de3-8083-63a5a4bbcafd"
+          "ce00c50a-f51f-4bd2-8cf2-7023d2076ba4",
+          "4cabf3fa-490b-4764-a458-0cdf1ae92a63",
+          "d56714a3-f542-4cba-b141-b83c58ceb8e7",
+          "02303148-4a24-4de7-95c7-2e399af2d181",
+          "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
+          "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
+          "0fff02ad-ec1c-4f8e-9c66-228386366341",
+          "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
+          "5e7c1a0d-ee15-438f-8ca7-6920630a5c60",
+          "e4897f3a-1c1c-45b7-834a-62506f680391",
+          "85e4a9e7-fea9-423e-9297-db51e4c65d81",
+          "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+          "12c3bcad-422e-4d0b-9bbe-e616869a85ed",
+          "7be6cc26-0771-4991-959e-984cc3141466",
+          "65235eee-6ded-441b-a83c-7283ccbdde93",
+          "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "78fd32f4-29c2-42cb-9cee-f7c95e65cdd7",
+          "1559775f-eac3-4d94-a122-dcaaad42dceb",
+          "58dd12ee-4cd0-42c8-b229-f6689f463d92",
+          "18e0887f-4205-46ad-b5f6-453a590361c3",
+          "aab4fdd1-b0bb-4e38-822a-5d8037525288",
+          "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
+          "67c113d7-8d41-457e-a096-23cd24b5b2d4",
+          "dad226bf-5195-4a3d-a0a9-02fe9e8b1646"
         ],
         "title": "Operating margin by quarter",
         "items": [
           {
             "label": "Q3 2024",
-            "value_ref": "1bfb1870-6819-47fb-861c-99b277cd4bf0",
+            "value_ref": "ce00c50a-f51f-4bd2-8cf2-7023d2076ba4",
             "format": "10.6%"
           },
           {
             "label": "Q4 2024",
-            "value_ref": "5ee53211-ae1e-4d41-90fc-5b9c65a381c1",
+            "value_ref": "4cabf3fa-490b-4764-a458-0cdf1ae92a63",
             "format": "11.4%"
           },
           {
             "label": "Q1 2025",
-            "value_ref": "11c04271-36fe-4d8a-a641-898bc7356b24",
+            "value_ref": "d56714a3-f542-4cba-b141-b83c58ceb8e7",
             "format": "10.8%"
           },
           {
             "label": "Q2 2025",
-            "value_ref": "fb9c3454-a8ea-4be8-bf18-74c2f519e7be",
+            "value_ref": "02303148-4a24-4de7-95c7-2e399af2d181",
             "format": "-1.7%"
           },
           {
             "label": "Q3 2025",
-            "value_ref": "2e357302-0b59-447e-93ee-6877690f0335",
+            "value_ref": "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
             "format": "13.7%"
           },
           {
             "label": "Q4 2025",
-            "value_ref": "2145e876-2e9f-4954-8de8-7ff1320bd2e1",
+            "value_ref": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
             "format": "14.1%"
           },
           {
             "label": "Q1 2026",
-            "value_ref": "93084b04-27be-4082-9b78-5b4e4f029c93",
+            "value_ref": "0fff02ad-ec1c-4f8e-9c66-228386366341",
             "format": "14.2%"
           },
           {
             "label": "Q2 2026",
-            "value_ref": "1ef20270-d1e3-4203-adf8-42dd5ddbd792",
+            "value_ref": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
             "format": "14.4%"
           }
         ]
       },
       {
-        "id": "0607035a-b802-4067-861f-9c611b1ec610",
+        "id": "776a1d28-c4c1-4f83-8ba3-b3072b5cb4f4",
         "kind": "metric_row",
-        "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+        "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
         "data_ref": {
           "kind": "metric_row",
-          "id": "0607035a-b802-4067-861f-9c611b1ec610",
+          "id": "776a1d28-c4c1-4f83-8ba3-b3072b5cb4f4",
           "params": {
             "fact_bindings": [
               {
-                "fact_id": "46423ca5-28e7-435e-82dd-356ce4ebbc77",
+                "fact_id": "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -1514,7 +1514,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "24288a9c-8cd3-4df7-bef1-f119ea2e926e",
+                "fact_id": "284d0145-4606-4438-94f8-1812b1c2f855",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -1524,7 +1524,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "1445ef59-30f4-4421-b431-be067de08800",
+                "fact_id": "5c8a1990-95f1-47e1-8567-9dbbc2aba528",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -1534,7 +1534,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "badcb4a5-d3f8-4402-b5e4-9fd8482dae1d",
+                "fact_id": "87b1606e-5f32-4126-a195-0b962cff2ef1",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1544,7 +1544,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "8256feb0-9dc1-4a89-bc80-6ed9075837d8",
+                "fact_id": "41c898da-15ee-4c36-9d66-629c58dfa508",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1554,7 +1554,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "07763617-6ca1-4aad-b506-9b80647bac80",
+                "fact_id": "42f721eb-a880-42ac-9d5c-a6e38a754e85",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1564,7 +1564,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "eceeaaff-c39b-49f6-a9de-d769d30dc2cf",
+                "fact_id": "3e0397c7-9ae1-48ac-9981-6edb3c8e8aed",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1574,7 +1574,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "8c7905f9-0b15-408d-be15-6a33d077fb55",
+                "fact_id": "1da1688c-6cff-4724-8a0f-9bb0dff0d985",
                 "unit": "ratio",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1584,7 +1584,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "77bea434-bb8a-42ee-b1e8-3c743b033d0d",
+                "fact_id": "68fcea14-62da-4bed-af50-3a695de434fd",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -1594,7 +1594,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
+                "fact_id": "e4897f3a-1c1c-45b7-834a-62506f680391",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-06-30",
@@ -1604,7 +1604,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "69624420-b689-4cf2-94ec-489ff9b2e6bd",
+                "fact_id": "95ee9536-6e10-47ff-aa27-c1917c81970e",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -1614,7 +1614,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
+                "fact_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-09-29",
@@ -1624,7 +1624,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "f0dbd7e3-3f29-4c52-9815-843fd5f358fd",
+                "fact_id": "715e27ea-bd4e-470f-a53c-d17075c80e56",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -1634,7 +1634,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
+                "fact_id": "7be6cc26-0771-4991-959e-984cc3141466",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2024-12-29",
@@ -1644,7 +1644,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "4fee5421-aa31-40d6-a12e-91a3205efe1e",
+                "fact_id": "d09c7dce-3319-4368-8f94-66ef3110983e",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1654,7 +1654,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "a1215df0-d304-4efa-806a-f716168fe530",
+                "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-03-30",
@@ -1664,7 +1664,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "0bd03868-2af6-4add-93a9-5e30af46002e",
+                "fact_id": "c01062d5-b258-45ec-ad6d-a1573b77a620",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1674,7 +1674,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
+                "fact_id": "1559775f-eac3-4d94-a122-dcaaad42dceb",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-06-29",
@@ -1684,7 +1684,7 @@
                 "fiscal_period": "Q3"
               },
               {
-                "fact_id": "e1fb301b-278d-4605-9bf8-f272249181eb",
+                "fact_id": "d5b1bf32-c0e0-4b4b-8443-7c4a09d15bd1",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1694,7 +1694,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "65837b2f-4e20-42f2-8906-c8477d7a26f5",
+                "fact_id": "18e0887f-4205-46ad-b5f6-453a590361c3",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-09-28",
@@ -1704,7 +1704,7 @@
                 "fiscal_period": "Q4"
               },
               {
-                "fact_id": "938a8721-8cfb-431a-b981-c100eb0ce381",
+                "fact_id": "4eca7c11-69b6-4907-b0b1-3d07db39fb27",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1714,7 +1714,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "05ec1ac5-d068-45f7-a2f8-de252645195e",
+                "fact_id": "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2025-12-28",
@@ -1724,7 +1724,7 @@
                 "fiscal_period": "Q1"
               },
               {
-                "fact_id": "aaa650ae-d3bd-4d0b-9a2d-22de860bda38",
+                "fact_id": "3f4f8a8d-0363-4955-9efd-7530a2a3b090",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1734,7 +1734,7 @@
                 "fiscal_period": "Q2"
               },
               {
-                "fact_id": "1092baf7-fa09-4de3-8083-63a5a4bbcafd",
+                "fact_id": "dad226bf-5195-4a3d-a0a9-02fe9e8b1646",
                 "unit": "currency",
                 "period_kind": "fiscal_q",
                 "period_start": "2026-03-29",
@@ -1751,71 +1751,71 @@
         ],
         "as_of": "2026-09-01T00:00:00.000Z",
         "provenance_fact_refs": [
-          "46423ca5-28e7-435e-82dd-356ce4ebbc77",
-          "24288a9c-8cd3-4df7-bef1-f119ea2e926e",
-          "1445ef59-30f4-4421-b431-be067de08800",
-          "badcb4a5-d3f8-4402-b5e4-9fd8482dae1d",
-          "8256feb0-9dc1-4a89-bc80-6ed9075837d8",
-          "07763617-6ca1-4aad-b506-9b80647bac80",
-          "eceeaaff-c39b-49f6-a9de-d769d30dc2cf",
-          "8c7905f9-0b15-408d-be15-6a33d077fb55",
-          "77bea434-bb8a-42ee-b1e8-3c743b033d0d",
-          "5162a6dc-135f-44eb-b0f3-f95d9d8b3435",
-          "69624420-b689-4cf2-94ec-489ff9b2e6bd",
-          "0aa11805-dffd-4de1-93c9-e6d79e5a4a33",
-          "f0dbd7e3-3f29-4c52-9815-843fd5f358fd",
-          "aecc59f7-a3f8-4da3-a7ac-67c5753b59a7",
-          "4fee5421-aa31-40d6-a12e-91a3205efe1e",
-          "a1215df0-d304-4efa-806a-f716168fe530",
-          "0bd03868-2af6-4add-93a9-5e30af46002e",
-          "7fb8e9da-1f32-43d7-81b4-2373c4bd8162",
-          "e1fb301b-278d-4605-9bf8-f272249181eb",
-          "65837b2f-4e20-42f2-8906-c8477d7a26f5",
-          "938a8721-8cfb-431a-b981-c100eb0ce381",
-          "05ec1ac5-d068-45f7-a2f8-de252645195e",
-          "aaa650ae-d3bd-4d0b-9a2d-22de860bda38",
-          "1092baf7-fa09-4de3-8083-63a5a4bbcafd"
+          "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
+          "284d0145-4606-4438-94f8-1812b1c2f855",
+          "5c8a1990-95f1-47e1-8567-9dbbc2aba528",
+          "87b1606e-5f32-4126-a195-0b962cff2ef1",
+          "41c898da-15ee-4c36-9d66-629c58dfa508",
+          "42f721eb-a880-42ac-9d5c-a6e38a754e85",
+          "3e0397c7-9ae1-48ac-9981-6edb3c8e8aed",
+          "1da1688c-6cff-4724-8a0f-9bb0dff0d985",
+          "68fcea14-62da-4bed-af50-3a695de434fd",
+          "e4897f3a-1c1c-45b7-834a-62506f680391",
+          "95ee9536-6e10-47ff-aa27-c1917c81970e",
+          "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+          "715e27ea-bd4e-470f-a53c-d17075c80e56",
+          "7be6cc26-0771-4991-959e-984cc3141466",
+          "d09c7dce-3319-4368-8f94-66ef3110983e",
+          "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "c01062d5-b258-45ec-ad6d-a1573b77a620",
+          "1559775f-eac3-4d94-a122-dcaaad42dceb",
+          "d5b1bf32-c0e0-4b4b-8443-7c4a09d15bd1",
+          "18e0887f-4205-46ad-b5f6-453a590361c3",
+          "4eca7c11-69b6-4907-b0b1-3d07db39fb27",
+          "45fa86cb-2cda-4fb0-9691-0f04379c4a7d",
+          "3f4f8a8d-0363-4955-9efd-7530a2a3b090",
+          "dad226bf-5195-4a3d-a0a9-02fe9e8b1646"
         ],
         "title": "Net margin by quarter",
         "items": [
           {
             "label": "Q3 2024",
-            "value_ref": "46423ca5-28e7-435e-82dd-356ce4ebbc77",
+            "value_ref": "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
             "format": "11.3%"
           },
           {
             "label": "Q4 2024",
-            "value_ref": "24288a9c-8cd3-4df7-bef1-f119ea2e926e",
+            "value_ref": "284d0145-4606-4438-94f8-1812b1c2f855",
             "format": "6.3%"
           },
           {
             "label": "Q1 2025",
-            "value_ref": "1445ef59-30f4-4421-b431-be067de08800",
+            "value_ref": "5c8a1990-95f1-47e1-8567-9dbbc2aba528",
             "format": "9.5%"
           },
           {
             "label": "Q2 2025",
-            "value_ref": "badcb4a5-d3f8-4402-b5e4-9fd8482dae1d",
+            "value_ref": "87b1606e-5f32-4126-a195-0b962cff2ef1",
             "format": "11.3%"
           },
           {
             "label": "Q3 2025",
-            "value_ref": "8256feb0-9dc1-4a89-bc80-6ed9075837d8",
+            "value_ref": "41c898da-15ee-4c36-9d66-629c58dfa508",
             "format": "13.4%"
           },
           {
             "label": "Q4 2025",
-            "value_ref": "07763617-6ca1-4aad-b506-9b80647bac80",
+            "value_ref": "42f721eb-a880-42ac-9d5c-a6e38a754e85",
             "format": "13.1%"
           },
           {
             "label": "Q1 2026",
-            "value_ref": "eceeaaff-c39b-49f6-a9de-d769d30dc2cf",
+            "value_ref": "3e0397c7-9ae1-48ac-9981-6edb3c8e8aed",
             "format": "13.1%"
           },
           {
             "label": "Q2 2026",
-            "value_ref": "8c7905f9-0b15-408d-be15-6a33d077fb55",
+            "value_ref": "1da1688c-6cff-4724-8a0f-9bb0dff0d985",
             "format": "13.2%"
           }
         ]
@@ -1871,21 +1871,21 @@
     "messages": [
       {
         "role": "system",
-        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Quote a figure only exactly as it appears there, in a sentence that names its company exactly as given in company (e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\", and never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
+        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Write a figure only as its packet reference, [[F3]] for the figure with id F3, in place of the value itself (\"revenue of [[F3]]\"): it renders as the displayed value, linked to its source, with its unit, so do not add $, %, B or x around it. A reference is not a citation to put after a number: never write the value, not even beside its reference (\"$7.7B [[F3]]\" is wrong; \"[[F3]]\" is right). Write a cited claim's content as [[C2]], in place of the claim's words, never a paraphrase with [[C2]] after it; a number a claim states may appear only this way. Never write any other digit, except in a period label (Q4, FY2026, fiscal 2026, a month and year); write counts in words (\"eight quarters\"). A sentence that types a figure or a claim's number is removed from the answer. Never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
       },
       {
         "role": "user",
-        "content": "{\"question\":\"Why did AMD's operating margin turn negative in Q2 2025?\",\"conversation\":[{\"role\":\"user\",\"text\":\"Why did AMD's operating margin turn negative in Q2 2025?\"}],\"evidence_packet\":{\"route\":\"derived_margin\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"metric\":\"Revenue\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"$7.7B\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F2\",\"metric\":\"Gross profit\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"$3.1B\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F3\",\"metric\":\"Operating income\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"-$134.0M\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F4\",\"metric\":\"Net income\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"$872.0M\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F5\",\"metric\":\"Gross margin\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"39.8%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F6\",\"metric\":\"Operating margin\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"-1.7%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F7\",\"metric\":\"Net margin\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"11.3%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F8\",\"metric\":\"Revenue growth (QoQ)\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"3.3%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F9\",\"metric\":\"Revenue\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"$6.8B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F10\",\"metric\":\"Revenue\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"$7.7B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F11\",\"metric\":\"Revenue\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"$7.4B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F12\",\"metric\":\"Revenue\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"$7.7B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F13\",\"metric\":\"Revenue\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"$9.2B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F14\",\"metric\":\"Revenue\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"$10.3B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F15\",\"metric\":\"Revenue\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"$10.7B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F16\",\"metric\":\"Revenue\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"$11.2B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F17\",\"metric\":\"Gross margin\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"50.1%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F18\",\"metric\":\"Gross margin\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"51.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F19\",\"metric\":\"Gross margin\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"50.2%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F20\",\"metric\":\"Gross margin\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"39.8%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F21\",\"metric\":\"Gross margin\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"53.6%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F22\",\"metric\":\"Gross margin\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"54.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F23\",\"metric\":\"Gross margin\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"54.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F24\",\"metric\":\"Gross margin\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"54.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F25\",\"metric\":\"Operating margin\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"10.6%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F26\",\"metric\":\"Operating margin\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"11.4%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F27\",\"metric\":\"Operating margin\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"10.8%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F28\",\"metric\":\"Operating margin\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"-1.7%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F29\",\"metric\":\"Operating margin\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"13.7%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F30\",\"metric\":\"Operating margin\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"14.1%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F31\",\"metric\":\"Operating margin\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"14.2%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F32\",\"metric\":\"Operating margin\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"14.4%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F33\",\"metric\":\"Net margin\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"11.3%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F34\",\"metric\":\"Net margin\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"6.3%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F35\",\"metric\":\"Net margin\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"9.5%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F36\",\"metric\":\"Net margin\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"11.3%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F37\",\"metric\":\"Net margin\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"13.4%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F38\",\"metric\":\"Net margin\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"13.1%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F39\",\"metric\":\"Net margin\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"13.1%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F40\",\"metric\":\"Net margin\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"13.2%\",\"shown_in\":\"Net margin by quarter\"}],\"coverage\":[{\"company\":\"AMD\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"fiscal Q2 2025, with revenue for the 8 quarters around it\",\"claims\":\"management, guidance, and kpi claims from 2024-01-01 until 2026-04-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"claims\":[{\"id\":\"C1\",\"text\":\"As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\",\"predicate\":\"kpi.commentary\",\"stance\":\"challenging\",\"company\":\"AMD\",\"effective_time\":\"2025-06-28T00:00:00.000Z\",\"published_at\":\"2025-08-05T00:00:00.000Z\"}],\"staleness\":{\"quote\":[{\"ticker\":\"AMD\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"Q1\",\"age_days\":0,\"stale\":false}]}}}"
+        "content": "{\"question\":\"Why did AMD's operating margin turn negative in Q2 2025?\",\"conversation\":[{\"role\":\"user\",\"text\":\"Why did AMD's operating margin turn negative in Q2 2025?\"}],\"evidence_packet\":{\"route\":\"derived_margin\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"metric\":\"Revenue\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"$7.7B\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F2\",\"metric\":\"Gross profit\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"$3.1B\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F3\",\"metric\":\"Operating income\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"-$134.0M\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F4\",\"metric\":\"Net income\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"$872.0M\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F5\",\"metric\":\"Gross margin\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"39.8%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F6\",\"metric\":\"Operating margin\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"-1.7%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F7\",\"metric\":\"Net margin\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"11.3%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F8\",\"metric\":\"Revenue growth (QoQ)\",\"period\":\"Q22025\",\"period_end\":\"2025-06-28\",\"value\":\"3.3%\",\"shown_in\":\"Fiscal Q2 2025\"},{\"id\":\"F9\",\"metric\":\"Revenue\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"$6.8B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F10\",\"metric\":\"Revenue\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"$7.7B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F11\",\"metric\":\"Revenue\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"$7.4B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F12\",\"metric\":\"Revenue\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"$7.7B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F13\",\"metric\":\"Revenue\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"$9.2B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F14\",\"metric\":\"Revenue\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"$10.3B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F15\",\"metric\":\"Revenue\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"$10.7B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F16\",\"metric\":\"Revenue\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"$11.2B\",\"shown_in\":\"Quarterly revenue\"},{\"id\":\"F17\",\"metric\":\"Gross margin\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"50.1%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F18\",\"metric\":\"Gross margin\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"51.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F19\",\"metric\":\"Gross margin\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"50.2%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F20\",\"metric\":\"Gross margin\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"39.8%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F21\",\"metric\":\"Gross margin\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"53.6%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F22\",\"metric\":\"Gross margin\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"54.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F23\",\"metric\":\"Gross margin\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"54.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F24\",\"metric\":\"Gross margin\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"54.0%\",\"shown_in\":\"Gross margin by quarter\"},{\"id\":\"F25\",\"metric\":\"Operating margin\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"10.6%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F26\",\"metric\":\"Operating margin\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"11.4%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F27\",\"metric\":\"Operating margin\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"10.8%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F28\",\"metric\":\"Operating margin\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"-1.7%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F29\",\"metric\":\"Operating margin\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"13.7%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F30\",\"metric\":\"Operating margin\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"14.1%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F31\",\"metric\":\"Operating margin\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"14.2%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F32\",\"metric\":\"Operating margin\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"14.4%\",\"shown_in\":\"Operating margin by quarter\"},{\"id\":\"F33\",\"metric\":\"Net margin\",\"period\":\"Q3 2024\",\"period_end\":\"2024-09-28\",\"value\":\"11.3%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F34\",\"metric\":\"Net margin\",\"period\":\"Q4 2024\",\"period_end\":\"2024-12-28\",\"value\":\"6.3%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F35\",\"metric\":\"Net margin\",\"period\":\"Q1 2025\",\"period_end\":\"2025-03-29\",\"value\":\"9.5%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F36\",\"metric\":\"Net margin\",\"period\":\"Q2 2025\",\"period_end\":\"2025-06-28\",\"value\":\"11.3%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F37\",\"metric\":\"Net margin\",\"period\":\"Q3 2025\",\"period_end\":\"2025-09-27\",\"value\":\"13.4%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F38\",\"metric\":\"Net margin\",\"period\":\"Q4 2025\",\"period_end\":\"2025-12-27\",\"value\":\"13.1%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F39\",\"metric\":\"Net margin\",\"period\":\"Q1 2026\",\"period_end\":\"2026-03-28\",\"value\":\"13.1%\",\"shown_in\":\"Net margin by quarter\"},{\"id\":\"F40\",\"metric\":\"Net margin\",\"period\":\"Q2 2026\",\"period_end\":\"2026-06-27\",\"value\":\"13.2%\",\"shown_in\":\"Net margin by quarter\"}],\"coverage\":[{\"company\":\"AMD\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"fiscal Q2 2025, with revenue for the 8 quarters around it\",\"claims\":\"management, guidance, and kpi claims from 2024-01-01 until 2026-04-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"claims\":[{\"id\":\"C1\",\"text\":\"As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\",\"predicate\":\"kpi.commentary\",\"stance\":\"challenging\",\"company\":\"AMD\",\"effective_time\":\"2025-06-28T00:00:00.000Z\",\"published_at\":\"2025-08-05T00:00:00.000Z\"}],\"staleness\":{\"quote\":[{\"ticker\":\"AMD\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"Q2\",\"age_days\":0,\"stale\":false}]}}}"
       }
     ],
-    "text": "**Takeaway:** AMD's operating margin turned negative in fiscal Q2 2025 (period ending June 2025) because gross margin collapsed, and management attributed the deterioration to U.S. export controls on Instinct MI308 data center GPUs that triggered roughly $800 million in inventory and related charges.\n\n**Trend across the window shown:** AMD's operating margin held in a narrow band from fiscal Q3 2024 (period ending September 2024) through fiscal Q1 2025 (period ending March 2025)—10.6%, 11.4%, and 10.8% respectively—then plunged to -1.7% in fiscal Q2 2025 (period ending June 2025). It recovered immediately to 13.7% in fiscal Q3 2025 (period ending September 2025) and continued edging higher through fiscal Q2 2026 (period ending June 2026), reaching 14.4%. Gross margin followed the same pattern: stable near 50–51%, a drop to 39.8% in fiscal Q2 2025, then a rebound to 53.6% and a plateau around 54%.\n\n**What is strong and what is weak:** The fiscal Q2 2025 quarter is the clear outlier in every profitability metric shown. AMD's gross margin of 39.8% (F20) is the lowest in the entire eight-quarter window, and AMD's operating margin of -1.7% (F28) is the only negative reading. Revenue of $7.7B (F12) was not the problem—it was flat with fiscal Q4 2024 and up modestly quarter-over-quarter. The weakness was entirely in cost of goods or charges hitting gross profit.\n\n**Counterpoint:** Despite the negative operating margin, AMD reported net income of $872.0M (F4) and a net margin of 11.3% (F7) for fiscal Q2 2025 (period ending June 2025), meaning below-the-line items more than offset the operating loss. The operating-margin headline overstates the bottom-line damage in that quarter.\n\n**What the data cannot tell:** The figures shown do not break out operating expenses separately from cost of goods sold, so we cannot see how much of the gross-margin decline came from the inventory charge versus other COGS items. There is also no prior-year fiscal Q2 revenue or margin for a year-over-year comparison.\n\n> **Unverified hypothesis (medium confidence):** The $800 million charge may have been split between cost of goods sold and operating expenses, given that AMD's gross margin fell by more than the operating margin implies when compared to the prior quarter's spread between the two.\n\nManagement attribution (from a claim published August 2025): AMD stated that U.S. Government export controls on Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in the quarter.\n\n```assertions\n[\n  {\"kind\":\"observation\",\"text\":\"AMD's operating margin was -1.7% in fiscal Q2 2025 (period ending June 2025), with operating income of -$134.0M.\",\"evidence\":[\"F3\",\"F28\"]},\n  {\"kind\":\"observation\",\"text\":\"AMD's gross margin fell to 39.8% in fiscal Q2 2025 (period ending June 2025), down from 50.2% in fiscal Q1 2025.\",\"evidence\":[\"F19\",\"F20\"]},\n  {\"kind\":\"observation\",\"text\":\"AMD's revenue was $7.7B in fiscal Q2 2025 (period ending June 2025), up 3.3% quarter-over-quarter from $7.4B in fiscal Q1 2025.\",\"evidence\":[\"F11\",\"F12\",\"F8\"]},\n  {\"kind\":\"observation\",\"text\":\"AMD's net income was $872.0M and net margin was 11.3% in fiscal Q2 2025 (period ending June 2025), despite the negative operating margin.\",\"evidence\":[\"F4\",\"F7\"]},\n  {\"kind\":\"comparison\",\"text\":\"AMD's operating margin fell from a stable band of 10.6–11.4% (fiscal Q3 2024 through fiscal Q1 2025) to -1.7% in fiscal Q2 2025, then recovered to 13.7% and continued rising through fiscal Q2 2026.\",\"evidence\":[\"F25\",\"F26\",\"F27\",\"F28\",\"F29\",\"F30\",\"F31\",\"F32\"],\"op\":\"trend\",\"result\":\"fell_throughout\"},\n  {\"kind\":\"comparison\",\"text\":\"AMD's gross margin was at its lowest point in the eight-quarter window in fiscal Q2 2025 at 39.8%.\",\"evidence\":[\"F17\",\"F18\",\"F19\",\"F20\",\"F21\",\"F22\",\"F23\",\"F24\"],\"op\":\"lowest\",\"result\":\"F20\"},\n  {\"kind\":\"management_attribution\",\"text\":\"AMD stated that U.S. Government export controls on Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in fiscal Q2 2025.\",\"evidence\":[\"C1\"]},\n  {\"kind\":\"unknown_cause\",\"text\":\"The data does not show how much of the gross-margin decline came from the inventory charge versus other cost items, because operating expenses and COGS are not broken out separately.\",\"evidence\":[\"F20\",\"F28\"]},\n  {\"kind\":\"analyst_inference\",\"text\":\"The negative operating margin was a one-time event driven by export-control charges rather than a structural deterioration, as margins recovered immediately and exceeded prior levels in the following quarter.\",\"supports\":[4,5,6]},\n  {\"kind\":\"analyst_inference\",\"text\":\"The operating-margin headline overstates bottom-line damage because below-the-line items kept net income positive and net margin in line with surrounding quarters.\",\"supports\":[3]}\n]\n```",
+    "text": "**Takeaway:** AMD's operating margin turned negative in Q2 2025 because of U.S. export-control restrictions on its Instinct MI308 data center GPUs, which management said led to approximately $800 million in inventory and related charges [[C1]]. This is a management attribution published in August 2025.\n\n**Trend across all periods shown:** Operating margin held steady in the 10–11% range from Q3 2024 through Q1 2025 [[F25]][[F26]][[F27]], then plunged to [[F28]] in Q2 2025 (period ending June 2025). It recovered immediately to [[F29]] in Q3 2025 and continued edging higher through Q2 2026 [[F30]][[F31]][[F32]]. Gross margin followed the same pattern: stable near 50% for three quarters [[F17]][[F18]][[F19]], a sharp drop to [[F20]] in Q2 2025, then a rebound to the low-to-mid 50s [[F21]][[F22]][[F23]][[F24]].\n\n**What is strong and what is weak:** The Q2 2025 quarter is a stark outlier on both gross margin and operating margin relative to every other quarter shown. Revenue itself was not the problem—Q2 2025 revenue of [[F12]] was in line with Q4 2024 [[F10]] and only modestly above Q1 2025 [[F11]]. The margin compression, not a revenue shortfall, drove the negative operating result.\n\n**Counterpoint:** Despite the negative operating income of [[F3]], net income was positive at [[F4]] in the same quarter, and net margin was [[F36]]—matching the net margin from Q3 2024 [[F33]]. This means below-the-line items fully offset the operating loss, so the bottom-line impact was far less severe than the operating margin alone suggests.\n\n**What the data cannot tell:** The figures shown do not break out how much of the charge hit gross profit versus operating expenses, so we cannot pinpoint whether the margin compression was primarily a COGS effect or an opex effect. There is also no prior-year Q2 quarter shown for year-over-year comparison.\n\n> **Unverified hypothesis (medium confidence):** The gross margin drop to [[F20]] reflects the inventory charge flowing through cost of goods sold, given that gross margin and operating margin both fell sharply in the same quarter while revenue was stable.\n\n```assertions\n[\n  {\"kind\":\"observation\",\"text\":\"Operating margin was -1.7% in Q2 2025 (period ending June 2025), with operating income of -$134.0M.\",\"evidence\":[\"F28\",\"F3\"]},\n  {\"kind\":\"observation\",\"text\":\"Gross margin fell to 39.8% in Q2 2025 from roughly 50% in each of the three prior quarters shown.\",\"evidence\":[\"F17\",\"F18\",\"F19\",\"F20\"]},\n  {\"kind\":\"observation\",\"text\":\"Revenue in Q2 2025 was $7.7B, in line with Q4 2024 and slightly above Q1 2025.\",\"evidence\":[\"F10\",\"F11\",\"F12\"]},\n  {\"kind\":\"observation\",\"text\":\"Net income was $872.0M and net margin was 11.3% in Q2 2025 despite negative operating income.\",\"evidence\":[\"F4\",\"F36\"]},\n  {\"kind\":\"comparison\",\"text\":\"Operating margin fell from the 10-11% range in Q3 2024 through Q1 2025 to -1.7% in Q2 2025, then recovered to 13-14% from Q3 2025 onward.\",\"evidence\":[\"F25\",\"F26\",\"F27\",\"F28\",\"F29\",\"F30\",\"F31\",\"F32\"],\"op\":\"trend\",\"result\":\"fell_throughout\"},\n  {\"kind\":\"comparison\",\"text\":\"Gross margin dropped sharply in Q2 2025 relative to all other quarters shown, then recovered and stabilized in the low-to-mid 50s.\",\"evidence\":[\"F17\",\"F18\",\"F19\",\"F20\",\"F21\",\"F22\",\"F23\",\"F24\"],\"op\":\"trend\",\"result\":\"fell_throughout\"},\n  {\"kind\":\"management_attribution\",\"text\":\"Management stated that Q2 2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.\",\"evidence\":[\"C1\"]},\n  {\"kind\":\"unknown_cause\",\"text\":\"The data does not show how the charge was allocated between gross profit and operating expenses.\",\"evidence\":[\"F20\",\"F28\"]},\n  {\"kind\":\"analyst_inference\",\"text\":\"The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.\",\"supports\":[0,1,2,4,5,6]},\n  {\"kind\":\"analyst_inference\",\"text\":\"Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin.\",\"supports\":[3]},\n  {\"kind\":\"analyst_inference\",\"text\":\"The export-control charge is the stated cause of the margin decline, but the data alone cannot confirm the mechanism without a line-item breakdown.\",\"supports\":[0,1,6,7]}\n]\n```",
     "truncated": false,
     "deployment": "opencode-go/qwen3.8-max",
-    "latency_ms": 48809,
+    "latency_ms": 39067,
     "usage": {
-      "input_tokens": 691,
-      "output_tokens": 1993,
-      "reasoning_tokens": 601
+      "input_tokens": 2896,
+      "output_tokens": 1843,
+      "reasoning_tokens": 563
     }
   },
   "assertions": {
@@ -1894,61 +1894,35 @@
       {
         "index": 0,
         "kind": "observation",
-        "text": "AMD's operating margin was -1.7% in fiscal Q2 2025 (period ending June 2025), with operating income of -$134.0M.",
+        "text": "Operating margin was -1.7% in Q2 2025 (period ending June 2025), with operating income of -$134.0M.",
         "evidence": [
-          "F3",
-          "F28"
-        ]
-      },
-      {
-        "index": 1,
-        "kind": "observation",
-        "text": "AMD's gross margin fell to 39.8% in fiscal Q2 2025 (period ending June 2025), down from 50.2% in fiscal Q1 2025.",
-        "evidence": [
-          "F19",
-          "F20"
+          "F28",
+          "F3"
         ]
       },
       {
         "index": 2,
         "kind": "observation",
-        "text": "AMD's revenue was $7.7B in fiscal Q2 2025 (period ending June 2025), up 3.3% quarter-over-quarter from $7.4B in fiscal Q1 2025.",
+        "text": "Revenue in Q2 2025 was $7.7B, in line with Q4 2024 and slightly above Q1 2025.",
         "evidence": [
+          "F10",
           "F11",
-          "F12",
-          "F8"
+          "F12"
         ]
       },
       {
         "index": 3,
         "kind": "observation",
-        "text": "AMD's net income was $872.0M and net margin was 11.3% in fiscal Q2 2025 (period ending June 2025), despite the negative operating margin.",
+        "text": "Net income was $872.0M and net margin was 11.3% in Q2 2025 despite negative operating income.",
         "evidence": [
           "F4",
-          "F7"
+          "F36"
         ]
-      },
-      {
-        "index": 5,
-        "kind": "comparison",
-        "text": "AMD's gross margin was at its lowest point in the eight-quarter window in fiscal Q2 2025 at 39.8%.",
-        "evidence": [
-          "F17",
-          "F18",
-          "F19",
-          "F20",
-          "F21",
-          "F22",
-          "F23",
-          "F24"
-        ],
-        "op": "lowest",
-        "result": "F20"
       },
       {
         "index": 7,
         "kind": "unknown_cause",
-        "text": "The data does not show how much of the gross-margin decline came from the inventory charge versus other cost items, because operating expenses and COGS are not broken out separately.",
+        "text": "The data does not show how the charge was allocated between gross profit and operating expenses.",
         "evidence": [
           "F20",
           "F28"
@@ -1957,7 +1931,7 @@
       {
         "index": 9,
         "kind": "analyst_inference",
-        "text": "The operating-margin headline overstates bottom-line damage because below-the-line items kept net income positive and net margin in line with surrounding quarters.",
+        "text": "Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin.",
         "evidence": [],
         "supports": [
           3
@@ -1966,46 +1940,277 @@
     ],
     "rejected": [
       {
+        "index": 1,
+        "text": "Gross margin fell to 39.8% in Q2 2025 from roughly 50% in each of the three prior quarters shown.",
+        "reason": "50% is not a cited figure's value"
+      },
+      {
         "index": 4,
-        "text": "AMD's operating margin fell from a stable band of 10.6–11.4% (fiscal Q3 2024 through fiscal Q1 2025) to -1.7% in fiscal Q2 2025, then recovered to 13.7% and continued rising through fiscal Q2 2026.",
-        "reason": "comparison: operating margin did not fall in every period"
+        "text": "Operating margin fell from the 10-11% range in Q3 2024 through Q1 2025 to -1.7% in Q2 2025, then recovered to 13-14% from Q3 2025 onward.",
+        "reason": "10 is not a cited figure's value"
+      },
+      {
+        "index": 5,
+        "text": "Gross margin dropped sharply in Q2 2025 relative to all other quarters shown, then recovered and stabilized in the low-to-mid 50s.",
+        "reason": "50 is not a cited figure's value"
       },
       {
         "index": 6,
-        "text": "AMD stated that U.S. Government export controls on Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in fiscal Q2 2025.",
+        "text": "Management stated that Q2 2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
         "reason": "2 is not a cited figure's value"
       },
       {
         "index": 8,
-        "text": "The negative operating margin was a one-time event driven by export-control charges rather than a structural deterioration, as margins recovered immediately and exceeded prior levels in the following quarter.",
+        "text": "The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
+        "reason": "an inference binds the accepted observations it rests on"
+      },
+      {
+        "index": 10,
+        "text": "The export-control charge is the stated cause of the margin decline, but the data alone cannot confirm the mechanism without a line-item breakdown.",
         "reason": "an inference binds the accepted observations it rests on"
       }
     ]
   },
   "removed": [
-    "Gross margin followed the same pattern: stable near 50–51%, a drop to 39.8% in fiscal Q2 2025, then a rebound to 53.6% and a plateau around 54%.",
-    "AMD's gross margin of 39.8% (F20) is the lowest in the entire eight-quarter window, and AMD's operating margin of -1.7% (F28) is the only negative reading.",
-    "Revenue of $7.7B (F12) was not the problem—it was flat with fiscal Q4 2024 and up modestly quarter-over-quarter.",
-    "**Counterpoint:** Despite the negative operating margin, AMD reported net income of $872.0M (F4) and a net margin of 11.3% (F7) for fiscal Q2 2025 (period ending June 2025), meaning below-the-line items more than offset the operating loss.",
-    "The $800 million charge may have been split between cost of goods sold and operating expenses, given that AMD's gross margin fell by more than the operating margin implies when compared to the prior quarter's spread between the two.",
-    "Government export controls on Instinct MI308 data center GPU products led to approximately $800 million in inventory and related charges in the quarter."
+    "**Takeaway:** AMD's operating margin turned negative in Q2 2025 because of U.S. export-control restrictions on its Instinct MI308 data center GPUs, which management said led to approximately $800 million in inventory and related charges [[C1]].",
+    "**Trend across all periods shown:** Operating margin held steady in the 10–11% range from Q3 2024 through Q1 2025 [[F25]][[F26]][[F27]], then plunged to [[F28]] in Q2 2025 (period ending June 2025).",
+    "Gross margin followed the same pattern: stable near 50% for three quarters [[F17]][[F18]][[F19]], a sharp drop to [[F20]] in Q2 2025, then a rebound to the low-to-mid 50s [[F21]][[F22]][[F23]][[F24]].",
+    "The gross margin drop to [[F20]] reflects the inventory charge flowing through cost of goods sold, given that gross margin and operating margin both fell sharply in the same quarter while revenue was stable."
   ],
   "blocks": [
     {
-      "id": "c3aac0a9-e323-43ca-879f-bc2a1f891456",
+      "id": "b966b6a4-0f18-4f7e-8534-15e8dbd08ddd",
       "kind": "rich_text",
-      "snapshot_id": "98beb20f-5cf9-469b-8ad2-336c1cc89efa",
+      "snapshot_id": "8c1aea9e-8ed4-4f6a-8a00-33ad016e9a78",
       "data_ref": {
         "kind": "rich_text",
-        "id": "c3aac0a9-e323-43ca-879f-bc2a1f891456"
+        "id": "b966b6a4-0f18-4f7e-8534-15e8dbd08ddd",
+        "params": {
+          "fact_bindings": [
+            {
+              "fact_id": "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-06-29",
+              "period_end": "2025-09-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q3"
+            },
+            {
+              "fact_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-09-28",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q4"
+            },
+            {
+              "fact_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-12-28",
+              "period_end": "2026-03-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q1"
+            },
+            {
+              "fact_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2026-03-29",
+              "period_end": "2026-06-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q2"
+            },
+            {
+              "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+              "unit": "currency",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-03-30",
+              "period_end": "2025-06-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q2"
+            },
+            {
+              "fact_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+              "unit": "currency",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-09-29",
+              "period_end": "2024-12-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2024,
+              "fiscal_period": "Q4"
+            },
+            {
+              "fact_id": "7be6cc26-0771-4991-959e-984cc3141466",
+              "unit": "currency",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-12-29",
+              "period_end": "2025-03-29",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q1"
+            },
+            {
+              "fact_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
+              "unit": "currency",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-03-30",
+              "period_end": "2025-06-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q2"
+            },
+            {
+              "fact_id": "d09c7dce-3319-4368-8f94-66ef3110983e",
+              "unit": "currency",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-03-30",
+              "period_end": "2025-06-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q2"
+            },
+            {
+              "fact_id": "87b1606e-5f32-4126-a195-0b962cff2ef1",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-03-30",
+              "period_end": "2025-06-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q2"
+            },
+            {
+              "fact_id": "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-06-30",
+              "period_end": "2024-09-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2024,
+              "fiscal_period": "Q3"
+            }
+          ]
+        }
       },
-      "source_refs": [],
+      "source_refs": [
+        "00000000-0000-4000-a000-000000000001"
+      ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** AMD's operating margin turned negative in fiscal Q2 2025 (period ending June 2025) because gross margin collapsed, and management attributed the deterioration to U.S. export controls on Instinct MI308 data center GPUs that triggered roughly $800 million in inventory and related charges.\n\n**Trend across the window shown:** AMD's operating margin held in a narrow band from fiscal Q3 2024 (period ending September 2024) through fiscal Q1 2025 (period ending March 2025)—10.6%, 11.4%, and 10.8% respectively—then plunged to -1.7% in fiscal Q2 2025 (period ending June 2025). It recovered immediately to 13.7% in fiscal Q3 2025 (period ending September 2025) and continued edging higher through fiscal Q2 2026 (period ending June 2026), reaching 14.4%.\n\n**What is strong and what is weak:** The fiscal Q2 2025 quarter is the clear outlier in every profitability metric shown. The weakness was entirely in cost of goods or charges hitting gross profit.\n\nThe operating-margin headline overstates the bottom-line damage in that quarter.\n\n**What the data cannot tell:** The figures shown do not break out operating expenses separately from cost of goods sold, so we cannot see how much of the gross-margin decline came from the inventory charge versus other COGS items. There is also no prior-year fiscal Q2 revenue or margin for a year-over-year comparison.\n\nManagement attribution (from a claim published August 2025): AMD stated that U.S."
+          "text": "This is a management attribution published in August 2025.\n\nIt recovered immediately to "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
+          "format": "13.7%"
+        },
+        {
+          "type": "text",
+          "text": " in Q3 2025 and continued edging higher through Q2 2026 "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
+          "format": "14.1%"
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
+          "format": "14.2%"
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
+          "format": "14.4%"
+        },
+        {
+          "type": "text",
+          "text": ".\n\n**What is strong and what is weak:** The Q2 2025 quarter is a stark outlier on both gross margin and operating margin relative to every other quarter shown. Revenue itself was not the problem—Q2 2025 revenue of "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "format": "$7.7B"
+        },
+        {
+          "type": "text",
+          "text": " was in line with Q4 2024 "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+          "format": "$7.7B"
+        },
+        {
+          "type": "text",
+          "text": " and only modestly above Q1 2025 "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "7be6cc26-0771-4991-959e-984cc3141466",
+          "format": "$7.4B"
+        },
+        {
+          "type": "text",
+          "text": ". The margin compression, not a revenue shortfall, drove the negative operating result.\n\n**Counterpoint:** Despite the negative operating income of "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
+          "format": "-$134.0M"
+        },
+        {
+          "type": "text",
+          "text": ", net income was positive at "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "d09c7dce-3319-4368-8f94-66ef3110983e",
+          "format": "$872.0M"
+        },
+        {
+          "type": "text",
+          "text": " in the same quarter, and net margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "87b1606e-5f32-4126-a195-0b962cff2ef1",
+          "format": "11.3%"
+        },
+        {
+          "type": "text",
+          "text": "—matching the net margin from Q3 2024 "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
+          "format": "11.3%"
+        },
+        {
+          "type": "text",
+          "text": ". This means below-the-line items fully offset the operating loss, so the bottom-line impact was far less severe than the operating margin alone suggests.\n\n**What the data cannot tell:** The figures shown do not break out how much of the charge hit gross profit versus operating expenses, so we cannot pinpoint whether the margin compression was primarily a COGS effect or an opex effect. There is also no prior-year Q2 quarter shown for year-over-year comparison."
         }
       ]
     }

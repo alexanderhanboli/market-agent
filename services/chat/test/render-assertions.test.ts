@@ -176,6 +176,24 @@ test("an inference's numbers render as fact refs when each is one supported figu
   assert.equal(inference("NVDA held its edge through FY2026.", ["F1"]).unsealed, false);
 });
 
+test("an inference's packet references render as their sealed values, beside any typed figure it links (prose-refs)", () => {
+  const inference = (text: string) =>
+    renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, ["F1", "F2"]);
+  const rendered = inference("NVDA's [[F1]] margin outruns AMD's [[F2]], a durable edge.");
+  assert.equal(plainText(rendered.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.");
+  assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
+  assert.equal(rendered.unsealed, false);
+  const mixed = inference("NVDA's [[F1]] margin outruns AMD's 49.2%.");
+  assert.equal(plainText(mixed.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%.");
+  assert.deepEqual(mixed.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
+});
+
+test("a typed value written beside its own reference renders once, as one chip (PR #300 review)", () => {
+  const rendered = renderAssertion({ index: 1, kind: "analyst_inference", text: "NVDA's 74.6% [[F1]] margin is a durable edge.", evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, ["F1"]);
+  assert.equal(plainText(rendered.segments), "> **Analyst inference:** NVDA's 74.6% margin is a durable edge.");
+  assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM]);
+});
+
 test("a year in an inference is a period, never an unlinkable figure (#208)", () => {
   const rendered = renderAssertion(
     { index: 1, kind: "analyst_inference", text: "The Q1 2026 dip was a one-quarter event, recovered by Q4 2026 and through 2025.", evidence: [], supports: [0] },

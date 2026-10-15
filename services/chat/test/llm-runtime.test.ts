@@ -9,6 +9,7 @@ import {
   ANSWER_DEADLINES,
   answerContext,
   composeAnalystBlocksWithLlm,
+  FACT_BLOCKS_FALLBACK_TEXT,
   TITLE_DEADLINES,
   createLlmThreadTitleModel,
 } from "../src/llm-runtime.ts";
@@ -295,10 +296,17 @@ test("the answer is asked for an analyst's view: takeaway, trend, strengths, cou
   }
   // Context comes from the data only, and the existing rules stay.
   assert.match(systemPrompt, /never add facts, numbers, or events that are not in the tool context/);
-  assert.match(systemPrompt, /never compute new figures/);
-  // Each sentence with a figure names its company: the guard does not carry
-  // "Its" across sentences (#240, #142).
-  assert.match(systemPrompt, /never begin it with "Its" or "Their"/);
+  assert.match(systemPrompt, /Never compute new figures/);
+  // A figure is written only as its packet reference, a claim as its own; no
+  // other digit but a period label (prose-refs.ts).
+  assert.match(systemPrompt, /Write a figure only as its packet reference,\s+\[\[F3\]\] for the figure with id F3, in place of the value itself/);
+  // The 2026-10-15 eval's first run: the model put the reference after the value it typed.
+  assert.match(systemPrompt, /never write the value, not even beside its\s+reference \("\$7\.7B \[\[F3\]\]" is wrong; "\[\[F3\]\]" is right\)/);
+  assert.match(systemPrompt, /Write a cited claim's content as \[\[C2\]\], in\s+place of the claim's words, never a paraphrase with \[\[C2\]\] after it/);
+  assert.match(systemPrompt, /Never write any other digit, except in a period label \(Q4, FY2026, fiscal\s+2026, a month and year\); a product named only in a claim \("MI308"\) appears by citing the claim; write\s+counts in words/);
+  // An assertion's text is checked for its references' membership (assertions.ts).
+  assert.match(systemPrompt, /text restates the assertion in one sentence, written as the answer is: each figure or claim only as its\s+reference from the assertion's evidence/);
+  assert.doesNotMatch(systemPrompt, /Quote a figure only exactly as it|never begin it with "Its"/);
   // A magnitude comparison in words is a computation too, and a cause needs data (#228).
   assert.match(systemPrompt, /magnitude comparison between figures is a computation too, even in words/);
   assert.match(systemPrompt, /only the direction/);
@@ -419,7 +427,7 @@ async function composeWithReply(reply: string, subjectLabels?: ReadonlyArray<str
 }
 
 test("a single-company hypothesis's basis may name the answer's subject, however the hypothesis opens (2026-10-08 eval)", async () => {
-  const reply = "> **Unverified hypothesis (medium confidence):** A one-time charge may explain the dip, given NVDA's revenue of $62.1B.";
+  const reply = "> **Unverified hypothesis (medium confidence):** A one-time charge may explain the dip, given NVDA's revenue of [[F1]].";
   assert.deepEqual((await composeWithReply(reply, ["NVDA"])).removed, []);
   // Without the subject, or naming another company, the basis is still unknown.
   assert.equal((await composeWithReply(reply)).removed.length, 1);
@@ -428,30 +436,31 @@ test("a single-company hypothesis's basis may name the answer's subject, however
 
 test("a single-company answer may carry a labelled hypothesis resting on a displayed metric (#262 review)", async () => {
   const reply = [
-    "NVDA's revenue reached $62.1B in Q4 2026.",
+    "NVDA's revenue reached [[F1]] in Q4 2026.",
     "",
-    "> **Unverified hypothesis (medium confidence):** NVDA's revenue may reflect Data Center demand, given its revenue of $62.1B.",
+    "> **Unverified hypothesis (medium confidence):** NVDA's revenue may reflect Data Center demand, given its revenue of [[F1]].",
   ].join("\n");
   const { text, removed } = await composeWithReply(reply);
-  assert.deepEqual({ text, removed }, { text: reply, removed: [] });
-  // Naming the company in its basis, as the prompt asks of every figure (#262 review).
-  const named = "> **Unverified hypothesis (low confidence):** NVDA's revenue may reflect pricing power, given NVDA's revenue of $62.1B.";
-  assert.deepEqual(await composeWithReply(named).then(({ text, removed }) => ({ text, removed })), { text: named, removed: [] });
+  // The figure's fact id is no UUID here, so its reference renders as the packet's value in plain text.
+  assert.deepEqual({ text, removed }, { text: reply.replaceAll("[[F1]]", "$62.1B"), removed: [] });
+  // Naming the company in its basis (#262 review).
+  const named = "> **Unverified hypothesis (low confidence):** NVDA's revenue may reflect pricing power, given NVDA's revenue of [[F1]].";
+  assert.deepEqual(await composeWithReply(named).then(({ text, removed }) => ({ text, removed })), { text: named.replace("[[F1]]", "$62.1B"), removed: [] });
   // Another company's figure is no basis, even when its number is shown.
-  const other = "> **Unverified hypothesis (low confidence):** NVDA's revenue may reflect pricing power, given TSLA's revenue of $62.1B.";
-  assert.deepEqual((await composeWithReply(other)).removed, ["NVDA's revenue may reflect pricing power, given TSLA's revenue of $62.1B."]);
+  const other = "> **Unverified hypothesis (low confidence):** NVDA's revenue may reflect pricing power, given TSLA's revenue of [[F1]].";
+  assert.deepEqual((await composeWithReply(other)).removed, ["NVDA's revenue may reflect pricing power, given TSLA's revenue of [[F1]]."]);
 });
 
-test("a replayed reply quoting a figure the user is not shown has that sentence stripped", async () => {
+test("a replayed reply typing a figure itself has that sentence stripped; a reference renders the packet's value", async () => {
   const { text, prompt, removed } = await composeWithReply(
-    "Revenue reached $62.1B in Q4 2026. That is 38% growth year over year.",
+    "Revenue reached [[F1]] in Q4 2026. That is 38% growth year over year. Revenue reached $62.1B in Q4 2026.",
   );
   assert.equal(text, "Revenue reached $62.1B in Q4 2026.");
-  // The dropped sentence is reported, so an eval can count guarded drops (#144).
-  assert.deepEqual(removed, ["That is 38% growth year over year."]);
-  // The model is told which figures it may quote.
+  // The dropped sentences are reported, so an eval can count guarded drops (#144).
+  assert.deepEqual(removed, ["That is 38% growth year over year.", "Revenue reached $62.1B in Q4 2026."]);
+  // The model is told which figures it may cite, by id and value.
   assert.match(prompt, /evidence_packet/);
-  assert.match(prompt, /\$62\.1B/);
+  assert.match(prompt, /"id":"F1"[^}]*"value":"\$62\.1B"/);
 });
 
 test("a reply with no supported sentence falls back to a pointer at the cited figures", async () => {
@@ -754,13 +763,15 @@ test("a turn showing only a price chart stays guarded against returns it does no
     });
     return (composed[0].segments as Array<{ text: string }>)[0].text;
   };
-  assert.equal(await narrate("NVDA returned 12.5% over the window."), "NVDA returned 12.5% over the window.");
+  // The return has no fact behind it: its reference renders the chart's value as plain text.
+  assert.equal(await narrate("NVDA returned [[F1]] over the window."), "NVDA returned 12.5% over the window.");
+  assert.notEqual(await narrate("NVDA returned 12.5% over the window."), "NVDA returned 12.5% over the window.");
   assert.notEqual(await narrate("NVDA returned 40.0% over the window."), "NVDA returned 40.0% over the window.");
   // The window's dates are no returns: its day and month digits do not pass.
   assert.notEqual(await narrate("NVDA returned 31% over the window."), "NVDA returned 31% over the window.");
   assert.notEqual(await narrate("NVDA returned 8% over the window."), "NVDA returned 8% over the window.");
   assert.equal(
-    await narrate("NVDA returned 12.5% from December 2025 to August 2026."),
+    await narrate("NVDA returned [[F1]] from December 2025 to August 2026."),
     "NVDA returned 12.5% from December 2025 to August 2026.",
   );
 });
@@ -812,85 +823,13 @@ test("the model sees each comparison figure with the company and metric it belon
   );
 });
 
-test("a replayed reply crediting AMD's margin to NVIDIA loses that sentence; the correct one is kept", async () => {
-  const wrong = await compareWithReply("NVDA's gross margin is 49.2%. NVDA is larger.");
-  assert.equal(wrong.text, "NVDA is larger.");
-  const right = await compareWithReply("AMD's gross margin is 49.2%. NVDA is larger.");
-  assert.equal(right.text, "AMD's gross margin is 49.2%. NVDA is larger.");
-});
-
-function fiscalComparison(nvda: { year: number; end: string; revenue: string }) {
-  return [{
-    kind: "metrics_comparison",
-    title: "Side by side (fiscal years)",
-    subject_labels: ["NVDA", "AAPL"],
-    metrics: ["Revenue"],
-    cells: [[{ value_ref: "f1", format: nvda.revenue }], [{ value_ref: "f2", format: "$416.2B" }]],
-    data_ref: {
-      params: {
-        fact_bindings: [
-          { fact_id: "f1", fiscal_year: nvda.year, fiscal_period: "FY", period_end: nvda.end },
-          { fact_id: "f2", fiscal_year: 2025, fiscal_period: "FY", period_end: "2025-09-27" },
-        ],
-      },
-    },
-  }];
-}
-
-async function narrate(factBlocks: ReadonlyArray<Record<string, unknown>>, reply: string) {
-  const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
-    context: { userIntent: "Compare NVDA's and AAPL's revenue", bundleId: "peer_comparison" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
-    factBlocks,
-    createClient: () => async () => ({ text: reply }),
-  });
-  return (composed[0].segments as Array<{ text: string }>)[0].text;
-}
-
-test("a fiscal year is credited to the company it belongs to, unless every company shares it (#180)", async () => {
-  // Latest years differ: 2026 is NVDA's, 2025 AAPL's.
-  const latest = fiscalComparison({ year: 2026, end: "2026-01-25", revenue: "$209.9B" });
-  assert.equal(await narrate(latest, "NVDA's FY2025 revenue was $209.9B. NVDA is smaller."), "NVDA is smaller.");
-  const right = "NVDA's FY2026 revenue was $209.9B and AAPL's FY2025 revenue was $416.2B.";
-  assert.equal(await narrate(latest, right), right);
-  // Both FY2025: the year needs no company.
-  const shared = fiscalComparison({ year: 2025, end: "2025-01-26", revenue: "$130.5B" });
-  const opening = "In fiscal 2025, NVDA's revenue was $130.5B.";
-  assert.equal(await narrate(shared, opening), opening);
-});
-
-test("a chart's window does not make every company's fiscal year shared (#244)", async () => {
-  const latest = fiscalComparison({ year: 2026, end: "2026-01-25", revenue: "$209.9B" });
-  const chart = {
-    kind: "perf_comparison",
-    title: "Price return YTD 2026 (split-adjusted, excluding dividends)",
-    default_range: "YTD 2026: 2025-12-31 close to 2026-08-31 close",
-    series: [{ name: "NVDA", points: [{ y: 0 }, { y: 6.6 }] }, { name: "AAPL", points: [{ y: 0 }, { y: 6.05 }] }],
-  };
-  assert.equal(await narrate([...latest, chart], "NVDA's FY2025 revenue was $209.9B. NVDA is smaller."), "NVDA is smaller.");
-  const right = "NVDA's FY2026 revenue was $209.9B, and its price return was 6.6% from December 2025 to August 2026.";
-  assert.equal(await narrate([...latest, chart], right), right);
-});
-
-test("the chart window's dates reach the guard, so a narrative may write their day (#240)", async () => {
-  const latest = fiscalComparison({ year: 2026, end: "2026-01-25", revenue: "$209.9B" });
-  const chart = {
-    kind: "perf_comparison",
-    title: "Price return YTD 2026 (split-adjusted, excluding dividends)",
-    default_range: "YTD 2026: 2025-12-31 close to 2026-08-31 close",
-    series: [{ name: "NVDA", points: [{ y: 0 }, { y: 6.6 }] }, { name: "AAPL", points: [{ y: 0 }, { y: 6.05 }] }],
-  };
-  const window = "NVDA's price return was 6.6% from the December 31, 2025 close to the August 31, 2026 close.";
-  assert.equal(await narrate([...latest, chart], window), window);
-});
-
-test("the guard gets each figure's metric, so a possessive can name it (#240)", async () => {
-  // A shared year attaches no one: only the metric credits AAPL its revenue.
-  const shared = fiscalComparison({ year: 2025, end: "2025-01-26", revenue: "$130.5B" });
-  const kept = "NVDA's revenue was $130.5B versus AAPL's FY2025 revenue of $416.2B.";
-  assert.equal(await narrate(shared, kept), kept);
+test("a comparison reply writes each figure as its reference; which company it credits is the packet's, not checked (#144 superseded)", async () => {
+  // F2 is NVDA's gross margin, F4 AMD's: both render as the packet's values, whatever the sentence says.
+  const { text } = await compareWithReply("NVDA's gross margin is [[F2]], ahead of AMD's [[F4]]. NVDA is larger.");
+  assert.equal(text, "NVDA's gross margin is 74.6%, ahead of AMD's 49.2%. NVDA is larger.");
+  // These blocks carry no periods, so no year is a period label here: the sentence goes.
+  const years = await compareWithReply("NVDA's FY2025 revenue was [[F1]].");
+  assert.equal(years.text, FACT_BLOCKS_FALLBACK_TEXT);
 });
 
 // A provider that accepts the request and never answers. Its open connection keeps
@@ -1082,13 +1021,39 @@ test("with rendering on, the answer is written from its accepted assertions, val
 });
 
 test("rendering keeps the narrative guard as its backstop, assertion by assertion (#208)", async () => {
-  const { text, report } = await renderA([
-    { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
-    { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
-  ]);
-  assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.");
+  // A template's own digits are periods; an inference's magnitude in words is the model's (#228).
+  const { block, report } = await renderWithReply(withList([
+    { kind: "observation", text: "NVDA's gross margin was 74.6% and AMD's was 49.2%.", evidence: ["F2", "F4"] },
+    { kind: "analyst_inference", text: "NVDA's margin has doubled.", evidence: [], supports: [0] },
+  ]));
+  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
   assert.equal(report.rendered, true);
-  assert.deepEqual(report.rejected, [{ index: 1, text: "A's gross margin was 74.6% in FY2026 (ended Jan 2026).", reason: "removed by the narrative guard" }]);
+  assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** NVDA's margin has doubled.", reason: "removed by the narrative guard" }]);
+});
+
+test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
+  const removed: string[][] = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: RENDER_BLOCKS,
+    // FY2025 is AMD's year in these blocks: a year the packet shows is a period label in any sentence.
+    createClient: () => async () => ({ text: "NVDA's revenue was [[F1]] in FY2026, from FY2025. AMD's revenue grew 38%. AMD's margin was [[F9]]. Both grew." }),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+  });
+  const block = composed[0] as Record<string, unknown>;
+  assert.deepEqual(block.segments, [
+    { type: "text", text: "NVDA's revenue was " },
+    { type: "ref", ref_kind: "fact", ref_id: FACT(1), format: "$130.5B" },
+    { type: "text", text: " in FY2026, from FY2025. Both grew." },
+  ]);
+  assert.deepEqual(((block.data_ref as { params: { fact_bindings: Array<{ fact_id: string }> } }).params.fact_bindings).map((binding) => binding.fact_id), [FACT(1)]);
+  // A block's figures each carry the block's source refs (evidence-packet.ts).
+  assert.deepEqual(block.source_refs, ["s-nvda", "s-amd"]);
+  assert.deepEqual(removed, [["AMD's revenue grew 38%.", "AMD's margin was [[F9]]."]]);
 });
 
 test("with rendering off, or nothing accepted, the guarded prose stands (#208)", async () => {
@@ -1127,11 +1092,14 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
   assert.equal(segments.at(-1)?.ref_id, claimId);
   assert.equal(reports[0]?.rendered, true);
 
-  const { removed } = await renderA([
+  const { text, removed } = await renderA([
     { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
     { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
+    { kind: "analyst_inference", text: "A's margin has doubled.", evidence: [], supports: [1] },
   ]);
-  assert.deepEqual(removed, [["A's gross margin was 74.6% in FY2026 (ended Jan 2026)."]]);
+  // A one-letter ticker's observation renders as any other's: its value is the packet's.
+  assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.\n\nA's gross margin was 74.6% in FY2026 (ended Jan 2026).");
+  assert.deepEqual(removed, [["> **Analyst inference:** A's margin has doubled."]]);
 });
 
 test("a rendered answer keeps a stale-data warning; a sourced causal claim renders with no figures shown (#208)", async () => {
@@ -1172,19 +1140,6 @@ test("a rendered answer keeps a stale-data warning; a sourced causal claim rende
   });
   const claimText = (claimAnswer[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(claimText, "According to a source dated Feb 2026: Margins rose due to a richer mix.");
-});
-
-test("an inference resting on an observation the guard removed is removed too (#208)", async () => {
-  const { text, report } = await renderA([
-    { kind: "observation", text: "A's gross margin was 74.6%.", evidence: ["F2"] },
-    { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
-    { kind: "analyst_inference", text: "A appears well run.", evidence: [], supports: [0] },
-  ]);
-  assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.");
-  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [0, "removed by the narrative guard"],
-    [2, "rests on an observation the narrative guard removed"],
-  ]);
 });
 
 test("a rendered inference's figures are its supports' fact refs; one it cannot link is not rendered (#208)", async () => {
@@ -1312,10 +1267,11 @@ test("an observation whose value cannot be sealed is not rendered (#208)", async
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
     factBlocks: perf,
-    createClient: () => async () => ({ text: `NVDA returned 12.5% this year.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "observation", text: "NVDA returned 12.5%.", evidence: ["F1"] }])}\n\`\`\`` }),
+    createClient: () => async () => ({ text: `NVDA returned [[F1]] this year.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "observation", text: "NVDA returned 12.5%.", evidence: ["F1"] }])}\n\`\`\`` }),
     onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
   });
-  assert.equal((composed[0].segments as Array<{ text: string }>)[0]!.text, "NVDA returned 12.5% this year.");
+  // The guarded prose stands, its reference rendered as the chart's value in plain text.
+  assert.deepEqual(composed[0].segments, [{ type: "text", text: "NVDA returned 12.5% this year." }]);
   assert.equal(reports[0]!.rendered, undefined);
   assert.deepEqual(
     (reports[0]!.rejected as Array<{ reason: string }>).map((entry) => entry.reason),
@@ -1494,6 +1450,21 @@ test("on a named-gap turn a claim's number is no support for another metric (#29
   const text = (composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join("");
   assert.match(text, /Free cash flow is not available for AMD in this data\./);
   assert.doesNotMatch(text, /\$800 million/);
+  // Cited as its reference, the claim renders whole as a sealed claim ref, its number the claim's own.
+  const cited = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [claim],
+    factBlocks: [],
+    availableData: false,
+    createClient: () => async () => ({ text: "Free cash flow is not available for AMD in this data. Management said: [[C1]]" }),
+  });
+  assert.deepEqual(cited[0].segments, [
+    { type: "text", text: "Free cash flow is not available for AMD in this data. Management said: " },
+    { type: "ref", ref_kind: "claim", ref_id: "c2210000-0000-4000-8000-000000000001", format: "The restrictions led to approximately $800 million in inventory and related charges." },
+  ]);
+  assert.deepEqual(cited[0].source_refs, ["s"]);
 });
 
 test("on a named-gap turn an amount in words is no more allowed than one in digits (#294 review)", async () => {

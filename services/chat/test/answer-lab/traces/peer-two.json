@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "thread_id": "abf55647-ed30-420a-8917-7fefed493364",
-  "run_id": "09361d5f-8b26-4930-99b9-8e1c12fedeea",
-  "turn_id": "24d2fb63-7c9c-464b-805b-1f2062218b9f",
+  "thread_id": "590a9b45-b588-4426-a81a-f690cc93ba78",
+  "run_id": "e853bb83-3e21-40d5-9cdb-29d82ab49e0d",
+  "turn_id": "fee6e4e9-2fa5-461a-9fdd-c7f58de021fd",
   "question": "Compare NVDA with AMD.",
-  "recorded_at": "2026-10-14T16:53:13.251Z",
+  "recorded_at": "2026-10-15T00:57:20.789Z",
   "input": {
     "context": {
       "userIntent": "Compare NVDA with AMD.",
@@ -12,12 +12,12 @@
     },
     "blocks": [
       {
-        "id": "ee8fd2af-ba5a-4648-8728-742c1c83c692",
+        "id": "d1770af7-a83c-4e61-86f4-03fe521454ca",
         "kind": "rich_text",
-        "snapshot_id": "d8bdc92f-2df4-455f-8712-66d8e690a1fe",
+        "snapshot_id": "223d9f87-aa6f-4cfd-874d-a1c9f848355e",
         "data_ref": {
           "kind": "rich_text",
-          "id": "ee8fd2af-ba5a-4648-8728-742c1c83c692"
+          "id": "d1770af7-a83c-4e61-86f4-03fe521454ca"
         },
         "source_refs": [],
         "as_of": "1970-01-01T00:00:00.000Z",
@@ -32,7 +32,7 @@
     ],
     "toolCalls": [
       {
-        "tool_call_id": "38c7cd65-8c5f-4d28-8338-0e91fcc09fd1",
+        "tool_call_id": "148163d7-9804-4316-8a1f-11a8295d1f29",
         "tool_name": "get_quote",
         "status": "ok",
         "bundle_id": "single_subject_analysis",
@@ -67,13 +67,13 @@
               }
             ],
             "claim_refs": [
-              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+              "6d499c74-bc94-43d6-8468-ae34d0becda2"
             ],
             "document_refs": [
-              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+              "2bbee508-442b-420a-87be-8f0325191c3e"
             ],
             "source_ids": [
-              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              "138fef65-4ad7-48cf-b641-6c099b2d0a60"
             ]
           },
           "structured_context": {
@@ -95,67 +95,7 @@
             },
             "facts": [
               {
-                "fact_id": "02dd3996-d5c8-49dc-a8f0-122c93babca8",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 148570000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "FY",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "ee1bcd1d-0e42-4096-8c86-cb3dd6d480e0",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 33853000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q2",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "ca438679-ee66-4666-b3f3-1198c4a5f8fa",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 41849000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q3",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "135cfa5b-ccca-489f-a917-00af512d2209",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 46200000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q4",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "42637f5c-d6cf-4a5a-b1ad-ea159deb303e",
+                "fact_id": "afeffe39-7390-4b93-9a19-70019003bfb7",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 26668000000,
@@ -170,7 +110,67 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "379dc1b9-e0fa-4d2f-ac70-2988e20a1bb4",
+                "fact_id": "79ed61d4-79e8-4c44-be3f-bae8f51b4e35",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 148570000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "75d9a4fa-e94c-4428-ae29-eea33fb14afb",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 46200000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d4aa60d0-0d10-4c39-a2ae-83f55e6efdf8",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 41849000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "f7b135b1-477f-44df-bf9b-b9b9f8ea03cd",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 33853000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "922da5e6-7aeb-4d39-9b29-2c2ffdf030c6",
                 "metric_key": "net_income",
                 "display_name": "Net Income",
                 "value_num": 26422000000,
@@ -185,37 +185,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "d48808d6-7f1a-46c2-830c-50b528812198",
-                "metric_key": "net_income",
-                "display_name": "Net Income",
-                "value_num": 112507000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "FY",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "a8ffd3f4-80e8-4b61-aae1-93f25fd03e7e",
-                "metric_key": "net_income",
-                "display_name": "Net Income",
-                "value_num": 35400000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q4",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "30ecf196-a0af-47ec-a2d2-38da35b87963",
+                "fact_id": "8e1bd183-eb46-4f6a-8e26-c6d07417325a",
                 "metric_key": "net_income",
                 "display_name": "Net Income",
                 "value_num": 31910000000,
@@ -230,7 +200,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "6b639d42-31fc-42d9-8ebb-ab7ed7a6115d",
+                "fact_id": "2e15eabf-5aa4-4107-9170-81c296a1e7f3",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 35400000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "0792c053-4b75-49e2-8cda-acd5a55ae2d9",
                 "metric_key": "net_income",
                 "display_name": "Net Income",
                 "value_num": 18775000000,
@@ -245,52 +230,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "d1a1cf3c-83c5-4ca4-914d-7432437d3982",
-                "metric_key": "operating_income",
-                "display_name": "Operating Income",
-                "value_num": 28440000000,
+                "fact_id": "56fab41e-e755-496e-af64-317e1ab5d4ed",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 112507000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2026,
-                "fiscal_period": "Q2",
+                "fiscal_period": "FY",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "9cf90468-1af3-466b-9716-7fb0cf02495b",
-                "metric_key": "operating_income",
-                "display_name": "Operating Income",
-                "value_num": 36010000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q3",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "23f38739-b262-40b5-af8b-29931a4d8bae",
-                "metric_key": "operating_income",
-                "display_name": "Operating Income",
-                "value_num": 40300000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2026,
-                "fiscal_period": "Q4",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "cb59bd4e-da16-42fc-adf8-371222ed64f2",
+                "fact_id": "559d6ab2-0b5b-4bd7-9b39-37c1c45f6cd5",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": 21638000000,
@@ -305,7 +260,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "30a4c061-3d08-4bfe-96ad-63846b42f4fb",
+                "fact_id": "eb7f69ad-adc5-459c-afe1-990305857a54",
                 "metric_key": "operating_income",
                 "display_name": "Operating Income",
                 "value_num": 126388000000,
@@ -320,37 +275,52 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
-                "metric_key": "revenue",
-                "display_name": "Revenue",
-                "value_num": 209911000000,
+                "fact_id": "f7c11202-b76d-4778-af8d-1ee1fb4ef068",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 40300000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2026,
-                "fiscal_period": "FY",
+                "fiscal_period": "Q4",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "7c57f46c-7952-4491-8a6a-7b70c9b629e6",
-                "metric_key": "revenue",
-                "display_name": "Revenue",
-                "value_num": 44062000000,
+                "fact_id": "7bcdffa5-7107-4948-bc9c-9f7e96954508",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 36010000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2026,
-                "fiscal_period": "Q1",
+                "fiscal_period": "Q3",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "6f69c343-4f8b-448e-9337-c398c68ee8cf",
+                "fact_id": "4eb6b5ee-1aa3-4cb0-84e6-d561c84b1017",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 28440000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "639a95a1-b25a-4e14-9010-ad6fc0ccec3e",
                 "metric_key": "revenue",
                 "display_name": "Revenue",
                 "value_num": 46743000000,
@@ -365,7 +335,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "6e54de8f-6a2b-4a17-9860-58d815710377",
+                "fact_id": "ddeae553-3bf7-47a9-97ba-b2480044fc3f",
                 "metric_key": "revenue",
                 "display_name": "Revenue",
                 "value_num": 57006000000,
@@ -380,7 +350,7 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "e6aabf62-8cd3-4775-99d7-253e0cdd830a",
+                "fact_id": "5939e2b9-4381-40b5-a08f-376ec2b9a3f8",
                 "metric_key": "revenue",
                 "display_name": "Revenue",
                 "value_num": 62100000000,
@@ -395,7 +365,37 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "179b146e-260e-457c-a4a4-b0b407abc44c",
+                "fact_id": "92d70d3e-9d91-4f22-a7a8-d0385b7f06d1",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 44062000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "672cd83c-a487-4d08-ada6-267141565554",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 209911000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "82107dcd-d09d-4329-89f1-d060c2216dcb",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 20406000000,
@@ -410,37 +410,22 @@
                 "coverage_level": "full"
               },
               {
-                "fact_id": "0bb7d2a2-f43d-4ab4-b432-6cc9070ca577",
+                "fact_id": "9e4308ea-9e2b-440a-abcc-29b79d4a39bb",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
-                "value_num": 97859000000,
+                "value_num": 22574000000,
                 "value_text": null,
                 "unit": "currency",
                 "currency": "USD",
                 "scale": 1,
                 "fiscal_year": 2025,
-                "fiscal_period": "FY",
+                "fiscal_period": "Q2",
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
               },
               {
-                "fact_id": "bac8175e-8520-4a3b-879f-f423005cf7fd",
-                "metric_key": "gross_profit",
-                "display_name": "Gross Profit",
-                "value_num": 28723000000,
-                "value_text": null,
-                "unit": "currency",
-                "currency": "USD",
-                "scale": 1,
-                "fiscal_year": 2025,
-                "fiscal_period": "Q4",
-                "as_of": "2026-09-01T00:00:00.000Z",
-                "source_id": "00000000-0000-4000-a000-000000000001",
-                "coverage_level": "full"
-              },
-              {
-                "fact_id": "65f10839-49ce-42fb-9846-da071c824aef",
+                "fact_id": "38551b7f-11f4-4561-8b6d-cb0e14c9dccc",
                 "metric_key": "gross_profit",
                 "display_name": "Gross Profit",
                 "value_num": 26156000000,
@@ -453,6 +438,21 @@
                 "as_of": "2026-09-01T00:00:00.000Z",
                 "source_id": "00000000-0000-4000-a000-000000000001",
                 "coverage_level": "full"
+              },
+              {
+                "fact_id": "f09dc2a9-44ec-4f53-a6b6-d7cbc6763a2c",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 28723000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
               }
             ],
             "source_ids": [
@@ -462,7 +462,7 @@
             "fact_recency": {
               "latest_as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2026,
-              "fiscal_period": "FY",
+              "fiscal_period": "Q1",
               "age_days": 0,
               "stale": false
             }
@@ -470,9 +470,9 @@
           "evidence": {
             "claims": [
               {
-                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
-                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797",
+                "claim_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+                "document_id": "2bbee508-442b-420a-87be-8f0325191c3e",
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60",
                 "text_canonical": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.",
                 "predicate": "kpi.commentary",
                 "polarity": "negative",
@@ -489,13 +489,13 @@
               }
             ],
             "source_ids": [
-              "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+              "138fef65-4ad7-48cf-b641-6c099b2d0a60"
             ],
             "document_refs": [
-              "d65305c3-c05b-4083-b12a-a7ae94bb1e37"
+              "2bbee508-442b-420a-87be-8f0325191c3e"
             ],
             "claim_refs": [
-              "cbdf6b87-b23b-4764-87f0-3efe32b81492"
+              "6d499c74-bc94-43d6-8468-ae34d0becda2"
             ],
             "subject_refs": [
               {
@@ -509,19 +509,19 @@
             ],
             "verifier_sources": [
               {
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60"
               }
             ],
             "verifier_documents": [
               {
-                "document_id": "d65305c3-c05b-4083-b12a-a7ae94bb1e37",
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+                "document_id": "2bbee508-442b-420a-87be-8f0325191c3e",
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60"
               }
             ],
             "verifier_claims": [
               {
-                "claim_id": "cbdf6b87-b23b-4764-87f0-3efe32b81492",
-                "source_id": "0be86b7f-0d69-419d-8b7f-8d6608c8f797"
+                "claim_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+                "source_id": "138fef65-4ad7-48cf-b641-6c099b2d0a60"
               }
             ],
             "truncated": false,
@@ -532,16 +532,16 @@
     ],
     "factBlocks": [
       {
-        "id": "d7f93275-3973-4ea8-8141-94391325c69f",
+        "id": "a09f9107-4c41-4ed3-869a-5d70cc23bfc8",
         "kind": "metrics_comparison",
-        "snapshot_id": "d8bdc92f-2df4-455f-8712-66d8e690a1fe",
+        "snapshot_id": "223d9f87-aa6f-4cfd-874d-a1c9f848355e",
         "data_ref": {
           "kind": "metrics_comparison",
-          "id": "d7f93275-3973-4ea8-8141-94391325c69f",
+          "id": "a09f9107-4c41-4ed3-869a-5d70cc23bfc8",
           "params": {
             "fact_bindings": [
               {
-                "fact_id": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+                "fact_id": "672cd83c-a487-4d08-ada6-267141565554",
                 "unit": "currency",
                 "period_kind": "fiscal_y",
                 "period_start": "2025-01-27",
@@ -551,7 +551,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "7428cdaf-dd4c-4f07-9394-b66a05ff78b3",
+                "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
                 "unit": "ratio",
                 "period_kind": "fiscal_y",
                 "period_start": "2025-01-27",
@@ -561,7 +561,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "77abbf16-743a-4401-b55a-8a7dbcc5d9b6",
+                "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
                 "unit": "ratio",
                 "period_kind": "fiscal_y",
                 "period_start": "2025-01-27",
@@ -571,7 +571,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "10f1a19d-c198-4a40-915e-1e1765670876",
+                "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
                 "unit": "ratio",
                 "period_kind": "fiscal_y",
                 "period_start": "2025-01-27",
@@ -581,7 +581,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "ada48ac8-1fee-44e8-a71a-7471f9d25f31",
+                "fact_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
                 "unit": "currency",
                 "period_kind": "fiscal_y",
                 "period_start": "2024-12-29",
@@ -591,7 +591,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "65750188-e851-4bdc-a55c-ad8a0114995b",
+                "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
                 "unit": "ratio",
                 "period_kind": "fiscal_y",
                 "period_start": "2024-12-29",
@@ -601,7 +601,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "60cffae0-8842-45ea-801b-b7f1695204bd",
+                "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
                 "unit": "ratio",
                 "period_kind": "fiscal_y",
                 "period_start": "2024-12-29",
@@ -611,7 +611,7 @@
                 "fiscal_period": "FY"
               },
               {
-                "fact_id": "28d171a7-a56d-4b4e-94cb-efe6ea6bc6a1",
+                "fact_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
                 "unit": "ratio",
                 "period_kind": "fiscal_y",
                 "period_start": "2024-12-29",
@@ -647,42 +647,42 @@
         "cells": [
           [
             {
-              "value_ref": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+              "value_ref": "672cd83c-a487-4d08-ada6-267141565554",
               "format": "$209.9B"
             },
             {
-              "value_ref": "7428cdaf-dd4c-4f07-9394-b66a05ff78b3",
+              "value_ref": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
               "format": "70.8%",
               "tone": "positive"
             },
             {
-              "value_ref": "77abbf16-743a-4401-b55a-8a7dbcc5d9b6",
+              "value_ref": "420cbe72-f5a9-454f-9720-035958c26d7a",
               "format": "53.6%",
               "tone": "positive"
             },
             {
-              "value_ref": "10f1a19d-c198-4a40-915e-1e1765670876",
+              "value_ref": "ae834621-4243-452b-8cfe-89ae490cd0ca",
               "format": "60.9%",
               "tone": "positive"
             }
           ],
           [
             {
-              "value_ref": "ada48ac8-1fee-44e8-a71a-7471f9d25f31",
+              "value_ref": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
               "format": "$34.7B"
             },
             {
-              "value_ref": "65750188-e851-4bdc-a55c-ad8a0114995b",
+              "value_ref": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
               "format": "49.9%",
               "tone": "negative"
             },
             {
-              "value_ref": "60cffae0-8842-45ea-801b-b7f1695204bd",
+              "value_ref": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
               "format": "12.0%",
               "tone": "negative"
             },
             {
-              "value_ref": "28d171a7-a56d-4b4e-94cb-efe6ea6bc6a1",
+              "value_ref": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
               "format": "34.5%",
               "tone": "negative"
             }
@@ -697,27 +697,27 @@
           "AMD"
         ],
         "provenance_fact_refs": [
-          "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
-          "7428cdaf-dd4c-4f07-9394-b66a05ff78b3",
-          "77abbf16-743a-4401-b55a-8a7dbcc5d9b6",
-          "10f1a19d-c198-4a40-915e-1e1765670876",
-          "ada48ac8-1fee-44e8-a71a-7471f9d25f31",
-          "65750188-e851-4bdc-a55c-ad8a0114995b",
-          "60cffae0-8842-45ea-801b-b7f1695204bd",
-          "28d171a7-a56d-4b4e-94cb-efe6ea6bc6a1"
+          "672cd83c-a487-4d08-ada6-267141565554",
+          "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+          "420cbe72-f5a9-454f-9720-035958c26d7a",
+          "ae834621-4243-452b-8cfe-89ae490cd0ca",
+          "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
+          "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+          "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+          "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892"
         ]
       },
       {
-        "id": "5a973525-e7b0-4c10-87a6-514985a8bd14",
+        "id": "6e3efddf-650f-4be1-877f-a475ac922d35",
         "kind": "perf_comparison",
-        "snapshot_id": "d8bdc92f-2df4-455f-8712-66d8e690a1fe",
+        "snapshot_id": "223d9f87-aa6f-4cfd-874d-a1c9f848355e",
         "data_ref": {
           "kind": "perf_comparison",
-          "id": "5a973525-e7b0-4c10-87a6-514985a8bd14",
+          "id": "6e3efddf-650f-4be1-877f-a475ac922d35",
           "params": {
             "series_refs": [
-              "deb9b379-6668-49b2-8d26-6b9501a71699",
-              "331b7807-da82-4bc8-83be-40e2808e9d8f"
+              "c383d172-585c-4ff9-8ea7-26a9102f21bb",
+              "b3ee19bb-1c65-49a0-869b-8364b912ec41"
             ]
           }
         },
@@ -2327,10 +2327,10 @@
         ],
         "provenance_series_specs": [
           {
-            "series_ref": "deb9b379-6668-49b2-8d26-6b9501a71699",
+            "series_ref": "c383d172-585c-4ff9-8ea7-26a9102f21bb",
             "source_id": "00000000-0000-4000-a000-000000000009",
             "listing_id": "62000000-0000-4000-8000-000000000001",
-            "bar_range_id": "c003b0ae-1387-4f7c-9fef-62746b055c0d",
+            "bar_range_id": "9f7484ad-c3ba-43a3-865f-74d7da4c0907",
             "bars_sha256": "c93509da4cd42d3b7b2ecfe958d3a2abd01e7e3d0c0d69e12306fb0b03477c77",
             "interval": "1d",
             "adjustment_basis": "split_adjusted",
@@ -2343,10 +2343,10 @@
             "as_of": "2026-09-01T00:00:00.000Z"
           },
           {
-            "series_ref": "331b7807-da82-4bc8-83be-40e2808e9d8f",
+            "series_ref": "b3ee19bb-1c65-49a0-869b-8364b912ec41",
             "source_id": "00000000-0000-4000-a000-000000000009",
             "listing_id": "62000000-0000-4000-8000-000000000002",
-            "bar_range_id": "fdebd196-34ad-41f4-a6b8-b83b45dffc3f",
+            "bar_range_id": "c29ba83c-fe8d-4588-bec8-1989ccfc43ca",
             "bars_sha256": "1a526cab8198937e620e24ad26c4750633bae010006c0991cab1ed6750ea12f6",
             "interval": "1d",
             "adjustment_basis": "split_adjusted",
@@ -2363,7 +2363,7 @@
       {
         "id": "required-disclosures",
         "kind": "disclosure",
-        "snapshot_id": "d8bdc92f-2df4-455f-8712-66d8e690a1fe",
+        "snapshot_id": "223d9f87-aa6f-4cfd-874d-a1c9f848355e",
         "data_ref": {
           "kind": "disclosure_policy",
           "id": "required"
@@ -2421,21 +2421,21 @@
     "messages": [
       {
         "role": "system",
-        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Quote a figure only exactly as it appears there, in a sentence that names its company exactly as given in company (e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\", and never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
+        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Write a figure only as its packet reference, [[F3]] for the figure with id F3, in place of the value itself (\"revenue of [[F3]]\"): it renders as the displayed value, linked to its source, with its unit, so do not add $, %, B or x around it. A reference is not a citation to put after a number: never write the value, not even beside its reference (\"$7.7B [[F3]]\" is wrong; \"[[F3]]\" is right). Write a cited claim's content as [[C2]], in place of the claim's words, never a paraphrase with [[C2]] after it; a number a claim states may appear only this way. Never write any other digit, except in a period label (Q4, FY2026, fiscal 2026, a month and year); write counts in words (\"eight quarters\"). A sentence that types a figure or a claim's number is removed from the answer. Never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
       },
       {
         "role": "user",
-        "content": "{\"question\":\"Compare NVDA with AMD.\",\"conversation\":[{\"role\":\"user\",\"text\":\"Compare NVDA with AMD.\"}],\"evidence_packet\":{\"route\":\"comparison\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"company\":\"NVDA\",\"metric\":\"Revenue\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"$209.9B\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F2\",\"company\":\"NVDA\",\"metric\":\"Gross Margin\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"70.8%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F3\",\"company\":\"NVDA\",\"metric\":\"Net Margin\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"53.6%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F4\",\"company\":\"NVDA\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"60.9%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F5\",\"company\":\"AMD\",\"metric\":\"Revenue\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"$34.7B\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F6\",\"company\":\"AMD\",\"metric\":\"Gross Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"49.9%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F7\",\"company\":\"AMD\",\"metric\":\"Net Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"12.0%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F8\",\"company\":\"AMD\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"34.5%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F9\",\"company\":\"NVDA\",\"metric\":\"Price return\",\"period\":\"2025-12-01 to 2026-08-31\",\"value\":\"6.6%\",\"shown_in\":\"Price return (split-adjusted, excluding dividends)\"},{\"id\":\"F10\",\"company\":\"AMD\",\"metric\":\"Price return\",\"period\":\"2025-12-01 to 2026-08-31\",\"value\":\"3.58%\",\"shown_in\":\"Price return (split-adjusted, excluding dividends)\"}],\"coverage\":[{\"company\":\"NVDA\",\"status\":\"shown\"},{\"company\":\"AMD\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"latest fiscal year per company\",\"claims\":\"management, guidance, and kpi claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"claims\":[{\"id\":\"C1\",\"text\":\"As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\",\"predicate\":\"kpi.commentary\",\"stance\":\"challenging\",\"company\":\"AMD\",\"effective_time\":\"2025-06-28T00:00:00.000Z\",\"published_at\":\"2025-08-05T00:00:00.000Z\"}],\"staleness\":{\"quote\":[{\"ticker\":\"NVDA\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"FY\",\"age_days\":0,\"stale\":false}]}}}"
+        "content": "{\"question\":\"Compare NVDA with AMD.\",\"conversation\":[{\"role\":\"user\",\"text\":\"Compare NVDA with AMD.\"}],\"evidence_packet\":{\"route\":\"comparison\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"company\":\"NVDA\",\"metric\":\"Revenue\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"$209.9B\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F2\",\"company\":\"NVDA\",\"metric\":\"Gross Margin\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"70.8%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F3\",\"company\":\"NVDA\",\"metric\":\"Net Margin\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"53.6%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F4\",\"company\":\"NVDA\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2026\",\"period_end\":\"2026-01-25\",\"value\":\"60.9%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F5\",\"company\":\"AMD\",\"metric\":\"Revenue\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"$34.7B\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F6\",\"company\":\"AMD\",\"metric\":\"Gross Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"49.9%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F7\",\"company\":\"AMD\",\"metric\":\"Net Margin\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"12.0%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F8\",\"company\":\"AMD\",\"metric\":\"Revenue Growth (YoY)\",\"period\":\"FY2025\",\"period_end\":\"2025-12-27\",\"value\":\"34.5%\",\"shown_in\":\"Side by side: NVDA FY2026 (ended Jan 2026), AMD FY2025 (ended Dec 2025)\"},{\"id\":\"F9\",\"company\":\"NVDA\",\"metric\":\"Price return\",\"period\":\"2025-12-01 to 2026-08-31\",\"value\":\"6.6%\",\"shown_in\":\"Price return (split-adjusted, excluding dividends)\"},{\"id\":\"F10\",\"company\":\"AMD\",\"metric\":\"Price return\",\"period\":\"2025-12-01 to 2026-08-31\",\"value\":\"3.58%\",\"shown_in\":\"Price return (split-adjusted, excluding dividends)\"}],\"coverage\":[{\"company\":\"NVDA\",\"status\":\"shown\"},{\"company\":\"AMD\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"latest fiscal year per company\",\"claims\":\"management, guidance, and kpi claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"claims\":[{\"id\":\"C1\",\"text\":\"As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\",\"predicate\":\"kpi.commentary\",\"stance\":\"challenging\",\"company\":\"AMD\",\"effective_time\":\"2025-06-28T00:00:00.000Z\",\"published_at\":\"2025-08-05T00:00:00.000Z\"}],\"staleness\":{\"quote\":[{\"ticker\":\"NVDA\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"Q1\",\"age_days\":0,\"stale\":false}]}}}"
       }
     ],
-    "text": "**Takeaway:** NVDA is the clear leader on every fundamental metric shown—revenue scale, profitability, and growth rate all favor NVDA over AMD in their latest reported fiscal years.\n\n**Trend:** Only one fiscal year per company is displayed, so no multi-period trend can be traced. NVDA's FY2026 (ended January 2026) revenue growth of 60.9% and AMD's FY2025 (ended December 2025) revenue growth of 34.5% are each single-year snapshots. Note that the two fiscal years end roughly one month apart, so they do not cover identical calendar windows.\n\n**What is strong and what is weak:** NVDA's FY2026 (ended January 2026) revenue of $209.9B, gross margin of 70.8%, net margin of 53.6%, and revenue growth of 60.9% are all higher than AMD's corresponding figures. AMD's FY2025 (ended December 2025) revenue of $34.7B, gross margin of 49.9%, net margin of 12.0%, and revenue growth of 34.5% are lower on every metric. The gap is widest on net margin, where NVDA's figure is far above AMD's. On price return from December 2025 through August 2026, NVDA returned 6.6% versus AMD's 3.58%, consistent with the fundamental gap.\n\n**Counterpoint:** AMD's FY2025 (ended December 2025) revenue growth of 34.5% is still a strong growth rate in its own right. Management attributed a headwind to U.S. export controls on AMD Instinct MI308 data center GPUs, which led to approximately $800 million in inventory and related charges in the second quarter (per a claim published in August 2025). That charge may have depressed AMD's reported margins relative to what they would otherwise have been.\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so the absolute dollar increase cannot be assessed. No segment or product-line breakdown is provided, so the concentration of revenue within data center or other segments is unknown. No forward guidance or consensus estimates are included.\n\n```assertions\n[\n  {\"kind\":\"observation\",\"text\":\"NVDA reported FY2026 (ended January 2026) revenue of $209.9B, gross margin of 70.8%, net margin of 53.6%, and revenue growth of 60.9%.\",\"evidence\":[\"F1\",\"F2\",\"F3\",\"F4\"]},\n  {\"kind\":\"observation\",\"text\":\"AMD reported FY2025 (ended December 2025) revenue of $34.7B, gross margin of 49.9%, net margin of 12.0%, and revenue growth of 34.5%.\",\"evidence\":[\"F5\",\"F6\",\"F7\",\"F8\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA's price return from December 2025 to August 2026 was 6.6%; AMD's was 3.58% over the same window.\",\"evidence\":[\"F9\",\"F10\"]},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's revenue, gross margin, net margin, and revenue growth are all higher than AMD's in their latest reported fiscal years.\",\"evidence\":[\"F1\",\"F2\",\"F3\",\"F4\",\"F5\",\"F6\",\"F7\",\"F8\"],\"op\":\"highest\",\"result\":\"F1\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's price return exceeded AMD's over December 2025 to August 2026.\",\"evidence\":[\"F9\",\"F10\"],\"op\":\"highest\",\"result\":\"F9\"},\n  {\"kind\":\"management_attribution\",\"text\":\"AMD management stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in Q2 2025.\",\"evidence\":[\"C1\"]},\n  {\"kind\":\"analyst_inference\",\"text\":\"NVDA dominates AMD on scale, profitability, and growth in the latest fiscal years shown, making it the stronger fundamental story on this data.\",\"supports\":[0,1,3]},\n  {\"kind\":\"analyst_inference\",\"text\":\"AMD's 34.5% revenue growth remains robust, and the export-control charge may have suppressed reported margins, so the gap could overstate the underlying competitive difference.\",\"supports\":[1,5]},\n  {\"kind\":\"unknown_cause\",\"text\":\"The data does not show why NVDA's net margin is so much higher than AMD's beyond the figures themselves; no segment mix or cost structure detail is provided.\",\"evidence\":[\"F3\",\"F7\"]}\n]\n```",
+    "text": "**Takeaway:** NVDA is in a different league from AMD on every metric shown. Its revenue, gross margin, net margin, and revenue growth all far exceed AMD's corresponding figures. AMD is growing healthily but remains a much smaller, thinner-margin business.\n\n**Trend:** Only one fiscal year per company is displayed, so no multi-period trend can be traced. The year-over-year growth rates tell us the direction of each company's most recent fiscal year: NVDA grew revenue [[F4]] and AMD grew revenue [[F8]], both positive but NVDA's pace is faster.\n\n**What is strong and what is weak:** NVDA's profitability is the standout. Its gross margin of [[F2]] and net margin of [[F3]] dwarf AMD's [[F6]] and [[F7]] respectively. Revenue scale is similarly lopsided: NVDA at [[F1]] versus AMD at [[F5]]. AMD's net margin of [[F7]] is the weakest figure in the set, indicating that even with solid top-line growth, relatively little reaches the bottom line. Note that the two fiscal years end about one month apart (NVDA's ends January 2026, AMD's ends December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD's reported results were depressed by a specific headwind. Management stated that [[C1]] (published August 2025). That charge weighed on the quarter's profitability, meaning AMD's underlying margin trajectory may look better than the full-year net margin of [[F7]] suggests.\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so we cannot see whether growth is accelerating or decelerating. No segment or product-line breakdown is provided, so we cannot tell how much of NVDA's revenue is concentrated in data center versus other end markets. No quarterly progression is shown, so the path within each fiscal year is invisible. No forward guidance figures are included.\n\n> **Unverified hypothesis (medium confidence):** AMD's lower net margin partly reflects the export-control charge management disclosed, given the net margin of [[F7]] and the stated impact in [[C1]].\n\n> **Unverified hypothesis (low confidence):** NVDA's margin premium reflects pricing power in AI accelerators that AMD has not yet matched, given the gross-margin gap between [[F2]] and [[F6]].\n\n**Price performance:** Over the nine-month window from December 2025 through August 2026, NVDA returned [[F9]] and AMD returned [[F10]], both modestly positive but NVDA ahead.\n\n```assertions\n[\n  {\"kind\":\"observation\",\"text\":\"NVDA FY2026 revenue was [[F1]], gross margin [[F2]], net margin [[F3]], and YoY revenue growth [[F4]].\",\"evidence\":[\"F1\",\"F2\",\"F3\",\"F4\"]},\n  {\"kind\":\"observation\",\"text\":\"AMD FY2025 revenue was [[F5]], gross margin [[F6]], net margin [[F7]], and YoY revenue growth [[F8]].\",\"evidence\":[\"F5\",\"F6\",\"F7\",\"F8\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA price return was [[F9]] and AMD price return was [[F10]] over December 2025 to August 2026.\",\"evidence\":[\"F9\",\"F10\"]},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's revenue is higher than AMD's.\",\"evidence\":[\"F1\",\"F5\"],\"op\":\"highest\",\"result\":\"F1\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's gross margin is higher than AMD's.\",\"evidence\":[\"F2\",\"F6\"],\"op\":\"highest\",\"result\":\"F2\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's net margin is higher than AMD's.\",\"evidence\":[\"F3\",\"F7\"],\"op\":\"highest\",\"result\":\"F3\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's YoY revenue growth is faster than AMD's.\",\"evidence\":[\"F4\",\"F8\"],\"op\":\"highest\",\"result\":\"F4\"},\n  {\"kind\":\"comparison\",\"text\":\"NVDA's price return over the shown window is higher than AMD's.\",\"evidence\":[\"F9\",\"F10\"],\"op\":\"highest\",\"result\":\"F9\"},\n  {\"kind\":\"management_attribution\",\"text\":\"AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.\",\"evidence\":[\"C1\"]},\n  {\"kind\":\"analyst_inference\",\"text\":\"NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.\",\"supports\":[3,4,5,6]},\n  {\"kind\":\"analyst_inference\",\"text\":\"AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.\",\"supports\":[1,8]},\n  {\"kind\":\"unknown_cause\",\"text\":\"The data does not show why AMD's net margin is so much lower than NVDA's beyond the disclosed charge; segment mix and operating leverage are not visible.\",\"evidence\":[\"F3\",\"F7\"]}\n]\n```",
     "truncated": false,
     "deployment": "opencode-go/qwen3.8-max",
-    "latency_ms": 40056,
+    "latency_ms": 36720,
     "usage": {
-      "input_tokens": 402,
-      "output_tokens": 1778,
-      "reasoning_tokens": 707
+      "input_tokens": 1584,
+      "output_tokens": 1736,
+      "reasoning_tokens": 604
     }
   },
   "assertions": {
@@ -2444,7 +2444,7 @@
       {
         "index": 0,
         "kind": "observation",
-        "text": "NVDA reported FY2026 (ended January 2026) revenue of $209.9B, gross margin of 70.8%, net margin of 53.6%, and revenue growth of 60.9%.",
+        "text": "NVDA FY2026 revenue was [[F1]], gross margin [[F2]], net margin [[F3]], and YoY revenue growth [[F4]].",
         "evidence": [
           "F1",
           "F2",
@@ -2455,7 +2455,7 @@
       {
         "index": 1,
         "kind": "observation",
-        "text": "AMD reported FY2025 (ended December 2025) revenue of $34.7B, gross margin of 49.9%, net margin of 12.0%, and revenue growth of 34.5%.",
+        "text": "AMD FY2025 revenue was [[F5]], gross margin [[F6]], net margin [[F7]], and YoY revenue growth [[F8]].",
         "evidence": [
           "F5",
           "F6",
@@ -2466,69 +2466,306 @@
       {
         "index": 2,
         "kind": "observation",
-        "text": "NVDA's price return from December 2025 to August 2026 was 6.6%; AMD's was 3.58% over the same window.",
+        "text": "NVDA price return was [[F9]] and AMD price return was [[F10]] over December 2025 to August 2026.",
         "evidence": [
           "F9",
           "F10"
         ]
       },
       {
+        "index": 3,
+        "kind": "comparison",
+        "text": "NVDA's revenue is higher than AMD's.",
+        "evidence": [
+          "F1",
+          "F5"
+        ],
+        "op": "highest",
+        "result": "F1"
+      },
+      {
         "index": 4,
         "kind": "comparison",
-        "text": "NVDA's price return exceeded AMD's over December 2025 to August 2026.",
+        "text": "NVDA's gross margin is higher than AMD's.",
+        "evidence": [
+          "F2",
+          "F6"
+        ],
+        "op": "highest",
+        "result": "F2"
+      },
+      {
+        "index": 5,
+        "kind": "comparison",
+        "text": "NVDA's net margin is higher than AMD's.",
+        "evidence": [
+          "F3",
+          "F7"
+        ],
+        "op": "highest",
+        "result": "F3"
+      },
+      {
+        "index": 6,
+        "kind": "comparison",
+        "text": "NVDA's YoY revenue growth is faster than AMD's.",
+        "evidence": [
+          "F4",
+          "F8"
+        ],
+        "op": "highest",
+        "result": "F4"
+      },
+      {
+        "index": 7,
+        "kind": "comparison",
+        "text": "NVDA's price return over the shown window is higher than AMD's.",
         "evidence": [
           "F9",
           "F10"
         ],
         "op": "highest",
         "result": "F9"
+      },
+      {
+        "index": 9,
+        "kind": "analyst_inference",
+        "text": "NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+        "evidence": [],
+        "supports": [
+          3,
+          4,
+          5,
+          6
+        ]
       }
     ],
     "rejected": [
       {
-        "index": 3,
-        "text": "NVDA's revenue, gross margin, net margin, and revenue growth are all higher than AMD's in their latest reported fiscal years.",
-        "reason": "comparison: a comparison is of one metric"
-      },
-      {
-        "index": 5,
-        "text": "AMD management stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in Q2 2025.",
+        "index": 8,
+        "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
         "reason": "2 is not a cited figure's value"
       },
       {
-        "index": 6,
-        "text": "NVDA dominates AMD on scale, profitability, and growth in the latest fiscal years shown, making it the stronger fundamental story on this data.",
+        "index": 10,
+        "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
         "reason": "an inference binds the accepted observations it rests on"
       },
       {
-        "index": 7,
-        "text": "AMD's 34.5% revenue growth remains robust, and the export-control charge may have suppressed reported margins, so the gap could overstate the underlying competitive difference.",
-        "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
-        "index": 8,
-        "text": "The data does not show why NVDA's net margin is so much higher than AMD's beyond the figures themselves; no segment mix or cost structure detail is provided.",
+        "index": 11,
+        "text": "The data does not show why AMD's net margin is so much lower than NVDA's beyond the disclosed charge; segment mix and operating leverage are not visible.",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
     ]
   },
-  "removed": [],
+  "removed": [
+    "That charge weighed on the quarter's profitability, meaning AMD's underlying margin trajectory may look better than the full-year net margin of [[F7]] suggests.",
+    "AMD's lower net margin partly reflects the export-control charge management disclosed, given the net margin of [[F7]] and the stated impact in [[C1]].",
+    "NVDA's margin premium reflects pricing power in AI accelerators that AMD has not yet matched, given the gross-margin gap between [[F2]] and [[F6]]."
+  ],
   "blocks": [
     {
-      "id": "ee8fd2af-ba5a-4648-8728-742c1c83c692",
+      "id": "d1770af7-a83c-4e61-86f4-03fe521454ca",
       "kind": "rich_text",
-      "snapshot_id": "d8bdc92f-2df4-455f-8712-66d8e690a1fe",
+      "snapshot_id": "223d9f87-aa6f-4cfd-874d-a1c9f848355e",
       "data_ref": {
         "kind": "rich_text",
-        "id": "ee8fd2af-ba5a-4648-8728-742c1c83c692"
+        "id": "d1770af7-a83c-4e61-86f4-03fe521454ca",
+        "params": {
+          "fact_bindings": [
+            {
+              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "672cd83c-a487-4d08-ada6-267141565554",
+              "unit": "currency",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
+              "unit": "currency",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            }
+          ]
+        }
       },
-      "source_refs": [],
+      "source_refs": [
+        "00000000-0000-4000-a000-000000000001",
+        "138fef65-4ad7-48cf-b641-6c099b2d0a60"
+      ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVDA is the clear leader on every fundamental metric shown—revenue scale, profitability, and growth rate all favor NVDA over AMD in their latest reported fiscal years.\n\n**Trend:** Only one fiscal year per company is displayed, so no multi-period trend can be traced. NVDA's FY2026 (ended January 2026) revenue growth of 60.9% and AMD's FY2025 (ended December 2025) revenue growth of 34.5% are each single-year snapshots. Note that the two fiscal years end roughly one month apart, so they do not cover identical calendar windows.\n\n**What is strong and what is weak:** NVDA's FY2026 (ended January 2026) revenue of $209.9B, gross margin of 70.8%, net margin of 53.6%, and revenue growth of 60.9% are all higher than AMD's corresponding figures. AMD's FY2025 (ended December 2025) revenue of $34.7B, gross margin of 49.9%, net margin of 12.0%, and revenue growth of 34.5% are lower on every metric. The gap is widest on net margin, where NVDA's figure is far above AMD's. On price return from December 2025 through August 2026, NVDA returned 6.6% versus AMD's 3.58%, consistent with the fundamental gap.\n\n**Counterpoint:** AMD's FY2025 (ended December 2025) revenue growth of 34.5% is still a strong growth rate in its own right. Management attributed a headwind to U.S. export controls on AMD Instinct MI308 data center GPUs, which led to approximately $800 million in inventory and related charges in the second quarter (per a claim published in August 2025). That charge may have depressed AMD's reported margins relative to what they would otherwise have been.\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so the absolute dollar increase cannot be assessed. No segment or product-line breakdown is provided, so the concentration of revenue within data center or other segments is unknown. No forward guidance or consensus estimates are included."
+          "text": "**Takeaway:** NVDA is in a different league from AMD on every metric shown. Its revenue, gross margin, net margin, and revenue growth all far exceed AMD's corresponding figures. AMD is growing healthily but remains a much smaller, thinner-margin business.\n\n**Trend:** Only one fiscal year per company is displayed, so no multi-period trend can be traced. The year-over-year growth rates tell us the direction of each company's most recent fiscal year: NVDA grew revenue "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+          "format": "60.9%"
+        },
+        {
+          "type": "text",
+          "text": " and AMD grew revenue "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
+          "format": "34.5%"
+        },
+        {
+          "type": "text",
+          "text": ", both positive but NVDA's pace is faster.\n\n**What is strong and what is weak:** NVDA's profitability is the standout. Its gross margin of "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+          "format": "70.8%"
+        },
+        {
+          "type": "text",
+          "text": " and net margin of "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+          "format": "53.6%"
+        },
+        {
+          "type": "text",
+          "text": " dwarf AMD's "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+          "format": "49.9%"
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+          "format": "12.0%"
+        },
+        {
+          "type": "text",
+          "text": " respectively. Revenue scale is similarly lopsided: NVDA at "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "672cd83c-a487-4d08-ada6-267141565554",
+          "format": "$209.9B"
+        },
+        {
+          "type": "text",
+          "text": " versus AMD at "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
+          "format": "$34.7B"
+        },
+        {
+          "type": "text",
+          "text": ". AMD's net margin of "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+          "format": "12.0%"
+        },
+        {
+          "type": "text",
+          "text": " is the weakest figure in the set, indicating that even with solid top-line growth, relatively little reaches the bottom line. Note that the two fiscal years end about one month apart (NVDA's ends January 2026, AMD's ends December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD's reported results were depressed by a specific headwind. Management stated that "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "claim",
+          "ref_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+          "format": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges."
+        },
+        {
+          "type": "text",
+          "text": " (published August 2025).\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so we cannot see whether growth is accelerating or decelerating. No segment or product-line breakdown is provided, so we cannot tell how much of NVDA's revenue is concentrated in data center versus other end markets. No quarterly progression is shown, so the path within each fiscal year is invisible. No forward guidance figures are included.\n\n**Price performance:** Over the nine-month window from December 2025 through August 2026, NVDA returned 6.6% and AMD returned 3.58%, both modestly positive but NVDA ahead."
         }
       ]
     }
