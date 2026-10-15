@@ -171,3 +171,10 @@ test("a suffix the renderer would keep beside a reference is a unit its value mu
   assert.deepEqual(typedDigits("NVDA's [[F4]]x multiple and [[F1]]B revenue.", TABLE), []);
   assert.deepEqual(typedDigits("AMD's [[F2]] Billing grew.", TABLE), []);
 });
+
+test("a claim reference carries no unit of its own: a unit or currency touching it is typed", () => {
+  const table = referenceTable({ ...PACKET, claims: [{ ...PACKET.claims[0]!, text: "Revenue grew 12%" }] }, BLOCKS);
+  assert.deepEqual(typedDigits("Management said [[C1]]%.", table), ["[[C1]]%"]);
+  assert.deepEqual(typedDigits("Management said $[[C1]].", table), ["$[[C1]]"]);
+  assert.deepEqual(typedDigits("Management said [[C1]].", table), []);
+});

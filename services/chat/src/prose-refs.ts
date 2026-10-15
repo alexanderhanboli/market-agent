@@ -102,12 +102,14 @@ export function typedDigits(text: string, allowed: Pick<ReferenceTable, "years" 
   const units = [...text.matchAll(REFERENCE)].flatMap((match) => {
     const reference = allowed.references?.get(match[1]!);
     if (!reference) return [];
-    const value = displayOf(reference);
+    // Only a figure's value carries a unit the renderer de-duplicates; a claim
+    // renders its whole text, so anything touching it was typed.
+    const value = reference.kind === "fact" ? reference.figure.value : "";
     const before = text.slice(0, match.index).match(/\p{Sc}$/u)?.[0];
     const after = text.slice(match.index + match[0].length).match(REFERENCE_SUFFIX)?.[0];
     return [
-      ...(before && !value.replace(/^[-−]/, "").startsWith(before) ? [`${before}${match[0]}`] : []),
-      ...(after && !value.endsWith(after) ? [`${match[0]}${after}`] : []),
+      ...(before && !(value && value.replace(/^[-−]/, "").startsWith(before)) ? [`${before}${match[0]}`] : []),
+      ...(after && !(value && value.endsWith(after)) ? [`${match[0]}${after}`] : []),
     ];
   });
   const bare = allowed.companies.reduce(
