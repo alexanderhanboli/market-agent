@@ -3,7 +3,7 @@
 // full-page screenshot per thread and summary.json. It reports; it never fails
 // on plain numbers.
 //
-//   node --experimental-strip-types scripts/inspect-threads.ts [--out dir] [--base URL] <eval report .md | thread URL | thread id>...
+//   node --experimental-strip-types scripts/inspect-threads.ts [--out dir] [--base URL] [--theme light|dark] <eval report .md | thread URL | thread id>...
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -53,11 +53,13 @@ async function main(argv: string[]): Promise<number> {
     options: {
       out: { type: 'string', default: fileURLToPath(new URL(`../../.dev/inspect/${new Date().toISOString().slice(0, 19).replace(/:/g, '')}`, import.meta.url)) },
       base: { type: 'string', default: 'http://127.0.0.1:5173' },
+      // The app's own theme setting (src/shell/themeTypes.ts), else the system's.
+      theme: { type: 'string' },
     },
   })
   const urls = threadUrls(positionals, values.base)
-  if (urls.length === 0) {
-    console.error('usage: inspect-threads.ts [--out dir] [--base URL] <eval report .md | thread URL | thread id>...')
+  if (urls.length === 0 || (values.theme !== undefined && values.theme !== 'light' && values.theme !== 'dark')) {
+    console.error('usage: inspect-threads.ts [--out dir] [--base URL] [--theme light|dark] <eval report .md | thread URL | thread id>...')
     return 2
   }
   mkdirSync(values.out, { recursive: true })
@@ -67,6 +69,7 @@ async function main(argv: string[]): Promise<number> {
     for (const url of urls) {
       const thread = new URL(url).pathname.split('/').at(-1)!
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+      if (values.theme) await page.addInitScript((theme) => window.localStorage.setItem('theme', theme), values.theme)
       const consoleErrors: string[] = []
       page.on('console', (message) => {
         if (message.type() === 'error') consoleErrors.push(message.text())
