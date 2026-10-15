@@ -158,7 +158,9 @@ export function checkAssertions(
     // Across companies, who leads or trails is its comparisons' checked
     // result, rendered in its label; its words name none, so they cannot
     // contradict it ("AMD leads" beside a checked NVDA-highest, #288).
-    if (kind === "analyst_inference" && packet.companies.length > 1 && packet.companies.some((company) => mentions(item.text as string, company))) {
+    // A one-letter ticker ("A") cannot be told from the article, as in the guard.
+    if (kind === "analyst_inference" && packet.companies.length > 1 &&
+      packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
       reject(index, item, "an inference names no company; its supports do");
       continue;
     }
@@ -310,7 +312,8 @@ function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<st
   if (claims.some((claim) => claim.company === undefined)) return null;
   // A figure with no company is the only company's.
   const own = new Set([...figures.map((figure) => figure.company ?? packet.companies[0]), ...claims.map((claim) => claim.company)]);
-  const other = packet.companies.find((company) => !own.has(company) && mentions(text, company));
+  // A one-letter ticker ("A") cannot be told from the article, as in the guard.
+  const other = packet.companies.find((company) => company.length > 1 && !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
 }
 

@@ -564,6 +564,9 @@ test("across companies an inference names no company, whichever it would credit;
   ]);
   assert.deepEqual(check(list("NVDA keeps more of each sale.")).rejected.map((entry) => entry.reason), ["an inference names no company; its supports do"]);
   assert.deepEqual(check(list("The margin lead funds research.")).rejected, []);
+  // A one-letter ticker cannot be told from the article, as in the guard.
+  const agilent = checkAssertions(list("A wider margin leaves room to invest."), { ...oneYear, companies: ["NVDA", "A"] });
+  assert.deepEqual(agilent.rejected, []);
   const single = checkAssertions([
     { kind: "observation", text: "NVDA's gross margin was [[F1]].", evidence: ["F1"] },
     { kind: "analyst_inference", text: "NVDA keeps more of each sale.", supports: [0] },
