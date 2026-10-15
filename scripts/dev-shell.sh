@@ -76,10 +76,39 @@ ensure_install() {
   local dir="$1"
   # Reinstall when the lockfile changed since the last install (npm records the
   # installed tree in node_modules/.package-lock.json), so a pulled dependency
-  # addition reaches existing checkouts too.
+  # addition reaches existing checkouts too. ci, as CI does: install never
+  # rewrites a checked-in lockfile.
   if [[ ! -d "$dir/node_modules" ]] || { [[ -f "$dir/package-lock.json" ]] && [[ "$dir/package-lock.json" -nt "$dir/node_modules/.package-lock.json" ]]; }; then
-    (cd "$dir" && npm install)
+    (cd "$dir" && npm ci)
   fi
+}
+
+install_node_packages() {
+  ensure_install "$ROOT/db"
+  ensure_install "$ROOT/web"
+  ensure_install "$ROOT/services/chat"
+  ensure_install "$ROOT/services/resolver"
+  ensure_install "$ROOT/services/dev-api"
+  ensure_install "$ROOT/services/watchlists"
+  ensure_install "$ROOT/services/market"
+  ensure_install "$ROOT/services/fundamentals"
+  ensure_install "$ROOT/services/screener"
+  ensure_install "$ROOT/services/portfolio"
+  ensure_install "$ROOT/services/home"
+  ensure_install "$ROOT/services/evidence"
+  ensure_install "$ROOT/services/analyst-grids"
+  ensure_install "$ROOT/services/agents"
+  ensure_install "$ROOT/services/analyze"
+  ensure_install "$ROOT/services/artifact"
+  ensure_install "$ROOT/services/notifications"
+  ensure_install "$ROOT/services/observability"
+  ensure_install "$ROOT/services/snapshot"
+  ensure_install "$ROOT/services/summary"
+  ensure_install "$ROOT/services/themes"
+  ensure_install "$ROOT/services/tools"
+  ensure_install "$ROOT/services/llm"
+  # Imported as sources by chat and others; resolves ajv/decimal.js from its own node_modules.
+  ensure_install "$ROOT/services/financial-core"
 }
 
 ensure_python_service_install() {
@@ -302,6 +331,11 @@ build_redis_url() {
   printf "redis://127.0.0.1:%s" "$DEV_REDIS_PORT"
 }
 
+# Recorded model replies in place of an LLM: true (the golden test's) or traces.
+no_keys() {
+  [[ "$DEV_NO_KEYS" == "true" || "$DEV_NO_KEYS" == "traces" ]]
+}
+
 configure_runtime_env() {
   export DATABASE_URL
   DATABASE_URL="$(build_database_url)"
@@ -324,13 +358,19 @@ configure_runtime_env() {
   # The web app starts signed in with the dev mock session (#122); set false to test sign-in.
   export VITE_MA_FLAG_DEV_AUTO_LOGIN
   VITE_MA_FLAG_DEV_AUTO_LOGIN="${VITE_MA_FLAG_DEV_AUTO_LOGIN:-true}"
-  if [[ "$DEV_NO_KEYS" == "true" ]]; then
+  if no_keys; then
     # The golden test's recorded replies (services/chat/test/golden), on the same
     # fixture channel it uses. Overrides whatever .env.dev set: the settings file is
     # dropped (it would override the process env) and the Settings UI hidden.
+    # DEV_NO_KEYS=traces answers the answer-lab traces' questions as recorded
+    # (services/chat/test/answer-lab/traces), written to .dev by up.
     export LLM_CHANNELS=fixture LLM_FIXTURE_PROTOCOL=openai LLM_FIXTURE_MODELS=recorded
     export LITELLM_MODEL=fixture/recorded LITELLM_FALLBACK_MODELS="" AGENT_LITELLM_MODEL=""
-    export LLM_REPLAY_FILE="$ROOT/services/chat/test/golden/llm-replies.json"
+    if [[ "$DEV_NO_KEYS" == "traces" ]]; then
+      export LLM_REPLAY_FILE="$ROOT/.dev/trace-replies.json"
+    else
+      export LLM_REPLAY_FILE="$ROOT/services/chat/test/golden/llm-replies.json"
+    fi
     export LLM_SETTINGS_ENV_FILE="" MA_FLAG_LLM_SETTINGS=false VITE_MA_FLAG_LLM_SETTINGS=false
   fi
   if [[ "$DEV_MODE" == "analyst" ]]; then
@@ -402,8 +442,8 @@ check_dev_mode() {
       return 1
       ;;
   esac
-  if [[ "$DEV_NO_KEYS" == "true" ]]; then
-    echo "DEV_NO_KEYS=true (recorded replies) contradicts DEV_MODE=$DEV_MODE (live LLM); pick one" >&2
+  if no_keys; then
+    echo "DEV_NO_KEYS=$DEV_NO_KEYS (recorded replies) contradicts DEV_MODE=$DEV_MODE (live LLM); pick one" >&2
     return 1
   fi
   if [[ "$DEV_MODE" == "data" ]]; then
@@ -426,7 +466,7 @@ check_dev_mode() {
 
 # The golden conversation's frozen dataset backs the no-keys and analyst modes.
 seeds_frozen_data() {
-  [[ "$DEV_NO_KEYS" == "true" || "$DEV_MODE" == "analyst" ]]
+  no_keys || [[ "$DEV_MODE" == "analyst" ]]
 }
 
 profile_services() {
@@ -618,31 +658,11 @@ up() {
   STARTED_SERVICES=()
   COMPOSE_STARTED=0
 
-  ensure_install "$ROOT/db"
-  ensure_install "$ROOT/web"
-  ensure_install "$ROOT/services/chat"
-  ensure_install "$ROOT/services/resolver"
-  ensure_install "$ROOT/services/dev-api"
-  ensure_install "$ROOT/services/watchlists"
-  ensure_install "$ROOT/services/market"
-  ensure_install "$ROOT/services/fundamentals"
-  ensure_install "$ROOT/services/screener"
-  ensure_install "$ROOT/services/portfolio"
-  ensure_install "$ROOT/services/home"
-  ensure_install "$ROOT/services/evidence"
-  ensure_install "$ROOT/services/analyst-grids"
-  ensure_install "$ROOT/services/agents"
-  ensure_install "$ROOT/services/analyze"
-  ensure_install "$ROOT/services/artifact"
-  ensure_install "$ROOT/services/notifications"
-  ensure_install "$ROOT/services/observability"
-  ensure_install "$ROOT/services/snapshot"
-  ensure_install "$ROOT/services/summary"
-  ensure_install "$ROOT/services/themes"
-  ensure_install "$ROOT/services/tools"
-  ensure_install "$ROOT/services/llm"
-  # Imported as sources by chat and others; resolves ajv/decimal.js from its own node_modules.
-  ensure_install "$ROOT/services/financial-core"
+  install_node_packages
+  if [[ "$DEV_NO_KEYS" == "traces" ]]; then
+    mkdir -p "$ROOT/.dev"
+    (cd "$ROOT/services/chat" && node --experimental-strip-types scripts/answer-lab.ts replies test/answer-lab/traces --out "$LLM_REPLAY_FILE")
+  fi
   if discovery_active; then
     ensure_install "$ROOT/services/discovery"
   fi
@@ -807,9 +827,11 @@ fi
 case "${1:-}" in
   up) up ;;
   down) down ;;
+  # A fresh worktree's packages, for running tests and scripts without a stack.
+  install) install_node_packages ;;
   status) status ;;
   *)
-    echo "Usage: [DEV_PROFILE=chat|full] ./scripts/dev-shell.sh <up|down|status>" >&2
+    echo "Usage: [DEV_PROFILE=chat|full] ./scripts/dev-shell.sh <up|down|status|install>" >&2
     exit 1
     ;;
 esac

@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { replayRecorded } from "../src/answer-trace.ts";
-import { answerText, assertionSummary, readTraces } from "../scripts/answer-lab.ts";
+import { answerText, assertionSummary, readTraces, replyFixture } from "../scripts/answer-lab.ts";
+import { createReplayLlmChatClient } from "../../llm/src/replay-client.ts";
 
 // One live research-quality eval run's turns (scripts/research-quality-eval.ts).
 const TRACES = readTraces([fileURLToPath(new URL("./answer-lab/traces/", import.meta.url))]);
@@ -90,4 +91,20 @@ test("a live run's summary counts rendered answers, accepted kinds, repeated obs
     "    2  y",
     "    1  x",
   ].join("\n"));
+});
+
+test("the traces' reply fixture answers each traced question as recorded, and a title as the golden test does (DEV_NO_KEYS=traces)", async () => {
+  const traces = readTraces([fileURLToPath(new URL("./answer-lab/traces", import.meta.url))]);
+  const golden = { replies: [{ match: "Create a short, specific research chat title", text: "NVDA research" }, { match: "Write a concise", text: "golden" }] };
+  const dir = mkdtempSync(join(tmpdir(), "replies-"));
+  const file = join(dir, "replies.json");
+  writeFileSync(file, JSON.stringify(replyFixture(traces, golden)));
+  const reply = await createReplayLlmChatClient(file);
+  const ask = async (...contents: string[]) =>
+    (await reply({} as never, { messages: contents.map((content) => ({ role: "user", content })) } as never)).text;
+  const recorded = (question: string) => traces.find(({ trace }) => trace.question === question)!.trace.exchange!.text;
+  assert.equal(await ask("Analyze NVDA's latest quarter."), recorded("Analyze NVDA's latest quarter."));
+  // A follow-up's request repeats the earlier question; the longer, later one answers.
+  assert.equal(await ask("Analyze NVDA.", "Compare it with AMD YTD."), recorded("Compare it with AMD YTD."));
+  assert.equal(await ask("Create a short, specific research chat title for: Compare NVDA with AMD."), "NVDA research");
 });

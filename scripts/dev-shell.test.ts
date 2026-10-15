@@ -370,6 +370,18 @@ test("DEV_NO_KEYS=true pins recorded LLM replies and ignores .env.dev's LLM sett
   assert.equal(offResult.stdout.trim(), "<>", "no replay unless asked");
 });
 
+test("DEV_NO_KEYS=traces replays the answer-lab traces' replies, on the same fixture channel", async () => {
+  const fixture = await createShellFixture({ DEV_NO_KEYS: "traces", LLM_CHANNELS: "openai" });
+  const result = await runBash(
+    ["MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh", 'printf "%s|%s|%s" "${LLM_CHANNELS:-}" "${LLM_REPLAY_FILE:-}" "$(seeds_frozen_data && echo frozen)"'].join("\n"),
+    fixture.root,
+  );
+  const root = await realpath(fixture.root);
+  await rm(fixture.root, { recursive: true, force: true });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout.trim(), `fixture|${root}/.dev/trace-replies.json|frozen`);
+});
+
 test("DEV_NO_KEYS from the command line wins over the env file", async () => {
   const fixture = await createShellFixture({ DEV_NO_KEYS: "false" });
   const result = await runBash(
