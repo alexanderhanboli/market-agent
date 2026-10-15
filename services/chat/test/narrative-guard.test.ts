@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { EvidencePacket, PacketFigure } from "../src/evidence-packet.ts";
-import { keepSupportedSentences, keepUncausedSentences } from "../src/narrative-guard.ts";
+import { keepKnownReferences, keepSupportedSentences, keepUncausedSentences } from "../src/narrative-guard.ts";
 import { referenceTable, type ReferenceTable } from "../src/prose-refs.ts";
 
 type Figure = Partial<PacketFigure> & Pick<PacketFigure, "value" | "metric">;
@@ -49,6 +49,26 @@ test("an initialism does not end a sentence: a dropped sentence leaves no fragme
   const result = keepSupportedSentences("Results were hit by U.S. export rules costing $800 million. Revenue reached [[F1]] in Q4 2026.", TABLE, DISPLAYED);
   assert.equal(result.text, "Revenue reached [[F1]] in Q4 2026.");
   assert.deepEqual(result.removed, ["Results were hit by U.S. export rules costing $800 million."]);
+});
+
+test("the frozen checks read the value as the user sees it: a unit typed after a reference cannot hide a magnitude", () => {
+  const multiple: Figure[] = [{ metric: "P/E", period: "Q42026", value: "52.3x", company: "NVDA" }, { metric: "Gross Margin", period: "Q42026", value: "74.6%", company: "NVDA" }, { metric: "Gross Margin", period: "Q42026", value: "49.9%", company: "AMD" }];
+  const table = tableOf(multiple, [], ["Latest quarter (Q4 2026)"]);
+  assert.equal(keepSupportedSentences("Revenue grew [[F1]]x AMD's.", table, DISPLAYED).text, "");
+  assert.equal(keepSupportedSentences("NVDA's margin of [[F2]]% higher than AMD is notable.", table, DISPLAYED).text, "");
+});
+
+test("a sentence after an initialism still ends when the next one starts with a capital", () => {
+  const result = keepSupportedSentences("Revenue is concentrated in the U.S. Revenue grew 38%.", TABLE, DISPLAYED);
+  assert.equal(result.text, "Revenue is concentrated in the U.S.");
+  assert.deepEqual(result.removed, ["Revenue grew 38%."]);
+});
+
+test("with no figures shown, only a sentence citing an unknown reference goes; typed available_data values stay", () => {
+  const claims = tableOf([], ["Management expects growth."]);
+  const result = keepKnownReferences("- Revenue was $7.4B in Q1 2025.\n- Management said [[C1]]. They also said [[C9]].", claims);
+  assert.equal(result.text, "- Revenue was $7.4B in Q1 2025.\n- Management said [[C1]].");
+  assert.deepEqual(result.removed, ["They also said [[C9]]."]);
 });
 
 test("a digit the model typed itself goes unless it is a period label: an allowed year, or a quarter or half after Q or H", () => {

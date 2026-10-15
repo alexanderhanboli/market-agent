@@ -32,8 +32,9 @@ export type ReferenceTable = {
 // The only syntax read out of the model's prose: a packet id in double brackets.
 export const REFERENCE = /\[\[([FC]\d+)\]\]/g;
 const YEAR = /(?<!\d)\d{4}(?!\d)/g;
-// A run of letters and digits with a digit in it: what the digit rule judges.
-const DIGIT_WORD = /[A-Za-z0-9]*\d[A-Za-z0-9]*/g;
+// A run of letters and digits with a digit in it, in any script: what the digit
+// rule judges.
+const DIGIT_WORD = /[\p{L}\p{Nd}]*\p{Nd}[\p{L}\p{Nd}]*/gu;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray<Block>): ReferenceTable {
@@ -51,13 +52,17 @@ export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray
   const written = [
     ...packet.claims.map((claim) => claim.text),
     ...packet.figures.flatMap((figure) => [figure.metric, figure.segment ?? ""]),
-    ...packet.companies,
     ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
   ];
   return {
     references,
     years: new Set(dated.flatMap((text) => text.match(YEAR) ?? [])),
-    words: new Set(written.flatMap((text) => (text.match(DIGIT_WORD) ?? []).filter((word) => /[A-Za-z]/.test(word)))),
+    // A name starts with a letter ("MI308"); one starting with a digit is a
+    // figure ("800M" in a claim's "$800M"). A company label passes whole ("0700.HK").
+    words: new Set([
+      ...written.flatMap((text) => (text.match(DIGIT_WORD) ?? []).filter((word) => /^[A-Za-z]/.test(word))),
+      ...packet.companies.flatMap((company) => company.match(DIGIT_WORD) ?? []),
+    ]),
   };
 }
 
@@ -152,6 +157,12 @@ export function proseSegments(text: string, table: ReferenceTable, factBlocks: R
   write(text.slice(from));
   const { fact_bindings, source_refs } = seal.sealed();
   return { segments, fact_bindings, source_refs };
+}
+
+// A sentence with references as the user reads it: each its packet value, a
+// unit typed beside it dropped as proseSegments drops it.
+export function renderedText(text: string, table: ReferenceTable): string {
+  return proseSegments(text, table, []).segments.map((segment) => (segment.type === "text" ? segment.text : segment.format)).join("");
 }
 
 // Rendered segments as prose with references, for the guard: each ref its

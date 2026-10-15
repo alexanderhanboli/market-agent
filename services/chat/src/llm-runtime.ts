@@ -17,7 +17,7 @@ import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions
 import { proseSegments, referenceTable, referenceText, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
-import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
+import { keepKnownReferences, keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
@@ -392,7 +392,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // appears only by citing the claim, which renders it whole (#294 review).
     const unnumbered = input.availableData === false
       ? withoutWordedAmounts(keepSupportedSentences(uncaused.text, { ...table, years: new Set() }, claimTexts, input.subjectLabels ?? []))
-      : { text: uncaused.text, removed: [] as string[] };
+      : keepKnownReferences(uncaused.text, table);
     if (unnumbered.removed.length > 0) {
       console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
     }

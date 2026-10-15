@@ -14,14 +14,15 @@
 // case-sensitively, and never by a one-letter ticker (the article "A"); the
 // prompt asks the model to use the label.
 
-import { displayOf, onlyPeriodDigits, REFERENCE, type ReferenceTable } from "./prose-refs.ts";
+import { onlyPeriodDigits, REFERENCE, renderedText, type ReferenceTable } from "./prose-refs.ts";
 
 // The formatter writes no dotted currency prefix (a dotted symbol becomes its
 // ISO code, #150), so every period before whitespace ends a sentence.
 // "vs." abbreviates, it does not end a sentence ("($44.1B vs. $39.3B)", 2026-10-08 eval),
-// nor does a letter-dot initialism ("U.S."): a sentence cut there and dropped
-// left half of it on the page (2026-10-15 run).
-export const SENTENCE_BREAK = /(?<=[.!?])(?<!\b[Vv]s\.)(?<!\b(?:[A-Z]\.){2,})\s+/;
+// nor does a letter-dot initialism before a lowercase word ("U.S. export
+// controls"): a sentence cut there and dropped left half of it on the page
+// (2026-10-15 run). Before a capital it ends one ("in the U.S. Revenue rose").
+export const SENTENCE_BREAK = /(?<=[.!?])(?<!\b[Vv]s\.)(?!(?<=\b(?:[A-Z]\.){2,})\s+\p{Ll})\s+/u;
 // Markdown list markers ("- ", "* ", "1. ", "2) ") and headings ("## Margins",
 // a line that is only "**Margins**"; a bold sentence ending "." is prose).
 export const LIST_MARKER = /^\s*(?:[-*+]|\d{1,2}[.)])\s+/;
@@ -268,7 +269,7 @@ export function keepSupportedSentences(
       // The checks below read the sentence as it renders, each reference its
       // displayed value, so a figure's magnitude or basis reads as before.
       // Inline Markdown ("double **AMD's**") is ignored for all of them.
-      const plain = written.replace(REFERENCE, (_, id: string) => displayOf(table.references.get(id)!)).replace(/[*_`]+/g, "");
+      const plain = renderedText(written, table).replace(/[*_`]+/g, "");
       // MULTIPLIER is case-sensitive so that a ticker ("AMD") counts as the
       // thing compared: the sentence is lowercased, whatever its case ("Six
       // Times AMD's", "SIX TIMES AMD'S"), and the companies' labels restored.
@@ -296,6 +297,24 @@ export function keepSupportedSentences(
     }
     lines.push(kept.length > 0 ? lead + kept.join(" ") : null);
   }
+  return { text: withoutEmptySections(lines), removed };
+}
+
+// For an answer with no figures shown, which writes the values it was given
+// (available_data, #181): only a sentence citing a reference the table does not
+// hold goes, since nothing could render it.
+export function keepKnownReferences(text: string, table: ReferenceTable): { text: string; removed: string[] } {
+  const removed: string[] = [];
+  const lines = text.trim().split(/\r?\n/).map((line) => {
+    if (line.trim() === "") return "";
+    const lead = line.match(LIST_MARKER)?.[0] ?? line.match(/^\s*/)![0];
+    const kept = line.slice(lead.length).trim().split(SENTENCE_BREAK).filter((sentence) => {
+      const known = [...sentence.matchAll(REFERENCE)].every((match) => table.references.has(match[1]!));
+      if (!known) removed.push(sentence);
+      return known;
+    });
+    return kept.length > 0 ? lead + kept.join(" ") : null;
+  });
   return { text: withoutEmptySections(lines), removed };
 }
 

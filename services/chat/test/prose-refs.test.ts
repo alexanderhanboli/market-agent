@@ -39,6 +39,19 @@ test("a word with digits passes only as the evidence writes it", () => {
   assert.deepEqual([...TABLE.words].sort(), ["FY2025", "FY2026", "MI308"]);
 });
 
+test("an evidence word must start with a letter: a claim's $800M whitelists nothing; a company label passes whole", () => {
+  const packet = { ...PACKET, companies: ["0700.HK", "NVDA"], claims: [{ ...PACKET.claims[0]!, text: "Restrictions on MI308 parts resulted in $800M of charges." }] };
+  const table = referenceTable(packet, BLOCKS);
+  assert.equal(onlyPeriodDigits("AMD's free cash flow was $800M.", table), false);
+  assert.equal(onlyPeriodDigits("Demand for MI308 parts fell.", table), true);
+  assert.equal(onlyPeriodDigits("0700.HK reported in FY2026.", table), true);
+});
+
+test("digits in any script are digits: full-width and Arabic-Indic numbers do not pass", () => {
+  assert.equal(onlyPeriodDigits("Revenue was ２ billion.", TABLE), false);
+  assert.equal(onlyPeriodDigits("Revenue was ٣ billion.", TABLE), false);
+});
+
 test("the table holds every packet figure and claim by id, and the years of its periods, dates, bounds and titles", () => {
   assert.deepEqual([...TABLE.references.keys()], ["F1", "F2", "F3", "F4", "C1"]);
   assert.equal(displayOf(TABLE.references.get("F1")!), "$209.9B");
