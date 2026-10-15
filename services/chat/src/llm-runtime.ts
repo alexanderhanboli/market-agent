@@ -210,7 +210,7 @@ export async function composeAnalystBlocksWithLlm(input: {
           "\"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated;",
           "evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each",
           "figure that changed), or \"analyst_inference\" (what the observations and comparisons mean, in words; the figures are",
-          "theirs, so it writes no number and no reference; evidence may be omitted; add \"supports\": the array indexes of the",
+          "theirs, so it writes no digit, period label or reference (\"a year earlier\", not FY2025); evidence may be omitted; add \"supports\": the array indexes of the",
           "observations and comparisons it rests on).",
           "The answer may be shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
           "analyst_inference; then the observations, comparisons and what the data cannot tell about a change, as an",

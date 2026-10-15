@@ -1905,15 +1905,6 @@
         "supports": [
           2
         ]
-      },
-      {
-        "index": 7,
-        "kind": "analyst_inference",
-        "text": "The V-shaped recovery in gross margin suggests the Q1 fiscal 2026 dip was transitory rather than structural.",
-        "evidence": [],
-        "supports": [
-          2
-        ]
       }
     ],
     "rejected": [
@@ -1936,6 +1927,11 @@
         "index": 4,
         "text": "Operating margin and net margin also hit their window lows in Q1 fiscal 2026 at 49.1% and 42.6% respectively.",
         "reason": "types 49.1%; write its reference"
+      },
+      {
+        "index": 7,
+        "text": "The V-shaped recovery in gross margin suggests the Q1 fiscal 2026 dip was transitory rather than structural.",
+        "reason": "an inference rests on its supports; it writes no figure"
       }
     ]
   },

@@ -146,7 +146,9 @@ export function checkAssertions(
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
       continue;
     }
-    if (kind === "analyst_inference" && (item.text.search(REFERENCE) !== -1 || typedDigits(item.text, table).length > 0 || AMOUNT_WORD.test(item.text))) {
+    // An inference writes no digit at all, a period's included: the periods
+    // are its supports', rendered from the packet beside it.
+    if (kind === "analyst_inference" && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
       reject(index, item, "an inference rests on its supports; it writes no figure");
       continue;
     }

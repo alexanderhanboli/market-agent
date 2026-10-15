@@ -907,15 +907,6 @@
         "supports": [
           2
         ]
-      },
-      {
-        "index": 5,
-        "kind": "analyst_inference",
-        "text": "The absolute revenue increase from Q2 to Q3 fiscal 2026 was larger than from Q3 to Q4 fiscal 2026, consistent with decelerating sequential growth on a larger base.",
-        "evidence": [],
-        "supports": [
-          2
-        ]
       }
     ],
     "rejected": [
@@ -933,6 +924,11 @@
         "index": 3,
         "text": "QoQ revenue growth was 8.9% while YoY revenue growth was 57.9% in Q4 fiscal 2026.",
         "reason": "types 8.9%; write its reference"
+      },
+      {
+        "index": 5,
+        "text": "The absolute revenue increase from Q2 to Q3 fiscal 2026 was larger than from Q3 to Q4 fiscal 2026, consistent with decelerating sequential growth on a larger base.",
+        "reason": "an inference rests on its supports; it writes no figure"
       },
       {
         "index": 6,
