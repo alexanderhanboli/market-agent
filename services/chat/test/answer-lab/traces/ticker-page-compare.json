@@ -2439,30 +2439,6 @@
         ],
         "op": "highest",
         "result": "F1"
-      },
-      {
-        "index": 9,
-        "kind": "analyst_inference",
-        "text": "NVDA shows superior profitability and growth, but AAPL has a larger revenue base; the similar price returns suggest the market may have already priced in NVDA's advantage or sees offsetting risks.",
-        "evidence": [],
-        "supports": [
-          5,
-          6,
-          7,
-          8
-        ]
-      },
-      {
-        "index": 10,
-        "kind": "analyst_inference",
-        "text": "The close price returns despite divergent fundamentals could reflect prior pricing of NVDA's growth or unshown risks.",
-        "evidence": [],
-        "supports": [
-          5,
-          6,
-          7,
-          8
-        ]
       }
     ],
     "rejected": [
@@ -2490,6 +2466,16 @@
         "index": 4,
         "text": "Price return from Dec 2025 to Aug 2026 was 6.05% for AAPL and 6.6% for NVDA.",
         "reason": "types 6.05%; write its reference"
+      },
+      {
+        "index": 9,
+        "text": "NVDA shows superior profitability and growth, but AAPL has a larger revenue base; the similar price returns suggest the market may have already priced in NVDA's advantage or sees offsetting risks.",
+        "reason": "an inference names no company; its supports do"
+      },
+      {
+        "index": 10,
+        "text": "The close price returns despite divergent fundamentals could reflect prior pricing of NVDA's growth or unshown risks.",
+        "reason": "an inference names no company; its supports do"
       }
     ]
   },

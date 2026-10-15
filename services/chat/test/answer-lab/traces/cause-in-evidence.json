@@ -1935,7 +1935,7 @@
       {
         "index": 6,
         "text": "Management stated that Q2 2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
-        "reason": "types MI308; write its reference"
+        "reason": "types $800; write its reference"
       },
       {
         "index": 8,
