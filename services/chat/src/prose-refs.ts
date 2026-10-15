@@ -25,9 +25,11 @@ export type ReferenceTable = {
   // packet's periods, dates, bounds and cutoff, and of the blocks' titles.
   years: ReadonlySet<string>;
   // Names with digits the prose may write: those in the metric, segment and
-  // block names and the company labels. A name only a claim writes ("MI308")
-  // reaches the answer by citing the claim, which renders its words.
+  // block names. A name only a claim writes ("MI308") reaches the answer by
+  // citing the claim, which renders its words.
   words: ReadonlySet<string>;
+  // The companies' labels, which pass whole, digits and all ("700", "0700.HK").
+  companies: ReadonlyArray<string>;
 };
 
 // The only syntax read out of the model's prose: a packet id in double brackets.
@@ -57,7 +59,8 @@ export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray
   return {
     references,
     years: new Set(dated.flatMap((text) => text.match(YEAR) ?? [])),
-    words: new Set([...names, ...packet.companies].flatMap(namesIn)),
+    words: new Set(names.flatMap(namesIn)),
+    companies: packet.companies,
   };
 }
 
@@ -80,8 +83,12 @@ export function displayOf(reference: Reference): string {
 
 // Whether every word with a digit outside a reference is a period label (an
 // allowed year, FY and one, Q1-Q4, H1-H2) or a name the turn's names write.
-export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words">): boolean {
-  return (text.replace(REFERENCE, " ").match(DIGIT_WORD) ?? []).every((word) =>
+export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words" | "companies">): boolean {
+  const bare = allowed.companies.reduce(
+    (masked, company) => masked.replace(new RegExp(`(?<![\\p{L}\\p{Nd}.])${escapeRegExp(company)}(?![\\p{L}\\p{Nd}]|\\.\\p{Nd})`, "gu"), " "),
+    text.replace(REFERENCE, " "),
+  );
+  return (bare.match(DIGIT_WORD) ?? []).every((word) =>
     PERIOD_SHAPE.test(word)
       ? allowed.years.has(word) || /^(?:Q[1-4]|H[12])$/.test(word) || allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "")
       : allowed.words.has(word)
@@ -194,4 +201,8 @@ function bindingsByFact(blocks: ReadonlyArray<Block>): Map<string, Record<string
         : []
     );
   }));
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
