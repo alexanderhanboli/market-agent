@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { calendarsDiffer, plainText, renderAssertion } from "../src/render-assertions.ts";
+import type { Assertion } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const NVDA_GM = "a1000000-0000-4000-8000-000000000001";
@@ -172,4 +173,33 @@ test("an observation names each period once, and segments and acronyms read as w
     plainText(renderComparison(packet, blocks, "highest", "F4", ["F4", "F5"]).segments),
     "Of NVDA's segments, Data Center revenue was highest: Data Center $55.2B, Gaming $4.3B (Q4 2026, ended Jan 2026).",
   );
+});
+
+test("an inference's label states each supporting comparison's checked result; one on observations alone keeps the plain label (#288)", () => {
+  const comparisons = [
+    { index: 0, kind: "comparison" as const, op: "trend" as const, result: "rebounded", text: "x", evidence: ALL },
+    { index: 1, kind: "comparison" as const, op: "lowest" as const, result: "T2", text: "x", evidence: ALL },
+    { index: 2, kind: "comparison" as const, op: "order" as const, result: ["T4", "T3", "T1", "T2"], text: "x", evidence: ALL },
+    { index: 3, kind: "observation" as const, text: "x", evidence: ["T1"] },
+  ];
+  const label = (packet: EvidencePacket, supports: number[], accepted: ReadonlyArray<Assertion & { index: number }> = comparisons) =>
+    plainText(renderAssertion({ index: 9, kind: "analyst_inference", text: "The loss quarter was a one-off.", evidence: [], supports }, packet, [], accepted).segments);
+  assert.equal(label(AMD_QUARTERS, [0, 1, 3]),
+    "> **Analyst inference** (AMD's operating margin fell, then rebounded; AMD's operating margin lowest in Q2 2025): The loss quarter was a one-off.");
+  assert.equal(label(AMD_QUARTERS, [2]),
+    "> **Analyst inference** (AMD's operating margin highest first: Q4 2025, Q3 2025, Q1 2025, Q2 2025): The loss quarter was a one-off.");
+  assert.equal(label(AMD_QUARTERS, [3]), "> **Analyst inference:** The loss quarter was a one-off.");
+  const peers: EvidencePacket = { ...PACKET, companies: ["NVDA", "AMD"], figures: PACKET.figures.slice(0, 2) };
+  assert.equal(label(peers, [0], [{ index: 0, kind: "comparison", op: "order", result: ["F1", "F2"], text: "x", evidence: ["F1", "F2"] }]),
+    "> **Analyst inference** (gross margin highest first: NVDA, AMD): The loss quarter was a one-off.");
+  // One company highest on several metrics is said once.
+  const margins: EvidencePacket = { ...peers, figures: [
+    ...peers.figures,
+    { id: "F4", company: "NVDA", metric: "Net margin", period: "FY2026", value: "55.0%", source_ids: [] },
+    { id: "F5", company: "AMD", metric: "Net margin", period: "FY2025", value: "12.0%", source_ids: [] },
+  ] };
+  assert.equal(label(margins, [0, 1], [
+    { index: 0, kind: "comparison", op: "highest", result: "F1", text: "x", evidence: ["F1", "F2"] },
+    { index: 1, kind: "comparison", op: "highest", result: "F4", text: "x", evidence: ["F4", "F5"] },
+  ]), "> **Analyst inference** (NVDA highest on gross margin and net margin): The loss quarter was a one-off.");
 });

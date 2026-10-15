@@ -19,7 +19,7 @@
 
 import type { RejectionCheck } from "../../src/assertions.ts";
 
-export const HOLDOUT_VERSION = 3;
+export const HOLDOUT_VERSION = 4;
 
 type Assertion = Record<string, unknown>;
 
@@ -180,18 +180,24 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     good: [
       cmp("highest", "F2", ["F2", "F6"]),
       obs("NVDA's revenue was [[F1]] in FY2026; AMD's was [[F5]] in FY2025.", ["F1", "F5"]),
-      inference("NVDA's margin lead comes with the larger revenue base.", [0, 1]),
+      inference("The margin lead comes with the larger revenue base.", [0, 1]),
     ],
     mutations: [
       { name: "narrowed cohort", list: [cmp("highest", "F2", ["F2"])], fails: { index: 0, check: "kind" } },
       { name: "wrong winner", list: [cmp("highest", "F6", ["F2", "F6"])], fails: { index: 0, check: "comparative" } },
+      // Beside a checked NVDA-highest, words naming a leader could contradict it (#288).
+      {
+        name: "an inference naming the leader",
+        list: [cmp("highest", "F2", ["F2", "F6"]), inference("AMD's margin lead is the wider moat.", [0])],
+        fails: { index: 1, check: "binding" },
+      },
       // F5 is AMD's revenue, cited by the observation the inference rests on (#301).
       {
         name: "a reference swapped to another company's figure",
         list: [
           cmp("highest", "F2", ["F2", "F6"]),
           obs("NVDA's revenue was [[F1]] in FY2026; AMD's was [[F5]] in FY2025.", ["F1", "F5"]),
-          inference("NVDA's margin lead comes with [[F5]] of revenue.", [0, 1]),
+          inference("The margin lead comes with [[F5]] of revenue.", [0, 1]),
         ],
         fails: { index: 2, check: "binding" },
       },
