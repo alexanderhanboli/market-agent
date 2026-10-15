@@ -29,6 +29,9 @@ export type Assertion = {
   evidence: ReadonlyArray<string>;
   // An inference's supporting observations and comparisons, by their index in the list.
   supports?: ReadonlyArray<number>;
+  // The company an inference is about, one its evidence covers: across
+  // companies its text names none, so the label names it (#308).
+  subject?: string;
   // A comparison's operation and claimed result (comparisons.ts): the high or
   // low's id, the ids highest first, or a trend's result.
   op?: ComparisonOp;
@@ -133,6 +136,10 @@ export function checkAssertions(
       reject(index, item, "only an analyst inference lists supports");
       continue;
     }
+    if (item.subject !== undefined && kind !== "analyst_inference") {
+      reject(index, item, "only an analyst inference has a subject");
+      continue;
+    }
     if ((item.op !== undefined || item.result !== undefined) && kind !== "comparison") {
       reject(index, item, "only a comparison has an op and a result");
       continue;
@@ -179,7 +186,7 @@ export function checkAssertions(
     // A one-letter ticker ("A") cannot be told from the article, as in the guard.
     if (kind === "analyst_inference" && packet.companies.length > 1 &&
       packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
-      reject(index, item, "an inference names no company; its supports do");
+      reject(index, item, "an inference names no company; its subject does");
       continue;
     }
     const figureIds = evidence.filter((id) => figures.has(id));
@@ -239,6 +246,11 @@ export function checkAssertions(
       reject(index, item, binding);
       continue;
     }
+    if (item.subject !== undefined &&
+      (typeof item.subject !== "string" || !packet.companies.includes(item.subject) || !companiesOf(cited, packet).has(item.subject))) {
+      reject(index, item, "an inference's subject is a company its evidence covers");
+      continue;
+    }
     // A comparison's claimed result is derived from its complete eligible
     // evidence before it may stand (comparisons.ts).
     const comparison = kind === "comparison" ? checkComparison(item, figureIds, packet) : undefined;
@@ -251,7 +263,7 @@ export function checkAssertions(
       kind,
       text: item.text,
       evidence,
-      ...(kind === "analyst_inference" ? { supports } : {}),
+      ...(kind === "analyst_inference" ? { supports, ...(item.subject !== undefined ? { subject: item.subject as string } : {}) } : {}),
       ...(kind === "comparison" ? { op: item.op as ComparisonOp, result: item.result as string | string[] } : {}),
     });
   }
@@ -331,11 +343,19 @@ function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<st
   if (typed !== undefined) return /^(?:FY)?\d{4}$/.test(typed) ? `${typed} is not a period of its evidence` : `types ${typed}; write its reference`;
   // A claim with no company is no company's (its record named none).
   if (claims.some((claim) => claim.company === undefined)) return null;
-  // A figure with no company is the only company's.
-  const own = new Set([...figures.map((figure) => figure.company ?? packet.companies[0]), ...claims.map((claim) => claim.company)]);
+  const own = companiesOf(cited, packet);
   // A one-letter ticker ("A") cannot be told from the article, as in the guard.
   const other = packet.companies.find((company) => company.length > 1 && !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
+}
+
+// The companies cited figures and claims are about; a figure with no company
+// is the only company's.
+function companiesOf(cited: ReadonlyArray<string>, packet: EvidencePacket): Set<string | undefined> {
+  return new Set([
+    ...packet.figures.filter((figure) => cited.includes(figure.id)).map((figure) => figure.company ?? packet.companies[0]),
+    ...packet.claims.filter((claim) => cited.includes(claim.id)).map((claim) => claim.company),
+  ]);
 }
 
 function mentions(text: string, company: string): boolean {

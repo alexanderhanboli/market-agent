@@ -1389,7 +1389,7 @@ test("across companies, an inference names none: its label states what its compa
   );
   assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(1), FACT(3)]);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [3, "an inference names no company; its supports do"],
+    [3, "an inference names no company; its subject does"],
   ]);
 
   // The wrong winner, every number right: rejected, and the inference with it.
