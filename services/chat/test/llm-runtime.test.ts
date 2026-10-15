@@ -1501,6 +1501,33 @@ test("an inference goes only when the guard removed every assertion it rests on 
   ]);
 });
 
+test("an inference goes when the guard removed every support that covered its subject (#308 review)", async () => {
+  const blocks = [{ ...RENDER_BLOCKS[0]!, metrics: ["Revenue", "Margin, halved"] }];
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: blocks,
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "AMD's margin was [[F4]].", evidence: ["F4"] },
+      { kind: "observation", text: "NVDA's revenue was [[F1]].", evidence: ["F1"] },
+      { kind: "observation", text: "AMD's revenue was [[F3]].", evidence: ["F3"] },
+      { kind: "analyst_inference", subject: "AMD", text: "Its margin trails its scale.", evidence: [], supports: [0, 1] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text,
+    "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026)." +
+    "\n\nAMD's revenue was $25.8B in FY2025 (ended Dec 2025).");
+  assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [0, "removed by the narrative guard"],
+    [3, "rests on an observation the narrative guard removed"],
+  ]);
+});
+
 test("with rendering on, a rejected comparison never falls back to the model's prose (#286 review)", async () => {
   // The prose names the wrong winner; its comparison is rejected, nothing else is listed.
   const reply = "AMD has the highest gross margin.\n\n```assertions\n" + JSON.stringify([

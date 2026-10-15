@@ -11,7 +11,7 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { checkAssertions, companiesOf, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { calendarNote, gapText, plainText, renderAssertion } from "./render-assertions.ts";
 import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
@@ -307,9 +307,13 @@ export async function composeAnalystBlocksWithLlm(input: {
       if (drops(rendered[i]!.reference_text, entry.kind).length > 0) guarded.add(entry.index);
     }
     // An inference goes when the guard removed every assertion it rests on:
-    // none of its support is on the page.
+    // none of its support is on the page. So does one whose subject only the
+    // removed ones covered, as its label would name a company nothing shown is about.
+    const uncovered = (assertion: (typeof report.accepted)[number]) => assertion.subject !== undefined &&
+      !companiesOf([...assertion.evidence, ...surviving.filter((entry) => assertion.supports?.includes(entry.index)).flatMap((entry) => entry.evidence)], packet).has(assertion.subject);
     const orphaned = new Set(rendered.filter((entry) =>
-      entry.kind === "analyst_inference" && !guarded.has(entry.index) && entry.supports.every((n) => guarded.has(n))
+      entry.kind === "analyst_inference" && !guarded.has(entry.index) &&
+      (entry.supports.every((n) => guarded.has(n)) || uncovered(report.accepted.find((assertion) => assertion.index === entry.index)!))
     ).map((entry) => entry.index));
     const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index));
     renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({

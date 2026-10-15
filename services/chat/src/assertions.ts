@@ -351,7 +351,7 @@ function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<st
 
 // The companies cited figures and claims are about; a figure with no company
 // is the only company's.
-function companiesOf(cited: ReadonlyArray<string>, packet: EvidencePacket): Set<string | undefined> {
+export function companiesOf(cited: ReadonlyArray<string>, packet: EvidencePacket): Set<string | undefined> {
   return new Set([
     ...packet.figures.filter((figure) => cited.includes(figure.id)).map((figure) => figure.company ?? packet.companies[0]),
     ...packet.claims.filter((claim) => cited.includes(claim.id)).map((claim) => claim.company),
