@@ -12,7 +12,7 @@ import type {
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
-import { calendarNote, plainText, renderAssertion } from "./render-assertions.ts";
+import { calendarNote, gapText, plainText, renderAssertion } from "./render-assertions.ts";
 import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
@@ -350,7 +350,12 @@ export async function composeAnalystBlocksWithLlm(input: {
     // What the rendered assertions cannot say themselves: a compared company
     // with no figures shown, and stale data.
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
-    return rewriteFirstRichTextBlockWith(input.blocks, [...kept.filter((entry) => !repeated.includes(entry.index)), ...otherSides], [
+    // The data gaps kept read as one paragraph, where the first stood.
+    const gaps = report.accepted.filter((assertion) => assertion.kind === "data_gap" && kept.some((entry) => entry.index === assertion.index));
+    const shownEntries = kept
+      .filter((entry) => !repeated.includes(entry.index) && (entry.kind !== "data_gap" || entry.index === gaps[0]!.index))
+      .map((entry) => (entry.kind === "data_gap" ? { ...entry, segments: [{ type: "text" as const, text: gapText(gaps) }] } : entry));
+    return rewriteFirstRichTextBlockWith(input.blocks, [...shownEntries, ...otherSides], [
       ...[calendarNote(keptAssertions, packet)].filter((note) => note !== undefined),
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
       // The claims as selected: more matched than were read, or none could be.

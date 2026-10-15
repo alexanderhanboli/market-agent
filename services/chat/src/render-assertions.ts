@@ -129,7 +129,7 @@ function templateSegments(
       break;
     }
     case "data_gap":
-      text(`**What the data cannot show:** ${assertion.text}`);
+      text(gapText([assertion]));
       break;
   }
   return segments;
@@ -271,6 +271,13 @@ export function calendarNote(assertions: ReadonlyArray<Assertion>, packet: Evide
   return named.length === 0
     ? undefined
     : `The periods compared end in different months, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
+}
+
+// What the data cannot show, under one label: an answer's several gaps read
+// as one paragraph.
+export function gapText(gaps: ReadonlyArray<Pick<Assertion, "text">>): string {
+  const sentences = gaps.map(({ text }) => text.trim()).map((text) => (/[.!?]$/.test(text) ? text : `${text}.`));
+  return `**What the data cannot show:** ${sentences.join(" ")}`;
 }
 
 // The text a rendered assertion reads as, for the narrative guard.
