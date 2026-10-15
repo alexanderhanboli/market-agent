@@ -5,7 +5,9 @@ import type { Element, ElementContent, Root, RootContent } from 'hast'
 
 // Markdown source: text runs are Markdown, elements are embedded inline exactly
 // where they sit between runs and never pass through the parser.
-type MarkdownSource = string | ReadonlyArray<string | ReactElement>
+// An element is interactive (a ref chip) unless wrapped as { inline }: a
+// styled run that may sit inside a link.
+type MarkdownSource = string | ReadonlyArray<string | ReactElement | { inline: ReactElement }>
 
 const EMBED_TAG = 'md-embed'
 
@@ -57,18 +59,19 @@ function embedNode(index: number): Element {
   return { type: 'element', tagName: EMBED_TAG, properties: { index }, children: [] }
 }
 
-const hasEmbed = (node: Element): boolean =>
-  node.children.some((child) => child.type === 'element' && (child.tagName === EMBED_TAG || hasEmbed(child)))
+const hasInteractive = (node: Element, interactive: ReadonlySet<number>): boolean =>
+  node.children.some((child) => child.type === 'element' &&
+    (child.tagName === EMBED_TAG ? interactive.has(Number(child.properties.index)) : hasInteractive(child, interactive)))
 
 // Each placeholder in a text or raw-HTML node becomes its embed, in document
 // order. A link around an embed is unwrapped: a chip is a button, and a button
 // inside a link is invalid and would sit under a target the text chose.
-function replacePlaceholders(parent: Root | Element, pattern: RegExp, placed: number[]): void {
+function replacePlaceholders(parent: Root | Element, pattern: RegExp, placed: number[], interactive: ReadonlySet<number>): void {
   const children: Array<RootContent> = []
   for (const child of parent.children as Array<RootContent | { type: 'raw'; value: string }>) {
     if (child.type === 'element') {
-      replacePlaceholders(child, pattern, placed)
-      if (child.tagName === 'a' && hasEmbed(child)) {
+      replacePlaceholders(child, pattern, placed, interactive)
+      if (child.tagName === 'a' && hasInteractive(child, interactive)) {
         children.push(...(child.children as Array<RootContent>))
         continue
       }
@@ -92,12 +95,12 @@ function replacePlaceholders(parent: Root | Element, pattern: RegExp, placed: nu
 // Swaps each placeholder for its embed. If the text moved, dropped or doubled
 // one (it swallowed it into a link URL, say), the block renders as its parts in
 // order, text unparsed, so every chip stays where its sentence put it.
-function rehypeEmbeds(token: string, parts: ReadonlyArray<string | number>) {
+function rehypeEmbeds(token: string, parts: ReadonlyArray<string | number>, interactive: ReadonlySet<number>) {
   const pattern = new RegExp(`${token}(\\d+)x`)
   const count = parts.filter((part) => typeof part === 'number').length
   return () => (tree: Root) => {
     const placed: number[] = []
-    replacePlaceholders(tree, pattern, placed)
+    replacePlaceholders(tree, pattern, placed, interactive)
     if (placed.length === count && placed.every((index, i) => index === i)) return
     tree.children = [{
       type: 'element',
@@ -114,14 +117,20 @@ export function Markdown({ text }: { text: MarkdownSource }): ReactElement {
   const [token] = useState(newPlaceholderToken)
   const embeds: ReactElement[] = []
   // Text runs as written and embeds by index, for the in-order fallback.
-  const parts = typeof text === 'string' ? [text] : text.map((part) => (typeof part === 'string' ? part : embeds.push(part) - 1))
+  const interactive = new Set<number>()
+  const parts = typeof text === 'string' ? [text] : text.map((part) => {
+    if (typeof part === 'string') return part
+    if ('inline' in part) return embeds.push(part.inline) - 1
+    interactive.add(embeds.length)
+    return embeds.push(part) - 1
+  })
   const source = parts.map((part) => (typeof part === 'number' ? `${token}${part}x` : part)).join('')
   return (
     <div className="text-sm leading-6 text-fg-soft [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
       <EmbedsContext.Provider value={embeds}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={embeds.length > 0 ? [rehypeEmbeds(token, parts)] : []}
+          rehypePlugins={embeds.length > 0 ? [rehypeEmbeds(token, parts, interactive)] : []}
           components={COMPONENTS}
         >
           {source}

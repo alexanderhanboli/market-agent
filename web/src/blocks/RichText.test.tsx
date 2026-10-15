@@ -299,6 +299,18 @@ test('a link written around a chip is unwrapped: no chip sits inside a link', as
   assert.equal(doc.querySelectorAll('a [data-ref-kind]').length, 0)
 })
 
+test('a link whose label holds a toned run keeps its URL: only chips unwrap a link', async () => {
+  const doc = await renderDocument(richTextBlock('rt-tone-link', [
+    { type: 'text', text: '[Change ' },
+    { type: 'text', text: '+12%', tone: 'positive' },
+    { type: 'text', text: '](https://example.com) for ' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
+  ]))
+  const link = doc.querySelector('a')
+  assert.deepEqual([link?.getAttribute('href'), link?.textContent], ['https://example.com', 'Change +12%'])
+  assert.equal(doc.querySelectorAll('a [data-ref-kind]').length, 0)
+})
+
 test('a chip the text swallows into a link URL renders the block in order, text unparsed', async () => {
   const doc = await renderDocument(richTextBlock('rt-url', [
     { type: 'text', text: '**Revenue** [x](https://example.org/' },

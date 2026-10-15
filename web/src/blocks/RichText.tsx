@@ -34,7 +34,7 @@ export function RichText({ block }: RichTextProps): ReactElement {
       )
     }
     if (segment.tone === undefined || segment.tone === 'neutral') return segment.text
-    return <span data-tone={segment.tone} className={TONE_CLASS[segment.tone]}>{segment.text}</span>
+    return { inline: <span data-tone={segment.tone} className={TONE_CLASS[segment.tone]}>{segment.text}</span> }
   })
   return (
     <div
