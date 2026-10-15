@@ -11,6 +11,7 @@
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
+import { REFERENCE } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
@@ -310,7 +311,14 @@ function shapeError(
 // evidence's.
 // ponytail: the metric is not matched; two cited figures with the same value
 // and unit under different metrics are interchangeable here.
-function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
+function bindingError(written: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
+  // A packet reference is checked by membership, never parsed: it is one its
+  // evidence holds, and its digits are no value (prose-refs.ts).
+  for (const [reference, id] of written.matchAll(REFERENCE)) {
+    if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return `unknown reference ${reference}`;
+    if (!cited.includes(id!)) return `${reference} is not in its evidence`;
+  }
+  const text = written.replace(REFERENCE, " ");
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
   // A figure with no company is the only company's; a claim with none is no

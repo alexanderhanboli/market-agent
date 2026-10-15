@@ -14,8 +14,8 @@ const CHECKS: ReadonlyArray<readonly [RejectionCheck, RegExp]> = [
   ["support", /inference binds|rests on/],
   ["gap", /named gap/],
   ["limit", /^more than \d+ assertions$/],
-  ["reference", /^unknown evidence id|twice$|evidence is not a list/],
-  ["binding", /is not a cited figure's value|names no company|which its evidence does not|is not a cited date/],
+  ["reference", /^unknown evidence id|^unknown reference|twice$|evidence is not a list/],
+  ["binding", /is not a cited figure's value|is not in its evidence|names no company|which its evidence does not|is not a cited date/],
   ["kind", /\bcites\b/],
   ["format", /^not an assertion|^unknown kind|^only an? |^supports is not/],
 ];

@@ -11,7 +11,7 @@
 import { linkFigures, type Assertion } from "./assertions.ts";
 import { checkComparison, periodText, type CheckedComparison } from "./comparisons.ts";
 import type { EvidencePacket, PacketFigure } from "./evidence-packet.ts";
-import { createSealer, type Segment } from "./prose-refs.ts";
+import { createSealer, REFERENCE, type Segment } from "./prose-refs.ts";
 
 type Block = Record<string, unknown>;
 
@@ -90,20 +90,30 @@ export function renderAssertion(
       break;
     }
     case "analyst_inference": {
-      // Its numbers are its supports' figures, each a fact ref; one that
-      // binds to no single supported figure leaves it unsealed (not rendered).
+      // Its references (checked to be its evidence's) and its typed numbers
+      // (its supports' figures) each render as a ref; references are blanked
+      // for linking, so their digits are no number. A number that binds to no
+      // single supported figure leaves it unsealed (not rendered).
       text("> **Analyst inference:** ");
-      const links = linkFigures(assertion.text, [...assertion.evidence, ...supported], packet);
+      const links = linkFigures(assertion.text.replace(REFERENCE, (reference) => " ".repeat(reference.length)), [...assertion.evidence, ...supported], packet);
       if (!links) {
         unlinked = true;
         text(assertion.text);
         break;
       }
+      const spans = [
+        ...links.map((link) => ({ at: link.at, length: link.length, id: link.figureId })),
+        ...[...assertion.text.matchAll(REFERENCE)].map((match) => ({ at: match.index, length: match[0].length, id: match[1]! })),
+      ].sort((a, b) => a.at - b.at);
       let from = 0;
-      for (const link of links) {
-        text(assertion.text.slice(from, link.at));
-        segments.push(value(packet.figures.find((figure) => figure.id === link.figureId)!));
-        from = link.at + link.length;
+      for (const span of spans) {
+        text(assertion.text.slice(from, span.at));
+        const figure = packet.figures.find((entry) => entry.id === span.id);
+        const claim = packet.claims.find((entry) => entry.id === span.id);
+        if (figure) segments.push(value(figure));
+        else if (claim) segments.push(quote(claim));
+        else unlinked = true;
+        from = span.at + span.length;
       }
       text(assertion.text.slice(from));
       break;

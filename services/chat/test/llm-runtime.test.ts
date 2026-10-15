@@ -304,6 +304,8 @@ test("the answer is asked for an analyst's view: takeaway, trend, strengths, cou
   assert.match(systemPrompt, /never write the value, not even beside its\s+reference \("\$7\.7B \[\[F3\]\]" is wrong; "\[\[F3\]\]" is right\)/);
   assert.match(systemPrompt, /Write a cited claim's content as \[\[C2\]\], in\s+place of the claim's words, never a paraphrase with \[\[C2\]\] after it/);
   assert.match(systemPrompt, /Never write any other digit, except in a period label \(Q4, FY2026, fiscal\s+2026, a month and year\); write counts in words/);
+  // An assertion's text is checked for its references' membership (assertions.ts).
+  assert.match(systemPrompt, /text restates the assertion in one sentence, written as the answer is: each figure or claim only as its\s+reference from the assertion's evidence/);
   assert.doesNotMatch(systemPrompt, /Quote a figure only exactly as it|never begin it with "Its"/);
   // A magnitude comparison in words is a computation too, and a cause needs data (#228).
   assert.match(systemPrompt, /magnitude comparison between figures is a computation too, even in words/);

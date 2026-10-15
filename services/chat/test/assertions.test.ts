@@ -653,3 +653,22 @@ test("noun forms (drives, pressures, boosts, lifts) are not causes (#294 review)
     assert.deepEqual(checkAssertions([{ kind: "observation", text, evidence: ["F1"] }], packet).rejected, [], text);
   }
 });
+
+test("a packet reference in the text is checked by membership, never read as a number (prose-refs)", () => {
+  const reasons = (text: string, evidence: string[]) => check([{ kind: "observation", text, evidence }]).rejected.map((entry) => entry.reason);
+  assert.deepEqual(reasons("AMD's fiscal 2025 revenue is [[F4]].", ["F4"]), []);
+  assert.deepEqual(reasons("AMD's fiscal 2025 revenue is [[F4]].", ["F3"]), ["[[F4]] is not in its evidence"]);
+  assert.deepEqual(reasons("AMD's fiscal 2025 revenue is [[F9]].", ["F4"]), ["unknown reference [[F9]]"]);
+  // A value typed beside its reference is still read as a number.
+  assert.deepEqual(reasons("AMD's fiscal 2025 revenue is $7.7B [[F4]].", ["F4"]), ["$7.7B is not a cited figure's value"]);
+  // An inference may reference its supports' figures, and only those.
+  const report = check([
+    { kind: "observation", text: "NVDA's FY2026 gross margin was [[F1]].", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "NVDA's [[F1]] margin leaves room to invest.", supports: [0] },
+    { kind: "analyst_inference", text: "AMD's [[F3]] margin trails.", supports: [0] },
+  ]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1]);
+  assert.deepEqual(report.rejected, [{ index: 2, text: "AMD's [[F3]] margin trails.", reason: "[[F3]] is not in its evidence" }]);
+  assert.equal(rejectionCheck("unknown reference [[F9]]"), "reference");
+  assert.equal(rejectionCheck("[[F4]] is not in its evidence"), "binding");
+});
