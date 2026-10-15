@@ -2526,14 +2526,17 @@
         ],
         "op": "highest",
         "result": "F9"
+      },
+      {
+        "index": 8,
+        "kind": "management_attribution",
+        "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
+        "evidence": [
+          "C1"
+        ]
       }
     ],
     "rejected": [
-      {
-        "index": 8,
-        "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
-        "reason": "types $800; write its reference"
-      },
       {
         "index": 9,
         "text": "NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",

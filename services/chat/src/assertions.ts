@@ -15,7 +15,7 @@
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
-import { namesIn, REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
+import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
@@ -298,10 +298,10 @@ function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<st
   }
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
-  // An attribution renders its claim's quote, never its own text, so a name
-  // the claim writes ("MI308") may stand in that text too.
-  const words = kind === "management_attribution" ? new Set([...table.words, ...claims.flatMap((claim) => namesIn(claim.text))]) : table.words;
-  const [typed] = typedDigits(text, { ...table, words, years: yearsOf(figures, claims) });
+  // An attribution renders its claim's quote, never its own text, so what the
+  // claim writes ("MI308", "$800") may stand in that text too.
+  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) })
+    .filter((token) => kind !== "management_attribution" || !claims.some((claim) => claim.text.includes(token)));
   if (typed !== undefined) return /^(?:FY)?\d{4}$/.test(typed) ? `${typed} is not a period of its evidence` : `types ${typed}; write its reference`;
   // A claim with no company is no company's (its record named none).
   if (claims.some((claim) => claim.company === undefined)) return null;

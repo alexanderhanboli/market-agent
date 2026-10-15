@@ -2331,6 +2331,14 @@
         "result": "F9"
       },
       {
+        "index": 5,
+        "kind": "management_attribution",
+        "text": "AMD stated that U.S. export controls on MI308 GPUs caused approximately $800 million in inventory and related charges in Q2 2025.",
+        "evidence": [
+          "C1"
+        ]
+      },
+      {
         "index": 7,
         "kind": "analyst_inference",
         "text": "The one-month offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability.",
@@ -2346,11 +2354,6 @@
         "index": 4,
         "text": "NVDA's revenue, revenue growth, gross margin, and net margin were all higher than AMD's in their respective latest fiscal years.",
         "reason": "comparison: a comparison is of one metric"
-      },
-      {
-        "index": 5,
-        "text": "AMD stated that U.S. export controls on MI308 GPUs caused approximately $800 million in inventory and related charges in Q2 2025.",
-        "reason": "types $800; write its reference"
       },
       {
         "index": 6,

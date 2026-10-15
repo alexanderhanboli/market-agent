@@ -128,14 +128,16 @@ test("a company the text names must be its evidence's (#208)", () => {
   ]);
 });
 
-test("a claim's number is written as its reference, for its company (#208)", () => {
+test("an attribution is its claim's, for its company: the claim's own number may stand in its text, another may not (#208, #301)", () => {
   const report = check([
     { kind: "management_attribution", text: "AMD management expects [[C2]]", evidence: ["C2"] },
     { kind: "management_attribution", text: "NVDA management expects [[C2]]", evidence: ["C2"] },
+    // The page shows C2's quote, never this text; 10% is what C2 writes.
     { kind: "management_attribution", text: "AMD management expects 10% revenue growth.", evidence: ["C2"] },
+    { kind: "management_attribution", text: "AMD management expects 12% revenue growth.", evidence: ["C2"] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [0]);
-  assert.deepEqual(report.rejected.map((entry) => entry.reason), ["names NVDA, which its evidence does not", "types 10%; write its reference"]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 2]);
+  assert.deepEqual(report.rejected.map((entry) => entry.reason), ["names NVDA, which its evidence does not", "types 12%; write its reference"]);
 });
 
 test("a year the text writes is a period of its own evidence, not just of the turn (#221)", () => {
@@ -526,21 +528,24 @@ test("an inference names no period: a period it names could be another company's
   ]);
 });
 
-test("an attribution may name a product its cited claim names; no other assertion may (#301)", () => {
+test("an attribution may write what its cited claim writes, a product or an amount; no other assertion may (#301)", () => {
   const packet: EvidencePacket = { ...PACKET, claims: [
     ...PACKET.claims,
-    { id: "C3", text: "Export controls on our MI308 GPUs led to inventory charges.", predicate: "management.explanation.revenue", stance: "challenging", company: "AMD", claim_id: "c3", source_id: "s3" },
+    { id: "C3", text: "Export controls on our MI308 GPUs led to approximately $800 million in inventory charges.", predicate: "management.explanation.revenue", stance: "challenging", company: "AMD", claim_id: "c3", source_id: "s3" },
   ] };
   const report = checkAssertions([
-    { kind: "management_attribution", text: "AMD said MI308 export controls hurt the quarter: [[C3]]", evidence: ["C3"] },
+    { kind: "management_attribution", text: "AMD said MI308 export controls cost about $800 million: [[C3]]", evidence: ["C3"] },
     // C2 does not name it.
     { kind: "management_attribution", text: "AMD expects MI308 to recover: [[C2]]", evidence: ["C2"] },
     { kind: "observation", text: "AMD's MI308 revenue was [[F4]].", evidence: ["F4"] },
+    // An amount its claim does not write.
+    { kind: "management_attribution", text: "AMD said the controls cost $900 million: [[C3]]", evidence: ["C3"] },
   ], packet);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [0]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [1, "types MI308; write its reference"],
     [2, "types MI308; write its reference"],
+    [3, "types $900; write its reference"],
   ]);
 });
 
