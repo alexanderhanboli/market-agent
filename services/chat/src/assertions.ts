@@ -159,9 +159,14 @@ export function checkAssertions(
       reject(index, item, kind === "data_gap" ? "a data gap writes no figure; it says in words what is not shown" : "an inference rests on its supports; it writes no figure");
       continue;
     }
-    // A data gap may name whose data is missing, across companies too: an
-    // absence ranks no one, so it cannot contradict a checked comparison, and
-    // a metric no reader serves is what it names.
+    // Across companies a gap names none, as an inference: its words could rank
+    // them ("AMD's margin is higher than NVDA's"). Whose data is missing is
+    // the server's gap notes' to say.
+    if (kind === "data_gap" && packet.companies.length > 1 &&
+      packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
+      reject(index, item, "a data gap names no company; the gap notes do");
+      continue;
+    }
     if (kind === "data_gap") {
       const shape = shapeError(kind, evidence, [], []);
       if (shape) reject(index, item, shape);
@@ -260,7 +265,8 @@ export function checkAssertions(
 // a unit with no number ("per dollar of revenue") is not an amount.
 const NUMBER_WORD = String.raw`(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|dozen|few|several|half)`;
 const AMOUNT_UNIT = String.raw`(?:per ?cent|percent(?:age points?)?|basis points?|bps|points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?|thousands?|millions?|billions?|trillions?)`;
-const AMOUNT_WORD = new RegExp(String.raw`\b${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}\b`, "i");
+// "a billion dollars": an article counts as a number only before a scale.
+const AMOUNT_WORD = new RegExp(String.raw`\b(?:${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}|an? (?:hundred|thousand|million|billion|trillion))\b`, "i");
 
 // An inference's supports, when the observations cannot be figure-checked:
 // at least one observation that passed every check it could take.

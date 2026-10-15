@@ -314,7 +314,10 @@ export async function composeAnalystBlocksWithLlm(input: {
       text: plainText(entry.segments),
       reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
-    if (kept.length === 0) return null;
+    // An answer must state something the packet holds: data gaps and
+    // inferences alone are no answer, so the prose (from available_data,
+    // say) stands instead.
+    if (!kept.some((entry) => entry.kind !== "data_gap" && entry.kind !== "analyst_inference")) return null;
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
     // one-sided, so its prose stands instead.

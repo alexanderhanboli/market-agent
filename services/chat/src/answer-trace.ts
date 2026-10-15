@@ -81,7 +81,7 @@ export async function composeTraced(
 export async function replayRecorded(trace: TurnTrace): Promise<TurnTrace> {
   const { exchange } = trace;
   const replayed = await composeTraced(trace.input, {
-    env: exchange === null ? {} : { ...RECORDED_CHANNEL, ...renderingEnv(trace) },
+    env: exchange === null ? renderingEnv(trace) : { ...RECORDED_CHANNEL, ...renderingEnv(trace) },
     createClient: () => async () => ({
       text: exchange?.text ?? "",
       truncated: exchange?.truncated,

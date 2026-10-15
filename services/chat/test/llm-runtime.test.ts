@@ -1034,13 +1034,13 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
 
 test("with rendering on, what the data cannot show renders under one label, with figures shown or claims alone (#301)", async () => {
   const { block, report } = await renderWithReply(withList([
-    { kind: "data_gap", text: "No prior-year margins are shown for AMD, so its trend cannot be judged." },
+    { kind: "data_gap", text: "No prior-year margins are shown, so the trend cannot be judged." },
     { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
     { kind: "data_gap", text: "No segment split is shown" },
   ]));
   assert.equal(
     (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
-    "**What the data cannot show:** No prior-year margins are shown for AMD, so its trend cannot be judged. No segment split is shown." +
+    "**What the data cannot show:** No prior-year margins are shown, so the trend cannot be judged. No segment split is shown." +
       "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).",
   );
   assert.deepEqual([report.rendered, (report.accepted as Array<{ kind: string }>).map((entry) => entry.kind)], [true, ["data_gap", "observation", "data_gap"]]);
@@ -1059,6 +1059,18 @@ test("with rendering on, what the data cannot show renders under one label, with
     (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
     "**What the data cannot show:** Revenue by segment is not shown.\n\nAccording to a source dated Feb 2026: Management raised its outlook.",
   );
+});
+
+test("an answer of data gaps alone is not rendered: the prose answering from available_data stands (#301 B2 review)", async () => {
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "What is A's price?", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [A_TOOL_CALL],
+    factBlocks: [],
+    createClient: () => async () => ({ text: `A's quote is the latest one shown.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "data_gap", text: "No margins are shown." }])}\n\`\`\`` }),
+  });
+  assert.equal((composed[0].segments as Array<{ text: string }>)[0]!.text, "A's quote is the latest one shown.");
 });
 
 test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
