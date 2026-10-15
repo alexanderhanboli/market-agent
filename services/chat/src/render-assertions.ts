@@ -10,7 +10,7 @@
 // ranking or trend its check derived, never the model's wording of it.
 
 import type { Assertion } from "./assertions.ts";
-import { checkComparison, periodText, type CheckedComparison } from "./comparisons.ts";
+import { checkComparison, periodText as quarterText, type CheckedComparison } from "./comparisons.ts";
 import type { EvidencePacket, PacketFigure } from "./evidence-packet.ts";
 import { createSealer, type Sealer, type Segment } from "./prose-refs.ts";
 
@@ -212,13 +212,14 @@ function figureLabel(figure: PacketFigure): string {
 }
 
 // A stored quarter ("Q42026") reads as "Q4 2026", and a window's dates by
-// month and year, never the day; the end month is said, since fiscal
-// calendars differ (#180).
+// month and year, never the day.
+function periodText(period: string): string {
+  return quarterText(period).replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date));
+}
+
+// The end month is said, since fiscal calendars differ (#180).
 function periodPhrase(figure: PacketFigure): string {
-  const period = figure.period
-    ? ` in ${periodText(figure.period).replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date))}`
-    : "";
-  return `${period}${figure.period_end ? ` (ended ${monthYear(figure.period_end)})` : ""}`;
+  return `${figure.period ? ` in ${periodText(figure.period)}` : ""}${figure.period_end ? ` (ended ${monthYear(figure.period_end)})` : ""}`;
 }
 
 function capitalize(text: string): string {

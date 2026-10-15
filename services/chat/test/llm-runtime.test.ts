@@ -1284,6 +1284,30 @@ test("an observation whose value cannot be sealed renders the packet's value as 
   assert.deepEqual(reports[0]!.rejected, []);
 });
 
+test("a ranking of price returns read off their chart renders through the guard (#301)", async () => {
+  const perf = { id: "perf-1", kind: "perf_comparison", title: "Price performance", default_range: "YTD 2026: 2025-12-31 close to 2026-08-31 close", series: [
+    { name: "NVDA", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 5.81 }] }, { name: "AMD", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 3.17 }] },
+  ] };
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD YTD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: [...RENDER_BLOCKS, perf],
+    createClient: () => async () => ({ text: withList([
+      { kind: "comparison", op: "highest", result: "F5", text: "NVDA's price return was highest.", evidence: ["F5", "F6"] },
+      { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text,
+    "Of NVDA and AMD, NVDA's price return was highest: NVDA 5.81%, AMD 3.17% (YTD 2026: Dec 2025 close to Aug 2026 close)." +
+    "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
+  assert.deepEqual(reports[0]!.rejected, []);
+});
+
 test("a labelled inference may state a ranking or direction; it renders beside the checked comparison (#301)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [1] },
