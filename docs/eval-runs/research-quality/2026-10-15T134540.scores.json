@@ -1,0 +1,114 @@
+{
+  "run": "2026-10-15T134540",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers NVDA only. Names Q4 2026 (ended Jan 2026) and the Q1 2025 to Q4 2026 range; with one company there is no mismatch to state. Every figure ($62.1B, 74.4%, 8.9%, 57.9% and so on) is bold and matches the metric_row. The claim that 'sequential acceleration is fading' rests on comparing a quarterly rate (8.9% QoQ) with an annual rate (57.9% YoY), which is apples to oranges, and it ignores the bars that show the actual QoQ path (+22% in Q3 then +8.9%). The 'moderating momentum' point is a counterpoint, but it is built on that flawed comparison and not on the sequential series. No invented numbers, and the gaps (segments, prior-year margins, EPS/FCF, guidance) are stated."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers AMD only. Names all eight quarters in order, each with its end month. All eight margins and the quote are bold and match the operating-margin block. It does not hide the -1.7% Q2 2025 loss ('interrupted by a one-quarter dip into negative territory'), and it ties the dip to the dated Aug 2025 quote about the MI308 export control and about $800M of charges. Specific counterpoint: the last three quarters added 'only a fraction of a point', which may mean a near-term ceiling. No invented numbers, and the pre-window gap is stated."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers NVDA only. Names Q1 2026 (ended Apr 2025). 60.5%, 49.1% and 42.6% are bold and match. It only says 60.5% was the low; the prose never gives the prior-quarter 73.0% or the recovery to 72.4% and then 74.4%, so the 'what changed' is thin. Nothing cuts the other way, for example that the margin recovered the next quarter. It correctly says the data does not show why and invents no cause or numbers."
+    },
+    "cause-in-evidence": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers AMD only. Names Q2 2025 (ended Jun 2025) and the Q3 2024 to Q2 2026 window. -$134.0M, $872.0M, 39.8% and the quote are bold and match. It gives the cause as a quoted, dated source (Aug 2025, MI308 export control, about $800M of charges), not as its own fact, and links the gross-margin low to cost-side charges; calling +3.3% QoQ revenue 'flat' is loose but does not change the point. Specific counterpoint: net income stayed positive at an 11.3% net margin, so below-the-line items offset the operating loss. No invented numbers, and the missing COGS/opex breakdown is stated."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers NVDA and AMD only. States the mismatch: NVDA FY2026 ended Jan 2026 and AMD FY2025 ended Dec 2025. Fundamentals are bold, but the price returns (6.6%, 3.58%) are plain text with no link to a source. It is a list of 'X was highest' lines with no synthesis, and the AMD MI308 quote is pasted in without saying that the charge sits inside AMD's FY2025 margin. The only caveat is the generic 'cannot assess whether the gap is widening or narrowing'. No invented numbers, and gaps are stated."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers all three companies, each with revenue and both margins. States that the fiscal years end in different months (Jan, Dec, Sep; 'up to 4 months apart'). All figures are bold and match the table. The inference that AMD's weakness is below the gross line follows from its gross margin of 49.9% against AAPL's 46.9% and its net margin of 12.0% against 26.9%. It never says AAPL is in a different industry, and the AMD MI308 quote is unexplained noise, so the only caveats are generic data gaps. No invented numbers, and gaps (operating margin, segments, prior year) are stated."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers NVDA and AAPL only. States the mismatch: NVDA's FY2025 ended Jan 2025 and AAPL's ended Sep 2025, eight months apart. All figures are bold and match. The inference that the smaller company converts far more of its revenue to profit follows from 75.0%/55.8% against 46.9%/26.9%. The only thing cutting the other way is that momentum 'cannot be assessed' without NVDA's growth rate, which is a limitation, not a counterpoint. No invented numbers, and the missing NVDA growth rate is stated plainly."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Covers NVDA only. Names Q4 2026 (ended Jan 2026). All five segment figures are bold and match the block. The concentration conclusion follows from Data Center's $55.2B against at most $4.3B for any other segment. Specific risk: reliance on one segment means a slowdown there would hit total revenue disproportionately. No invented numbers, and the missing segment history and segment margins are stated."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Addresses AMD only. Periods: n/a. Figures: n/a. Conclusions: n/a. Counterarguments: n/a. It says plainly that segment revenue is unavailable and gives no segment figure, although 'No figures are shown for AMD' sits awkwardly next to a quote containing '$800 million'."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": "n/a",
+      "figures_match_sources": "n/a",
+      "conclusions_justified": "n/a",
+      "counterarguments": "n/a",
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. Addresses AMD only. Periods: n/a. Figures: n/a. Conclusions: n/a. Counterarguments: n/a. It says FCF is unavailable and explicitly declines to show a substitute figure, so net income is not passed off as FCF."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. NVDA is kept from turn 1, AMD is added in turn 2, and both are covered in turn 3. The YTD window is named ('Dec 2025 close to Aug 2026 close') and the Jan/Dec fiscal-year mismatch is stated. Fundamentals are bold, but the YTD returns (5.81%, 3.17%) are plain text. Turn 3 ('Explain the differences') repeats turn 2 almost word for word and gives no explanation. The AMD MI308 quote is shown as 'evidence' but is never linked to AMD's lower FY2025 margins, leaving only a generic gaps list. No invented numbers, and gaps are stated."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind agent-scored (Claude Opus, saw two anonymised runs A/B, not owner-scored); rendering ON. AAPL is primary and NVDA is added, and nothing else. States the mismatch (Sep 2025 against Jan 2026, 4 months apart). Fundamentals are bold, but the price returns (6.05%, 6.6%) are plain text, and 'nine-month window' overstates a Dec-close to Aug-close span. The inference that the market has not rewarded NVDA's gap follows from 6.05% against 6.6%. That same point is a specific, data-grounded counterpoint to NVDA's fundamental lead. No invented numbers, and gaps are stated."
+    }
+  }
+}

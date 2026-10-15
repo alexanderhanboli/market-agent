@@ -7,10 +7,12 @@
 // ([[F3]], prose-refs.ts) and names only its evidence's periods and companies.
 // An analyst inference writes no figure at all: it says in words what the
 // observations and comparisons it rests on mean, so every figure a rendered
-// answer shows is a template's value from the packet.
+// answer shows is a template's value from the packet. A data gap says in words
+// what the shown data cannot tell, held to the inference's word rule.
 //
-// Shadow: the report goes to evals and logs; the prose shown is unchanged. The
-// controlled rendering from validated assertions is #208's second slice.
+// The report goes to evals and logs; the answer is written from the accepted
+// assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
+// when it is checked in shadow and the guarded prose is shown.
 
 import { checkComparison, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";
@@ -18,7 +20,7 @@ import type { EvidencePacket } from "./evidence-packet.ts";
 import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
-export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
+export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause", "data_gap"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
 
 export type Assertion = {
@@ -120,8 +122,9 @@ export function checkAssertions(
       continue;
     }
     // A malformed list is the model's error to report, never cleaned up. An
-    // inference cites through its supports, so its own evidence may be left out.
-    const listed = item.evidence === undefined && kind === "analyst_inference" ? [] : item.evidence;
+    // inference cites through its supports and a data gap cites nothing, so
+    // their evidence may be left out.
+    const listed = item.evidence === undefined && (kind === "analyst_inference" || kind === "data_gap") ? [] : item.evidence;
     if (!Array.isArray(listed) || !listed.every((id) => typeof id === "string")) {
       reject(index, item, "evidence is not a list of packet ids");
       continue;
@@ -150,9 +153,24 @@ export function checkAssertions(
       continue;
     }
     // An inference writes no digit at all, a period's included: the periods
-    // are its supports', rendered from the packet beside it.
-    if (kind === "analyst_inference" && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
-      reject(index, item, "an inference rests on its supports; it writes no figure");
+    // are its supports', rendered from the packet beside it. A data gap
+    // describes a missing period in words ("no prior-year revenue").
+    if ((kind === "analyst_inference" || kind === "data_gap") && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
+      reject(index, item, kind === "data_gap" ? "a data gap writes no figure; it says in words what is not shown" : "an inference rests on its supports; it writes no figure");
+      continue;
+    }
+    // Across companies a gap names none, as an inference: its words could rank
+    // them ("AMD's margin is higher than NVDA's"). Whose data is missing is
+    // the server's gap notes' to say.
+    if (kind === "data_gap" && packet.companies.length > 1 &&
+      packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
+      reject(index, item, "a data gap names no company; the gap notes do");
+      continue;
+    }
+    if (kind === "data_gap") {
+      const shape = shapeError(kind, evidence, [], []);
+      if (shape) reject(index, item, shape);
+      else accepted.push({ index, kind, text: item.text, evidence });
       continue;
     }
     // Across companies, who leads or trails is its comparisons' checked
@@ -247,7 +265,8 @@ export function checkAssertions(
 // a unit with no number ("per dollar of revenue") is not an amount.
 const NUMBER_WORD = String.raw`(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|dozen|few|several|half)`;
 const AMOUNT_UNIT = String.raw`(?:per ?cent|percent(?:age points?)?|basis points?|bps|points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?|thousands?|millions?|billions?|trillions?)`;
-const AMOUNT_WORD = new RegExp(String.raw`\b${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}\b`, "i");
+// "a billion dollars": an article counts as a number only before a scale.
+const AMOUNT_WORD = new RegExp(String.raw`\b(?:${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}|an? (?:hundred|thousand|million|billion|trillion))\b`, "i");
 
 // An inference's supports, when the observations cannot be figure-checked:
 // at least one observation that passed every check it could take.
@@ -285,6 +304,8 @@ function shapeError(
       return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
     case "analyst_inference":
       return supports.length === 0 ? "an inference binds the accepted observations it rests on" : null;
+    case "data_gap":
+      return figureIds.length > 0 || claimIds.length > 0 ? "a data gap cites nothing; it names what is not shown" : null;
   }
 }
 

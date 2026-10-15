@@ -3,10 +3,11 @@
 // every value and attributed claim a sealed ref segment rather than free text.
 // An observation states only its figures (company, metric, value, period, from
 // the packet); a management attribution quotes its claim, dated; an unknown
-// cause says the figures do not show why; an inference is labelled. The model's
-// own wording survives only in an inference, which the check has bound to the
-// observations it rests on and which writes no figure, so every figure shown
-// is a template's value from the packet. A comparison states the high or low,
+// cause says the figures do not show why; an inference and a data gap are
+// labelled. The model's own wording survives only in those two: an inference
+// the check has bound to the observations it rests on, and a data gap naming
+// what is missing, neither writing a figure, so every figure shown is a
+// template's value from the packet. A comparison states the high or low,
 // ranking or trend its check derived, never the model's wording of it, and an
 // inference resting on comparisons carries their checked results in its label.
 
@@ -127,6 +128,9 @@ function templateSegments(
       text(`> **Analyst inference${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
       break;
     }
+    case "data_gap":
+      text(gapText([assertion]));
+      break;
   }
   return segments;
 }
@@ -243,13 +247,37 @@ function resultClause(comparison: CheckedComparison, owner: (figure: PacketFigur
   return [`${subject} ${moved[comparison.trend!.result]}`];
 }
 
-// Companies whose same-named periods end in different months: said once for
-// the whole answer, whichever observations show them.
-export function calendarsDiffer(figures: ReadonlyArray<PacketFigure>): boolean {
-  return figures.some((a) => figures.some((b) =>
-    a.company !== b.company && a.period !== undefined && a.period === b.period &&
-    a.period_end !== undefined && b.period_end !== undefined && a.period_end.slice(0, 7) !== b.period_end.slice(0, 7)
-  ));
+// Figures set side by side across companies whose periods end in different
+// months: one period name ("FY2026" ending Jan and Dec), or one comparison's
+// members whatever their names (NVDA's FY2026 against AMD's FY2025). Said once
+// for the whole answer, naming each such company's period and its end month.
+export function calendarNote(assertions: ReadonlyArray<Assertion>, packet: EvidencePacket): string | undefined {
+  const shown = assertions.flatMap((assertion) => packet.figures.filter((figure) => assertion.evidence.includes(figure.id)));
+  const compared = assertions.flatMap((assertion) => {
+    if (assertion.kind !== "comparison") return [];
+    const checked = checkComparison(assertion, assertion.evidence, packet);
+    return "comparison" in checked && checked.comparison.axis === "cohort" ? [checked.comparison.figures] : [];
+  });
+  const apart = (a: PacketFigure, b: PacketFigure) =>
+    a.company !== undefined && b.company !== undefined && a.company !== b.company &&
+    a.period_end !== undefined && b.period_end !== undefined && a.period_end.slice(0, 7) !== b.period_end.slice(0, 7);
+  const pairs = [
+    ...shown.flatMap((a) => shown.filter((b) => a.period !== undefined && a.period === b.period && apart(a, b)).map((b) => [a, b])),
+    ...compared.flatMap((members) => members.flatMap((a) => members.filter((b) => apart(a, b)).map((b) => [a, b]))),
+  ];
+  const named = [...new Set(pairs.flat().map((figure) =>
+    `${figure.company}'s ${figure.period ? periodText(figure.period) : "period"} ended ${monthYear(figure.period_end!)}`
+  ))];
+  return named.length === 0
+    ? undefined
+    : `The periods compared end at different times, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
+}
+
+// What the data cannot show, under one label: an answer's several gaps read
+// as one paragraph.
+export function gapText(gaps: ReadonlyArray<Pick<Assertion, "text">>): string {
+  const sentences = gaps.map(({ text }) => text.trim()).map((text) => (/[.!?]$/.test(text) ? text : `${text}.`));
+  return `**What the data cannot show:** ${sentences.join(" ")}`;
 }
 
 // The text a rendered assertion reads as, for the narrative guard.

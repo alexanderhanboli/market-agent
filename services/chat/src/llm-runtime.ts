@@ -12,7 +12,7 @@ import type {
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
-import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
+import { calendarNote, gapText, plainText, renderAssertion } from "./render-assertions.ts";
 import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
@@ -209,7 +209,10 @@ export async function composeAnalystBlocksWithLlm(input: {
           "that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\",",
           "\"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated;",
           "evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each",
-          "figure that changed), or \"analyst_inference\" (what the observations and comparisons mean, in words; the figures are",
+          "figure that changed), \"data_gap\" (what the data shown cannot tell, such as a missing period, metric or segment, or that it does not answer the question, in",
+          "words: no digit, period label or reference (\"no prior-year margins are shown\"); when the answer covers more than one company it",
+          "names no company (the answer's own notes say whose data is missing);",
+          "evidence is omitted, and no supports), or \"analyst_inference\" (what the observations and comparisons mean, in words; the figures are",
           "theirs, so it writes no digit, period label or reference (\"a year earlier\", not FY2025); evidence may be omitted; add \"supports\": the array indexes of the",
           "observations and comparisons it rests on). When the answer covers more than one company, an analyst_inference names no",
           "company, not even in the counterpoint: who leads, trails, rose or fell is shown from the comparisons it rests on, so rest",
@@ -217,10 +220,10 @@ export async function composeAnalystBlocksWithLlm(input: {
           "\"NVDA leads AMD\"), naming a company by its role (\"the leader\", \"the company that took the charge\").",
           "The answer may be shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
           "analyst_inference; then the observations, comparisons and what the data cannot tell about a change, as an",
-          "unknown_cause; and your counterpoint last, as an analyst_inference.",
+          "unknown_cause; then your counterpoint, as an analyst_inference; and last, what else the data shown cannot tell, as a data_gap.",
           "text restates the assertion in one sentence, written as the answer is: each figure or claim only as its",
           "reference from the assertion's evidence ([[F3]], [[C2]]), no other number but a period label of that evidence's",
-          "periods or dates, and only companies its evidence holds; an analyst_inference's text is words only.",
+          "periods or dates, and only companies its evidence holds; an analyst_inference's or data_gap's text is words only.",
           "When evidence_packet has neither figures nor claims, omit the block.",
         ].join(" "),
       },
@@ -275,7 +278,7 @@ export async function composeAnalystBlocksWithLlm(input: {
         ...(rendered && repeated.length > 0 ? { repeated } : {}),
       }
       : report);
-  // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
+  // Controlled rendering (#208), unless CHAT_ASSERTION_RENDERING is off: the answer
   // written from the accepted assertions, with the turn's guard still the
   // backstop on each (its drops reported as narrative removals). Null when
   // there is nothing to render, so the guarded prose stands, as with the flag
@@ -312,7 +315,10 @@ export async function composeAnalystBlocksWithLlm(input: {
       text: plainText(entry.segments),
       reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
-    if (kept.length === 0) return null;
+    // An answer must state something the packet holds: data gaps and
+    // inferences alone are no answer, so the prose (from available_data,
+    // say) stands instead.
+    if (!kept.some((entry) => entry.kind !== "data_gap" && entry.kind !== "analyst_inference")) return null;
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
     // one-sided, so its prose stands instead.
@@ -348,8 +354,13 @@ export async function composeAnalystBlocksWithLlm(input: {
     // What the rendered assertions cannot say themselves: a compared company
     // with no figures shown, and stale data.
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
-    return rewriteFirstRichTextBlockWith(input.blocks, [...kept.filter((entry) => !repeated.includes(entry.index)), ...otherSides], [
-      ...(calendarsDiffer(keptFigures) ? ["The same fiscal year ends in different months for each company, so the periods do not line up."] : []),
+    // The data gaps kept read as one paragraph, where the first stood.
+    const gaps = report.accepted.filter((assertion) => assertion.kind === "data_gap" && kept.some((entry) => entry.index === assertion.index));
+    const shownEntries = kept
+      .filter((entry) => !repeated.includes(entry.index) && (entry.kind !== "data_gap" || entry.index === gaps[0]!.index))
+      .map((entry) => (entry.kind === "data_gap" ? { ...entry, segments: [{ type: "text" as const, text: gapText(gaps) }] } : entry));
+    return rewriteFirstRichTextBlockWith(input.blocks, [...shownEntries, ...otherSides], [
+      ...[calendarNote(keptAssertions, packet)].filter((note) => note !== undefined),
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
       // The claims as selected: more matched than were read, or none could be.
       ...(packet.claims_truncated ? ["More sources matched than are shown here."] : []),
@@ -685,10 +696,10 @@ function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>
   ];
 }
 
-// Off unless turned on (CHAT_ASSERTION_RENDERING=1), until rendered answers
-// are shown to read as well as the prose (#301).
+// On unless turned off (CHAT_ASSERTION_RENDERING=0, false, no or off): an
+// answer is written from its checked assertions (#288).
 export function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
-  return /^(?:1|true|yes|on)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
+  return !/^(?:0|false|no|off)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
 }
 
 function rewriteFirstRichTextBlock(
