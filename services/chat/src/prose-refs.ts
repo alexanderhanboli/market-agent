@@ -37,7 +37,7 @@ export const REFERENCE = /\[\[([FC]\d+)\]\]/g;
 const YEAR = /(?<!\d)\d{4}(?!\d)/g;
 // A run of letters and digits with a digit in it, in any script: what the digit
 // rule judges.
-const DIGIT_WORD = /[\p{L}\p{Nd}]*\p{Nd}[\p{L}\p{Nd}]*/gu;
+const DIGIT_WORD = /[\p{L}\p{N}]*\p{N}[\p{L}\p{N}]*/gu;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray<Block>): ReferenceTable {
@@ -91,18 +91,34 @@ export function displayOf(reference: Reference): string {
 // digit, outside a reference, that is neither a period label (an allowed year,
 // FY and one, Q1-Q4, H1-H2) nor a name the turn's names write. None: the text
 // passes the digit rule.
-export function typedDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words" | "companies">): string[] {
+export function typedDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words" | "companies"> & Partial<Pick<ReferenceTable, "references">>): string[] {
+  // A unit or currency touching a number makes it a figure: "2026%" is no year,
+  // "700%" no company label, "[[F1]]%" a unit its value does not carry.
+  const unitAfter = (rest: string) => /^[%‰×]/u.test(rest);
+  const currencyBefore = (head: string) => /\p{Sc}$/u.test(head);
+  const units = [...text.matchAll(REFERENCE)].flatMap((match) => {
+    const reference = allowed.references?.get(match[1]!);
+    if (!reference) return [];
+    const value = displayOf(reference);
+    const before = text.slice(0, match.index).match(/\p{Sc}$/u)?.[0];
+    const after = text.slice(match.index + match[0].length).match(/^[%‰×]/u)?.[0];
+    return [
+      ...(before && !value.replace(/^[-−]/, "").startsWith(before) ? [`${before}${match[0]}`] : []),
+      ...(after && !value.endsWith(after) ? [`${match[0]}${after}`] : []),
+    ];
+  });
   const bare = allowed.companies.reduce(
-    (masked, company) => masked.replace(new RegExp(`(?<![\\p{L}\\p{Nd}.])${escapeRegExp(company)}(?![\\p{L}\\p{Nd}]|\\.\\p{Nd})`, "gu"), " "),
-    text.replace(REFERENCE, " "),
+    (masked, company) => masked.replace(new RegExp(`(?<![\\p{L}\\p{N}.\\p{Sc}])${escapeRegExp(company)}(?![\\p{L}\\p{N}%‰×]|\\.\\p{N})`, "gu"), " "),
+    text.replace(REFERENCE, (reference) => " ".repeat(reference.length)),
   );
-  const typed = [...bare.matchAll(DIGIT_WORD)].filter(([word]) =>
+  const typed = [...bare.matchAll(DIGIT_WORD)].filter(({ 0: word, index }) =>
+    unitAfter(bare.slice(index + word.length)) || currencyBefore(bare.slice(0, index)) ||
     !(PERIOD_SHAPE.test(word)
       ? allowed.years.has(word) || /^(?:Q[1-4]|H[12])$/.test(word) || allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "")
       : allowed.words.has(word))
   ).map((match) => `${/\S*$/.exec(bare.slice(0, match.index))![0]}${/^\S*/.exec(bare.slice(match.index))![0]}`
     .replace(/^[("'“‘]+|[)"'”’.,;:!?]+$/gu, ""));
-  return [...new Set(typed)];
+  return [...new Set([...units, ...typed])];
 }
 
 export type Sealer = {

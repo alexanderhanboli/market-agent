@@ -148,3 +148,19 @@ test("rendered segments read back as prose with references, by fact or claim id"
   ], TABLE);
   assert.equal(prose, "NVDA's revenue was [[F1]] in Q4 2026; [[C1]]12%");
 });
+
+test("a number touching a unit or a currency is a figure: never a period, a company label or a reference's unit", () => {
+  const table = referenceTable({ ...PACKET, companies: ["700", "NVDA"] }, BLOCKS);
+  assert.deepEqual(typedDigits("NVDA's margin of 2026% suggests pricing power.", table), ["2026%"]);
+  assert.deepEqual(typedDigits("Revenue was $2026.", table), ["$2026"]);
+  assert.deepEqual(typedDigits("700's margin of 700% is high.", table), ["700%"]);
+  assert.deepEqual(typedDigits("NVDA's [[F1]]% revenue.", table), ["[[F1]]%"]);
+  assert.deepEqual(typedDigits("NVDA's €[[F1]] revenue.", table), ["€[[F1]]"]);
+  assert.deepEqual(typedDigits("NVDA's [[F2]]% gross margin and $[[F1]] revenue in FY2026.", table), []);
+  assert.deepEqual(typedDigits("700's revenue rose in 2026.", table), []);
+});
+
+test("every numeral is a digit, circled and superscript ones too", () => {
+  assert.deepEqual(typedDigits("NVDA's ②% margin.", TABLE), ["②%"]);
+  assert.deepEqual(typedDigits("Margin of ²%.", TABLE), ["²%."].map((token) => token.replace(/\.$/, "")));
+});
