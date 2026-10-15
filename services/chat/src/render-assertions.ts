@@ -5,26 +5,27 @@
 // the packet); a management attribution quotes its claim, dated; an unknown
 // cause says the figures do not show why; an inference is labelled. The model's
 // own wording survives only in an inference, which the check has bound to the
-// observations it rests on, with every figure a packet reference. A comparison
-// states the high or low, ranking or trend its check derived, never the
-// model's wording of it.
+// observations it rests on and which writes no figure, so every figure shown
+// is a template's value from the packet. A comparison states the high or low,
+// ranking or trend its check derived, never the model's wording of it.
 
 import type { Assertion } from "./assertions.ts";
-import { checkComparison, periodText, type CheckedComparison } from "./comparisons.ts";
+import { checkComparison, periodText as quarterText, type CheckedComparison } from "./comparisons.ts";
 import type { EvidencePacket, PacketFigure } from "./evidence-packet.ts";
-import { createSealer, referenceSegments, referenceTable, type Segment } from "./prose-refs.ts";
+import { createSealer, type Sealer, type Segment } from "./prose-refs.ts";
 
 type Block = Record<string, unknown>;
 
 export type RenderedAssertion = {
   index: number;
+  // A value with no fact to seal (a price return read off its chart) is the
+  // packet's value as plain text, as in the prose.
   segments: ReadonlyArray<Segment>;
+  // The same text with each value its packet reference ([[F3]]), for the guard.
+  reference_text: string;
   // The fact bindings and sources its refs need to seal.
   fact_bindings: ReadonlyArray<Record<string, unknown>>;
   source_refs: ReadonlyArray<string>;
-  // A value had no fact to seal (a price return read off its chart): plain
-  // text, so the assertion is not rendered.
-  unsealed: boolean;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -34,15 +35,26 @@ export function renderAssertion(
   packet: EvidencePacket,
   factBlocks: ReadonlyArray<Block>,
 ): RenderedAssertion {
+  const seal = createSealer(factBlocks);
+  const segments = templateSegments(assertion, packet, seal);
+  const { fact_bindings, source_refs } = seal.sealed();
+  return { index: assertion.index, segments, reference_text: plainText(templateSegments(assertion, packet, AS_REFERENCES)), fact_bindings, source_refs };
+}
+
+const AS_REFERENCES: Writes = {
+  value: (figure) => ({ type: "text", text: `[[${figure.id}]]` }),
+  quote: (claim) => ({ type: "text", text: `[[${claim.id}]]` }),
+};
+
+type Writes = Pick<Sealer, "value" | "quote">;
+
+function templateSegments(assertion: Assertion & { index: number }, packet: EvidencePacket, { value, quote }: Writes): Segment[] {
   const figures = assertion.evidence.flatMap((id) => packet.figures.filter((figure) => figure.id === id));
   const claims = assertion.evidence.flatMap((id) => packet.claims.filter((claim) => claim.id === id));
   const owner = (figure: PacketFigure) => {
     const company = figure.company ?? (packet.companies.length === 1 ? packet.companies[0] : undefined);
     return company ? `${company}'s ` : "";
   };
-  const seal = createSealer(factBlocks);
-  const { value, quote } = seal;
-
   const segments: Segment[] = [];
   const text = (value: string) => segments.push({ type: "text", text: value });
   switch (assertion.kind) {
@@ -87,14 +99,11 @@ export function renderAssertion(
       break;
     }
     case "analyst_inference":
-      // Its references, which the check bound to its evidence, render as the
-      // packet's values; the check rejected any figure it typed itself.
-      text("> **Analyst inference:** ");
-      segments.push(...referenceSegments(assertion.text, referenceTable(packet, factBlocks).references, seal));
+      // Words only: the check rejected any figure or reference in it.
+      text(`> **Analyst inference:** ${assertion.text}`);
       break;
   }
-  const { fact_bindings, source_refs, unsealed } = seal.sealed();
-  return { index: assertion.index, segments, fact_bindings, source_refs, unsealed };
+  return segments;
 }
 
 type Writer = {
@@ -203,13 +212,14 @@ function figureLabel(figure: PacketFigure): string {
 }
 
 // A stored quarter ("Q42026") reads as "Q4 2026", and a window's dates by
-// month and year, never the day; the end month is said, since fiscal
-// calendars differ (#180).
+// month and year, never the day.
+function periodText(period: string): string {
+  return quarterText(period).replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date));
+}
+
+// The end month is said, since fiscal calendars differ (#180).
 function periodPhrase(figure: PacketFigure): string {
-  const period = figure.period
-    ? ` in ${periodText(figure.period).replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date))}`
-    : "";
-  return `${period}${figure.period_end ? ` (ended ${monthYear(figure.period_end)})` : ""}`;
+  return `${figure.period ? ` in ${periodText(figure.period)}` : ""}${figure.period_end ? ` (ended ${monthYear(figure.period_end)})` : ""}`;
 }
 
 function capitalize(text: string): string {

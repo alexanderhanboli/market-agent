@@ -64,21 +64,36 @@ test("each kind cites what it must (#208)", () => {
   assert.deepEqual(report.accepted.map((entry) => entry.index), [3]);
 });
 
-test("an inference binds accepted observations, and writes only their references (#208)", () => {
+test("an inference rests on accepted observations and writes no figure, typed or referenced (#208, #301)", () => {
   const report = check([
     { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1"] },
     { kind: "observation", text: "AMD's gross margin was [[F3]] in FY2025.", evidence: ["F3"] },
+    { kind: "analyst_inference", text: "NVDA prices with more power than AMD.", evidence: [], supports: [0, 1] },
     { kind: "analyst_inference", text: "NVDA's [[F1]] margin outruns AMD's [[F3]].", evidence: [], supports: [0, 1] },
-    { kind: "analyst_inference", text: "NVDA prices with more power.", evidence: [] },
-    { kind: "analyst_inference", text: "NVDA's margin is higher.", evidence: [], supports: [4] },
     { kind: "analyst_inference", text: "NVDA's 80% margin leads.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA prices with more power.", evidence: [] },
+    { kind: "analyst_inference", text: "NVDA's margin is higher.", evidence: [], supports: [2] },
+    { kind: "analyst_inference", text: "NVDA's gross margin rose to seventy percent.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA earns a few billion dollars more.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA leads all three companies shown.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA earns more profit per dollar of revenue.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "AMD's FY2026 performance looks stronger.", evidence: [], supports: [0, 1] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1, 2]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1, 2, 9, 10]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
-    [3, "an inference binds the accepted observations it rests on"],
-    [4, "an inference binds the accepted observations it rests on"],
-    [5, "types 80%; write its reference"],
+    [3, "an inference rests on its supports; it writes no figure"],
+    [4, "an inference rests on its supports; it writes no figure"],
+    [5, "an inference binds the accepted observations it rests on"],
+    [6, "an inference binds the accepted observations it rests on"],
+    [7, "an inference rests on its supports; it writes no figure"],
+    [8, "an inference rests on its supports; it writes no figure"],
+    [11, "an inference rests on its supports; it writes no figure"],
   ]);
+  const quarter = check([
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "The Q4 momentum carries into next year.", evidence: [], supports: [0] },
+  ]);
+  assert.deepEqual(quarter.rejected.map((entry) => [entry.index, entry.reason]), [[1, "an inference rests on its supports; it writes no figure"]]);
 });
 
 test("a figure is written only as its own evidence's reference: the wrong figure, company or id, or a typed value, is rejected (#208)", () => {
@@ -354,17 +369,17 @@ test("a year inside a figure's window is a period of its evidence (#208)", () =>
   assert.deepEqual(checkAssertions([{ kind: "observation", text: "NVDA's YTD price return (Dec 2025 close to Aug 2026 close) was [[F1]].", evidence: ["F1"] }], packet).rejected, []);
 });
 
-test("an inference needs every support it declares accepted (#286 review)", () => {
+test("a support that failed its check is dropped; an inference with none left is rejected (#301)", () => {
   const report = check([
     { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1"] },
     { kind: "observation", text: "NVDA's gross margin was 99% in FY2026.", evidence: ["F1"] },
     { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0, 1] },
-    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [0] },
+    { kind: "analyst_inference", text: "NVDA keeps pricing power.", supports: [1, 9] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.supports ?? null]), [[0, null], [3, [0]]]);
+  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.supports ?? null]), [[0, null], [2, [0]]]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [1, "types 99%; write its reference"],
-    [2, "an inference binds the accepted observations it rests on"],
+    [3, "an inference binds the accepted observations it rests on"],
   ]);
 });
 
@@ -399,7 +414,9 @@ test("each rejection names the check that failed, so binding and comparative fai
     ["Free cash flow is not in the evidence: it is a named gap", "gap"],
     ["more than 12 assertions", "limit"],
     ['unknown kind "guess"', "format"],
-    ["its figure has no fact to seal, so it is not rendered", "rendering"],
+    ["removed by the narrative guard", "rendering"],
+    ["rests on an observation the narrative guard removed", "rendering"],
+    ["an inference rests on its supports; it writes no figure", "binding"],
   ];
   for (const [reason, check] of cases) assert.equal(rejectionCheck(reason), check, reason);
 });
@@ -480,21 +497,31 @@ test("a packet reference in the text is checked by membership, never read as a n
   assert.deepEqual(reasons("AMD's fiscal 2025 revenue is [[F9]].", ["F4"]), ["unknown reference [[F9]]"]);
   // A value typed beside its reference is typed (#302 item 2).
   assert.deepEqual(reasons("AMD's fiscal 2025 revenue is $7.7B [[F4]].", ["F4"]), ["types $7.7B; write its reference"]);
-  // An inference may reference its supports' figures, and only those.
+  // An inference references no figure, not even its supports' (#301).
   const report = check([
     { kind: "observation", text: "NVDA's FY2026 gross margin was [[F1]].", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "NVDA's margin leaves room to invest.", supports: [0] },
     { kind: "analyst_inference", text: "NVDA's [[F1]] margin leaves room to invest.", supports: [0] },
-    { kind: "analyst_inference", text: "AMD's [[F3]] margin trails.", supports: [0] },
+    { kind: "management_attribution", text: "NVDA said [[C1]]", evidence: ["C1"] },
+    { kind: "analyst_inference", text: "NVDA's outlook [[C1]] is credible.", evidence: ["C1"], supports: [0] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1]);
-  assert.deepEqual(report.rejected, [{ index: 2, text: "AMD's [[F3]] margin trails.", reason: "[[F3]] is not in its evidence" }]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1, 3]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [2, "an inference rests on its supports; it writes no figure"],
+    [4, "an inference rests on its supports; it writes no figure"],
+  ]);
 });
 
-test("an inference that types its figure beside its reference is rejected, so it never renders the value twice (#302 item 2)", () => {
+test("an inference names no period: a period it names could be another company's, so its supports' periods render beside it (#301 review)", () => {
   const report = check([
-    { kind: "observation", text: "NVDA's FY2026 gross margin was [[F1]].", evidence: ["F1"] },
-    { kind: "analyst_inference", text: "NVDA's 75.0% [[F1]] margin is a durable edge.", supports: [0] },
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026 and [[F2]] in FY2025.", evidence: ["F1", "F2"] },
+    { kind: "analyst_inference", text: "FY2026 extended a margin edge NVDA already held in FY2025.", supports: [0] },
+    { kind: "analyst_inference", text: "NVDA extended a margin edge it already held a year earlier.", supports: [0] },
+    { kind: "analyst_inference", text: "NVDA's margin has held near 75% for two years.", supports: [0] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [0]);
-  assert.deepEqual(report.rejected, [{ index: 1, text: "NVDA's 75.0% [[F1]] margin is a durable edge.", reason: "types 75.0%; write its reference" }]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 2]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [1, "an inference rests on its supports; it writes no figure"],
+    [3, "an inference rests on its supports; it writes no figure"],
+  ]);
 });

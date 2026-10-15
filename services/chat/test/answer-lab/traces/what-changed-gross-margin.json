@@ -1896,6 +1896,15 @@
         "evidence": [
           "F22"
         ]
+      },
+      {
+        "index": 6,
+        "kind": "analyst_inference",
+        "text": "The margin compression appears to be a cost-side or mix event rather than a demand problem, because revenue continued to grow while margins dropped and then recovered.",
+        "evidence": [],
+        "supports": [
+          2
+        ]
       }
     ],
     "rejected": [
@@ -1920,14 +1929,9 @@
         "reason": "types 49.1%; write its reference"
       },
       {
-        "index": 6,
-        "text": "The margin compression appears to be a cost-side or mix event rather than a demand problem, because revenue continued to grow while margins dropped and then recovered.",
-        "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
         "index": 7,
         "text": "The V-shaped recovery in gross margin suggests the Q1 fiscal 2026 dip was transitory rather than structural.",
-        "reason": "an inference binds the accepted observations it rests on"
+        "reason": "an inference rests on its supports; it writes no figure"
       }
     ]
   },

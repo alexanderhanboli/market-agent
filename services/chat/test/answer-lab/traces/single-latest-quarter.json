@@ -898,6 +898,15 @@
         ],
         "op": "trend",
         "result": "rose_throughout"
+      },
+      {
+        "index": 4,
+        "kind": "analyst_inference",
+        "text": "The large gap between YoY and QoQ growth rates indicates sequential momentum is moderating even though the company is still growing rapidly on a year-over-year basis.",
+        "evidence": [],
+        "supports": [
+          2
+        ]
       }
     ],
     "rejected": [
@@ -917,14 +926,9 @@
         "reason": "types 8.9%; write its reference"
       },
       {
-        "index": 4,
-        "text": "The large gap between YoY and QoQ growth rates indicates sequential momentum is moderating even though the company is still growing rapidly on a year-over-year basis.",
-        "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
         "index": 5,
         "text": "The absolute revenue increase from Q2 to Q3 fiscal 2026 was larger than from Q3 to Q4 fiscal 2026, consistent with decelerating sequential growth on a larger base.",
-        "reason": "an inference binds the accepted observations it rests on"
+        "reason": "an inference rests on its supports; it writes no figure"
       },
       {
         "index": 6,

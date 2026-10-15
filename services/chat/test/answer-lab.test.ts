@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { replayRecorded } from "../src/answer-trace.ts";
-import { readTraces } from "../scripts/answer-lab.ts";
+import { answerText, assertionSummary, readTraces } from "../scripts/answer-lab.ts";
 
 // One live research-quality eval run's turns (scripts/research-quality-eval.ts).
 const TRACES = readTraces([fileURLToPath(new URL("./answer-lab/traces/", import.meta.url))]);
@@ -62,4 +62,31 @@ test("a file without a turn's ids is refused, by name", () => {
   const [first] = TRACES;
   const root = traceFiles({ "handmade.json": { ...first!.trace, thread_id: undefined } });
   assert.throws(() => readTraces([join(root, "handmade.json")]), /handmade\.json is not a turn trace/);
+});
+
+test("a live sample's answer reads as the user sees it: text as written, each ref its displayed value", () => {
+  const blocks = [
+    { kind: "metric_row", items: [] },
+    { kind: "rich_text", segments: [{ type: "text", text: "NVDA's revenue was " }, { type: "ref", ref_kind: "fact", ref_id: "f1", format: "$62.1B" }, { type: "text", text: "." }] },
+    { kind: "rich_text", segments: [{ type: "text", text: "Second block." }] },
+  ];
+  assert.equal(answerText(blocks), "NVDA's revenue was $62.1B.\n\nSecond block.");
+});
+
+test("a live run's summary counts rendered answers, accepted kinds and rejections by reason", () => {
+  const metrics = { figure_refs: 0, plain_numbers: 0, removed: 0, fallback: false, accepted: 0, rejected: 0, output_tokens: 0, latency_ms: 0 };
+  const summary = assertionSummary({
+    results: [
+      { trace: "a", sample: 0, metrics, assertions: { rendered: true, accepted: ["observation", "analyst_inference", "observation"], rejected: ["x", "y"] } },
+      { trace: "b", sample: 0, metrics, assertions: { rendered: false, accepted: ["comparison"], rejected: ["y"] } },
+      { trace: "c", sample: 0, error: "timeout" },
+    ],
+  });
+  assert.equal(summary, [
+    "rendered: 1 of 2 answers",
+    "accepted: 2 observation, 1 analyst_inference, 1 comparison",
+    "rejected:",
+    "    2  y",
+    "    1  x",
+  ].join("\n"));
 });

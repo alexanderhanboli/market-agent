@@ -9,8 +9,9 @@ export type RejectionCheck =
 
 const CHECKS: ReadonlyArray<readonly [RejectionCheck, RegExp]> = [
   ["comparative", /^comparison:/],
-  ["rendering", /no fact to seal|states no ranking|narrative guard|left out of the answer|states no figures/],
+  ["rendering", /narrative guard/],
   ["cause", /states no cause/],
+  ["binding", /writes no figure/],
   ["support", /inference binds|rests on/],
   ["gap", /named gap/],
   ["limit", /^more than \d+ assertions$/],

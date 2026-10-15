@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { checkAssertions } from "../src/assertions.ts";
-import { checkComparison, statesComparison } from "../src/comparisons.ts";
+import { checkComparison } from "../src/comparisons.ts";
 import type { EvidencePacket, PacketFigure } from "../src/evidence-packet.ts";
 
 const packet = (companies: string[], figures: PacketFigure[]): EvidencePacket => ({
@@ -168,16 +168,6 @@ test("an inference may rest on a checked comparison (#208)", () => {
   assert.deepEqual(wrong.accepted, []);
 });
 
-test("comparative wording is recognised so an inference cannot state a ranking or trend unchecked (#208)", () => {
-  for (const text of [
-    "NVDA is the most profitable.", "AMD trails its peers.", "Margins rose every quarter.", "Growth decelerated.",
-    "AMD's margin is lower than NVDA's.", "The lowest point came mid-year.", "Revenue declined.", "NVDA outpaces AMD.",
-  ]) assert.equal(statesComparison(text), true, text);
-  for (const text of ["NVDA has pricing power.", "The data cannot say whether demand is durable.", "Its customers are concentrated."]) {
-    assert.equal(statesComparison(text), false, text);
-  }
-});
-
 test("segments of one company rank as one metric, apart from the company's own revenue (#208)", () => {
   const segments = packet(["NVDA"], [
     fig("R1", "Revenue", "Q42026", "$62.1B", { period_end: "2026-01-25" }),
@@ -199,16 +189,4 @@ test("a comparison needs two distinct facts, however its evidence repeats them (
   // A repeated id is a duplicate reference, caught before the comparison (#221).
   assert.deepEqual(reasons(one, "highest", ["A1", "A1"], "A1"), ['evidence lists "A1" twice']);
   assert.deepEqual(reasons(one, "lowest", ["A1", "A2"], "A1"), ["comparison: a comparison needs two or more distinct figures"]);
-});
-
-test("common direction and ranking words are comparative wording (#286 review)", () => {
-  for (const text of ["Margins expanded.", "Revenue is down.", "AMD surpassed NVDA.", "AMD dominates NVDA.", "Sales were up.", "AMD exceeds NVDA on growth.", "The gap widened."]) {
-    assert.equal(statesComparison(text), true, text);
-  }
-});
-
-test("past-tense and other inflected comparative wording is recognised (#286 review)", () => {
-  for (const text of ["AMD led NVDA.", "Margins gained ground.", "Revenue slipped.", "AMD topped NVDA.", "AMD lagged.", "Growth slowed.", "Margins fell back."]) {
-    assert.equal(statesComparison(text), true, text);
-  }
 });

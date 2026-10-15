@@ -19,7 +19,7 @@
 
 import type { RejectionCheck } from "../../src/assertions.ts";
 
-export const HOLDOUT_VERSION = 2;
+export const HOLDOUT_VERSION = 3;
 
 type Assertion = Record<string, unknown>;
 
@@ -60,6 +60,7 @@ export type HoldoutCase = {
 
 const obs = (text: string, evidence: string[]): Assertion => ({ kind: "observation", text, evidence });
 const cmp = (op: string, result: unknown, evidence: string[], text = "x"): Assertion => ({ kind: "comparison", op, result, text, evidence });
+const inference = (text: string, supports: number[]): Assertion => ({ kind: "analyst_inference", text, supports });
 
 const AMD_OPERATING_MARGINS = ["F26", "F27", "F28", "F29", "F30", "F31", "F32", "F33"];
 const MI308 = "AMD said [[C1]]";
@@ -167,7 +168,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
   },
   {
     id: "comparison-follow-up-scope",
-    trap: "a follow-up keeps both companies and the sealed YTD window; a conclusion on a narrowed cohort or the wrong winner",
+    trap: "a follow-up keeps both companies and the sealed YTD window; a conclusion on a narrowed cohort or the wrong winner; an inference crediting one company with another's figure",
     turns: ["Analyze NVDA", "Compare it with AMD YTD", "Explain the differences and show the evidence"],
     expect: {
       companies: ["NVDA", "AMD"],
@@ -176,10 +177,24 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
       blocks: [{ kind: "metrics_comparison" }, { kind: "perf_comparison" }],
     },
     prose: "NVDA's gross margin is higher than AMD's.",
-    good: [cmp("highest", "F2", ["F2", "F6"]), obs("NVDA's revenue was [[F1]] in FY2026; AMD's was [[F5]] in FY2025.", ["F1", "F5"])],
+    good: [
+      cmp("highest", "F2", ["F2", "F6"]),
+      obs("NVDA's revenue was [[F1]] in FY2026; AMD's was [[F5]] in FY2025.", ["F1", "F5"]),
+      inference("NVDA's margin lead comes with the larger revenue base.", [0, 1]),
+    ],
     mutations: [
       { name: "narrowed cohort", list: [cmp("highest", "F2", ["F2"])], fails: { index: 0, check: "kind" } },
       { name: "wrong winner", list: [cmp("highest", "F6", ["F2", "F6"])], fails: { index: 0, check: "comparative" } },
+      // F5 is AMD's revenue, cited by the observation the inference rests on (#301).
+      {
+        name: "a reference swapped to another company's figure",
+        list: [
+          cmp("highest", "F2", ["F2", "F6"]),
+          obs("NVDA's revenue was [[F1]] in FY2026; AMD's was [[F5]] in FY2025.", ["F1", "F5"]),
+          inference("NVDA's margin lead comes with [[F5]] of revenue.", [0, 1]),
+        ],
+        fails: { index: 2, check: "binding" },
+      },
     ],
   },
   {

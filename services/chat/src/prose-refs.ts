@@ -132,22 +132,18 @@ export type Sealer = {
   value: (figure: PacketFigure) => Segment;
   // A claim's text: a claim ref when its id is a UUID, otherwise plain text.
   quote: (claim: PacketClaim) => Segment;
-  // What the segments written so far need to seal, and whether any could not.
-  sealed: () => { fact_bindings: ReadonlyArray<Record<string, unknown>>; source_refs: ReadonlyArray<string>; unsealed: boolean };
+  // What the segments written so far need to seal.
+  sealed: () => { fact_bindings: ReadonlyArray<Record<string, unknown>>; source_refs: ReadonlyArray<string> };
 };
 
 export function createSealer(factBlocks: ReadonlyArray<Block>): Sealer {
   const bindings = bindingsByFact(factBlocks);
   const factBindings: Array<Record<string, unknown>> = [];
   const sourceRefs = new Set<string>();
-  let unsealed = false;
   return {
     value: (figure) => {
       const binding = figure.fact_id ? bindings.get(figure.fact_id) : undefined;
-      if (!figure.fact_id || !UUID.test(figure.fact_id) || !binding) {
-        unsealed = true;
-        return { type: "text", text: figure.value };
-      }
+      if (!figure.fact_id || !UUID.test(figure.fact_id) || !binding) return { type: "text", text: figure.value };
       factBindings.push(binding);
       figure.source_ids.forEach((id) => sourceRefs.add(id));
       return { type: "ref", ref_kind: "fact", ref_id: figure.fact_id, format: figure.value };
@@ -157,7 +153,7 @@ export function createSealer(factBlocks: ReadonlyArray<Block>): Sealer {
       sourceRefs.add(claim.source_id);
       return { type: "ref", ref_kind: "claim", ref_id: claim.claim_id, format: claim.text };
     },
-    sealed: () => ({ fact_bindings: factBindings, source_refs: [...sourceRefs], unsealed }),
+    sealed: () => ({ fact_bindings: factBindings, source_refs: [...sourceRefs] }),
   };
 }
 
@@ -213,19 +209,6 @@ export function referenceSegments(text: string, references: ReferenceTable["refe
 // unit typed beside it dropped as proseSegments drops it.
 export function renderedText(text: string, table: ReferenceTable): string {
   return proseSegments(text, table, []).segments.map((segment) => (segment.type === "text" ? segment.text : segment.format)).join("");
-}
-
-// Rendered segments as prose with references, for the guard: each ref its
-// packet id, so a template's own digits ("Q4 2026") read as periods.
-export function referenceText(segments: ReadonlyArray<Segment>, table: ReferenceTable): string {
-  const ids = new Map([...table.references.values()].map((reference) =>
-    [reference.kind === "fact" ? `fact:${reference.figure.fact_id ?? ""}` : `claim:${reference.claim.claim_id}`, reference.id] as const
-  ));
-  return segments.map((segment) => {
-    if (segment.type === "text") return segment.text;
-    const id = ids.get(`${segment.ref_kind}:${segment.ref_id}`);
-    return id === undefined ? segment.format : `[[${id}]]`;
-  }).join("");
 }
 
 function bindingsByFact(blocks: ReadonlyArray<Block>): Map<string, Record<string, unknown>> {

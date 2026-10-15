@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { EvidencePacket } from "../src/evidence-packet.ts";
-import { displayOf, proseSegments, referenceTable, referenceText, typedDigits } from "../src/prose-refs.ts";
+import { displayOf, proseSegments, referenceTable, typedDigits } from "../src/prose-refs.ts";
 
 const NVDA_REVENUE = "a1000000-0000-4000-8000-000000000001";
 const AMD_MARGIN = "a1000000-0000-4000-8000-000000000002";
@@ -136,17 +136,6 @@ test("a unit the model repeats beside a reference is dropped only when the value
 test("a reference the table does not hold stays as written, and text with no reference is one segment", () => {
   assert.deepEqual(proseSegments("See [[F9]] and [[X1]].", TABLE, BLOCKS).segments, [{ type: "text", text: "See [[F9]] and [[X1]]." }]);
   assert.deepEqual(proseSegments("Margins held up.", TABLE, BLOCKS), { segments: [{ type: "text", text: "Margins held up." }], fact_bindings: [], source_refs: [] });
-});
-
-test("rendered segments read back as prose with references, by fact or claim id", () => {
-  const prose = referenceText([
-    { type: "text", text: "NVDA's revenue was " },
-    { type: "ref", ref_kind: "fact", ref_id: NVDA_REVENUE, format: "$209.9B" },
-    { type: "text", text: " in Q4 2026; " },
-    { type: "ref", ref_kind: "claim", ref_id: CLAIM, format: "ignored" },
-    { type: "ref", ref_kind: "fact", ref_id: "unknown", format: "12%" },
-  ], TABLE);
-  assert.equal(prose, "NVDA's revenue was [[F1]] in Q4 2026; [[C1]]12%");
 });
 
 test("a number touching a unit or a currency is a figure: never a period, a company label or a reference's unit", () => {
