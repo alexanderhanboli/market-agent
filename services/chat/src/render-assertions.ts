@@ -247,13 +247,30 @@ function resultClause(comparison: CheckedComparison, owner: (figure: PacketFigur
   return [`${subject} ${moved[comparison.trend!.result]}`];
 }
 
-// Companies whose same-named periods end in different months: said once for
-// the whole answer, whichever observations show them.
-export function calendarsDiffer(figures: ReadonlyArray<PacketFigure>): boolean {
-  return figures.some((a) => figures.some((b) =>
-    a.company !== b.company && a.period !== undefined && a.period === b.period &&
-    a.period_end !== undefined && b.period_end !== undefined && a.period_end.slice(0, 7) !== b.period_end.slice(0, 7)
-  ));
+// Figures set side by side across companies whose periods end in different
+// months: one period name ("FY2026" ending Jan and Dec), or one comparison's
+// members whatever their names (NVDA's FY2026 against AMD's FY2025). Said once
+// for the whole answer, naming each such company's period and its end month.
+export function calendarNote(assertions: ReadonlyArray<Assertion>, packet: EvidencePacket): string | undefined {
+  const shown = assertions.flatMap((assertion) => packet.figures.filter((figure) => assertion.evidence.includes(figure.id)));
+  const compared = assertions.flatMap((assertion) => {
+    if (assertion.kind !== "comparison") return [];
+    const checked = checkComparison(assertion, assertion.evidence, packet);
+    return "comparison" in checked && checked.comparison.axis === "cohort" ? [checked.comparison.figures] : [];
+  });
+  const apart = (a: PacketFigure, b: PacketFigure) =>
+    a.company !== undefined && b.company !== undefined && a.company !== b.company &&
+    a.period_end !== undefined && b.period_end !== undefined && a.period_end.slice(0, 7) !== b.period_end.slice(0, 7);
+  const pairs = [
+    ...shown.flatMap((a) => shown.filter((b) => a.period !== undefined && a.period === b.period && apart(a, b)).map((b) => [a, b])),
+    ...compared.flatMap((members) => members.flatMap((a) => members.filter((b) => apart(a, b)).map((b) => [a, b]))),
+  ];
+  const named = [...new Set(pairs.flat().map((figure) =>
+    `${figure.company}'s ${figure.period ? periodText(figure.period) : "period"} ended ${monthYear(figure.period_end!)}`
+  ))];
+  return named.length === 0
+    ? undefined
+    : `The periods compared end in different months, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
 }
 
 // The text a rendered assertion reads as, for the narrative guard.

@@ -12,7 +12,7 @@ import type {
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
-import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
+import { calendarNote, plainText, renderAssertion } from "./render-assertions.ts";
 import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
@@ -351,7 +351,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // with no figures shown, and stale data.
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
     return rewriteFirstRichTextBlockWith(input.blocks, [...kept.filter((entry) => !repeated.includes(entry.index)), ...otherSides], [
-      ...(calendarsDiffer(keptFigures) ? ["The same fiscal year ends in different months for each company, so the periods do not line up."] : []),
+      ...[calendarNote(keptAssertions, packet)].filter((note) => note !== undefined),
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
       // The claims as selected: more matched than were read, or none could be.
       ...(packet.claims_truncated ? ["More sources matched than are shown here."] : []),
