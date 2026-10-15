@@ -47,7 +47,9 @@ const COMPONENTS: Components = {
 // A random per-mount token, so text runs (model-written) cannot spell an
 // embed's placeholder and forge or move one.
 function newPlaceholderToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
+  const bytes = new Uint8Array(8)
+  if (typeof crypto?.getRandomValues === 'function') crypto.getRandomValues(bytes)
+  else bytes.forEach((_, i) => { bytes[i] = Math.floor(Math.random() * 256) })
   return `mdembed${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}i`
 }
 
@@ -55,37 +57,54 @@ function embedNode(index: number): Element {
   return { type: 'element', tagName: EMBED_TAG, properties: { index }, children: [] }
 }
 
-function replacePlaceholders(parent: Root | Element, pattern: RegExp, placed: Set<number>): void {
+const hasEmbed = (node: Element): boolean =>
+  node.children.some((child) => child.type === 'element' && (child.tagName === EMBED_TAG || hasEmbed(child)))
+
+// Each placeholder in a text or raw-HTML node becomes its embed, in document
+// order. A link around an embed is unwrapped: a chip is a button, and a button
+// inside a link is invalid and would sit under a target the text chose.
+function replacePlaceholders(parent: Root | Element, pattern: RegExp, placed: number[]): void {
   const children: Array<RootContent> = []
-  for (const child of parent.children) {
-    if (child.type === 'element') replacePlaceholders(child, pattern, placed)
-    if (child.type !== 'text') {
-      children.push(child)
+  for (const child of parent.children as Array<RootContent | { type: 'raw'; value: string }>) {
+    if (child.type === 'element') {
+      replacePlaceholders(child, pattern, placed)
+      if (child.tagName === 'a' && hasEmbed(child)) {
+        children.push(...(child.children as Array<RootContent>))
+        continue
+      }
+    }
+    if (child.type !== 'text' && child.type !== 'raw') {
+      children.push(child as RootContent)
       continue
     }
     child.value.split(pattern).forEach((piece, i) => {
       if (i % 2 === 1) {
-        placed.add(Number(piece))
+        placed.push(Number(piece))
         children.push(embedNode(Number(piece)))
       } else if (piece !== '') {
-        children.push({ type: 'text', value: piece })
+        children.push({ type: child.type, value: piece } as RootContent)
       }
     })
   }
   parent.children = children as Array<ElementContent>
 }
 
-// Swaps each placeholder left in a text node for its embed. A placeholder the
-// text swallowed (an HTML comment, a link URL) still renders, after the prose.
-function rehypeEmbeds(token: string, count: number) {
+// Swaps each placeholder for its embed. If the text moved, dropped or doubled
+// one (it swallowed it into a link URL, say), the block renders as its parts in
+// order, text unparsed, so every chip stays where its sentence put it.
+function rehypeEmbeds(token: string, parts: ReadonlyArray<string | number>) {
   const pattern = new RegExp(`${token}(\\d+)x`)
+  const count = parts.filter((part) => typeof part === 'number').length
   return () => (tree: Root) => {
-    const placed = new Set<number>()
+    const placed: number[] = []
     replacePlaceholders(tree, pattern, placed)
-    const missing = Array.from({ length: count }, (_, i) => i).filter((i) => !placed.has(i))
-    if (missing.length > 0) {
-      tree.children.push({ type: 'element', tagName: 'p', properties: {}, children: missing.map(embedNode) })
-    }
+    if (placed.length === count && placed.every((index, i) => index === i)) return
+    tree.children = [{
+      type: 'element',
+      tagName: 'p',
+      properties: {},
+      children: parts.map((part) => (typeof part === 'number' ? embedNode(part) : { type: 'text', value: part })),
+    }]
   }
 }
 
@@ -94,15 +113,15 @@ function rehypeEmbeds(token: string, count: number) {
 export function Markdown({ text }: { text: MarkdownSource }): ReactElement {
   const [token] = useState(newPlaceholderToken)
   const embeds: ReactElement[] = []
-  const source = typeof text === 'string'
-    ? text
-    : text.map((part) => (typeof part === 'string' ? part : `${token}${embeds.push(part) - 1}x`)).join('')
+  // Text runs as written and embeds by index, for the in-order fallback.
+  const parts = typeof text === 'string' ? [text] : text.map((part) => (typeof part === 'string' ? part : embeds.push(part) - 1))
+  const source = parts.map((part) => (typeof part === 'number' ? `${token}${part}x` : part)).join('')
   return (
     <div className="text-sm leading-6 text-fg-soft [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
       <EmbedsContext.Provider value={embeds}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={embeds.length > 0 ? [rehypeEmbeds(token, embeds.length)] : []}
+          rehypePlugins={embeds.length > 0 ? [rehypeEmbeds(token, parts)] : []}
           components={COMPONENTS}
         >
           {source}

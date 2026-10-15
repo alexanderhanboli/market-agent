@@ -277,6 +277,39 @@ test('text that hides a ref inside an HTML comment cannot remove the chip', asyn
   assert.deepEqual(refAttrs(doc), [['block-rich-text-rt-hide-ref-1', 'fact', FACT_A, 'placeholder', '$12.6B']])
 })
 
+test('an HTML comment in the text keeps every chip in its place and leaks no placeholder', async () => {
+  const doc = await renderDocument(richTextBlock('rt-order', [
+    { type: 'text', text: 'Revenue <!-- ' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
+    { type: 'text', text: ' -->; margin ' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_B, format: '55.8%' },
+  ]))
+  assert.deepEqual(refAttrs(doc).map((attrs) => attrs[2]), [FACT_A, FACT_B])
+  assert.doesNotMatch(doc.body.textContent ?? '', /mdembed/)
+})
+
+test('a link written around a chip is unwrapped: no chip sits inside a link', async () => {
+  const doc = await renderDocument(richTextBlock('rt-link', [
+    { type: 'text', text: 'See [' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
+    { type: 'text', text: '](https://example.org) and https://www.sec.gov ' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_B, format: '55.8%' },
+  ]))
+  assert.deepEqual(refAttrs(doc).map((attrs) => attrs[2]), [FACT_A, FACT_B])
+  assert.equal(doc.querySelectorAll('a [data-ref-kind]').length, 0)
+})
+
+test('a chip the text swallows into a link URL renders the block in order, text unparsed', async () => {
+  const doc = await renderDocument(richTextBlock('rt-url', [
+    { type: 'text', text: '**Revenue** [x](https://example.org/' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
+    { type: 'text', text: ') then ' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_B, format: '55.8%' },
+  ]))
+  assert.deepEqual(refAttrs(doc).map((attrs) => attrs[2]), [FACT_A, FACT_B])
+  assert.equal(doc.querySelector('p')?.textContent, '**Revenue** [x](https://example.org/$12.6B) then 55.8%')
+})
+
 test('a toned run inside cited Markdown keeps its tone and is not parsed as Markdown', async () => {
   const doc = await renderDocument(richTextBlock('rt-tone', [
     { type: 'text', text: '**Data Center** grew ' },
