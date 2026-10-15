@@ -573,3 +573,28 @@ test("across companies an inference names no company, whichever it would credit;
   ], { ...PACKET, companies: ["NVDA"] });
   assert.deepEqual(single.rejected, []);
 });
+
+test("what the data cannot show is a data gap: words only, citing nothing, and it may name whose data is missing (#301)", () => {
+  const report = checkAssertions([
+    { kind: "data_gap", text: "No prior-year margins are shown for AMD, so its trend cannot be judged." },
+    // A metric no reader serves is what a gap names.
+    { kind: "data_gap", text: "Free cash flow is not shown for either company.", evidence: [] },
+    { kind: "data_gap", text: "No FY2024 revenue is shown." },
+    { kind: "data_gap", text: "Revenue before [[F4]] is not shown." },
+    { kind: "data_gap", text: "No margin under fifty percent is shown." },
+    { kind: "data_gap", text: "AMD's revenue is not split by segment.", evidence: ["F4"] },
+    { kind: "data_gap", text: "No segment split is shown.", supports: [0] },
+  ], { ...PACKET, unavailable_metrics: ["Free cash flow"] });
+  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.kind, entry.evidence]), [[0, "data_gap", []], [1, "data_gap", []]]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [2, "a data gap writes no figure; it says in words what is not shown"],
+    [3, "a data gap writes no figure; it says in words what is not shown"],
+    [4, "a data gap writes no figure; it says in words what is not shown"],
+    [5, "a data gap cites nothing; it names what is not shown"],
+    [6, "only an analyst inference lists supports"],
+  ]);
+  assert.deepEqual(report.rejected.map((entry) => rejectionCheck(entry.reason)), ["binding", "binding", "binding", "kind", "format"]);
+  // With no figures shown, a gap is still checked, never left unchecked.
+  const claimsOnly = checkAssertions([{ kind: "data_gap", text: "No segment revenue is shown for AMD." }], { ...PACKET, figures: [] });
+  assert.deepEqual([claimsOnly.accepted.map((entry) => entry.index), claimsOnly.rejected, claimsOnly.unchecked], [[0], [], undefined]);
+});

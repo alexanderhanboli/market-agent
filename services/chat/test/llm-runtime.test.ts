@@ -1032,6 +1032,33 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
   assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** The leader's margin has doubled.", reason: "removed by the narrative guard" }]);
 });
 
+test("with rendering on, what the data cannot show renders under its label, with figures shown or claims alone (#301)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
+    { kind: "data_gap", text: "No prior-year margins are shown for AMD, so its trend cannot be judged." },
+  ]));
+  assert.equal(
+    (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
+    "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).\n\n**What the data cannot show:** No prior-year margins are shown for AMD, so its trend cannot be judged.",
+  );
+  assert.deepEqual([report.rendered, (report.accepted as Array<{ kind: string }>).map((entry) => entry.kind)], [true, ["observation", "data_gap"]]);
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Break down A's revenue by segment", bundleId: "single_name" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [A_TOOL_CALL],
+    factBlocks: [],
+    createClient: () => async () => ({ text: withList([
+      { kind: "data_gap", text: "Revenue by segment is not shown." },
+      { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
+    ]) }),
+  });
+  assert.equal(
+    (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
+    "**What the data cannot show:** Revenue by segment is not shown.\n\nAccording to a source dated Feb 2026: Management raised its outlook.",
+  );
+});
+
 test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
   const removed: string[][] = [];
   const composed = await composeAnalystBlocksWithLlm({

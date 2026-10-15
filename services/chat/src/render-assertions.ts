@@ -3,10 +3,11 @@
 // every value and attributed claim a sealed ref segment rather than free text.
 // An observation states only its figures (company, metric, value, period, from
 // the packet); a management attribution quotes its claim, dated; an unknown
-// cause says the figures do not show why; an inference is labelled. The model's
-// own wording survives only in an inference, which the check has bound to the
-// observations it rests on and which writes no figure, so every figure shown
-// is a template's value from the packet. A comparison states the high or low,
+// cause says the figures do not show why; an inference and a data gap are
+// labelled. The model's own wording survives only in those two: an inference
+// the check has bound to the observations it rests on, and a data gap naming
+// what is missing, neither writing a figure, so every figure shown is a
+// template's value from the packet. A comparison states the high or low,
 // ranking or trend its check derived, never the model's wording of it, and an
 // inference resting on comparisons carries their checked results in its label.
 
@@ -127,6 +128,9 @@ function templateSegments(
       text(`> **Analyst inference${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
       break;
     }
+    case "data_gap":
+      text(`**What the data cannot show:** ${assertion.text}`);
+      break;
   }
   return segments;
 }

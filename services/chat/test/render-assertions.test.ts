@@ -73,6 +73,12 @@ test("a management attribution quotes its claim, dated and sourced; an unknown c
   assert.equal(plainText(inference.segments), "> **Analyst inference:** NVDA keeps more of each sale.");
 });
 
+test("a data gap is the model's words under its label (#301)", () => {
+  const gap = renderAssertion({ index: 3, kind: "data_gap", text: "No prior-year margins are shown for AMD.", evidence: [] }, PACKET, FACT_BLOCKS);
+  assert.equal(plainText(gap.segments), "**What the data cannot show:** No prior-year margins are shown for AMD.");
+  assert.deepEqual([gap.reference_text, gap.figure_ids, gap.fact_bindings], ["**What the data cannot show:** No prior-year margins are shown for AMD.", [], []]);
+});
+
 test("a stored quarter is written as prose writes it (#208)", () => {
   const quarterly = { ...PACKET, figures: [{ ...PACKET.figures[0]!, metric: "Revenue", period: "Q42026", value: "$57.0B" }] };
   assert.equal(plainText(renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F1"] }, quarterly, FACT_BLOCKS).segments), "NVDA's revenue was $57.0B in Q4 2026.");
