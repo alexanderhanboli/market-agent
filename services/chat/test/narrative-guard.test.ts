@@ -45,6 +45,12 @@ test("a sentence keeps its references when each is in the table; one citing an u
   assert.equal(keepSupportedSentences("Margins were [[C1]] strong.", TABLE, DISPLAYED).text, "");
 });
 
+test("an initialism does not end a sentence: a dropped sentence leaves no fragment behind", () => {
+  const result = keepSupportedSentences("Results were hit by U.S. export rules costing $800 million. Revenue reached [[F1]] in Q4 2026.", TABLE, DISPLAYED);
+  assert.equal(result.text, "Revenue reached [[F1]] in Q4 2026.");
+  assert.deepEqual(result.removed, ["Results were hit by U.S. export rules costing $800 million."]);
+});
+
 test("a digit the model typed itself goes unless it is a period label: an allowed year, or a quarter or half after Q or H", () => {
   for (const kept of [
     "Revenue reached [[F1]] in Q4 2026.",

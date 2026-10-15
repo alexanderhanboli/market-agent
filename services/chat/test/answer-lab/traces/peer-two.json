@@ -2442,6 +2442,37 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVDA FY2026 revenue was [[F1]], gross margin [[F2]], net margin [[F3]], and YoY revenue growth [[F4]].",
+        "evidence": [
+          "F1",
+          "F2",
+          "F3",
+          "F4"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "AMD FY2025 revenue was [[F5]], gross margin [[F6]], net margin [[F7]], and YoY revenue growth [[F8]].",
+        "evidence": [
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "NVDA price return was [[F9]] and AMD price return was [[F10]] over December 2025 to August 2026.",
+        "evidence": [
+          "F9",
+          "F10"
+        ]
+      },
+      {
         "index": 3,
         "kind": "comparison",
         "text": "NVDA's revenue is higher than AMD's.",
@@ -2510,21 +2541,6 @@
       }
     ],
     "rejected": [
-      {
-        "index": 0,
-        "text": "NVDA FY2026 revenue was [[F1]], gross margin [[F2]], net margin [[F3]], and YoY revenue growth [[F4]].",
-        "reason": "1 is not a cited figure's value"
-      },
-      {
-        "index": 1,
-        "text": "AMD FY2025 revenue was [[F5]], gross margin [[F6]], net margin [[F7]], and YoY revenue growth [[F8]].",
-        "reason": "5 is not a cited figure's value"
-      },
-      {
-        "index": 2,
-        "text": "NVDA price return was [[F9]] and AMD price return was [[F10]] over December 2025 to August 2026.",
-        "reason": "9 is not a cited figure's value"
-      },
       {
         "index": 8,
         "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",

@@ -2390,6 +2390,22 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVDA's fiscal 2025 revenue (ended January 2025) is [[F1]].",
+        "evidence": [
+          "F1"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "AAPL's fiscal 2025 revenue (ended September 2025) is [[F4]].",
+        "evidence": [
+          "F4"
+        ]
+      },
+      {
         "index": 2,
         "kind": "comparison",
         "text": "AAPL's fiscal 2025 revenue is higher than NVDA's.",
@@ -2423,6 +2439,14 @@
         "result": "F3"
       },
       {
+        "index": 5,
+        "kind": "observation",
+        "text": "AAPL's fiscal 2025 year-over-year revenue growth is [[F7]].",
+        "evidence": [
+          "F7"
+        ]
+      },
+      {
         "index": 7,
         "kind": "analyst_inference",
         "text": "Despite lower absolute revenue, NVDA's substantially higher margins indicate stronger profitability per dollar of revenue compared to AAPL.",
@@ -2439,33 +2463,26 @@
           3,
           4
         ]
+      },
+      {
+        "index": 8,
+        "kind": "analyst_inference",
+        "text": "The eight-month gap between fiscal year ends limits direct comparability of the two revenue figures.",
+        "evidence": [
+          "F1",
+          "F4"
+        ],
+        "supports": [
+          0,
+          1
+        ]
       }
     ],
     "rejected": [
       {
-        "index": 0,
-        "text": "NVDA's fiscal 2025 revenue (ended January 2025) is [[F1]].",
-        "reason": "1 is not a cited figure's value"
-      },
-      {
-        "index": 1,
-        "text": "AAPL's fiscal 2025 revenue (ended September 2025) is [[F4]].",
-        "reason": "4 is not a cited figure's value"
-      },
-      {
-        "index": 5,
-        "text": "AAPL's fiscal 2025 year-over-year revenue growth is [[F7]].",
-        "reason": "7 is not a cited figure's value"
-      },
-      {
         "index": 6,
         "text": "NVDA's year-over-year revenue growth rate is not shown, so the pace of NVDA's revenue change cannot be assessed.",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
-      },
-      {
-        "index": 8,
-        "text": "The eight-month gap between fiscal year ends limits direct comparability of the two revenue figures.",
-        "reason": "an inference binds the accepted observations it rests on"
       }
     ]
   },

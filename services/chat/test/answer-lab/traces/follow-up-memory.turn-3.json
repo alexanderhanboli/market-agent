@@ -2300,6 +2300,51 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVIDIA FY2026 revenue was [[F1]], AMD FY2025 revenue was [[F5]].",
+        "evidence": [
+          "F1",
+          "F5"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "NVIDIA FY2026 gross margin was [[F2]], AMD FY2025 gross margin was [[F6]].",
+        "evidence": [
+          "F2",
+          "F6"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "NVIDIA FY2026 net margin was [[F3]], AMD FY2025 net margin was [[F7]].",
+        "evidence": [
+          "F3",
+          "F7"
+        ]
+      },
+      {
+        "index": 3,
+        "kind": "observation",
+        "text": "NVIDIA FY2026 YoY revenue growth was [[F4]], AMD FY2025 YoY revenue growth was [[F8]].",
+        "evidence": [
+          "F4",
+          "F8"
+        ]
+      },
+      {
+        "index": 4,
+        "kind": "observation",
+        "text": "NVIDIA YTD 2026 price return was [[F9]], AMD YTD 2026 price return was [[F10]].",
+        "evidence": [
+          "F9",
+          "F10"
+        ]
+      },
+      {
         "index": 5,
         "kind": "comparison",
         "text": "NVIDIA's revenue is higher than AMD's.",
@@ -2356,31 +2401,6 @@
       }
     ],
     "rejected": [
-      {
-        "index": 0,
-        "text": "NVIDIA FY2026 revenue was [[F1]], AMD FY2025 revenue was [[F5]].",
-        "reason": "1 is not a cited figure's value"
-      },
-      {
-        "index": 1,
-        "text": "NVIDIA FY2026 gross margin was [[F2]], AMD FY2025 gross margin was [[F6]].",
-        "reason": "2 is not a cited figure's value"
-      },
-      {
-        "index": 2,
-        "text": "NVIDIA FY2026 net margin was [[F3]], AMD FY2025 net margin was [[F7]].",
-        "reason": "3 is not a cited figure's value"
-      },
-      {
-        "index": 3,
-        "text": "NVIDIA FY2026 YoY revenue growth was [[F4]], AMD FY2025 YoY revenue growth was [[F8]].",
-        "reason": "4 is not a cited figure's value"
-      },
-      {
-        "index": 4,
-        "text": "NVIDIA YTD 2026 price return was [[F9]], AMD YTD 2026 price return was [[F10]].",
-        "reason": "9 is not a cited figure's value"
-      },
       {
         "index": 10,
         "text": "AMD stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in Q2 2025.",

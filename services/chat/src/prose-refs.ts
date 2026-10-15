@@ -24,11 +24,16 @@ export type ReferenceTable = {
   // The four-digit years the prose may write as a period: those of the
   // packet's periods, dates, bounds and cutoff, and of the blocks' titles.
   years: ReadonlySet<string>;
+  // Words that mix letters and digits as the evidence writes them ("MI308",
+  // "FY2026"): a product or label the prose may name, never a figure.
+  words: ReadonlySet<string>;
 };
 
 // The only syntax read out of the model's prose: a packet id in double brackets.
 export const REFERENCE = /\[\[([FC]\d+)\]\]/g;
 const YEAR = /(?<!\d)\d{4}(?!\d)/g;
+// A run of letters and digits with a digit in it: what the digit rule judges.
+const DIGIT_WORD = /[A-Za-z0-9]*\d[A-Za-z0-9]*/g;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray<Block>): ReferenceTable {
@@ -43,7 +48,17 @@ export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray
     ...Object.values(packet.query_bounds),
     ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
   ];
-  return { references, years: new Set(dated.flatMap((text) => text.match(YEAR) ?? [])) };
+  const written = [
+    ...packet.claims.map((claim) => claim.text),
+    ...packet.figures.flatMap((figure) => [figure.metric, figure.segment ?? ""]),
+    ...packet.companies,
+    ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
+  ];
+  return {
+    references,
+    years: new Set(dated.flatMap((text) => text.match(YEAR) ?? [])),
+    words: new Set(written.flatMap((text) => (text.match(DIGIT_WORD) ?? []).filter((word) => /[A-Za-z]/.test(word)))),
+  };
 }
 
 // What a reference reads as: the figure's displayed value or the claim's text.
@@ -51,12 +66,14 @@ export function displayOf(reference: Reference): string {
   return reference.kind === "fact" ? reference.figure.value : reference.claim.text;
 }
 
-// Whether every digit outside a reference is a period label: a year the table
-// allows, or a quarter or half digit right after Q or H.
-export function onlyPeriodDigits(text: string, years: ReadonlySet<string>): boolean {
-  const bare = text.replace(REFERENCE, " ");
-  return [...bare.matchAll(/\d+/g)].every(({ 0: digits, index }) =>
-    years.has(digits) || (digits.length === 1 && /(?:Q(?=[1-4]$)|H(?=[12]$))/.test(bare.slice(index - 1, index) + digits))
+// Whether every word with a digit outside a reference is a period label (an
+// allowed year, FY and one, or Q1-Q4, H1-H2) or a word the evidence writes.
+export function onlyPeriodDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words">): boolean {
+  return (text.replace(REFERENCE, " ").match(DIGIT_WORD) ?? []).every((word) =>
+    allowed.years.has(word) ||
+    /^(?:Q[1-4]|H[12])$/.test(word) ||
+    allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "") ||
+    allowed.words.has(word)
   );
 }
 

@@ -3475,7 +3475,7 @@
   "removed": [
     "**What is strong and weak:** NVDA's gross margin of [[F2]] and net margin of [[F3]] are the highest of the three, reflecting a far more profitable revenue base than either peer.",
     "On gross margin, AMD's [[F6]] is only slightly above AAPL's [[F10]], but AMD's net margin is less than half of AAPL's, indicating heavier operating costs relative to revenue.",
-    "export controls on its MI308 data center GPU, which led to approximately $800 million in inventory and related charges in the quarter ending June 2025 [[C1]].",
+    "Management attributed a headwind to U.S. export controls on its MI308 data center GPU, which led to approximately $800 million in inventory and related charges in the quarter ending June 2025 [[C1]].",
     "AMD's lower net margin relative to its gross margin could reflect elevated R&D or restructuring costs, given the gap between [[F6]] and [[F7]].",
     "NVDA's margin premium could reflect pricing power in data-center GPUs, given the combination of [[F2]] and [[F4]]."
   ],
@@ -3680,7 +3680,7 @@
         },
         {
           "type": "text",
-          "text": ", suggesting AMD is still in a scaling phase. Management attributed a headwind to U.S. That charge likely depressed AMD's net margin for the fiscal year shown.\n\n**What the data cannot tell:** No prior-year revenue or margin figures are shown for any of the three companies, so we cannot assess whether margins expanded or contracted. No segment or product-line breakdown is provided, so we cannot see how much of NVDA's margin advantage comes from data-center mix versus other segments. No quarterly progression is shown, so the trajectory within each fiscal year is unknown."
+          "text": ", suggesting AMD is still in a scaling phase. That charge likely depressed AMD's net margin for the fiscal year shown.\n\n**What the data cannot tell:** No prior-year revenue or margin figures are shown for any of the three companies, so we cannot assess whether margins expanded or contracted. No segment or product-line breakdown is provided, so we cannot see how much of NVDA's margin advantage comes from data-center mix versus other segments. No quarterly progression is shown, so the trajectory within each fiscal year is unknown."
         }
       ]
     }

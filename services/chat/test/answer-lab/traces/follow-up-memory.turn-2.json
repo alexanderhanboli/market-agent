@@ -2289,6 +2289,37 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVDA FY2026 revenue was [[F1]] with YoY growth of [[F4]], gross margin of [[F2]], and net margin of [[F3]].",
+        "evidence": [
+          "F1",
+          "F2",
+          "F3",
+          "F4"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "AMD FY2025 revenue was [[F5]] with YoY growth of [[F8]], gross margin of [[F6]], and net margin of [[F7]].",
+        "evidence": [
+          "F5",
+          "F6",
+          "F7",
+          "F8"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "NVDA YTD 2026 price return was [[F9]] and AMD's was [[F10]], measured from the end of December 2025 to the end of August 2026.",
+        "evidence": [
+          "F9",
+          "F10"
+        ]
+      },
+      {
         "index": 3,
         "kind": "comparison",
         "text": "NVDA's YTD 2026 price return was higher than AMD's.",
@@ -2298,24 +2329,19 @@
         ],
         "op": "highest",
         "result": "F9"
+      },
+      {
+        "index": 7,
+        "kind": "analyst_inference",
+        "text": "The one-month offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability.",
+        "evidence": [],
+        "supports": [
+          0,
+          1
+        ]
       }
     ],
     "rejected": [
-      {
-        "index": 0,
-        "text": "NVDA FY2026 revenue was [[F1]] with YoY growth of [[F4]], gross margin of [[F2]], and net margin of [[F3]].",
-        "reason": "1 is not a cited figure's value"
-      },
-      {
-        "index": 1,
-        "text": "AMD FY2025 revenue was [[F5]] with YoY growth of [[F8]], gross margin of [[F6]], and net margin of [[F7]].",
-        "reason": "5 is not a cited figure's value"
-      },
-      {
-        "index": 2,
-        "text": "NVDA YTD 2026 price return was [[F9]] and AMD's was [[F10]], measured from the end of December 2025 to the end of August 2026.",
-        "reason": "9 is not a cited figure's value"
-      },
       {
         "index": 4,
         "text": "NVDA's revenue, revenue growth, gross margin, and net margin were all higher than AMD's in their respective latest fiscal years.",
@@ -2330,16 +2356,11 @@
         "index": 6,
         "text": "NVIDIA is outperforming AMD both on YTD price return and on every fundamental metric shown, though AMD's results were weighed down by a disclosed export-control charge.",
         "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
-        "index": 7,
-        "text": "The one-month offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability.",
-        "reason": "an inference binds the accepted observations it rests on"
       }
     ]
   },
   "removed": [
-    "export controls on its Instinct MI308 data-center GPU led to roughly $800 million in inventory and related charges in its second quarter [[C1]].",
+    "**Counterpoint:** AMD disclosed in August 2025 that U.S. export controls on its Instinct MI308 data-center GPU led to roughly $800 million in inventory and related charges in its second quarter [[C1]].",
     "AMD's lower net margin could partly reflect the export-control charge disclosed in [[C1]], given that the charge is described as impacting a single quarter's results."
   ],
   "blocks": [
@@ -2523,7 +2544,7 @@
         },
         {
           "type": "text",
-          "text": ". AMD's profitability gap is the most notable weakness—its net margin is far below NVIDIA's, indicating either a less favorable product mix, higher operating costs relative to revenue, or both. Note that the two fiscal years end about one month apart (NVDA's ends in January 2026, AMD's in December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD disclosed in August 2025 that U.S. That one-time hit depresses the fiscal-year margins shown here and may overstate the underlying profitability gap between the two companies.\n\n**What the data cannot tell:** There is no quarterly breakdown, no segment or end-market split, no valuation multiple, no balance-sheet or cash-flow data, and no forward guidance for either company. The data does not show why NVIDIA's margins are so much higher.\n\n> **Unverified hypothesis (medium confidence):** NVIDIA's margin advantage could reflect a higher share of data-center accelerator revenue carrying premium pricing, given its gross margin of "
+          "text": ". AMD's profitability gap is the most notable weakness—its net margin is far below NVIDIA's, indicating either a less favorable product mix, higher operating costs relative to revenue, or both. Note that the two fiscal years end about one month apart (NVDA's ends in January 2026, AMD's in December 2025), so they do not cover identical calendar periods.\n\nThat one-time hit depresses the fiscal-year margins shown here and may overstate the underlying profitability gap between the two companies.\n\n**What the data cannot tell:** There is no quarterly breakdown, no segment or end-market split, no valuation multiple, no balance-sheet or cash-flow data, and no forward guidance for either company. The data does not show why NVIDIA's margins are so much higher.\n\n> **Unverified hypothesis (medium confidence):** NVIDIA's margin advantage could reflect a higher share of data-center accelerator revenue carrying premium pricing, given its gross margin of "
         },
         {
           "type": "ref",

@@ -18,8 +18,10 @@ import { displayOf, onlyPeriodDigits, REFERENCE, type ReferenceTable } from "./p
 
 // The formatter writes no dotted currency prefix (a dotted symbol becomes its
 // ISO code, #150), so every period before whitespace ends a sentence.
-// "vs." abbreviates, it does not end a sentence ("($44.1B vs. $39.3B)", 2026-10-08 eval).
-const SENTENCE_BREAK = /(?<=[.!?])(?<!\b[Vv]s\.)\s+/;
+// "vs." abbreviates, it does not end a sentence ("($44.1B vs. $39.3B)", 2026-10-08 eval),
+// nor does a letter-dot initialism ("U.S."): a sentence cut there and dropped
+// left half of it on the page (2026-10-15 run).
+export const SENTENCE_BREAK = /(?<=[.!?])(?<!\b[Vv]s\.)(?<!\b(?:[A-Z]\.){2,})\s+/;
 // Markdown list markers ("- ", "* ", "1. ", "2) ") and headings ("## Margins",
 // a line that is only "**Margins**"; a bold sentence ending "." is prose).
 export const LIST_MARKER = /^\s*(?:[-*+]|\d{1,2}[.)])\s+/;
@@ -280,7 +282,7 @@ export function keepSupportedSentences(
         return false;
       }
       // Any digit the model typed itself is a period label, or the sentence goes.
-      if (!onlyPeriodDigits(written, table.years)) {
+      if (!onlyPeriodDigits(written, table)) {
         removed.push(written);
         return false;
       }

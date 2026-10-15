@@ -17,7 +17,7 @@ import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions
 import { proseSegments, referenceTable, referenceText, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
-import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, withoutEmptySections } from "./narrative-guard.ts";
+import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
@@ -459,7 +459,7 @@ function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { t
     if (line.trim() === "") return line;
     // A list marker leads the line, not a sentence of it, as in the guard.
     const lead = line.match(LIST_MARKER)?.[0] ?? "";
-    const kept = line.slice(lead.length).split(/(?<=[.!?])\s+(?=\S)/).filter((sentence) => {
+    const kept = line.slice(lead.length).trim().split(SENTENCE_BREAK).filter((sentence) => {
       if (!WORDED_AMOUNT.test(sentence)) return true;
       removed.push(sentence.trim());
       return false;

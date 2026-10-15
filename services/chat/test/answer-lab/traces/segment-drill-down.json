@@ -648,11 +648,43 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "Data Center revenue in Q4 fiscal 2026 was the largest segment at [[F1]].",
+        "evidence": [
+          "F1"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "Gaming revenue in Q4 fiscal 2026 was [[F2]].",
+        "evidence": [
+          "F2"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "OEM & Other revenue in Q4 fiscal 2026 was [[F3]].",
+        "evidence": [
+          "F3"
+        ]
+      },
+      {
         "index": 3,
         "kind": "observation",
         "text": "Professional Visualization revenue in Q4 fiscal 2026 was [[F4]].",
         "evidence": [
           "F4"
+        ]
+      },
+      {
+        "index": 4,
+        "kind": "observation",
+        "text": "Automotive revenue in Q4 fiscal 2026 was [[F5]].",
+        "evidence": [
+          "F5"
         ]
       },
       {
@@ -695,26 +727,6 @@
       }
     ],
     "rejected": [
-      {
-        "index": 0,
-        "text": "Data Center revenue in Q4 fiscal 2026 was the largest segment at [[F1]].",
-        "reason": "1 is not a cited figure's value"
-      },
-      {
-        "index": 1,
-        "text": "Gaming revenue in Q4 fiscal 2026 was [[F2]].",
-        "reason": "2 is not a cited figure's value"
-      },
-      {
-        "index": 2,
-        "text": "OEM & Other revenue in Q4 fiscal 2026 was [[F3]].",
-        "reason": "3 is not a cited figure's value"
-      },
-      {
-        "index": 4,
-        "text": "Automotive revenue in Q4 fiscal 2026 was [[F5]].",
-        "reason": "5 is not a cited figure's value"
-      },
       {
         "index": 8,
         "text": "The data does not show why Data Center revenue is so large relative to the other segments.",

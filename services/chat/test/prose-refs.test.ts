@@ -28,17 +28,21 @@ const PACKET: EvidencePacket = {
   coverage: [],
   gaps: [],
   query_bounds: { claims: "management claims from 2024-09-01 first, published by the 2026-09-01 cutoff" },
-  claims: [{ id: "C1", text: "These restrictions led to approximately $800 million in charges.", predicate: "management.explanation.other", stance: "challenging", company: "AMD", published_at: "2025-08-05T00:00:00.000Z", claim_id: CLAIM, source_id: "s-claim" }],
+  claims: [{ id: "C1", text: "These restrictions on MI308 GPUs led to approximately $800 million in charges.", predicate: "management.explanation.other", stance: "challenging", company: "AMD", published_at: "2025-08-05T00:00:00.000Z", claim_id: CLAIM, source_id: "s-claim" }],
   disagreements: [],
   claims_status: "available",
   claims_truncated: false,
 };
 const TABLE = referenceTable(PACKET, BLOCKS);
 
+test("a word with digits passes only as the evidence writes it", () => {
+  assert.deepEqual([...TABLE.words].sort(), ["FY2025", "FY2026", "MI308"]);
+});
+
 test("the table holds every packet figure and claim by id, and the years of its periods, dates, bounds and titles", () => {
   assert.deepEqual([...TABLE.references.keys()], ["F1", "F2", "F3", "F4", "C1"]);
   assert.equal(displayOf(TABLE.references.get("F1")!), "$209.9B");
-  assert.equal(displayOf(TABLE.references.get("C1")!), "These restrictions led to approximately $800 million in charges.");
+  assert.equal(displayOf(TABLE.references.get("C1")!), "These restrictions on MI308 GPUs led to approximately $800 million in charges.");
   assert.deepEqual([...TABLE.years].sort(), ["2024", "2025", "2026"]);
 });
 
@@ -49,8 +53,9 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
     "Revenue grew over 2025-2026.",
     "The [[C1]] restrictions weighed on Q2.",
     "No digits here.",
+    "Export rules on the MI308 weighed on AMD.",
   ]) {
-    assert.equal(onlyPeriodDigits(kept, TABLE.years), true, kept);
+    assert.equal(onlyPeriodDigits(kept, TABLE), true, kept);
   }
   for (const dropped of [
     "Revenue grew 38% year over year.",
@@ -60,12 +65,14 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
     "Q5 2026 is no quarter.",
     "Results since 2019.",
     "Q42026 is the stored form, not a period label.",
+    "Demand for the H200 rose.",
+    "AMD sold 308 units.",
   ]) {
-    assert.equal(onlyPeriodDigits(dropped, TABLE.years), false, dropped);
+    assert.equal(onlyPeriodDigits(dropped, TABLE), false, dropped);
   }
   // With no years allowed, any year is a digit; a quarter label still passes.
-  assert.equal(onlyPeriodDigits("Revenue in FY2026.", new Set()), false);
-  assert.equal(onlyPeriodDigits("Revenue in Q4.", new Set()), true);
+  assert.equal(onlyPeriodDigits("Revenue in FY2026.", { years: new Set(), words: new Set() }), false);
+  assert.equal(onlyPeriodDigits("Revenue in Q4.", { years: new Set(), words: new Set() }), true);
 });
 
 test("prose converts to segments: a sealed fact ref, a claim ref, and plain text for a figure with no fact to seal", () => {
@@ -76,7 +83,7 @@ test("prose converts to segments: a sealed fact ref, a claim ref, and plain text
     { type: "text", text: " versus AMD's margin of " },
     { type: "ref", ref_kind: "fact", ref_id: AMD_MARGIN, format: "49.9%" },
     { type: "text", text: "; management said: " },
-    { type: "ref", ref_kind: "claim", ref_id: CLAIM, format: "These restrictions led to approximately $800 million in charges." },
+    { type: "ref", ref_kind: "claim", ref_id: CLAIM, format: "These restrictions on MI308 GPUs led to approximately $800 million in charges." },
     { type: "text", text: " Its return was 6.6% and P/E 52.3x." },
   ]);
   assert.deepEqual(converted.fact_bindings.map((entry) => entry.fact_id), [NVDA_REVENUE, AMD_MARGIN]);

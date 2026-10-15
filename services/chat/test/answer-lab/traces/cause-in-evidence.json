@@ -1972,7 +1972,7 @@
     ]
   },
   "removed": [
-    "export-control restrictions on its Instinct MI308 data center GPUs, which management said led to approximately $800 million in inventory and related charges [[C1]].",
+    "**Takeaway:** AMD's operating margin turned negative in Q2 2025 because of U.S. export-control restrictions on its Instinct MI308 data center GPUs, which management said led to approximately $800 million in inventory and related charges [[C1]].",
     "**Trend across all periods shown:** Operating margin held steady in the 10–11% range from Q3 2024 through Q1 2025 [[F25]][[F26]][[F27]], then plunged to [[F28]] in Q2 2025 (period ending June 2025).",
     "Gross margin followed the same pattern: stable near 50% for three quarters [[F17]][[F18]][[F19]], a sharp drop to [[F20]] in Q2 2025, then a rebound to the low-to-mid 50s [[F21]][[F22]][[F23]][[F24]].",
     "The gross margin drop to [[F20]] reflects the inventory charge flowing through cost of goods sold, given that gross margin and operating margin both fell sharply in the same quarter while revenue was stable."
@@ -2108,7 +2108,7 @@
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** AMD's operating margin turned negative in Q2 2025 because of U.S. This is a management attribution published in August 2025.\n\nIt recovered immediately to "
+          "text": "This is a management attribution published in August 2025.\n\nIt recovered immediately to "
         },
         {
           "type": "ref",
