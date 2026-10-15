@@ -1626,3 +1626,24 @@ test("on a named-gap turn a list marker left with no content goes too (#294 revi
   });
   assert.equal((composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join(""), "No written answer is available for this question; try asking again.");
 });
+
+test("an inference resting on a comparison the guard removed keeps its other support, and its label names only that one (#306 review)", async () => {
+  const blocks = [{ ...RENDER_BLOCKS[0]!, metrics: ["Revenue halved", "Gross Margin"] }];
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: blocks,
+    createClient: () => async () => ({ text: withList([
+      { kind: "comparison", op: "highest", result: "F1", text: "x", evidence: ["F1", "F3"] },
+      { kind: "comparison", op: "highest", result: "F2", text: "x", evidence: ["F2", "F4"] },
+      { kind: "analyst_inference", text: "The leader keeps more of each sale.", evidence: [], supports: [0, 1] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.match(text, /> \*\*Analyst inference\*\* \(NVDA highest on gross margin\): The leader keeps more of each sale\./);
+  assert.doesNotMatch(text, /halved/);
+});
