@@ -28,7 +28,7 @@ import {
   type ChatPriorSubjectsLoader,
   type ChatThreadTitleGenerator,
 } from "./coordinator.ts";
-import type { AssertionReport } from "./assertions.ts";
+import { composeTraced, writeTurnTrace, type AnswerTraceInput } from "./answer-trace.ts";
 import { claimSelection } from "./evidence-packet.ts";
 import {
   companyListings,
@@ -47,11 +47,7 @@ import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin, turnNow } from "
 import { listingTimeZones } from "./perf-block.ts";
 import { loadPriorScope, loadPriorSubjects as loadThreadPriorSubjects, loadRecentConversation } from "./thread-context.ts";
 import type { IssuerSubjectRef } from "../../fundamentals/src/subject-ref.ts";
-import {
-  composeAnalystBlocksWithLlm,
-  createLlmThreadTitleModel,
-  type AnswerUsage,
-} from "./llm-runtime.ts";
+import { createLlmThreadTitleModel } from "./llm-runtime.ts";
 import {
   loadStructuredSubjectContext,
   NO_STRUCTURED_REFS,
@@ -236,12 +232,10 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   ]);
   const shownBlocks = await withDerivationSources(pool(), [...incomeBlocks, ...statementBlocks]);
   const factBlocks = [...shownBlocks, ...scopeGapBlocks(scope, shownBlocks, { snapshotId: result.snapshot_id, asOf })];
-  let narrativeRemoved: ReadonlyArray<string> = [];
-  let assertionReport: AssertionReport | undefined;
   let answeredBy: string | undefined;
-  let answerUsage: AnswerUsage | undefined;
-  const llmBlocks = await composeAnalystBlocksWithLlm({
-    context,
+  const answerInput: AnswerTraceInput = {
+    // Only what the answer reads: the turn context also holds callbacks.
+    context: { userIntent: context.userIntent, bundleId: context.bundleId },
     blocks: result.blocks,
     toolCalls,
     factBlocks,
@@ -252,19 +246,25 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     // unlabelled, which is how a later turn knows they were auto-selected.
     scope: await withCompanyLabels(scope, asOf),
     cutoff: asOf,
+  };
+  const answer = await composeTraced(answerInput, {
+    env: process.env,
     onAnswered: (deployment) => {
       answeredBy = deployment;
     },
-    onUsage: (usage) => {
-      answerUsage = usage;
-    },
-    onNarrativeRemoved: (sentences) => {
-      narrativeRemoved = sentences;
-    },
-    onAssertions: (report) => {
-      assertionReport = report;
-    },
   });
+  await writeTurnTrace(process.env.CHAT_TRACE_DIR?.trim(), {
+    version: 1,
+    thread_id: context.threadId,
+    run_id: context.runId,
+    ...(context.turnId ? { turn_id: context.turnId } : {}),
+    question: context.userIntent ?? "",
+    recorded_at: new Date().toISOString(),
+    input: answerInput,
+    ...answer,
+  });
+  const { blocks: llmBlocks, removed: narrativeRemoved, assertions: assertionReport } = answer;
+  const answerUsage = answer.exchange?.usage;
   const normalize = (block: Record<string, unknown>, refs: typeof defaultRefs) =>
     normalizeAssistantBlock(block, {
       snapshotId: result.snapshot_id,

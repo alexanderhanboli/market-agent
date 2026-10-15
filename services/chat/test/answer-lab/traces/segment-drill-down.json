@@ -1,0 +1,730 @@
+{
+  "version": 1,
+  "thread_id": "593100f7-1c26-4ed7-9ce1-ad610cf08de1",
+  "run_id": "529cff25-ceed-4ffc-8b4d-f8097d54328f",
+  "turn_id": "adc338c8-8a1f-4f28-a593-b57c4374f39f",
+  "question": "Break down NVDA's revenue by segment.",
+  "recorded_at": "2026-10-14T16:55:03.746Z",
+  "input": {
+    "context": {
+      "userIntent": "Break down NVDA's revenue by segment.",
+      "bundleId": "single_subject_analysis"
+    },
+    "blocks": [
+      {
+        "id": "d6d1f2ab-ff55-4563-8871-4c8b6af8cc5d",
+        "kind": "rich_text",
+        "snapshot_id": "96806dd7-345b-439a-8259-ebaf2efc35b5",
+        "data_ref": {
+          "kind": "rich_text",
+          "id": "d6d1f2ab-ff55-4563-8871-4c8b6af8cc5d"
+        },
+        "source_refs": [],
+        "as_of": "1970-01-01T00:00:00.000Z",
+        "title": "single_subject_analysis",
+        "segments": [
+          {
+            "type": "text",
+            "text": "Break down NVDA's revenue by segment.. Used get_quote from the single_subject_analysis bundle and produced snapshot-backed research blocks."
+          }
+        ]
+      }
+    ],
+    "toolCalls": [
+      {
+        "tool_call_id": "c08fd07b-3c79-4734-8e3f-5e1751fd1347",
+        "tool_name": "get_quote",
+        "status": "ok",
+        "bundle_id": "single_subject_analysis",
+        "arguments": {
+          "query": "Break down NVDA's revenue by segment.",
+          "subject_ref": {
+            "kind": "listing",
+            "id": "62000000-0000-4000-8000-000000000001"
+          }
+        },
+        "result": {
+          "kind": "local_evidence_tool_result",
+          "status": "ok",
+          "tool_name": "get_quote",
+          "arguments": {
+            "query": "Break down NVDA's revenue by segment.",
+            "subject_ref": {
+              "kind": "listing",
+              "id": "62000000-0000-4000-8000-000000000001"
+            }
+          },
+          "evidence_status": "available",
+          "manifest_contribution": {
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000001"
+              }
+            ],
+            "claim_refs": [],
+            "document_refs": [],
+            "source_ids": []
+          },
+          "structured_context": {
+            "quote": {
+              "listing_id": "62000000-0000-4000-8000-000000000001",
+              "ticker": "NVDA",
+              "provider": "golden_fixture",
+              "price": 178.4,
+              "prev_close": 176.1,
+              "change_abs": 2.3000000000000114,
+              "change_pct": 0.013060760931289106,
+              "session_state": "closed",
+              "delay_class": "eod",
+              "currency": "USD",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "source_id": "00000000-0000-4000-a000-000000000009",
+              "expires_at": "2126-09-01T00:00:00.000Z",
+              "stale": false
+            },
+            "facts": [
+              {
+                "fact_id": "02dd3996-d5c8-49dc-a8f0-122c93babca8",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 148570000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ee1bcd1d-0e42-4096-8c86-cb3dd6d480e0",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 33853000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "ca438679-ee66-4666-b3f3-1198c4a5f8fa",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 41849000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "135cfa5b-ccca-489f-a917-00af512d2209",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 46200000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "42637f5c-d6cf-4a5a-b1ad-ea159deb303e",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 26668000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "379dc1b9-e0fa-4d2f-ac70-2988e20a1bb4",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 26422000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d48808d6-7f1a-46c2-830c-50b528812198",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 112507000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "a8ffd3f4-80e8-4b61-aae1-93f25fd03e7e",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 35400000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "30ecf196-a0af-47ec-a2d2-38da35b87963",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 31910000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6b639d42-31fc-42d9-8ebb-ab7ed7a6115d",
+                "metric_key": "net_income",
+                "display_name": "Net Income",
+                "value_num": 18775000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "d1a1cf3c-83c5-4ca4-914d-7432437d3982",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 28440000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "9cf90468-1af3-466b-9716-7fb0cf02495b",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 36010000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "23f38739-b262-40b5-af8b-29931a4d8bae",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 40300000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "cb59bd4e-da16-42fc-adf8-371222ed64f2",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 21638000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "30a4c061-3d08-4bfe-96ad-63846b42f4fb",
+                "metric_key": "operating_income",
+                "display_name": "Operating Income",
+                "value_num": 126388000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e31d6f1f-9c07-4a15-a5eb-aee13561b3ee",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 209911000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "7c57f46c-7952-4491-8a6a-7b70c9b629e6",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 44062000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6f69c343-4f8b-448e-9337-c398c68ee8cf",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 46743000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q2",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "6e54de8f-6a2b-4a17-9860-58d815710377",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 57006000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "e6aabf62-8cd3-4775-99d7-253e0cdd830a",
+                "metric_key": "revenue",
+                "display_name": "Revenue",
+                "value_num": 62100000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "179b146e-260e-457c-a4a4-b0b407abc44c",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 20406000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q1",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "0bb7d2a2-f43d-4ab4-b432-6cc9070ca577",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 97859000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "FY",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "bac8175e-8520-4a3b-879f-f423005cf7fd",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 28723000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q4",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              },
+              {
+                "fact_id": "65f10839-49ce-42fb-9846-da071c824aef",
+                "metric_key": "gross_profit",
+                "display_name": "Gross Profit",
+                "value_num": 26156000000,
+                "value_text": null,
+                "unit": "currency",
+                "currency": "USD",
+                "scale": 1,
+                "fiscal_year": 2025,
+                "fiscal_period": "Q3",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "source_id": "00000000-0000-4000-a000-000000000001",
+                "coverage_level": "full"
+              }
+            ],
+            "source_ids": [
+              "00000000-0000-4000-a000-000000000001",
+              "00000000-0000-4000-a000-000000000009"
+            ],
+            "fact_recency": {
+              "latest_as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY",
+              "age_days": 0,
+              "stale": false
+            }
+          },
+          "evidence": {
+            "claims": [],
+            "source_ids": [],
+            "document_refs": [],
+            "claim_refs": [],
+            "subject_refs": [
+              {
+                "kind": "listing",
+                "id": "62000000-0000-4000-8000-000000000001"
+              }
+            ],
+            "verifier_sources": [],
+            "verifier_documents": [],
+            "verifier_claims": [],
+            "truncated": false,
+            "contradictions": []
+          }
+        }
+      }
+    ],
+    "factBlocks": [
+      {
+        "id": "e8d1ff57-ccfb-4ded-871e-c7f2e405fa4f",
+        "kind": "metric_row",
+        "snapshot_id": "96806dd7-345b-439a-8259-ebaf2efc35b5",
+        "data_ref": {
+          "kind": "metric_row",
+          "id": "e8d1ff57-ccfb-4ded-871e-c7f2e405fa4f",
+          "params": {
+            "fact_bindings": [
+              {
+                "fact_id": "3d690b87-6ac9-4e41-b87a-69e0e694cce5",
+                "unit": "currency",
+                "period_kind": "fiscal_q",
+                "period_start": "2025-10-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4"
+              },
+              {
+                "fact_id": "b4c987d4-b667-4f19-b382-07b9ff8c92cb",
+                "unit": "currency",
+                "period_kind": "fiscal_q",
+                "period_start": "2025-10-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4"
+              },
+              {
+                "fact_id": "16a325e2-81c5-4074-aa64-9696ab5c7184",
+                "unit": "currency",
+                "period_kind": "fiscal_q",
+                "period_start": "2025-10-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4"
+              },
+              {
+                "fact_id": "e267e94a-8e05-4990-8ca5-6ece67581e7c",
+                "unit": "currency",
+                "period_kind": "fiscal_q",
+                "period_start": "2025-10-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4"
+              },
+              {
+                "fact_id": "bbf2a25d-9d16-4404-8f99-27d3aa6e3a6f",
+                "unit": "currency",
+                "period_kind": "fiscal_q",
+                "period_start": "2025-10-27",
+                "period_end": "2026-01-25",
+                "as_of": "2026-09-01T00:00:00.000Z",
+                "fiscal_year": 2026,
+                "fiscal_period": "Q4"
+              }
+            ]
+          }
+        },
+        "source_refs": [
+          "00000000-0000-4000-a000-000000000001"
+        ],
+        "as_of": "2026-09-01T00:00:00.000Z",
+        "provenance_fact_refs": [
+          "3d690b87-6ac9-4e41-b87a-69e0e694cce5",
+          "b4c987d4-b667-4f19-b382-07b9ff8c92cb",
+          "16a325e2-81c5-4074-aa64-9696ab5c7184",
+          "e267e94a-8e05-4990-8ca5-6ece67581e7c",
+          "bbf2a25d-9d16-4404-8f99-27d3aa6e3a6f"
+        ],
+        "title": "Revenue by segment (Q4 2026)",
+        "items": [
+          {
+            "label": "Data Center",
+            "value_ref": "3d690b87-6ac9-4e41-b87a-69e0e694cce5",
+            "format": "$55.2B"
+          },
+          {
+            "label": "Gaming",
+            "value_ref": "b4c987d4-b667-4f19-b382-07b9ff8c92cb",
+            "format": "$4.3B"
+          },
+          {
+            "label": "OEM & Other",
+            "value_ref": "16a325e2-81c5-4074-aa64-9696ab5c7184",
+            "format": "$1.1B"
+          },
+          {
+            "label": "Professional Visualization",
+            "value_ref": "e267e94a-8e05-4990-8ca5-6ece67581e7c",
+            "format": "$900.0M"
+          },
+          {
+            "label": "Automotive",
+            "value_ref": "bbf2a25d-9d16-4404-8f99-27d3aa6e3a6f",
+            "format": "$650.0M"
+          }
+        ]
+      }
+    ],
+    "subjectLabels": [
+      "NVDA"
+    ],
+    "conversation": [
+      {
+        "role": "user",
+        "text": "Break down NVDA's revenue by segment."
+      }
+    ],
+    "availableData": true,
+    "scope": {
+      "route": "segments",
+      "reads": "segments",
+      "companies": [
+        {
+          "issuer_id": "60000000-0000-4000-8000-000000000001",
+          "label": "NVDA"
+        }
+      ],
+      "peers": false,
+      "segments": true,
+      "margin_trend": false,
+      "margins": false,
+      "metrics": [
+        {
+          "metric_key": "income_statement",
+          "label": "Revenue, profit and margins",
+          "available": true
+        }
+      ],
+      "fiscal_year": null,
+      "fiscal_quarter": null,
+      "price_window": null,
+      "benchmark": false,
+      "income_items": [
+        "revenue"
+      ],
+      "inherited": []
+    },
+    "cutoff": "2026-09-01T00:00:00.000Z"
+  },
+  "assertion_rendering": false,
+  "exchange": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Write a concise investment research answer for the chat user. Answer as a buy-side analyst would, in short plain paragraphs, in this order: (1) the takeaway: your view, answering the question directly; (2) the trend across every period shown, not just the latest, in words; (3) what is strong or weak and why, judged against the other periods or companies shown; (4) one specific counterpoint grounded in the data that cuts against the takeaway; (5) what the data shown cannot tell, such as periods or metrics that are missing; describe a missing period in words (\"no prior-year revenue\"), never by its year or number. If the data shown does not answer the question (the metric or period asked for is not there), say so plainly and briefly instead, and do not analyze other figures in its place. Name context the data itself supports, such as revenue concentrated in one segment, but never add facts, numbers, or events that are not in the tool context, and never state a cause the data does not show (a charge, supply constraints, heavy spending). A cause may be stated only as: a management attribution from a cited claim; a figure's arithmetic share of a change; or, if the data shows none, a plain statement that the data does not show why. A hedge (\"could reflect\") or a disclaimer after the cause does not make it allowed. A plausible explanation the data does not show may appear as at most two hypotheses, each on its own line in exactly this form (never as a list of candidate causes inside a sentence about what the data cannot tell): > **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>. Use only the context provided; do not invent citations or data. The figures shown to the user are listed in evidence_packet.figures, each with the metric and, in a comparison, the company it belongs to. Quote a figure only exactly as it appears there, in a sentence that names its company exactly as given in company (e.g. NVDA): name the company in every sentence that quotes a figure, and never begin it with \"Its\" or \"Their\", and never compute new figures such as growth rates, margins, differences, or ratios. A magnitude comparison between figures is a computation too, even in words (\"roughly double\", \"six times\", \"larger than X's whole revenue\"): never state one in words; quote a displayed figure that gives the magnitude itself, such as a growth rate (two figures side by side do not state one), and otherwise say only the direction (\"higher\", \"faster\", \"larger\") without how much. Name the fiscal period each figure is for (its period, and the month its period_end falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months apart, say so: the same fiscal year covers different months for each company. When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead; a value with a coverage other than full covers only part of its period, so say so. Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one. If evidence_packet.claims_truncated is set, more claims matched than are shown; if claims_status is unavailable, research claims could not be read, so never say there are none. evidence_packet.gaps say what could not be shown, evidence_packet.coverage which companies have no figures, and evidence_packet.query_bounds which periods were looked at: never describe a period outside them as missing. If evidence_packet.staleness flags data as stale (quote.stale, or fact_recency.stale / a large fact_recency.age_days), explicitly note that the figure may be out of date and say how old it is. Return plain text suitable for a rich_text block. After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line: a JSON array of at most 12 objects {\"kind\", \"text\", \"evidence\"}. kind is \"observation\" (what figures show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one comparison per metric; a segment breakdown is one metric, revenue, across segments; evidence lists the F ids of every company, segment or period it covers; add \"op\": \"highest\", \"lowest\", \"order\" or \"trend\", and \"result\": the F id that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\", \"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated; evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array indexes of the observations and comparisons it rests on). The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as an analyst_inference, and what the data cannot tell about a change as an unknown_cause. text restates the assertion in one sentence, with only numbers and companies its evidence holds. When evidence_packet has neither figures nor claims, omit the block."
+      },
+      {
+        "role": "user",
+        "content": "{\"question\":\"Break down NVDA's revenue by segment.\",\"conversation\":[{\"role\":\"user\",\"text\":\"Break down NVDA's revenue by segment.\"}],\"evidence_packet\":{\"route\":\"segments\",\"cutoff\":\"2026-09-01T00:00:00.000Z\",\"figures\":[{\"id\":\"F1\",\"segment\":\"Data Center\",\"metric\":\"Revenue\",\"period\":\"Q42026\",\"period_end\":\"2026-01-25\",\"value\":\"$55.2B\",\"shown_in\":\"Revenue by segment (Q4 2026)\"},{\"id\":\"F2\",\"segment\":\"Gaming\",\"metric\":\"Revenue\",\"period\":\"Q42026\",\"period_end\":\"2026-01-25\",\"value\":\"$4.3B\",\"shown_in\":\"Revenue by segment (Q4 2026)\"},{\"id\":\"F3\",\"segment\":\"OEM & Other\",\"metric\":\"Revenue\",\"period\":\"Q42026\",\"period_end\":\"2026-01-25\",\"value\":\"$1.1B\",\"shown_in\":\"Revenue by segment (Q4 2026)\"},{\"id\":\"F4\",\"segment\":\"Professional Visualization\",\"metric\":\"Revenue\",\"period\":\"Q42026\",\"period_end\":\"2026-01-25\",\"value\":\"$900.0M\",\"shown_in\":\"Revenue by segment (Q4 2026)\"},{\"id\":\"F5\",\"segment\":\"Automotive\",\"metric\":\"Revenue\",\"period\":\"Q42026\",\"period_end\":\"2026-01-25\",\"value\":\"$650.0M\",\"shown_in\":\"Revenue by segment (Q4 2026)\"}],\"coverage\":[{\"company\":\"NVDA\",\"status\":\"shown\"}],\"query_bounds\":{\"periods\":\"latest quarter's segments\",\"claims\":\"management, segment, and guidance claims from 2024-09-01 first, then the most recent others, published by the 2026-09-01 cutoff; a claim repeated by several sources or copies counts once\"},\"staleness\":{\"quote\":[{\"ticker\":\"NVDA\",\"as_of\":\"2026-09-01T00:00:00.000Z\",\"stale\":false}],\"fact_recency\":[{\"latest_as_of\":\"2026-09-01T00:00:00.000Z\",\"fiscal_year\":2026,\"fiscal_period\":\"FY\",\"age_days\":0,\"stale\":false}]}}}"
+      }
+    ],
+    "text": "**Takeaway:** NVDA's revenue is overwhelmingly concentrated in Data Center, which is the dominant segment by a wide margin in Q4 FY2026 (quarter ending January 2026). The remaining four segments are each individually small relative to Data Center.\n\n**Trend:** Only one period is shown, so no trend across quarters or years can be described from this data.\n\n**What is strong and what is weak:** NVDA's Data Center segment at $55.2B is the clear revenue driver. Gaming at $4.3B is the second-largest segment but is far smaller. OEM & Other at $1.1B, Professional Visualization at $900.0M, and Automotive at $650.0M are each modest contributors.\n\n**Counterpoint:** The heavy reliance on a single segment means that any slowdown in Data Center demand would have an outsized impact on total revenue, since no other segment is large enough to offset it.\n\n**What the data cannot tell:** No prior-quarter or prior-year segment revenue is shown, so growth rates, sequential changes, and shifts in segment mix over time cannot be assessed.\n\n```assertions\n[\n  {\"kind\":\"observation\",\"text\":\"NVDA's Data Center segment revenue was $55.2B in Q4 FY2026 (quarter ending January 2026).\",\"evidence\":[\"F1\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA's Gaming segment revenue was $4.3B in Q4 FY2026.\",\"evidence\":[\"F2\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA's OEM & Other segment revenue was $1.1B in Q4 FY2026.\",\"evidence\":[\"F3\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA's Professional Visualization segment revenue was $900.0M in Q4 FY2026.\",\"evidence\":[\"F4\"]},\n  {\"kind\":\"observation\",\"text\":\"NVDA's Automotive segment revenue was $650.0M in Q4 FY2026.\",\"evidence\":[\"F5\"]},\n  {\"kind\":\"comparison\",\"text\":\"Data Center is NVDA's highest-revenue segment in Q4 FY2026, followed by Gaming, OEM & Other, Professional Visualization, and Automotive.\",\"evidence\":[\"F1\",\"F2\",\"F3\",\"F4\",\"F5\"],\"op\":\"order\",\"result\":\"F1\"},\n  {\"kind\":\"analyst_inference\",\"text\":\"NVDA's revenue is heavily concentrated in Data Center, creating single-segment dependency risk.\",\"supports\":[5]},\n  {\"kind\":\"analyst_inference\",\"text\":\"No other segment is large enough to offset a Data Center slowdown, making total revenue sensitive to that segment's trajectory.\",\"supports\":[5]}\n]\n```",
+    "truncated": false,
+    "deployment": "opencode-go/qwen3.8-max",
+    "latency_ms": 20283,
+    "usage": {
+      "input_tokens": 798,
+      "output_tokens": 872,
+      "reasoning_tokens": 273
+    }
+  },
+  "assertions": {
+    "status": "checked",
+    "accepted": [
+      {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVDA's Data Center segment revenue was $55.2B in Q4 FY2026 (quarter ending January 2026).",
+        "evidence": [
+          "F1"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "NVDA's Gaming segment revenue was $4.3B in Q4 FY2026.",
+        "evidence": [
+          "F2"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "NVDA's OEM & Other segment revenue was $1.1B in Q4 FY2026.",
+        "evidence": [
+          "F3"
+        ]
+      },
+      {
+        "index": 3,
+        "kind": "observation",
+        "text": "NVDA's Professional Visualization segment revenue was $900.0M in Q4 FY2026.",
+        "evidence": [
+          "F4"
+        ]
+      },
+      {
+        "index": 4,
+        "kind": "observation",
+        "text": "NVDA's Automotive segment revenue was $650.0M in Q4 FY2026.",
+        "evidence": [
+          "F5"
+        ]
+      }
+    ],
+    "rejected": [
+      {
+        "index": 5,
+        "text": "Data Center is NVDA's highest-revenue segment in Q4 FY2026, followed by Gaming, OEM & Other, Professional Visualization, and Automotive.",
+        "reason": "comparison: the order lists each cited figure once"
+      },
+      {
+        "index": 6,
+        "text": "NVDA's revenue is heavily concentrated in Data Center, creating single-segment dependency risk.",
+        "reason": "an inference binds the accepted observations it rests on"
+      },
+      {
+        "index": 7,
+        "text": "No other segment is large enough to offset a Data Center slowdown, making total revenue sensitive to that segment's trajectory.",
+        "reason": "an inference binds the accepted observations it rests on"
+      }
+    ]
+  },
+  "removed": [],
+  "blocks": [
+    {
+      "id": "d6d1f2ab-ff55-4563-8871-4c8b6af8cc5d",
+      "kind": "rich_text",
+      "snapshot_id": "96806dd7-345b-439a-8259-ebaf2efc35b5",
+      "data_ref": {
+        "kind": "rich_text",
+        "id": "d6d1f2ab-ff55-4563-8871-4c8b6af8cc5d"
+      },
+      "source_refs": [],
+      "as_of": "1970-01-01T00:00:00.000Z",
+      "title": "single_subject_analysis",
+      "segments": [
+        {
+          "type": "text",
+          "text": "**Takeaway:** NVDA's revenue is overwhelmingly concentrated in Data Center, which is the dominant segment by a wide margin in Q4 FY2026 (quarter ending January 2026). The remaining four segments are each individually small relative to Data Center.\n\n**Trend:** Only one period is shown, so no trend across quarters or years can be described from this data.\n\n**What is strong and what is weak:** NVDA's Data Center segment at $55.2B is the clear revenue driver. Gaming at $4.3B is the second-largest segment but is far smaller. OEM & Other at $1.1B, Professional Visualization at $900.0M, and Automotive at $650.0M are each modest contributors.\n\n**Counterpoint:** The heavy reliance on a single segment means that any slowdown in Data Center demand would have an outsized impact on total revenue, since no other segment is large enough to offset it.\n\n**What the data cannot tell:** No prior-quarter or prior-year segment revenue is shown, so growth rates, sequential changes, and shifts in segment mix over time cannot be assessed."
+        }
+      ]
+    }
+  ]
+}

@@ -233,7 +233,9 @@ start_process() {
 
   (
     cd "$dir"
-    nohup bash -lc "$command" </dev/null >"$log_file" 2>&1 &
+    # A login shell's profile may put another node first (an x86 one beside
+    # arm64), so the service would not run on the node that installed it.
+    nohup bash -lc "export PATH=$(printf '%q' "$PATH"):\"\$PATH\"; $command" </dev/null >"$log_file" 2>&1 &
     echo $! >"$pid_file"
   )
 }
@@ -334,6 +336,15 @@ configure_runtime_env() {
   if [[ "$DEV_MODE" == "analyst" ]]; then
     # One line per model completion: model, latency, tokens (services/llm).
     export LLM_USAGE_LOG=true
+    # Each answer turn's trace, for services/chat/scripts/answer-lab.ts.
+    # Relative to the repo root, as research-quality-eval.ts reads it: chat runs
+    # from its own directory and would resolve a relative one there.
+    CHAT_TRACE_DIR="${CHAT_TRACE_DIR:-.dev/traces}"
+    # Trimmed, as chat and the eval trim it.
+    CHAT_TRACE_DIR="${CHAT_TRACE_DIR#"${CHAT_TRACE_DIR%%[![:space:]]*}"}"
+    CHAT_TRACE_DIR="${CHAT_TRACE_DIR%"${CHAT_TRACE_DIR##*[![:space:]]}"}"
+    [[ "$CHAT_TRACE_DIR" == /* ]] || CHAT_TRACE_DIR="$ROOT/$CHAT_TRACE_DIR"
+    export CHAT_TRACE_DIR
   fi
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]]; then
     export DEV_PROVIDERS_ORIGIN
@@ -487,7 +498,8 @@ stop_parked_processes() {
 
 # `up` leaves running processes alone, but some settings are read only at start:
 # Vite bakes VITE_* into the client (web, or app under chat), and chat/dev-api build
-# their LLM router from LLM_*/LITELLM_* (DEV_NO_KEYS rewrites those). Each such process
+# their LLM router from LLM_*/LITELLM_* (DEV_NO_KEYS rewrites those), and chat reads
+# CHAT_TRACE_DIR. Each such process
 # gets a stamp of that env when it starts; a running one whose stamp differs is
 # restarted. The stamp is a checksum so LLM API keys are not copied into .dev.
 launch_env_pattern() {
@@ -495,8 +507,9 @@ launch_env_pattern() {
   case "$1" in
     web) printf '^VITE_' ;;
     # DEV_MODE switches app between live services and the UI-mode replay.
-    app) printf '^(VITE_|DEV_MODE=|DEV_REPLAY_FILE=|DEV_CAPTURE_FILE=|%s)' "$llm" ;;
-    chat | dev-api) printf '^(%s)' "$llm" ;;
+    app) printf '^(VITE_|DEV_MODE=|DEV_REPLAY_FILE=|DEV_CAPTURE_FILE=|CHAT_TRACE_DIR=|%s)' "$llm" ;;
+    chat) printf '^(CHAT_TRACE_DIR=|%s)' "$llm" ;;
+    dev-api) printf '^(%s)' "$llm" ;;
     *) return 1 ;;
   esac
 }

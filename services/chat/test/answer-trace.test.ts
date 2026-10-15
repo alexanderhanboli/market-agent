@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { answerMetrics, writeTurnTrace, type TurnTrace } from "../src/answer-trace.ts";
+
+const TRACE: TurnTrace = {
+  version: 1,
+  thread_id: "thread-1",
+  run_id: "run-1",
+  question: "How did NVDA's revenue change?",
+  recorded_at: "2026-10-15T00:00:00.000Z",
+  assertion_rendering: false,
+  input: { context: { userIntent: "How did NVDA's revenue change?", bundleId: "single_subject_analysis" }, blocks: [], toolCalls: [] },
+  exchange: {
+    messages: [{ role: "system", content: "Write." }],
+    text: "NVDA revenue rose to $130.5B in FY2025.",
+    truncated: false,
+    deployment: "opencode-go/qwen3.8-max",
+    latency_ms: 41_200,
+    usage: { input_tokens: 9000, output_tokens: 700 },
+  },
+  assertions: { status: "checked", accepted: [], rejected: [{ index: 0, reason: "cites no figure" }] },
+  removed: ["NVDA grew 12% in FY2024."],
+  blocks: [
+    {
+      kind: "rich_text",
+      segments: [
+        { type: "text", text: "NVDA revenue rose to " },
+        { type: "ref", ref_kind: "fact", ref_id: "f1", format: "$130.5B" },
+        { type: "text", text: " in FY2025, from 60.9 billion and 1,234 units." },
+        { type: "ref", ref_kind: "claim", ref_id: "c1", format: "Demand stayed strong" },
+      ],
+    },
+    { kind: "metric_row", segments: [{ type: "text", text: "99" }] },
+  ],
+};
+
+test("a trace is written under its thread, one file per run", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, TRACE);
+  assert.deepEqual(JSON.parse(await readFile(join(dir, "thread-1", "run-1.json"), "utf8")), TRACE);
+});
+
+test("a written trace leaves no partial file behind", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, TRACE);
+  assert.deepEqual(await readdir(join(dir, "thread-1")), ["run-1.json"]);
+});
+
+test("two turns of one run keep a trace each", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, { ...TRACE, turn_id: "turn-1" });
+  await writeTurnTrace(dir, { ...TRACE, turn_id: "turn-2" });
+  assert.deepEqual((await readdir(join(dir, "thread-1"))).sort(), ["run-1.turn-1.json", "run-1.turn-2.json"]);
+});
+
+test("a turn id that would leave the trace directory is not written", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, { ...TRACE, turn_id: "../escaped" });
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test("a run id that would leave the trace directory is not written", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  await writeTurnTrace(dir, { ...TRACE, run_id: "../escaped" });
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test("a failed trace write does not fail the turn", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "answer-trace-"));
+  // A file where the thread's directory would go.
+  await writeFile(join(dir, "thread-1"), "");
+  await writeTurnTrace(dir, TRACE);
+  assert.deepEqual(await readdir(dir), ["thread-1"]);
+});
+
+test("answerMetrics counts the prose's sealed figures and plain numbers", () => {
+  assert.deepEqual(answerMetrics(TRACE), {
+    figure_refs: 1,
+    plain_numbers: 3,
+    removed: 1,
+    fallback: false,
+    accepted: 0,
+    rejected: 1,
+    output_tokens: 700,
+    latency_ms: 41_200,
+  });
+});
+
+test("answerMetrics reads a fallback sentence as the fallback", () => {
+  const fallback = {
+    ...TRACE,
+    exchange: null,
+    assertions: null,
+    removed: [],
+    blocks: [{ kind: "rich_text", segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }] }],
+  };
+  assert.deepEqual(answerMetrics(fallback), {
+    figure_refs: 0,
+    plain_numbers: 0,
+    removed: 0,
+    fallback: true,
+    accepted: 0,
+    rejected: 0,
+    output_tokens: 0,
+    latency_ms: 0,
+  });
+});

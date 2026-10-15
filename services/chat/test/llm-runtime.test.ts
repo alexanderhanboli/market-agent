@@ -72,6 +72,30 @@ test("composeAnalystBlocksWithLlm gives reasoning models room to think and still
   assert.ok((observedMaxTokens ?? 0) >= 4096, `expected an answer budget that survives reasoning, got ${observedMaxTokens}`);
 });
 
+test("composeAnalystBlocksWithLlm reports the model exchange raw, before the checks", async () => {
+  const exchanges: unknown[] = [];
+  await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Analyze AAPL", bundleId: "single_subject_analysis" },
+    blocks: [richTextBlock("Deterministic note")],
+    toolCalls: [],
+    createClient: () => async () => ({
+      text: "Apple's revenue rose 12%.",
+      usage: { inputTokens: 900, outputTokens: 40, totalTokens: 940 },
+    }),
+    onModelExchange: (exchange) => exchanges.push({ ...exchange, latency_ms: typeof exchange.latency_ms, messages: exchange.messages.map((m) => m.role) }),
+  });
+
+  assert.deepEqual(exchanges, [{
+    messages: ["system", "user"],
+    text: "Apple's revenue rose 12%.",
+    truncated: false,
+    deployment: "openai/gpt-4.1",
+    latency_ms: "number",
+    usage: { input_tokens: 900, output_tokens: 40 },
+  }]);
+});
+
 test("composeAnalystBlocksWithLlm returns original blocks when no deployment is configured", async () => {
   const blocks = [richTextBlock("Deterministic note")];
   const result = await composeAnalystBlocksWithLlm({
