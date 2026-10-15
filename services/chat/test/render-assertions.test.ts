@@ -245,4 +245,7 @@ test("an inference's label states each supporting comparison's checked result; o
     "> **Analyst inference on AMD** (NVDA highest on net margin): Its net margin may understate underlying profitability.");
   assert.equal(on([3], [{ index: 3, kind: "observation", text: "x", evidence: ["F5"] }]),
     "> **Analyst inference on AMD:** Its net margin may understate underlying profitability.");
+  // A one-company answer's subject goes without saying.
+  assert.equal(plainText(renderAssertion({ index: 9, kind: "analyst_inference", subject: "AMD", text: "Its margin held.", evidence: [], supports: [] }, AMD_QUARTERS, [], []).segments),
+    "> **Analyst inference:** Its margin held.");
 });
