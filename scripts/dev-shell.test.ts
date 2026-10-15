@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -368,6 +369,18 @@ test("DEV_NO_KEYS=true pins recorded LLM replies and ignores .env.dev's LLM sett
   const offResult = await runBash(["MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh", 'printf "<%s>" "${LLM_REPLAY_FILE:-}"'].join("\n"), off.root);
   await rm(off.root, { recursive: true, force: true });
   assert.equal(offResult.stdout.trim(), "<>", "no replay unless asked");
+});
+
+test("DEV_NO_KEYS=traces replays the answer-lab traces' replies, on the same fixture channel", async () => {
+  const fixture = await createShellFixture({ DEV_NO_KEYS: "traces", LLM_CHANNELS: "openai" });
+  const result = await runBash(
+    ["MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh", 'printf "%s|%s|%s" "${LLM_CHANNELS:-}" "${LLM_REPLAY_FILE:-}" "$(seeds_frozen_data && echo frozen)"'].join("\n"),
+    fixture.root,
+  );
+  const root = await realpath(fixture.root);
+  await rm(fixture.root, { recursive: true, force: true });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout.trim(), `fixture|${root}/.dev/trace-replies.json|frozen`);
 });
 
 test("DEV_NO_KEYS from the command line wins over the env file", async () => {
@@ -937,4 +950,21 @@ test("status shows the one app process, the services it hosts, and parked servic
   for (const parked of ["watchlists", "screener", "portfolio", "home", "evidence", "analyst-grids", "discovery"]) {
     assert.match(result.stdout, new RegExp(`^${parked}\\s+parked`, "m"), parked);
   }
+});
+
+test("install covers every package with a lockfile", async () => {
+  const repo = REPO_ROOT;
+  const fixture = await createShellFixture();
+  const result = await runBash(
+    ["MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh", 'ensure_install() { echo "${1#"$ROOT"/}"; }', "install_node_packages"].join("\n"),
+    fixture.root,
+  );
+  await rm(fixture.root, { recursive: true, force: true });
+  assert.equal(result.code, 0, result.stderr);
+  const packages = [".", "services"].flatMap((dir) =>
+    readdirSync(join(repo, dir), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && existsSync(join(repo, dir, entry.name, "package-lock.json")))
+      .map((entry) => (dir === "." ? entry.name : `${dir}/${entry.name}`))
+  );
+  assert.deepEqual(result.stdout.trim().split("\n").sort(), packages.sort());
 });

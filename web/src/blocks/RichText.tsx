@@ -55,6 +55,11 @@ type RefSegmentSpanProps = {
   manifest: SnapshotManifest | null
 }
 
+// A value as the text reads it, with no padding or fill: either would show as a
+// space before the punctuation after it (#303). A placeholder (no manifest yet)
+// looks the same, as it shows the same value.
+const REF_CLASS = 'rounded text-fg-soft underline decoration-dotted underline-offset-2'
+
 function RefSegmentSpan({ snapshotId, blockId, index, segment, manifest }: RefSegmentSpanProps): ReactElement {
   const baseAttrs = {
     'data-ref-kind': segment.ref_kind,
@@ -68,7 +73,7 @@ function RefSegmentSpan({ snapshotId, blockId, index, segment, manifest }: RefSe
         inspectionRef={inspectionRef}
         testId={`block-rich-text-${blockId}-ref-${index}`}
         dataAttrs={{ ...baseAttrs, 'data-ref-state': 'placeholder' }}
-        className="rounded bg-surface-2 px-1 text-fg-soft underline decoration-dotted"
+        className={REF_CLASS}
       >
         {refSegmentPlaceholder(segment)}
       </InspectableRef>
@@ -94,7 +99,7 @@ function RefSegmentSpan({ snapshotId, blockId, index, segment, manifest }: RefSe
       inspectionRef={inspectionRef}
       testId={`block-rich-text-${blockId}-ref-${index}`}
       dataAttrs={{ ...baseAttrs, 'data-ref-state': 'resolved' }}
-      className="rounded px-1 text-fg-soft underline decoration-dotted underline-offset-2"
+      className={REF_CLASS}
     >
       {resolved.value}
     </InspectableRef>

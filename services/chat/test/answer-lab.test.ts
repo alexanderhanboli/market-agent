@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { replayRecorded } from "../src/answer-trace.ts";
-import { answerText, assertionSummary, readTraces } from "../scripts/answer-lab.ts";
+import { answerText, assertionSummary, readTraces, replyFixture } from "../scripts/answer-lab.ts";
+import { createReplayLlmChatClient } from "../../llm/src/replay-client.ts";
 
 // One live research-quality eval run's turns (scripts/research-quality-eval.ts).
 const TRACES = readTraces([fileURLToPath(new URL("./answer-lab/traces/", import.meta.url))]);
@@ -90,4 +91,22 @@ test("a live run's summary counts rendered answers, accepted kinds, repeated obs
     "    2  y",
     "    1  x",
   ].join("\n"));
+});
+
+test("the traces' reply fixture answers each traced question as recorded, and a title as the golden test does (DEV_NO_KEYS=traces)", async () => {
+  const traces = readTraces([fileURLToPath(new URL("./answer-lab/traces", import.meta.url))]);
+  const golden = { replies: [{ match: "Create a short, specific research chat title", text: "NVDA research" }, { match: "Write a concise", text: "golden" }] };
+  const dir = mkdtempSync(join(tmpdir(), "replies-"));
+  const file = join(dir, "replies.json");
+  writeFileSync(file, JSON.stringify(replyFixture(traces, golden)));
+  const reply = await createReplayLlmChatClient(file);
+  const ask = async (content: string) => (await reply({} as never, { messages: [{ role: "user", content }] } as never)).text;
+  // Each trace's own recorded request gets its own reply.
+  for (const { label, trace } of traces) {
+    assert.equal(await ask(trace.exchange!.messages.map((message) => message.content).join("\n")), trace.exchange!.text, label);
+  }
+  // A short question asked after a longer one in its thread: the history quotes the longer one.
+  const recorded = (question: string) => traces.find(({ trace }) => trace.question === question)!.trace.exchange!.text;
+  assert.equal(await ask(JSON.stringify({ conversation: ["Analyze NVDA's latest quarter."], question: "Analyze NVDA." })), recorded("Analyze NVDA."));
+  assert.equal(await ask("Create a short, specific research chat title for: Compare NVDA with AMD."), "NVDA research");
 });

@@ -4,7 +4,10 @@
 //
 //   node --experimental-strip-types scripts/answer-lab.ts recorded <trace dir|files...> [--check | --update]
 //   node --experimental-strip-types scripts/answer-lab.ts live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>]
+//   node --experimental-strip-types scripts/answer-lab.ts replies <trace dir|files...> --out <file>
 //
+// replies writes the traces' model replies as an LLM_REPLAY_FILE fixture, so the
+// no-keys stack (DEV_NO_KEYS=traces) answers each traced question as recorded;
 // recorded is deterministic and offline; --check exits 1 when a replay's blocks
 // differ from the recorded ones; --update writes each replay over its trace
 // (blocks, removals, assertions), for a deliberate change to post-processing. live uses the stack's LLM settings
@@ -18,6 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 
 import { LlmRouterError } from "../../llm/src/index.ts";
+import type { LlmReplayFixture } from "../../llm/src/replay-client.ts";
 import type { AssertionKind } from "../src/assertions.ts";
 import {
   answerMetrics,
@@ -156,6 +160,20 @@ type LiveRun = {
   results: LiveSample[];
 };
 
+const GOLDEN_REPLIES = fileURLToPath(new URL("../test/golden/llm-replies.json", import.meta.url));
+
+// Each traced question answered by its recorded reply. A reply matches by
+// substring, so it keys on the answer request's own `"question":"..."` field:
+// the question alone would match a later turn whose history repeats it. The
+// golden fixture's thread-title reply goes first, as the title request quotes
+// the question too.
+export function replyFixture(traces: ReadonlyArray<LabeledTrace>, golden: LlmReplayFixture): LlmReplayFixture {
+  const answers = traces.flatMap(({ trace }) =>
+    trace.exchange?.text ? [{ match: `"question":${JSON.stringify(trace.question)}`, text: trace.exchange.text }] : []
+  );
+  return { replies: [...golden.replies.filter((reply) => reply.match.startsWith("Create a short")), ...answers] };
+}
+
 // The rich_text blocks as read: text as written, each ref its displayed value.
 export function answerText(blocks: ReadonlyArray<Record<string, unknown>>): string {
   return blocks.filter((block) => block.kind === "rich_text")
@@ -268,11 +286,12 @@ async function main(argv: string[]): Promise<number> {
       concurrency: { type: "string", default: "2" },
       against: { type: "string" },
       rendering: { type: "string", default: "recorded" },
+      out: { type: "string" },
     },
   });
   const [mode, ...paths] = positionals;
-  if ((mode !== "recorded" && mode !== "live") || paths.length === 0) {
-    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] | live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>]");
+  if ((mode !== "recorded" && mode !== "live" && mode !== "replies") || paths.length === 0 || (mode === "replies" && !values.out)) {
+    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] | live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>] | replies <trace dir|files...> --out <file>");
     return 2;
   }
   let traces: LabeledTrace[];
@@ -281,6 +300,12 @@ async function main(argv: string[]): Promise<number> {
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return 2;
+  }
+  if (mode === "replies") {
+    const golden = JSON.parse(readFileSync(GOLDEN_REPLIES, "utf8")) as LlmReplayFixture;
+    writeFileSync(values.out!, `${JSON.stringify(replyFixture(traces, golden), null, 2)}\n`);
+    console.log(`${traces.length} traced replies written to ${values.out}`);
+    return 0;
   }
   if (mode === "recorded") {
     const results = await recorded(traces, values.update);
