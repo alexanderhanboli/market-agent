@@ -299,9 +299,11 @@ test("the answer is asked for an analyst's view: takeaway, trend, strengths, cou
   assert.match(systemPrompt, /Never compute new figures/);
   // A figure is written only as its packet reference, a claim as its own; no
   // other digit but a period label (prose-refs.ts).
-  assert.match(systemPrompt, /Write a figure only as its packet reference,\s+\[\[F3\]\] for the figure with id F3/);
-  assert.match(systemPrompt, /Write a cited claim's content as \[\[C2\]\]/);
-  assert.match(systemPrompt, /Never write any other digit, except in a period label \(Q4, FY2026, fiscal 2026, a month and\s+year\); write counts in words/);
+  assert.match(systemPrompt, /Write a figure only as its packet reference,\s+\[\[F3\]\] for the figure with id F3, in place of the value itself/);
+  // The 2026-10-15 eval's first run: the model put the reference after the value it typed.
+  assert.match(systemPrompt, /never write the value, not even beside its\s+reference \("\$7\.7B \[\[F3\]\]" is wrong; "\[\[F3\]\]" is right\)/);
+  assert.match(systemPrompt, /Write a cited claim's content as \[\[C2\]\], in\s+place of the claim's words, never a paraphrase with \[\[C2\]\] after it/);
+  assert.match(systemPrompt, /Never write any other digit, except in a period label \(Q4, FY2026, fiscal\s+2026, a month and year\); write counts in words/);
   assert.doesNotMatch(systemPrompt, /Quote a figure only exactly as it|never begin it with "Its"/);
   // A magnitude comparison in words is a computation too, and a cause needs data (#228).
   assert.match(systemPrompt, /magnitude comparison between figures is a computation too, even in words/);
