@@ -5,6 +5,9 @@
 // check here is that every id exists, that each kind cites what it must, and
 // that the text writes each figure or claim only as its evidence's reference
 // ([[F3]], prose-refs.ts) and names only its evidence's periods and companies.
+// An analyst inference writes no figure at all: it says in words what the
+// observations and comparisons it rests on mean, so every figure a rendered
+// answer shows is a template's value from the packet.
 //
 // Shadow: the report goes to evals and logs; the prose shown is unchanged. The
 // controlled rendering from validated assertions is #208's second slice.
@@ -143,6 +146,10 @@ export function checkAssertions(
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
       continue;
     }
+    if (kind === "analyst_inference" && (item.text.search(REFERENCE) !== -1 || typedDigits(item.text, table).length > 0)) {
+      reject(index, item, "an inference rests on its supports; it writes no figure");
+      continue;
+    }
     const figureIds = evidence.filter((id) => figures.has(id));
     const claimIds = evidence.filter((id) => claims.has(id));
     // What figures show is not why: a cause is a cited claim's or unknown, on
@@ -155,7 +162,7 @@ export function checkAssertions(
     // claim where only figures may stand.
     if (packet.figures.length === 0 && kind !== "management_attribution") {
       if ((kind === "observation" || kind === "comparison" || kind === "unknown_cause") && claimIds.length > 0) {
-        reject(index, item, shapeError(kind, [], claimIds, [], accepted)!);
+        reject(index, item, shapeError(kind, [], claimIds, [])!);
       } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, uncheckedObservations)) {
         reject(index, item, "an inference binds the accepted observations it rests on");
       } else {
@@ -164,12 +171,15 @@ export function checkAssertions(
       }
       continue;
     }
-    const shape = shapeError(kind, figureIds, claimIds, (item.supports ?? []) as number[], accepted);
+    // A support that failed its own check is dropped; the inference stands on the rest.
+    const supports = ((item.supports ?? []) as number[]).filter((n) =>
+      accepted.some((entry) => entry.index === n && (entry.kind === "observation" || entry.kind === "comparison"))
+    );
+    const shape = shapeError(kind, figureIds, claimIds, supports);
     if (shape) {
       reject(index, item, shape);
       continue;
     }
-    const supports = (item.supports ?? []) as number[];
     // An unknown cause is a change's: each figure it cites has its company's
     // same metric in another period with a different value beside it.
     if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!), packet.figures)) {
@@ -219,9 +229,9 @@ export function checkAssertions(
 }
 
 // An inference's supports, when the observations cannot be figure-checked:
-// at least one, each an observation that passed every check it could take.
+// at least one observation that passed every check it could take.
 function restsOnObservations(supports: unknown, observations: ReadonlySet<number>): boolean {
-  return Array.isArray(supports) && supports.length > 0 && supports.every((n) => observations.has(n as number));
+  return Array.isArray(supports) && supports.some((n) => observations.has(n as number));
 }
 
 // Every cited figure: the template says each cited metric changed. The
@@ -240,8 +250,8 @@ function shapeError(
   kind: AssertionKind,
   figureIds: ReadonlyArray<string>,
   claimIds: ReadonlyArray<string>,
+  // An inference's accepted observations and comparisons.
   supports: ReadonlyArray<number>,
-  accepted: ReadonlyArray<Assertion & { index: number }>,
 ): string | null {
   switch (kind) {
     case "observation":
@@ -252,13 +262,8 @@ function shapeError(
       return figureIds.length === 0 || claimIds.length > 0 ? "an unknown cause cites the figures that changed, and no claim" : null;
     case "management_attribution":
       return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
-    case "analyst_inference": {
-      const observations = new Set(accepted.filter((entry) => entry.kind === "observation" || entry.kind === "comparison").map((entry) => entry.index));
-      // Every support it declares: one that failed may be what it rests on.
-      return supports.length === 0 || !supports.every((n) => observations.has(n))
-        ? "an inference binds the accepted observations it rests on"
-        : null;
-    }
+    case "analyst_inference":
+      return supports.length === 0 ? "an inference binds the accepted observations it rests on" : null;
   }
 }
 

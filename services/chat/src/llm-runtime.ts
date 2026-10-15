@@ -12,9 +12,8 @@ import type {
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
-import { statesComparison } from "./comparisons.ts";
 import { calendarsDiffer, plainText, renderAssertion } from "./render-assertions.ts";
-import { proseSegments, referenceTable, referenceText, type ProseSegments } from "./prose-refs.ts";
+import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
 import { keepKnownReferences, keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
@@ -210,14 +209,15 @@ export async function composeAnalystBlocksWithLlm(input: {
           "that is highest or lowest, the F ids highest first, or one of \"rose\", \"fell\", \"flat\", \"rose_throughout\",",
           "\"fell_throughout\", \"rebounded\" or \"pulled_back\"), \"management_attribution\" (what a claim says management stated;",
           "evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each",
-          "figure that changed), or \"analyst_inference\" (what the observations and comparisons mean; never who leads, which is",
-          "higher or which way a metric moved, which only comparisons state; evidence may be omitted; add \"supports\": the array",
-          "indexes of the observations and comparisons it rests on).",
-          "The answer may be shown from this list alone, so it must carry the answer: your takeaway and your counterpoint each as",
-          "an analyst_inference, and what the data cannot tell about a change as an unknown_cause.",
+          "figure that changed), or \"analyst_inference\" (what the observations and comparisons mean, in words; the figures are",
+          "theirs, so it writes no number and no reference; evidence may be omitted; add \"supports\": the array indexes of the",
+          "observations and comparisons it rests on).",
+          "The answer may be shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
+          "analyst_inference; then the observations, comparisons and what the data cannot tell about a change, as an",
+          "unknown_cause; and your counterpoint last, as an analyst_inference.",
           "text restates the assertion in one sentence, written as the answer is: each figure or claim only as its",
           "reference from the assertion's evidence ([[F3]], [[C2]]), no other number but a period label of that evidence's",
-          "periods or dates, and only companies its evidence holds.",
+          "periods or dates, and only companies its evidence holds; an analyst_inference's text is words only.",
           "When evidence_packet has neither figures nor claims, omit the block.",
         ].join(" "),
       },
@@ -282,37 +282,19 @@ export async function composeAnalystBlocksWithLlm(input: {
       kind: assertion.kind,
       supports: assertion.supports ?? [],
     }));
-    // A value with no fact behind it would be unsealed text: not rendered.
-    const unsealed = new Set(rendered.filter((entry) => entry.unsealed).map((entry) => entry.index));
-    const excluded = new Set(unsealed);
-    // Who leads and which way a metric moved are the comparisons' to say, in
-    // their checked templates; free-form wording could contradict them, so an
-    // inference stating either is not rendered (comparisons.ts).
-    const unranked = new Set(rendered.filter((entry) =>
-      entry.kind === "analyst_inference" && !excluded.has(entry.index) && statesComparison(plainText(entry.segments))
-    ).map((entry) => entry.index));
-    for (const index of unranked) excluded.add(index);
-    // The guard reads each rendered assertion with its refs as references, so
-    // a template's own periods ("Q4 2026") pass and its values are the packet's.
-    const guarded = new Set(rendered.filter((entry) => !excluded.has(entry.index) && drops(referenceText(entry.segments, table), entry.kind).length > 0).map((entry) => entry.index));
-    // An inference goes with any assertion it rests on that the guard removed
-    // or that was left out (unsealed): its stated support is not on the page.
+    // The guard reads each rendered assertion with its values as references,
+    // so a template's own periods ("Q4 2026") pass and its values are the packet's.
+    const guarded = new Set(rendered.filter((entry) => drops(entry.reference_text, entry.kind).length > 0).map((entry) => entry.index));
+    // An inference goes when the guard removed every assertion it rests on:
+    // none of its support is on the page.
     const orphaned = new Set(rendered.filter((entry) =>
-      !guarded.has(entry.index) && !excluded.has(entry.index) && entry.supports.some((n) => guarded.has(n) || excluded.has(n))
+      entry.kind === "analyst_inference" && !guarded.has(entry.index) && entry.supports.every((n) => guarded.has(n))
     ).map((entry) => entry.index));
-    const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index) && !excluded.has(entry.index));
+    const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index));
     renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
-      reason: unsealed.has(entry.index)
-        ? "its figure has no fact to seal, so it is not rendered"
-        : unranked.has(entry.index)
-        ? "a rendered inference states no ranking or direction; its comparisons do"
-        : guarded.has(entry.index)
-        ? "removed by the narrative guard"
-        : entry.supports.some((n) => guarded.has(n))
-        ? "rests on an observation the narrative guard removed"
-        : "rests on an assertion left out of the answer",
+      reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
     if (kept.length === 0) return null;
     // The figures the kept assertions state, and their companies: a comparison
@@ -680,10 +662,8 @@ function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>
   ];
 }
 
-// Off unless turned on (CHAT_ASSERTION_RENDERING=1): with no rendered
-// inference stating a ranking, answers lose most counterpoints (2026-10-13
-// eval, 99 vs 109/116 off), so it stays opt-in until a checked counterpoint
-// form exists.
+// Off unless turned on (CHAT_ASSERTION_RENDERING=1), until rendered answers
+// are shown to read as well as the prose (#301).
 export function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
   return /^(?:1|true|yes|on)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
 }

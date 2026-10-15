@@ -39,14 +39,12 @@ test("an observation is rendered from its figures, each value a sealed fact ref 
   assert.deepEqual(rendered.source_refs, ["s-nvda", "s-amd"]);
 });
 
-test("a value whose fact cannot seal here is plain text (#208)", () => {
+test("a value whose fact cannot seal here is the packet's value in plain text; the guard reads it as its reference (#208, #301)", () => {
   const rendered = renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F3"] }, PACKET, FACT_BLOCKS);
   assert.equal(plainText(rendered.segments), "AMD's EPS was $1.37.");
   assert.equal(rendered.segments.some((segment) => segment.type === "ref"), false);
   assert.deepEqual(rendered.fact_bindings, []);
-  // So it is marked unsealed, and the answer does not render it.
-  assert.equal(rendered.unsealed, true);
-  assert.equal(renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F1"] }, PACKET, FACT_BLOCKS).unsealed, false);
+  assert.equal(rendered.reference_text, "AMD's EPS was [[F3]].");
 });
 
 test("a period's dates are written by month and year, never the day (#208)", () => {
@@ -116,7 +114,7 @@ test("a comparison over time renders its derived high, low or trend, values as f
   const low = renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "lowest", "T2", ALL);
   assert.equal(plainText(low.segments), "AMD's operating margin was lowest in Q2 2025, at -1.7%, of the periods from Q1 2025 to Q4 2025.");
   assert.deepEqual(low.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [uuid(2)]);
-  assert.equal(low.unsealed, false);
+  assert.equal(low.reference_text, "AMD's operating margin was lowest in Q2 2025, at [[T2]], of the periods from Q1 2025 to Q4 2025.");
   assert.equal(
     plainText(renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "trend", "rebounded", ALL).segments),
     "AMD's operating margin fell from 10.8% in Q1 2025 to a low of -1.7% in Q2 2025, then rebounded to 14.1% in Q4 2025, above where it started.",
@@ -162,16 +160,3 @@ test("an observation names each period once, and segments and acronyms read as w
     "Of NVDA's segments, Data Center revenue was highest: Data Center $55.2B, Gaming $4.3B (Q4 2026, ended Jan 2026).",
   );
 });
-
-test("an inference's packet references render as their sealed values, a unit typed beside one dropped (prose-refs)", () => {
-  const inference = (text: string) =>
-    renderAssertion({ index: 1, kind: "analyst_inference", text, evidence: [], supports: [0] }, PACKET, FACT_BLOCKS);
-  const rendered = inference("NVDA's [[F1]] margin outruns AMD's [[F2]]%, a durable edge.");
-  assert.equal(plainText(rendered.segments), "> **Analyst inference:** NVDA's 74.6% margin outruns AMD's 49.2%, a durable edge.");
-  assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
-  assert.deepEqual(rendered.fact_bindings.map((binding) => binding.fact_id), [NVDA_GM, AMD_GM]);
-  assert.equal(rendered.unsealed, false);
-  // A figure with no fact to seal leaves the inference unsealed, so it is not rendered.
-  assert.equal(inference("AMD's [[F3]] EPS trails.").unsealed, true);
-});
-
