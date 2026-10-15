@@ -48,7 +48,7 @@ const COMPONENTS: Components = {
 // embed's placeholder and forge or move one.
 function newPlaceholderToken(): string {
   const bytes = new Uint8Array(8)
-  if (typeof crypto?.getRandomValues === 'function') crypto.getRandomValues(bytes)
+  if (typeof globalThis.crypto?.getRandomValues === 'function') globalThis.crypto.getRandomValues(bytes)
   else bytes.forEach((_, i) => { bytes[i] = Math.floor(Math.random() * 256) })
   return `mdembed${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}i`
 }
