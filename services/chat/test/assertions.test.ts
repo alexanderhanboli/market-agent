@@ -560,9 +560,9 @@ test("across companies an inference names no company, whichever it would credit;
     { kind: "analyst_inference", text, supports: [0] },
   ];
   assert.deepEqual(check(list("AMD leads NVDA on margin.")).rejected.map((entry) => [entry.index, entry.reason]), [
-    [1, "an inference names no company; its supports do"],
+    [1, "an inference names no company; its subject does"],
   ]);
-  assert.deepEqual(check(list("NVDA keeps more of each sale.")).rejected.map((entry) => entry.reason), ["an inference names no company; its supports do"]);
+  assert.deepEqual(check(list("NVDA keeps more of each sale.")).rejected.map((entry) => entry.reason), ["an inference names no company; its subject does"]);
   assert.deepEqual(check(list("The margin lead funds research.")).rejected, []);
   // A one-letter ticker cannot be told from the article, as in the guard.
   const agilent = checkAssertions(list("A wider margin leaves room to invest."), { ...oneYear, companies: ["NVDA", "A"] });
@@ -572,6 +572,38 @@ test("across companies an inference names no company, whichever it would credit;
     { kind: "analyst_inference", text: "NVDA keeps more of each sale.", supports: [0] },
   ], { ...PACKET, companies: ["NVDA"] });
   assert.deepEqual(single.rejected, []);
+});
+
+test("an inference names its subject, a company its own evidence or its supports cover; its text still names none (#308)", () => {
+  const oneYear = { ...PACKET, figures: PACKET.figures.filter((figure) => figure.id !== "F2") };
+  const report = checkAssertions([
+    { kind: "comparison", op: "highest", result: "F1", text: "NVDA's gross margin was highest.", evidence: ["F1", "F3"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F1]].", evidence: ["F1"] },
+    { kind: "analyst_inference", subject: "AMD", text: "Its thinner margin leaves less room to invest.", supports: [0] },
+    // Its own claim covers AMD, though its support is NVDA's alone.
+    { kind: "analyst_inference", subject: "AMD", text: "Its outlook rests on guidance, not results.", evidence: ["C2"], supports: [1] },
+    { kind: "analyst_inference", subject: "INTC", text: "Its margin trails.", supports: [0] },
+    { kind: "analyst_inference", subject: 7, text: "Its margin trails.", supports: [0] },
+    { kind: "analyst_inference", subject: "AMD", text: "Its margin trails.", supports: [1] },
+    { kind: "analyst_inference", subject: "AMD", text: "AMD's margin trails.", supports: [0] },
+    { kind: "observation", subject: "NVDA", text: "NVDA's gross margin was [[F1]].", evidence: ["F1"] },
+  ], oneYear);
+  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.subject]), [[0, undefined], [1, undefined], [2, "AMD"], [3, "AMD"]]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [4, "an inference's subject is a company its evidence covers"],
+    [5, "an inference's subject is a company its evidence covers"],
+    [6, "an inference's subject is a company its evidence covers"],
+    [7, "an inference names no company; its subject does"],
+    [8, "only an analyst inference has a subject"],
+  ]);
+  assert.equal(rejectionCheck("an inference's subject is a company its evidence covers"), "binding");
+  // With one company, a figure with no company is its own.
+  const single = checkAssertions([
+    { kind: "observation", text: "Gross margin was [[F1]].", evidence: ["F1"] },
+    { kind: "analyst_inference", subject: "NVDA", text: "NVDA keeps more of each sale.", supports: [0] },
+  ], { ...PACKET, companies: ["NVDA"], figures: [{ ...PACKET.figures[0]!, company: undefined }] });
+  assert.deepEqual(single.rejected, []);
+  assert.deepEqual(single.accepted.map((entry) => [entry.index, entry.subject]), [[0, undefined], [1, "NVDA"]]);
 });
 
 test("what the data cannot show is a data gap: words only, citing nothing; across companies it names none, as an inference (#301)", () => {

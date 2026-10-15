@@ -1,0 +1,114 @@
+{
+  "run": "2026-10-15T162651",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: Revenue, GP/OI/NI, margins and QoQ/YoY all match Q4 FY2026; inference on modest QoQ vs YoY grounded in 8.9% vs 57.9%."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: All eight quarters with period ends, -1.7% shown, AMD's Aug 2025 MI308 disclosure quoted; 'pace narrowed' (+0.4,+0.1,+0.2pts) is loosely worded."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 0,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: 60.5% vs 73.0% correct and cause stated unknown, but 'immediate recovery' inference cites no recovery figure and nothing cuts the other way."
+    },
+    "cause-in-evidence": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: -$134M, $3.1B GP, $872M NI correct and AMD's dated MI308 statement quoted, but it never ties the charge to the loss and then says 'figures do not show why', muddling the attribution."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: Table figures correct with FY offset stated and cited MI308 charge as counterpoint; price returns 6.6%/3.58% unlinked."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: All rankings and figures correct with FY mismatch stated; MI308 quote is not tied into a counterpoint and AAPL's different industry is not noted; 'close to the middle company's' is muddled."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: $130.5B vs $416.2B with 8-month mismatch stated; counter is only that NVDA growth is missing."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: All five segments correct, concentration and missing prior-period data stated."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": null,
+      "figures_match_sources": null,
+      "conclusions_justified": null,
+      "counterarguments": null,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: States AMD segment revenue unavailable; the MI308 quote is not a segment figure."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": null,
+      "figures_match_sources": null,
+      "conclusions_justified": null,
+      "counterarguments": null,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: States FCF unavailable and substitutes nothing."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: Keeps NVDA+AMD with YTD window (Dec 2025 close to Aug 2026 close) and FY offset; cited charge as counterpoint; YTD returns unlinked."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run B: Figures and FY offset correct, but the inference that the market is not rewarding NVDA with outperformance rests on price returns the answer never shows."
+    }
+  }
+}

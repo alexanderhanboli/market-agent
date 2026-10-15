@@ -125,7 +125,9 @@ function templateSegments(
         clauses.set(clause, [...(clauses.get(clause) ?? []), ...(metric ? [metric] : [])]);
       }
       const label = [...clauses].map(([clause, metrics]) => (metrics.length > 0 ? `${clause} ${new Intl.ListFormat("en").format(metrics)}` : clause));
-      text(`> **Analyst inference${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
+      // A one-company answer's subject goes without saying.
+      const on = assertion.subject && packet.companies.length > 1 ? ` on ${assertion.subject}` : "";
+      text(`> **Analyst inference${on}${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
       break;
     }
     case "data_gap":

@@ -11,7 +11,7 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { checkAssertions, companiesOf, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { calendarNote, gapText, plainText, renderAssertion } from "./render-assertions.ts";
 import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
@@ -214,10 +214,12 @@ export async function composeAnalystBlocksWithLlm(input: {
           "names no company (the answer's own notes say whose data is missing);",
           "evidence is omitted, and no supports), or \"analyst_inference\" (what the observations and comparisons mean, in words; the figures are",
           "theirs, so it writes no digit, period label or reference (\"a year earlier\", not FY2025); evidence may be omitted; add \"supports\": the array indexes of the",
-          "observations and comparisons it rests on). When the answer covers more than one company, an analyst_inference names no",
-          "company, not even in the counterpoint: who leads, trails, rose or fell is shown from the comparisons it rests on, so rest",
-          "a ranking or direction on its comparison and say only what it means (\"the margin lead funds more research\", not",
-          "\"NVDA leads AMD\"), naming a company by its role (\"the leader\", \"the company that took the charge\").",
+          "observations and comparisons it rests on; add \"subject\": the company label the inference is about, one its evidence covers).",
+          "When the answer covers more than one company, an analyst_inference's text names no company, not even in the counterpoint:",
+          "who leads, trails, rose or fell is shown from the comparisons it rests on, so rest a ranking or direction on its comparison",
+          "and say only what it means (\"the margin lead funds more research\", not \"NVDA leads AMD\"); the text refers to its",
+          "subject as \"it\" or \"its\" ({\"kind\":\"analyst_inference\",\"subject\":\"AMD\",\"text\":\"Its net margin may understate",
+          "underlying profitability, given the one-time charge management disclosed.\",\"supports\":[3]}).",
           "The answer may be shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
           "analyst_inference; then the observations, comparisons and what the data cannot tell about a change, as an",
           "unknown_cause; then your counterpoint, as an analyst_inference; and last, what else the data shown cannot tell, as a data_gap.",
@@ -305,9 +307,13 @@ export async function composeAnalystBlocksWithLlm(input: {
       if (drops(rendered[i]!.reference_text, entry.kind).length > 0) guarded.add(entry.index);
     }
     // An inference goes when the guard removed every assertion it rests on:
-    // none of its support is on the page.
+    // none of its support is on the page. So does one whose subject only the
+    // removed ones covered, as its label would name a company nothing shown is about.
+    const uncovered = (assertion: (typeof report.accepted)[number]) => assertion.subject !== undefined &&
+      !companiesOf([...assertion.evidence, ...surviving.filter((entry) => assertion.supports?.includes(entry.index)).flatMap((entry) => entry.evidence)], packet).has(assertion.subject);
     const orphaned = new Set(rendered.filter((entry) =>
-      entry.kind === "analyst_inference" && !guarded.has(entry.index) && entry.supports.every((n) => guarded.has(n))
+      entry.kind === "analyst_inference" && !guarded.has(entry.index) &&
+      (entry.supports.every((n) => guarded.has(n)) || uncovered(report.accepted.find((assertion) => assertion.index === entry.index)!))
     ).map((entry) => entry.index));
     const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index));
     renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
