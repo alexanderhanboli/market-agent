@@ -2398,6 +2398,24 @@
         ],
         "op": "highest",
         "result": "F9"
+      },
+      {
+        "index": 11,
+        "kind": "analyst_inference",
+        "text": "NVIDIA leads AMD on every metric shown, with the widest gap in net margin, though AMD's one-time export-control charge may overstate the profitability gap.",
+        "evidence": [],
+        "supports": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
       }
     ],
     "rejected": [
@@ -2405,11 +2423,6 @@
         "index": 10,
         "text": "AMD stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in Q2 2025.",
         "reason": "types MI308; write its reference"
-      },
-      {
-        "index": 11,
-        "text": "NVIDIA leads AMD on every metric shown, with the widest gap in net margin, though AMD's one-time export-control charge may overstate the profitability gap.",
-        "reason": "an inference binds the accepted observations it rests on"
       }
     ]
   },

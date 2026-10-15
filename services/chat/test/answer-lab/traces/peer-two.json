@@ -2538,6 +2538,15 @@
           5,
           6
         ]
+      },
+      {
+        "index": 10,
+        "kind": "analyst_inference",
+        "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
+        "evidence": [],
+        "supports": [
+          1
+        ]
       }
     ],
     "rejected": [
@@ -2545,11 +2554,6 @@
         "index": 8,
         "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
         "reason": "types MI308; write its reference"
-      },
-      {
-        "index": 10,
-        "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
-        "reason": "an inference binds the accepted observations it rests on"
       },
       {
         "index": 11,

@@ -898,6 +898,24 @@
         ],
         "op": "trend",
         "result": "rose_throughout"
+      },
+      {
+        "index": 4,
+        "kind": "analyst_inference",
+        "text": "NVIDIA shows exceptionally high profitability and strong YoY growth, but single-digit sequential growth suggests the pace of incremental expansion is not accelerating.",
+        "evidence": [],
+        "supports": [
+          3
+        ]
+      },
+      {
+        "index": 5,
+        "kind": "analyst_inference",
+        "text": "The large YoY growth figure partly reflects a small year-ago base rather than a steepening current trajectory; if sequential growth stays at this level the YoY rate will compress.",
+        "evidence": [],
+        "supports": [
+          3
+        ]
       }
     ],
     "rejected": [
@@ -915,16 +933,6 @@
         "index": 2,
         "text": "Revenue growth was 8.9% QoQ and 57.9% YoY in Q4 FY2026.",
         "reason": "types 8.9%; write its reference"
-      },
-      {
-        "index": 4,
-        "text": "NVIDIA shows exceptionally high profitability and strong YoY growth, but single-digit sequential growth suggests the pace of incremental expansion is not accelerating.",
-        "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
-        "index": 5,
-        "text": "The large YoY growth figure partly reflects a small year-ago base rather than a steepening current trajectory; if sequential growth stays at this level the YoY rate will compress.",
-        "reason": "an inference binds the accepted observations it rests on"
       },
       {
         "index": 6,

@@ -3404,6 +3404,18 @@
         ],
         "op": "highest",
         "result": "F9"
+      },
+      {
+        "index": 9,
+        "kind": "analyst_inference",
+        "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
+        "evidence": [],
+        "supports": [
+          3,
+          4,
+          5,
+          6
+        ]
       }
     ],
     "rejected": [
@@ -3426,11 +3438,6 @@
         "index": 8,
         "text": "AMD management stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in the quarter ending June 2025.",
         "reason": "types MI308; write its reference"
-      },
-      {
-        "index": 9,
-        "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
-        "reason": "an inference binds the accepted observations it rests on"
       },
       {
         "index": 10,
