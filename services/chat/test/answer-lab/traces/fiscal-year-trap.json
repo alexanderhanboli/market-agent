@@ -2447,24 +2447,6 @@
         ]
       },
       {
-        "index": 7,
-        "kind": "analyst_inference",
-        "text": "Despite lower absolute revenue, NVDA's substantially higher margins indicate stronger profitability per dollar of revenue compared to AAPL.",
-        "evidence": [
-          "F1",
-          "F2",
-          "F3",
-          "F4",
-          "F5",
-          "F6"
-        ],
-        "supports": [
-          2,
-          3,
-          4
-        ]
-      },
-      {
         "index": 8,
         "kind": "analyst_inference",
         "text": "The eight-month gap between fiscal year ends limits direct comparability of the two revenue figures.",
@@ -2483,6 +2465,11 @@
         "index": 6,
         "text": "NVDA's year-over-year revenue growth rate is not shown, so the pace of NVDA's revenue change cannot be assessed.",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
+      },
+      {
+        "index": 7,
+        "text": "Despite lower absolute revenue, NVDA's substantially higher margins indicate stronger profitability per dollar of revenue compared to AAPL.",
+        "reason": "an inference names no company; its supports do"
       }
     ]
   },

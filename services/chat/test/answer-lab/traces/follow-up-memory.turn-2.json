@@ -2331,12 +2331,11 @@
         "result": "F9"
       },
       {
-        "index": 6,
-        "kind": "analyst_inference",
-        "text": "NVIDIA is outperforming AMD both on YTD price return and on every fundamental metric shown, though AMD's results were weighed down by a disclosed export-control charge.",
-        "evidence": [],
-        "supports": [
-          3
+        "index": 5,
+        "kind": "management_attribution",
+        "text": "AMD stated that U.S. export controls on MI308 GPUs caused approximately $800 million in inventory and related charges in Q2 2025.",
+        "evidence": [
+          "C1"
         ]
       },
       {
@@ -2357,9 +2356,9 @@
         "reason": "comparison: a comparison is of one metric"
       },
       {
-        "index": 5,
-        "text": "AMD stated that U.S. export controls on MI308 GPUs caused approximately $800 million in inventory and related charges in Q2 2025.",
-        "reason": "types MI308; write its reference"
+        "index": 6,
+        "text": "NVIDIA is outperforming AMD both on YTD price return and on every fundamental metric shown, though AMD's results were weighed down by a disclosed export-control charge.",
+        "reason": "an inference names no company; its supports do"
       }
     ]
   },

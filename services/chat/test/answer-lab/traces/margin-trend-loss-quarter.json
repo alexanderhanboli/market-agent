@@ -1915,6 +1915,14 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 3,
+        "kind": "management_attribution",
+        "text": "Management attributed the Q2 2025 operating margin decline to approximately $800 million in inventory and related charges from U.S. export controls on MI308 data center GPU products.",
+        "evidence": [
+          "C1"
+        ]
+      },
+      {
         "index": 6,
         "kind": "unknown_cause",
         "text": "The data does not show which segment or product line drove the steady operating margin improvement from Q3 2025 through Q2 2026.",
@@ -1941,11 +1949,6 @@
         "index": 2,
         "text": "Q2 2026 operating margin of 14.4% is the highest in the eight-quarter window.",
         "reason": "types 14.4%; write its reference"
-      },
-      {
-        "index": 3,
-        "text": "Management attributed the Q2 2025 operating margin decline to approximately $800 million in inventory and related charges from U.S. export controls on MI308 data center GPU products.",
-        "reason": "types $800; write its reference"
       },
       {
         "index": 4,

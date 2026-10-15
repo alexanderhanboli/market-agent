@@ -155,7 +155,7 @@ test("a comparison's shape: one metric, two or more figures, a trend over one co
 test("an inference may rest on a checked comparison (#208)", () => {
   const report = checkAssertions([
     { kind: "comparison", op: "highest", result: "C1", text: "NVDA has the highest gross margin.", evidence: ["C1", "C2", "C3"] },
-    { kind: "analyst_inference", text: "NVDA has more pricing power than its peers.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "The leader has more pricing power than its peers.", evidence: [], supports: [0] },
   ], PEERS);
   assert.deepEqual(report.rejected, []);
   assert.deepEqual(report.accepted.map((entry) => entry.kind), ["comparison", "analyst_inference"]);
@@ -163,7 +163,7 @@ test("an inference may rest on a checked comparison (#208)", () => {
   // One resting on a rejected comparison is rejected with it.
   const wrong = checkAssertions([
     { kind: "comparison", op: "highest", result: "C2", text: "AMD has the highest gross margin.", evidence: ["C1", "C2", "C3"] },
-    { kind: "analyst_inference", text: "AMD has more pricing power than its peers.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "The leader has more pricing power than its peers.", evidence: [], supports: [0] },
   ], PEERS);
   assert.deepEqual(wrong.accepted, []);
 });

@@ -1024,12 +1024,12 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
   // A template's own digits are periods; an inference's magnitude in words is the model's (#228).
   const { block, report } = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
-    { kind: "analyst_inference", text: "NVDA's margin has doubled.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "The leader's margin has doubled.", evidence: [], supports: [0] },
   ]));
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
   assert.equal(report.rendered, true);
-  assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** NVDA's margin has doubled.", reason: "removed by the narrative guard" }]);
+  assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** The leader's margin has doubled.", reason: "removed by the narrative guard" }]);
 });
 
 test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
@@ -1147,14 +1147,14 @@ test("a rendered inference is words only: one with a figure, typed or referenced
     { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
     // A reference to AMD's figure in a sentence about NVDA would render AMD's value as NVDA's.
     { kind: "analyst_inference", text: "NVDA's [[F4]] margin outruns AMD's.", evidence: [], supports: [0] },
-    { kind: "analyst_inference", text: "NVDA appears to hold pricing power.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "The leader appears to hold pricing power.", evidence: [], supports: [0] },
     { kind: "analyst_inference", text: "NVDA's 74.6% margin is a durable edge.", evidence: [], supports: [0] },
   ]));
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
   assert.equal(
     segments.map((segment) => segment.text ?? segment.format).join(""),
     "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025)." +
-      "\n\n> **Analyst inference:** NVDA appears to hold pricing power.",
+      "\n\n> **Analyst inference:** The leader appears to hold pricing power.",
   );
   // Every figure shown is the observation's, each from its own company's packet entry.
   assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4)]);
@@ -1315,35 +1315,57 @@ test("a ranking of price returns read off their chart renders through the guard 
   assert.deepEqual(reports[0]!.rejected, []);
 });
 
-test("a labelled inference may state a ranking or direction; it renders beside the checked comparison (#301)", async () => {
+test("across companies, an inference names none: its label states what its comparisons checked (#288, #301)", async () => {
   const { block, report } = await renderWithReply(withList([
-    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: [], supports: [1] },
+    { kind: "analyst_inference", text: "The margin lead leaves more room to invest.", evidence: [], supports: [1] },
     { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
-    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
-    { kind: "analyst_inference", text: "AMD trails NVDA on profitability.", evidence: [], supports: [2] },
+    { kind: "observation", text: "NVDA's revenue was [[F1]] and AMD's was [[F3]].", evidence: ["F1", "F3"] },
+    // Beside a checked NVDA-highest: the words would contradict it.
+    { kind: "analyst_inference", text: "AMD leads NVDA on profitability.", evidence: [], supports: [1] },
+    { kind: "analyst_inference", text: "Scale leaves room to invest.", evidence: [], supports: [2] },
   ]));
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
   // In the model's order: its takeaway first.
   assert.equal(
     segments.map((segment) => segment.text ?? segment.format).join(""),
-    "> **Analyst inference:** NVDA keeps more of each sale than AMD." +
+    "> **Analyst inference** (NVDA highest on gross margin): The margin lead leaves more room to invest." +
       "\n\nOf NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026, ended Jan 2026), AMD 49.2% (FY2025, ended Dec 2025)." +
-      "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025)." +
-      "\n\n> **Analyst inference:** AMD trails NVDA on profitability.",
+      "\n\nNVDA's revenue was $130.5B in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025)." +
+      "\n\n> **Analyst inference:** Scale leaves room to invest.",
   );
-  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(2), FACT(4)]);
-  assert.deepEqual(report.rejected, []);
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(1), FACT(3)]);
+  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
+    [3, "an inference names no company; its supports do"],
+  ]);
 
   // The wrong winner, every number right: rejected, and the inference with it.
   const wrong = await renderWithReply(withList([
     { kind: "comparison", op: "highest", result: "F4", text: "AMD's gross margin is the highest.", evidence: ["F2", "F4"] },
-    { kind: "analyst_inference", text: "AMD keeps more of each sale than NVDA.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "It keeps more of each sale.", evidence: [], supports: [0] },
   ]));
   assert.deepEqual((wrong.report.rejected as Array<{ index: number; reason: string }>).map((entry) => entry.reason), [
     "comparison: F2 (74.6%) is higher than F4 (49.2%)",
     "an inference binds the accepted observations it rests on",
   ]);
   assert.equal(wrong.report.rendered, undefined);
+});
+
+test("an observation a kept comparison already writes in full is not said twice; it still supports an inference (#301)", async () => {
+  const { block, report } = await renderWithReply(withList([
+    { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
+    // AMD's revenue is in no comparison, so the whole observation stays.
+    { kind: "observation", text: "NVDA's gross margin was [[F2]]; AMD's revenue was [[F3]].", evidence: ["F2", "F3"] },
+    { kind: "analyst_inference", text: "Pricing power shows in the margin.", evidence: [], supports: [1] },
+  ]));
+  assert.equal(
+    (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
+    "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026, ended Jan 2026), AMD 49.2% (FY2025, ended Dec 2025)." +
+      "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025)." +
+      "\n\n> **Analyst inference:** Pricing power shows in the margin.",
+  );
+  assert.deepEqual(report.repeated, [1]);
+  assert.deepEqual((report.accepted as Array<{ index: number }>).map((entry) => entry.index), [0, 1, 2, 3]);
 });
 
 test("a single company's checked trend and low render through the guard (#208)", async () => {
@@ -1395,15 +1417,15 @@ test("an inference goes only when the guard removed every assertion it rests on 
     createClient: () => async () => ({ text: withList([
       { kind: "observation", text: "NVDA's margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
       { kind: "observation", text: "NVDA's revenue was [[F1]] and AMD's was [[F3]].", evidence: ["F1", "F3"] },
-      { kind: "analyst_inference", text: "NVDA prices with more power.", evidence: [], supports: [0] },
-      { kind: "analyst_inference", text: "NVDA has the scale to invest.", evidence: [], supports: [0, 1] },
+      { kind: "analyst_inference", text: "The margin shows pricing power.", evidence: [], supports: [0] },
+      { kind: "analyst_inference", text: "Scale leaves room to invest.", evidence: [], supports: [0, 1] },
     ]) }),
     onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
   });
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(text,
     "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025)." +
-    "\n\n> **Analyst inference:** NVDA has the scale to invest.");
+    "\n\n> **Analyst inference:** Scale leaves room to invest.");
   assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
     [0, "removed by the narrative guard"],
     [2, "rests on an observation the narrative guard removed"],
@@ -1603,4 +1625,25 @@ test("on a named-gap turn a list marker left with no content goes too (#294 revi
     createClient: () => async () => ({ text: "1. AMD's free cash flow was three billion dollars.\n- Its capex was twenty billion dollars." }),
   });
   assert.equal((composed[0].segments as Array<{ text: string }>).map((segment) => segment.text).join(""), "No written answer is available for this question; try asking again.");
+});
+
+test("an inference resting on a comparison the guard removed keeps its other support, and its label names only that one (#306 review)", async () => {
+  const blocks = [{ ...RENDER_BLOCKS[0]!, metrics: ["Revenue halved", "Gross Margin"] }];
+  const reports: Array<Record<string, unknown>> = [];
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    factBlocks: blocks,
+    createClient: () => async () => ({ text: withList([
+      { kind: "comparison", op: "highest", result: "F1", text: "x", evidence: ["F1", "F3"] },
+      { kind: "comparison", op: "highest", result: "F2", text: "x", evidence: ["F2", "F4"] },
+      { kind: "analyst_inference", text: "The leader keeps more of each sale.", evidence: [], supports: [0, 1] },
+    ]) }),
+    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.match(text, /> \*\*Analyst inference\*\* \(NVDA highest on gross margin\): The leader keeps more of each sale\./);
+  assert.doesNotMatch(text, /halved/);
 });

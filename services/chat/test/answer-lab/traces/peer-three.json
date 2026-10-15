@@ -3406,15 +3406,11 @@
         "result": "F9"
       },
       {
-        "index": 9,
-        "kind": "analyst_inference",
-        "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
-        "evidence": [],
-        "supports": [
-          3,
-          4,
-          5,
-          6
+        "index": 8,
+        "kind": "management_attribution",
+        "text": "AMD management stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in the quarter ending June 2025.",
+        "evidence": [
+          "C1"
         ]
       }
     ],
@@ -3435,14 +3431,14 @@
         "reason": "types $416.2B; write its reference"
       },
       {
-        "index": 8,
-        "text": "AMD management stated that U.S. export controls on MI308 data center GPUs led to approximately $800 million in inventory and related charges in the quarter ending June 2025.",
-        "reason": "types MI308; write its reference"
+        "index": 9,
+        "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
+        "reason": "an inference names no company; its supports do"
       },
       {
         "index": 10,
         "text": "AMD's net margin may have been depressed by the export-control charge management disclosed, which is a headwind specific to that fiscal year rather than a structural margin ceiling.",
-        "reason": "an inference binds the accepted observations it rests on"
+        "reason": "an inference names no company; its supports do"
       },
       {
         "index": 11,

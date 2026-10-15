@@ -11,7 +11,7 @@ const CHECKS: ReadonlyArray<readonly [RejectionCheck, RegExp]> = [
   ["comparative", /^comparison:/],
   ["rendering", /narrative guard/],
   ["cause", /states no cause/],
-  ["binding", /writes no figure/],
+  ["binding", /writes no figure|names no company/],
   ["support", /inference binds|rests on/],
   ["gap", /named gap/],
   ["limit", /^more than \d+ assertions$/],

@@ -2528,32 +2528,24 @@
         "result": "F9"
       },
       {
-        "index": 9,
-        "kind": "analyst_inference",
-        "text": "NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
-        "evidence": [],
-        "supports": [
-          3,
-          4,
-          5,
-          6
-        ]
-      },
-      {
-        "index": 10,
-        "kind": "analyst_inference",
-        "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
-        "evidence": [],
-        "supports": [
-          1
+        "index": 8,
+        "kind": "management_attribution",
+        "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
+        "evidence": [
+          "C1"
         ]
       }
     ],
     "rejected": [
       {
-        "index": 8,
-        "text": "AMD management stated that Q2 FY2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
-        "reason": "types MI308; write its reference"
+        "index": 9,
+        "text": "NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+        "reason": "an inference names no company; its supports do"
+      },
+      {
+        "index": 10,
+        "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
+        "reason": "an inference names no company; its supports do"
       },
       {
         "index": 11,

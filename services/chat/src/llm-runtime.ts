@@ -211,7 +211,10 @@ export async function composeAnalystBlocksWithLlm(input: {
           "evidence lists its C id), \"unknown_cause\" (a change the evidence gives no cause for; evidence lists the F id of each",
           "figure that changed), or \"analyst_inference\" (what the observations and comparisons mean, in words; the figures are",
           "theirs, so it writes no digit, period label or reference (\"a year earlier\", not FY2025); evidence may be omitted; add \"supports\": the array indexes of the",
-          "observations and comparisons it rests on).",
+          "observations and comparisons it rests on). When the answer covers more than one company, an analyst_inference names no",
+          "company, not even in the counterpoint: who leads, trails, rose or fell is shown from the comparisons it rests on, so rest",
+          "a ranking or direction on its comparison and say only what it means (\"the margin lead funds more research\", not",
+          "\"NVDA leads AMD\"), naming a company by its role (\"the leader\", \"the company that took the charge\").",
           "The answer may be shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
           "analyst_inference; then the observations, comparisons and what the data cannot tell about a change, as an",
           "unknown_cause; and your counterpoint last, as an analyst_inference.",
@@ -261,6 +264,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   // Assertions rendering left out, with why: on the report whether or not the
   // answer was rendered, so evals see them either way.
   let renderRemovals: AssertionReport["rejected"] = [];
+  let repeated: number[] = [];
   const reportAssertions = (rendered = false) =>
     input.onAssertions?.(renderRemovals.length > 0 || rendered
       ? {
@@ -268,6 +272,7 @@ export async function composeAnalystBlocksWithLlm(input: {
         accepted: report.accepted.filter((entry) => !renderRemovals.some((removed) => removed.index === entry.index)),
         rejected: [...report.rejected, ...renderRemovals].sort((a, b) => a.index - b.index),
         ...(rendered ? { rendered: true } : {}),
+        ...(rendered && repeated.length > 0 ? { repeated } : {}),
       }
       : report);
   // Controlled rendering (#208), behind CHAT_ASSERTION_RENDERING: the answer
@@ -278,13 +283,24 @@ export async function composeAnalystBlocksWithLlm(input: {
   const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
     if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
     const rendered = report.accepted.map((assertion) => ({
-      ...renderAssertion(assertion, packet, factBlocks),
+      ...renderAssertion(assertion, packet, factBlocks, report.accepted),
       kind: assertion.kind,
       supports: assertion.supports ?? [],
     }));
     // The guard reads each rendered assertion with its values as references,
     // so a template's own periods ("Q4 2026") pass and its values are the packet's.
-    const guarded = new Set(rendered.filter((entry) => drops(entry.reference_text, entry.kind).length > 0).map((entry) => entry.index));
+    // Inferences last: an inference's label states what its comparisons
+    // checked, so it is rebuilt from those still on the page before the guard
+    // reads it, and never names (or is dropped for) one the guard removed.
+    const guarded = new Set(rendered.filter((entry) => entry.kind !== "analyst_inference" && drops(entry.reference_text, entry.kind).length > 0).map((entry) => entry.index));
+    const surviving = report.accepted.filter((assertion) => !guarded.has(assertion.index));
+    for (const [i, entry] of rendered.entries()) {
+      if (entry.kind !== "analyst_inference") continue;
+      if (entry.supports.some((n) => guarded.has(n))) {
+        rendered[i] = { ...entry, ...renderAssertion(report.accepted.find((assertion) => assertion.index === entry.index)!, packet, factBlocks, surviving) };
+      }
+      if (drops(rendered[i]!.reference_text, entry.kind).length > 0) guarded.add(entry.index);
+    }
     // An inference goes when the guard removed every assertion it rests on:
     // none of its support is on the page.
     const orphaned = new Set(rendered.filter((entry) =>
@@ -308,6 +324,12 @@ export async function composeAnalystBlocksWithLlm(input: {
       ...keptAssertions.flatMap((assertion) => packet.claims.filter((claim) => assertion.evidence.includes(claim.id)).map((claim) => claim.company)),
     ]);
     if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) return null;
+    // An observation whose every figure a kept comparison writes is not said
+    // twice; it still stands as an inference's support. One fact shown in two
+    // blocks is one figure.
+    const factOf = (id: string) => packet.figures.find((figure) => figure.id === id)?.fact_id ?? id;
+    const compared = new Set(kept.filter((entry) => entry.kind === "comparison").flatMap((entry) => entry.figure_ids.map(factOf)));
+    repeated = kept.filter((entry) => entry.kind === "observation" && entry.figure_ids.every((id) => compared.has(factOf(id)))).map((entry) => entry.index);
     // The guard's own drops; an inference removed with its observation is on the report.
     const dropped = renderRemovals.filter((entry) => guarded.has(entry.index));
     if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.flatMap((entry) => (entry.text ? [entry.text] : [])));
@@ -326,7 +348,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // What the rendered assertions cannot say themselves: a compared company
     // with no figures shown, and stale data.
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
-    return rewriteFirstRichTextBlockWith(input.blocks, [...kept, ...otherSides], [
+    return rewriteFirstRichTextBlockWith(input.blocks, [...kept.filter((entry) => !repeated.includes(entry.index)), ...otherSides], [
       ...(calendarsDiffer(keptFigures) ? ["The same fiscal year ends in different months for each company, so the periods do not line up."] : []),
       ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
       // The claims as selected: more matched than were read, or none could be.

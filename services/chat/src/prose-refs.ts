@@ -79,7 +79,7 @@ const PERIOD_SHAPE = /^(?:\d+|FY\d+|[QH]\d)$/;
 // The names in a text: ASCII words that start with letters and hold a digit
 // ("MI308"), not a period's shape. A word led by digits ("800M") is a figure,
 // and so is one with an amount's unit after its digits ("USD800M").
-function namesIn(text: string): string[] {
+export function namesIn(text: string): string[] {
   return (text.match(DIGIT_WORD) ?? []).filter((word) =>
     /^[A-Za-z]+[0-9]+[A-Za-z0-9]*$/.test(word) && !PERIOD_SHAPE.test(word) && !/[0-9](?:[KMBT]|bn|mn)$/.test(word)
   );

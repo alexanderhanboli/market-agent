@@ -1892,6 +1892,14 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 6,
+        "kind": "management_attribution",
+        "text": "Management stated that Q2 2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
+        "evidence": [
+          "C1"
+        ]
+      },
+      {
         "index": 7,
         "kind": "unknown_cause",
         "text": "The data does not show how the charge was allocated between gross profit and operating expenses.",
@@ -1931,11 +1939,6 @@
         "index": 5,
         "text": "Gross margin dropped sharply in Q2 2025 relative to all other quarters shown, then recovered and stabilized in the low-to-mid 50s.",
         "reason": "types 50s; write its reference"
-      },
-      {
-        "index": 6,
-        "text": "Management stated that Q2 2025 results were impacted by U.S. export controls on MI308 data center GPUs, leading to approximately $800 million in inventory and related charges.",
-        "reason": "types MI308; write its reference"
       },
       {
         "index": 8,

@@ -133,8 +133,8 @@ export const RENDERING_MODES = ["on", "off", "recorded"] as const;
 export type RenderingMode = (typeof RENDERING_MODES)[number];
 
 // text: the model's raw reply; answer: the rich_text the user reads, each
-// value as displayed; assertions: what rendering accepted, by kind, and why
-// the rest went.
+// value as displayed; assertions: what rendering accepted, by kind, why the
+// rest went, and how many accepted observations a comparison already showed.
 type LiveSample = {
   trace: string;
   sample: number;
@@ -142,7 +142,7 @@ type LiveSample = {
   metrics?: AnswerMetrics;
   text?: string;
   answer?: string;
-  assertions?: { rendered: boolean; accepted: AssertionKind[]; rejected: string[] };
+  assertions?: { rendered: boolean; accepted: AssertionKind[]; rejected: string[]; repeated?: number };
   error?: string;
 };
 // traces: the turns' keys; labels: their file names, for display.
@@ -195,6 +195,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
                 rendered: answer.assertions.rendered === true,
                 accepted: answer.assertions.accepted.map((entry) => entry.kind),
                 rejected: answer.assertions.rejected.map((entry) => entry.reason),
+                ...(answer.assertions.repeated ? { repeated: answer.assertions.repeated.length } : {}),
               },
             }
             : {}),
@@ -238,9 +239,11 @@ export function assertionSummary(run: Pick<LiveRun, "results">): string {
   const rendered = answered.filter((result) => result.assertions?.rendered).length;
   const kinds = count(answered.flatMap((result) => result.assertions?.accepted ?? []));
   const reasons = count(answered.flatMap((result) => result.assertions?.rejected ?? []));
+  const repeated = answered.reduce((sum, result) => sum + (result.assertions?.repeated ?? 0), 0);
   return [
     `rendered: ${rendered} of ${answered.length} answers`,
     `accepted: ${kinds.map(([kind, n]) => `${n} ${kind}`).join(", ") || "none"}`,
+    `repeated: ${repeated} observations a comparison already shows`,
     "rejected:",
     ...reasons.map(([reason, n]) => `  ${String(n).padStart(3)}  ${reason}`),
   ].join("\n");

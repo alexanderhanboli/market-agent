@@ -45,6 +45,9 @@ export type AssertionReport = {
   unchecked?: number;
   // The answer was written from the accepted assertions (controlled rendering).
   rendered?: boolean;
+  // Accepted observations the rendered answer leaves out, since a comparison
+  // it shows writes every figure they state.
+  repeated?: ReadonlyArray<number>;
 };
 
 // The answer is rendered from this list (#208), so it holds a comparison
@@ -152,6 +155,15 @@ export function checkAssertions(
       reject(index, item, "an inference rests on its supports; it writes no figure");
       continue;
     }
+    // Across companies, who leads or trails is its comparisons' checked
+    // result, rendered in its label; its words name none, so they cannot
+    // contradict it ("AMD leads" beside a checked NVDA-highest, #288).
+    // A one-letter ticker ("A") cannot be told from the article, as in the guard.
+    if (kind === "analyst_inference" && packet.companies.length > 1 &&
+      packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
+      reject(index, item, "an inference names no company; its supports do");
+      continue;
+    }
     const figureIds = evidence.filter((id) => figures.has(id));
     const claimIds = evidence.filter((id) => claims.has(id));
     // What figures show is not why: a cause is a cited claim's or unknown, on
@@ -204,7 +216,7 @@ export function checkAssertions(
     const cited = kind === "analyst_inference"
       ? [...evidence, ...accepted.filter((entry) => supports.includes(entry.index)).flatMap((entry) => entry.evidence)]
       : evidence;
-    const binding = bindingError(item.text, cited, packet, table);
+    const binding = bindingError(kind, item.text, cited, packet, table);
     if (binding) {
       reject(index, item, binding);
       continue;
@@ -281,20 +293,27 @@ function shapeError(
 // evidence's years (prose-refs.ts), so a figure or a claim's number is written
 // only as its reference, and a year from elsewhere in the turn is not this
 // assertion's; and every company it names is its evidence's.
-function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket, table: ReferenceTable): string | null {
+function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket, table: ReferenceTable): string | null {
   for (const [reference, id] of text.matchAll(REFERENCE)) {
     if (!table.references.has(id!)) return `unknown reference ${reference}`;
     if (!cited.includes(id!)) return `${reference} is not in its evidence`;
   }
   const figures = packet.figures.filter((figure) => cited.includes(figure.id));
   const claims = packet.claims.filter((claim) => cited.includes(claim.id));
-  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) });
+  // An attribution renders its claim's quote, never its own text, so a token
+  // the claim writes ("MI308", "$800", whole, not "$80" of it) may stand in
+  // that text too.
+  const quoted = new Set(kind === "management_attribution"
+    ? claims.flatMap((claim) => typedDigits(claim.text, { years: new Set(), words: new Set(), companies: [] }))
+    : []);
+  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) }).filter((token) => !quoted.has(token));
   if (typed !== undefined) return /^(?:FY)?\d{4}$/.test(typed) ? `${typed} is not a period of its evidence` : `types ${typed}; write its reference`;
   // A claim with no company is no company's (its record named none).
   if (claims.some((claim) => claim.company === undefined)) return null;
   // A figure with no company is the only company's.
   const own = new Set([...figures.map((figure) => figure.company ?? packet.companies[0]), ...claims.map((claim) => claim.company)]);
-  const other = packet.companies.find((company) => !own.has(company) && mentions(text, company));
+  // A one-letter ticker ("A") cannot be told from the article, as in the guard.
+  const other = packet.companies.find((company) => company.length > 1 && !own.has(company) && mentions(text, company));
   return other === undefined ? null : `names ${other}, which its evidence does not`;
 }
 
