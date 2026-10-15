@@ -188,6 +188,12 @@ test("an inference's packet references render as their sealed values, beside any
   assert.deepEqual(mixed.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM, AMD_GM]);
 });
 
+test("a typed value written beside its own reference renders once, as one chip (PR #300 review)", () => {
+  const rendered = renderAssertion({ index: 1, kind: "analyst_inference", text: "NVDA's 74.6% [[F1]] margin is a durable edge.", evidence: [], supports: [0] }, PACKET, FACT_BLOCKS, ["F1"]);
+  assert.equal(plainText(rendered.segments), "> **Analyst inference:** NVDA's 74.6% margin is a durable edge.");
+  assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [NVDA_GM]);
+});
+
 test("a year in an inference is a period, never an unlinkable figure (#208)", () => {
   const rendered = renderAssertion(
     { index: 1, kind: "analyst_inference", text: "The Q1 2026 dip was a one-quarter event, recovered by Q4 2026 and through 2025.", evidence: [], supports: [0] },

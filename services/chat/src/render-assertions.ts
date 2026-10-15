@@ -101,10 +101,20 @@ export function renderAssertion(
         text(assertion.text);
         break;
       }
+      // A typed value beside its own reference ("74.6% [[F1]]") is one span:
+      // the figure renders once.
       const spans = [
         ...links.map((link) => ({ at: link.at, length: link.length, id: link.figureId })),
         ...[...assertion.text.matchAll(REFERENCE)].map((match) => ({ at: match.index, length: match[0].length, id: match[1]! })),
-      ].sort((a, b) => a.at - b.at);
+      ].sort((a, b) => a.at - b.at).reduce<Array<{ at: number; length: number; id: string }>>((merged, span) => {
+        const last = merged.at(-1);
+        if (last?.id === span.id && /^\s*$/.test(assertion.text.slice(last.at + last.length, span.at))) {
+          last.length = span.at + span.length - last.at;
+        } else {
+          merged.push(span);
+        }
+        return merged;
+      }, []);
       let from = 0;
       for (const span of spans) {
         text(assertion.text.slice(from, span.at));
