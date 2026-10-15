@@ -1,0 +1,114 @@
+{
+  "run": "2026-10-15T163631",
+  "model": "opencode-go/qwen3.8-max (fallbacks: opencode-go/kimi-k2.7-code)",
+  "scores": {
+    "single-latest-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: Figures match; 'eight consecutive quarters of sequential growth' overstates (8 quarters = 7 increases) and the deceleration case ignores the smaller Q1->Q2 FY26 step ($44.1B->$46.7B)."
+    },
+    "margin-trend-loss-quarter": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 1,
+      "notes": "Blind-scored by an Opus agent as run A: All eight margins correct and -1.7% shown, but the cause ('a single regulatory event', 'absent the charge', 'Excluding that quarter') is asserted with no citation shown."
+    },
+    "what-changed-gross-margin": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: 60.5% vs 73.0% and recovery to 72.4/73.4/74.4% correct, cause stated as unknown; the 'counterpoint' restates the transitory view rather than cutting against it."
+    },
+    "cause-in-evidence": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 0,
+      "counterarguments": 2,
+      "no_invented_numbers": 1,
+      "notes": "Blind-scored by an Opus agent as run A: Never states the -$134M loss or 39.8% GM, asserts 'one-time charge' as fact without AMD's cited attribution, and claims the swing is 'entirely explained by gross profit' though GM fell 10.4pts vs op margin 12.5pts (GP -~$0.6B vs OI -~$0.9B)."
+    },
+    "peer-two": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: Table figures correct and 1-month FY offset stated; price returns 6.6%/3.58% unlinked, and 'That charge' and the hypothesis refer to a disclosure never shown."
+    },
+    "peer-three": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 1,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: Figures correct and up-to-4-month mismatch stated, but takeaway says AMD trails both peers on margins although its 49.9% GM beats AAPL's 46.9%; counterpoint cites 'that charge' never shown; no note that AAPL is a different industry."
+    },
+    "fiscal-year-trap": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 1,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: 8-month FY mismatch stated; the revenue figures ($130.5B vs $416.2B) appear only in the table, so prose revenue conclusion is thin (dangling 'However')."
+    },
+    "segment-drill-down": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 2,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: All five Q4 FY2026 segments correct with Data Center concentration and single-period limits stated."
+    },
+    "missing-segments": {
+      "correct_companies": 2,
+      "comparable_periods": null,
+      "figures_match_sources": null,
+      "conclusions_justified": null,
+      "counterarguments": null,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: States AMD segment revenue is unavailable; no figures given."
+    },
+    "missing-cash-flow": {
+      "correct_companies": 2,
+      "comparable_periods": null,
+      "figures_match_sources": null,
+      "conclusions_justified": null,
+      "counterarguments": null,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: States FCF unavailable and substitutes nothing."
+    },
+    "follow-up-memory": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: Keeps NVDA+AMD, states YTD window and FY offset, cites AMD's MI308 charge as counterpoint; YTD returns 5.81%/3.17% are unlinked and turn 3 asserts the return lead without figures."
+    },
+    "ticker-page-compare": {
+      "correct_companies": 2,
+      "comparable_periods": 2,
+      "figures_match_sources": 1,
+      "conclusions_justified": 2,
+      "counterarguments": 2,
+      "no_invented_numbers": 2,
+      "notes": "Blind-scored by an Opus agent as run A: AAPL-primary, 4-month FY offset stated, table figures correct; price returns 6.05%/6.6% unlinked."
+    }
+  }
+}
