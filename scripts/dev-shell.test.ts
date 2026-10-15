@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -949,4 +950,21 @@ test("status shows the one app process, the services it hosts, and parked servic
   for (const parked of ["watchlists", "screener", "portfolio", "home", "evidence", "analyst-grids", "discovery"]) {
     assert.match(result.stdout, new RegExp(`^${parked}\\s+parked`, "m"), parked);
   }
+});
+
+test("install covers every package with a lockfile", async () => {
+  const repo = REPO_ROOT;
+  const fixture = await createShellFixture();
+  const result = await runBash(
+    ["MARKET_AGENT_DEV_SHELL_SOURCE_ONLY=1 source ./scripts/dev-shell.sh", 'ensure_install() { echo "${1#"$ROOT"/}"; }', "install_node_packages"].join("\n"),
+    fixture.root,
+  );
+  await rm(fixture.root, { recursive: true, force: true });
+  assert.equal(result.code, 0, result.stderr);
+  const packages = [".", "services"].flatMap((dir) =>
+    readdirSync(join(repo, dir), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && existsSync(join(repo, dir, entry.name, "package-lock.json")))
+      .map((entry) => (dir === "." ? entry.name : `${dir}/${entry.name}`))
+  );
+  assert.deepEqual(result.stdout.trim().split("\n").sort(), packages.sort());
 });

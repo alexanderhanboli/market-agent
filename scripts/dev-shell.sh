@@ -114,6 +114,7 @@ install_node_packages() {
   ensure_install "$ROOT/services/financial-engine"
   ensure_install "$ROOT/services/screener-artifacts"
   ensure_install "$ROOT/services/shared"
+  ensure_install "$ROOT/services/discovery"
 }
 
 ensure_python_service_install() {
@@ -667,9 +668,6 @@ up() {
   if [[ "$DEV_NO_KEYS" == "traces" ]]; then
     mkdir -p "$ROOT/.dev"
     (cd "$ROOT/services/chat" && node --experimental-strip-types scripts/answer-lab.ts replies test/answer-lab/traces --out "$LLM_REPLAY_FILE")
-  fi
-  if discovery_active; then
-    ensure_install "$ROOT/services/discovery"
   fi
   if [[ "$ENABLE_UNOFFICIAL_DEV_PROVIDERS" == "true" ]]; then
     ensure_python_service_install "$ROOT/services/dev-providers"
