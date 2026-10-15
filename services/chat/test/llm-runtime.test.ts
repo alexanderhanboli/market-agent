@@ -1213,6 +1213,13 @@ test("a rendered comparison covers every company it shows figures for, and warns
   const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]));
   assert.equal((oneSided.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(oneSided.report.rendered, undefined);
+  // An inference shows no figure, so its evidence covers no company: AMD still has none on the page.
+  const inferred = await renderWithReply(withList([
+    { kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] },
+    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: ["F4"], supports: [0] },
+  ]));
+  assert.equal(inferred.report.rendered, undefined);
+  assert.equal((inferred.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
 
   const sameYear = [{
     ...RENDER_BLOCKS[0]!,

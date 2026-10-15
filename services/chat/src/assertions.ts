@@ -146,7 +146,7 @@ export function checkAssertions(
       reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
       continue;
     }
-    if (kind === "analyst_inference" && (item.text.search(REFERENCE) !== -1 || typedDigits(item.text, table).length > 0)) {
+    if (kind === "analyst_inference" && (item.text.search(REFERENCE) !== -1 || typedDigits(item.text, table).length > 0 || AMOUNT_WORD.test(item.text))) {
       reject(index, item, "an inference rests on its supports; it writes no figure");
       continue;
     }
@@ -227,6 +227,13 @@ export function checkAssertions(
   rejected.sort((a, b) => a.index - b.index);
   return { status: "checked", accepted, rejected, ...(unchecked > 0 ? { unchecked } : {}) };
 }
+
+// An amount in words: a number word, then a unit ("seventy percent", "a few
+// billion dollars"). An inference states none. A count ("three companies") or
+// a unit with no number ("per dollar of revenue") is not an amount.
+const NUMBER_WORD = String.raw`(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|dozen|few|several|half)`;
+const AMOUNT_UNIT = String.raw`(?:per ?cent|percent(?:age points?)?|basis points?|bps|points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?|thousands?|millions?|billions?|trillions?)`;
+const AMOUNT_WORD = new RegExp(String.raw`\b${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}\b`, "i");
 
 // An inference's supports, when the observations cannot be figure-checked:
 // at least one observation that passed every check it could take.

@@ -73,13 +73,19 @@ test("an inference rests on accepted observations and writes no figure, typed or
     { kind: "analyst_inference", text: "NVDA's 80% margin leads.", evidence: [], supports: [0] },
     { kind: "analyst_inference", text: "NVDA prices with more power.", evidence: [] },
     { kind: "analyst_inference", text: "NVDA's margin is higher.", evidence: [], supports: [2] },
+    { kind: "analyst_inference", text: "NVDA's gross margin rose to seventy percent.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA earns a few billion dollars more.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA leads all three companies shown.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "NVDA earns more profit per dollar of revenue.", evidence: [], supports: [0] },
   ]);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1, 2]);
+  assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1, 2, 9, 10]);
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [3, "an inference rests on its supports; it writes no figure"],
     [4, "an inference rests on its supports; it writes no figure"],
     [5, "an inference binds the accepted observations it rests on"],
     [6, "an inference binds the accepted observations it rests on"],
+    [7, "an inference rests on its supports; it writes no figure"],
+    [8, "an inference rests on its supports; it writes no figure"],
   ]);
 });
 

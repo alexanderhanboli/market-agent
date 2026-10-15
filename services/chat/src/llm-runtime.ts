@@ -300,7 +300,8 @@ export async function composeAnalystBlocksWithLlm(input: {
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
     // one-sided, so its prose stands instead.
-    const keptAssertions = kept.flatMap((entry) => report.accepted.filter((assertion) => assertion.index === entry.index));
+    // An inference shows no figure, so its evidence covers no company.
+    const keptAssertions = kept.flatMap((entry) => report.accepted.filter((assertion) => assertion.index === entry.index && assertion.kind !== "analyst_inference"));
     const keptFigures = keptAssertions.flatMap((assertion) => packet.figures.filter((figure) => assertion.evidence.includes(figure.id)));
     const covered = new Set([
       ...keptFigures.map((figure) => figure.company ?? packet.companies[0]),
