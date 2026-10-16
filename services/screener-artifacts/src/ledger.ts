@@ -77,3 +77,36 @@ export async function writeLedgerEntry(db: QueryExecutor, entry: LedgerEntry): P
     ],
   );
 }
+
+export type LedgerStatusRow = {
+  market: string;
+  release_tag: string;
+  as_of_date: string;
+  sha256: string;
+  status: LedgerStatus;
+  rows_ingested: number;
+  finished_at: string;
+  /** The latest run that imported data (succeeded or partial); null when there has been none. */
+  last_import: { as_of_date: string; sha256: string; finished_at: string } | null;
+};
+
+// The operator's view (`job:weekly-reference -- --status`): per market, the
+// latest recorded run (failed included) and the latest run that imported data,
+// so a failed new bundle never hides what the database last received.
+export async function latestLedgerEntries(db: QueryExecutor): Promise<LedgerStatusRow[]> {
+  const utc = (column: string) => `to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
+  const result = await db.query(
+    `select distinct on (l.market) l.market, l.release_tag, l.as_of_date::text as as_of_date, l.sha256, l.status,
+            l.rows_ingested, ${utc("l.finished_at")} as finished_at,
+            case when i.sha256 is null then null
+                 else json_build_object('as_of_date', i.as_of_date::text, 'sha256', i.sha256, 'finished_at', ${utc("i.finished_at")}) end as last_import
+       from artifact_ingestion_ledger l
+       left join lateral (
+         select as_of_date, sha256, finished_at from artifact_ingestion_ledger
+          where market = l.market and status <> 'failed'
+          order by finished_at desc limit 1
+       ) i on true
+      order by l.market, l.finished_at desc`,
+  );
+  return result.rows as LedgerStatusRow[];
+}
