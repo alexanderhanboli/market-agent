@@ -40,14 +40,13 @@ export type SealedSnapshotRecord = {
 // Linkage means the values shown are the evidence cited, not merely that the
 // block cites something sealed. Kinds that display literal values with no
 // per-value reference are never linked: the seal accepts a single fact binding
-// on any block, and it drops a chart's embedded points without comparing them
-// to the sealed series or their bars_sha256, so nothing ties what is drawn to
-// what is cited.
-// ponytail: charts earn linkage once a point-to-series check exists (#236).
+// on any block, and it drops these charts' embedded points without comparing
+// them to the sealed series, so nothing ties what is drawn to what is cited.
+// A price chart is the exception (#236): the seal recomputes each drawn line
+// from the series it cites (chart-points.ts).
 const LITERAL_VALUE_KINDS: ReadonlySet<string> = new Set([
   "table",
   "line_chart",
-  "perf_comparison",
   "segment_trajectory",
   "sentiment_trend",
   "mention_volume",
@@ -78,10 +77,19 @@ function isCertified(block: Record<string, unknown>, snapshot: SealedSnapshotRec
 function citesOnlySealed(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {
   if (typeof block.kind === "string" && LITERAL_VALUE_KINDS.has(block.kind)) return false;
   try {
+    if (block.kind === "perf_comparison" && !eachLineHasItsOwnSeries(block)) return false;
     return citedRefsAllSealed(block, snapshot);
   } catch {
     return false;
   }
+}
+
+// The lines the seal checked: embedded points, line i drawn from series ref i,
+// no ref shared. A live-rendered chart has no points to have checked.
+function eachLineHasItsOwnSeries(block: Record<string, unknown>): boolean {
+  const params = isRecord(block.data_ref) && isRecord(block.data_ref.params) ? block.data_ref.params : {};
+  const refs = dataRefSeriesRefs(params as JsonObject);
+  return Array.isArray(block.series) && block.series.length > 0 && block.series.length === refs.length && new Set(refs).size === refs.length;
 }
 
 function citedRefsAllSealed(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {
