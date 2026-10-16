@@ -75,7 +75,7 @@ export type FinancialInputCandidate = Readonly<{
   source_version_hash: string | null;
   context: Omit<FactFinancialContext, "fact_id"> | null;
   precision: PrecisionProof | null;
-  /** Current (non-superseded) proofs for this exact source version only. */
+  /** Current (non-superseded) proofs for this exact source version, or a document of it at that document's version. */
   publication: ReadonlyArray<PublicationProof>;
 }>;
 
@@ -137,7 +137,7 @@ export async function listFinancialInputCandidates(db: RowQueryExecutor, request
            from current_source_publication_attestations p
            left join documents d on d.document_id = p.document_id
           where p.source_id = f.source_id
-            and p.source_version_hash = normalized_content_hash(s.content_hash)
+            and p.source_version_hash = normalized_content_hash(case when p.document_id is null then s.content_hash else d.content_hash end)
             and (p.document_id is null or d.deleted_at is null)
        ) pub on true
       where f.subject_kind = $1::subject_kind and f.subject_id = $2::uuid and m.metric_key = $3
