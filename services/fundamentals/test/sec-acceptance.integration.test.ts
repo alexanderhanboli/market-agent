@@ -6,15 +6,13 @@ import test from "node:test";
 import { bootstrapDatabase, connectedPool, dockerAvailable, workspaceRoot } from "../../../db/test/docker-pg.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
 import { recordFactFinancialContext } from "../../evidence/src/financial-context.ts";
-import { createRuntimeAuthority } from "../../financial-core/src/index.ts";
-import { createEvidenceFinancialPort } from "../../financial-engine/src/evidence-adapter.ts";
-import { selectInput } from "../../financial-engine/src/select-inputs.ts";
 import { recordSecFilingAcceptances } from "../src/sec-acceptance.ts";
+import { recordSecFetchPublication } from "../src/sec-publication-proof.ts";
 import { SecEdgarFetchError } from "../src/sec-edgar.ts";
 import { backfillSecCompanionStatements, createSecBackedStatementRepository } from "../src/sec-facts-repository.ts";
 import { secCompanyFetcher, secFetched } from "./fakes.ts";
+import { originalContext, selectRevenue } from "./financial-selection.ts";
 
-const OWNER = "34000000-0000-4000-8000-0000000000aa";
 const FALLBACK_SOURCE_ID = "34000000-0000-4000-8000-000000000003";
 const SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK0000320193.json";
 
@@ -164,56 +162,17 @@ test("SEC acceptance metadata is recorded apart from publication proof", { timeo
     });
     assert.equal((await acceptances(accession))[0]?.parsed_at, "2024-01-10T21:30:05.000Z");
 
-    const page = await createEvidenceFinancialPort(db).listInputCandidates({
-      authority: authority(),
-      subject: { kind: "issuer", id: issuerId },
-      metric_key: "revenue",
-      fiscal_year: 2023,
-      fiscal_period: "FY",
-      limit: 10,
+    const cutoff = "2024-01-15T23:59:59.999-05:00";
+    assert.deepEqual(await selectRevenue(db, issuerId, cutoff), { status: "gap", reason_code: "publication_time_unknown" });
+
+    // The same fact with a genuine proof before the cutoff is eligible.
+    await recordSecFetchPublication(db, {
+      sourceId,
+      accessionNumber: accession,
+      evidence: { url: "https://data.sec.gov/fixture", body_sha256: "b".repeat(64), completed_at: "2024-01-12T15:00:00.000Z" },
     });
-    assert.ok(page.status === "ok");
-    assert.deepEqual(page.candidates.map((candidate) => [candidate.fact_id, candidate.publication]), [[factId, []]]);
-    assert.deepEqual(
-      selectInput(FY2023_REVENUE, page.candidates, { knowledge_cutoff: "2024-01-15T23:59:59.999-05:00", reporting_basis: "as_reported", max_age_days: null }),
-      { status: "gap", reason_code: "publication_time_unknown" },
-    );
+    const selected = await selectRevenue(db, issuerId, cutoff);
+    assert.equal(selected.status, "selected");
+    assert.deepEqual(selected.status === "selected" && [selected.input.candidate.fact_id, selected.input.publication.available_no_later_than], [factId, "2024-01-12T15:00:00.000Z"]);
   });
 });
-
-export const FY2023_REVENUE = {
-  node_id: "rev",
-  operation: "reported_metric" as const,
-  operation_version: "reported_metric.v1",
-  subject_slot: "a",
-  metric_key: "revenue",
-  period: { kind: "fiscal_period" as const, fiscal_year: 2023, fiscal_period: "FY" as const },
-};
-
-export function originalContext(factId: string, relation: "original" | "economic_restatement" = "original") {
-  return {
-    fact_id: factId,
-    context_version: "context.v1",
-    period_type: "duration" as const,
-    dimension_scope: "consolidated" as const,
-    dimension_members: [],
-    reporting_basis: relation === "original" ? ("as_reported" as const) : ("as_restated" as const),
-    adjustment_basis: "unadjusted" as const,
-    share_basis: "not_applicable" as const,
-    fiscal_calendar_version: "fiscal-calendar.v1",
-    disclosure_relation: relation,
-    source_context_ref: null,
-  };
-}
-
-export function authority() {
-  return createRuntimeAuthority({
-    owner_user_id: OWNER,
-    egress_channel: "chat",
-    parent: { kind: "chat_thread", id: "34000000-0000-4000-8000-0000000000f1", version: "1" },
-    allowed_source_classes: ["sec_filing"],
-    feature: { surface: "chat", capability: "financial-answer", mode: "shadow" },
-    approval_state: "not_required",
-    lease: null,
-  });
-}

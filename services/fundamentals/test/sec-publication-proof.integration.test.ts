@@ -5,7 +5,12 @@ import { join } from "node:path";
 import test from "node:test";
 import { bootstrapDatabase, connectedPool, dockerAvailable, workspaceRoot } from "../../../db/test/docker-pg.ts";
 import { backfillSecCompanionStatements, createSecBackedStatementRepository } from "../src/sec-facts-repository.ts";
+import { recordFactPrecisionAttestation, recordSourcePublicationAttestation } from "../../evidence/src/financial-attestations.ts";
+import { recordFactFinancialContext } from "../../evidence/src/financial-context.ts";
+import type { SlotSelection } from "../../financial-engine/src/select-inputs.ts";
+import { recordSecFetchPublication } from "../src/sec-publication-proof.ts";
 import { secCompanyFetcher, secFetched } from "./fakes.ts";
+import { originalContext, selectRevenue } from "./financial-selection.ts";
 
 const ISSUER_ID = "33000000-0000-4000-8000-000000000001";
 const FALLBACK_SOURCE_ID = "33000000-0000-4000-8000-000000000003";
@@ -123,5 +128,119 @@ test("SEC ingestion binds source versions and their publication proofs", { timeo
       "a new accession gets its own proof",
     );
     assert.equal((await proofsFor(fy2023)).length, 1);
+  });
+  // An issuer whose FY2023 10-K was accepted Jan 10 and first fetched by
+  // ingestion Feb 1 at 10:05 New York time.
+  const SELECT_ISSUER = "33000000-0000-4000-8000-0000000000e1";
+  const ORIGINAL = "0000320190-24-000010";
+  const FETCHED_AT = "2024-02-01T15:05:00.000Z";
+  const factOn = async (accession: string) => (await db.query<{ fact_id: string }>(
+    `select fact_id::text from facts where source_id = $1`,
+    [accessionSourceId(accession)],
+  )).rows[0]!.fact_id;
+  const proofIdFor = async (accession: string) => (await db.query<{ attestation_id: string }>(
+    `select attestation_id::text from current_source_publication_attestations where source_id = $1 order by available_no_later_than`,
+    [accessionSourceId(accession)],
+  )).rows.map((row) => row.attestation_id);
+  const chosen = (selection: SlotSelection) =>
+    selection.status === "selected"
+      ? { fact_id: selection.input.candidate.fact_id, attestation_id: selection.input.publication.attestation_id, public_by: selection.input.publication.available_no_later_than }
+      : selection;
+
+  await t.test("a precise SEC fact without context or precision proof is a declared gap", async () => {
+    await db.query(`insert into issuers (issuer_id, legal_name, cik) values ($1, 'Select Corp', '320190')`, [SELECT_ISSUER]);
+    const feed = { filings: { recent: { accessionNumber: [ORIGINAL], acceptanceDateTime: ["2024-01-10T16:30:05.000Z"] } } };
+    await createSecBackedStatementRepository(db, {
+      fetcher: secCompanyFetcher(() => ({ ...companyFacts(ORIGINAL), cik: 320190 }), { completed_at: FETCHED_AT, submissions: feed }),
+      sourceId: FALLBACK_SOURCE_ID,
+      logger: { warn: () => {} },
+    }).find({ ...FY2023, issuer_id: SELECT_ISSUER });
+    assert.deepEqual(await selectRevenue(db, SELECT_ISSUER, FETCHED_AT), { status: "gap", reason_code: "context_unverified" });
+
+    const legacyIssuer = "33000000-0000-4000-8000-0000000000e2";
+    const legacy = "0000320191-24-000010";
+    await db.query(`insert into issuers (issuer_id, legal_name, cik) values ($1, 'Legacy Corp', '320191')`, [legacyIssuer]);
+    const untokened = companyFacts(legacy);
+    delete (untokened.facts["us-gaap"].Revenues.units.USD[0] as { val_token?: string }).val_token;
+    await createSecBackedStatementRepository(db, {
+      fetcher: secCompanyFetcher(() => ({ ...untokened, cik: 320191 }), { completed_at: FETCHED_AT }),
+      sourceId: FALLBACK_SOURCE_ID,
+      logger: { warn: () => {} },
+    }).find({ ...FY2023, issuer_id: legacyIssuer });
+    await recordFactFinancialContext(db, originalContext(await factOn(legacy)));
+    assert.deepEqual(await selectRevenue(db, legacyIssuer, FETCHED_AT), { status: "gap", reason_code: "precision_unverified" });
+  });
+
+  await t.test("a fetch completed at 10:05 cannot support a 10:00 cutoff, whatever acceptance says; it supports 10:05", async () => {
+    const factId = await factOn(ORIGINAL);
+    await recordFactFinancialContext(db, originalContext(factId));
+    const [fetchProof] = await proofIdFor(ORIGINAL);
+    assert.equal(
+      (await db.query(`select ${utc("parsed_at")} as parsed_at from sec_filing_acceptances where accession = $1`, [ORIGINAL])).rows[0].parsed_at,
+      "2024-01-10T21:30:05.000Z",
+      "acceptance before the cutoff is on file",
+    );
+    assert.deepEqual(await selectRevenue(db, SELECT_ISSUER, "2024-02-01T10:00:00-05:00"), { status: "gap", reason_code: "missing_input" });
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-02-01T10:05:00-05:00")), { fact_id: factId, attestation_id: fetchProof, public_by: FETCHED_AT });
+  });
+
+  await t.test("stored by the cutoff and public by the cutoff stay distinct; an earlier cutoff needs a genuine historical proof", async () => {
+    const factId = await factOn(ORIGINAL);
+    const storedAtJan15 = () => createSecBackedStatementRepository(db, { fetcher: null, sourceId: FALLBACK_SOURCE_ID, cutoff: "2024-01-15T23:59:59.999-05:00" })
+      .find({ ...FY2023, issuer_id: SELECT_ISSUER });
+    assert.deepEqual(await selectRevenue(db, SELECT_ISSUER, "2024-01-15T23:59:59.999-05:00"), { status: "gap", reason_code: "missing_input" }, "the later fetch proves nothing about Jan 15");
+    assert.equal(await storedAtJan15(), null);
+
+    const archive = await recordSourcePublicationAttestation(db, {
+      source_id: accessionSourceId(ORIGINAL),
+      document_id: null,
+      source_version_hash: sha256(ORIGINAL),
+      available_not_before: null,
+      available_no_later_than: "2024-01-10T00:00:00-05:00",
+      timing_precision: "date",
+      source_timezone: "America/New_York",
+      proof_method: "accession_bound_archive",
+      proof_ref: "https://www.sec.gov/Archives/edgar/data/320190/000032019024000010/",
+      proof_hash: "c".repeat(64),
+      mapping_version: "test-accession-archive.v1",
+    });
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-01-15T23:59:59.999-05:00")), { fact_id: factId, attestation_id: archive.attestation_id, public_by: "2024-01-11T04:59:59.999Z" });
+    assert.equal(await storedAtJan15(), null, "public by Jan 15 is not stored by Jan 15");
+    // A date proof covers its whole New York day, never midnight.
+    assert.deepEqual(await selectRevenue(db, SELECT_ISSUER, "2024-01-10T12:00:00-05:00"), { status: "gap", reason_code: "missing_input" });
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-01-10T23:59:59.999-05:00")), { fact_id: factId, attestation_id: archive.attestation_id, public_by: "2024-01-11T04:59:59.999Z" });
+  });
+
+  await t.test("as_reported and as_restated take distinct disclosures, each with its own accession's proof", async () => {
+    const original = await factOn(ORIGINAL);
+    const amendment = "0000320190-24-000077";
+    const amendmentSource = accessionSourceId(amendment);
+    const restated = "33000000-0000-4000-8000-0000000000e9";
+    await db.query(
+      `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at, content_hash)
+       values ($1, 'sec_edgar', 'filing', 'primary', 'public', '2024-06-03T14:00:00Z', $2)`,
+      [amendmentSource, sha256(amendment)],
+    );
+    await db.query(
+      `insert into facts (fact_id, subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+                          value_num, unit, currency, scale, as_of, observed_at, source_id, method, verification_status, freshness_class, coverage_level, confidence)
+       select $1, 'issuer', $2, metric_id, 'fiscal_y', '2023-01-01', '2023-12-31', 2023, 'FY', 383000000000, 'currency', 'USD', 1,
+              '2024-06-03T14:00:00Z', '2024-06-03T14:00:00Z', $3, 'reported', 'authoritative', 'filing_time', 'full', 1
+         from metrics where metric_key = 'revenue'`,
+      [restated, SELECT_ISSUER, amendmentSource],
+    );
+    await recordFactPrecisionAttestation(db, { fact_id: restated, precision_class: "source_token_preserved", raw_token: "383000000000", token_proof_hash: "d".repeat(64), source_locator: null, validation_method: "fixture" });
+    await recordFactFinancialContext(db, originalContext(restated, "economic_restatement"));
+    await recordSecFetchPublication(db, {
+      sourceId: amendmentSource,
+      accessionNumber: amendment,
+      evidence: { url: "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320190.json", body_sha256: "a".repeat(64), completed_at: "2024-06-03T14:00:00.000Z" },
+    });
+    const [archive] = await proofIdFor(ORIGINAL);
+    const [amendmentProof] = await proofIdFor(amendment);
+
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-03-01T00:00:00Z", "as_restated")), { fact_id: original, attestation_id: archive, public_by: "2024-01-11T04:59:59.999Z" }, "a restatement not yet public");
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-07-01T00:00:00Z", "as_restated")), { fact_id: restated, attestation_id: amendmentProof, public_by: "2024-06-03T14:00:00.000Z" });
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-07-01T00:00:00Z", "as_reported")), { fact_id: original, attestation_id: archive, public_by: "2024-01-11T04:59:59.999Z" });
   });
 });
