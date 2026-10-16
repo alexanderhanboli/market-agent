@@ -17,12 +17,15 @@ import {
   selectSecConceptValue,
   type ExtractStatementInput,
   type SecCompanyFacts,
+  type SecCompanyFactsFetch,
   type SecEdgarFetcher,
   type SecDerivation,
   type SecSourceToken,
 } from "./sec-edgar.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
 import { withPinnedTransaction, type TransactionalQueryExecutor } from "./pinned-transaction.ts";
+import { recordSecFetchPublication, secAccessionVersionHash } from "./sec-publication-proof.ts";
+import { recordSecFilingAcceptances, type SecFilingRef } from "./sec-acceptance.ts";
 import { createHash } from "node:crypto";
 import { factActiveSql, factKnownAtSql } from "../../evidence/src/fact-activity.ts";
 import { FundamentalsDataUnavailableError } from "./availability.ts";
@@ -97,9 +100,9 @@ export function createSecBackedStatementRepository(
       }
 
       try {
-        const companyFacts = await fetchCompanyFacts(options.fetcher, cikNumber);
-        return await ingestFiling(db, {
-          companyFacts,
+        const fetched = await fetchCompanyFacts(options.fetcher, cikNumber);
+        const ingested = await ingestFiling(db, {
+          fetched,
           cik: cikNumber,
           issuerId: lookup.issuer_id,
           fiscal_year: lookup.fiscal_year,
@@ -109,6 +112,8 @@ export function createSecBackedStatementRepository(
           clock,
           logger,
         });
+        await recordSecFilingAcceptances(db, options.fetcher, { cik: cikNumber, filings: ingested.filing ? [ingested.filing] : [], logger });
+        return ingested.statement;
       } catch (error) {
         const unavailable = classifySecIngestionError(error);
         logger.warn("sec_edgar fundamentals ingestion failed", {
@@ -160,10 +165,11 @@ export async function backfillSecCompanionStatements(
     [input.issuerId, SEC_INCOME_METRIC_KEYS],
   );
   if (rows.length === 0) return { periods: 0 };
-  const companyFacts = await fetchCompanyFacts(input.fetcher, cik);
+  const fetched = await fetchCompanyFacts(input.fetcher, cik);
+  const filings: SecFilingRef[] = [];
   for (const period of rows) {
-    await ingestFiling(db, {
-      companyFacts,
+    const { filing } = await ingestFiling(db, {
+      fetched,
       cik,
       issuerId: input.issuerId,
       fiscal_year: period.fiscal_year,
@@ -173,7 +179,9 @@ export async function backfillSecCompanionStatements(
       clock: input.clock ?? (() => new Date()),
       logger: input.logger ?? console,
     });
+    if (filing) filings.push(filing);
   }
+  await recordSecFilingAcceptances(db, input.fetcher, { cik, filings, logger: input.logger ?? console });
   return { periods: rows.length };
 }
 
@@ -188,11 +196,13 @@ type Extracted = {
 // cash flow and balance sheet beside it. Income is "require" (a lookup: it must
 // extract) or "repair" (a backfill: stored income facts that differ from the
 // filing are replaced; a period it cannot extract is left as it is). Returns
-// the income statement, or null without it.
+// the income statement, or null without it, and the accession filing it stored
+// facts on. Every period of one download is dated by that download's
+// completion, never by when it was processed.
 async function ingestFiling(
   db: FundamentalsTransactionalQueryExecutor,
   input: {
-    companyFacts: SecCompanyFacts;
+    fetched: SecCompanyFactsFetch;
     cik: number;
     issuerId: UUID;
     fiscal_year: number;
@@ -202,15 +212,15 @@ async function ingestFiling(
     clock: () => Date;
     logger: Pick<Console, "warn">;
   },
-): Promise<NormalizedStatement | null> {
-  const asOf = input.clock().toISOString();
-  const accessionNumber = statementAccession(input.companyFacts, input.fiscal_year, input.fiscal_period);
+): Promise<{ statement: NormalizedStatement | null; filing: SecFilingRef | null }> {
+  const asOf = input.fetched.evidence.completed_at;
+  const accessionNumber = statementAccession(input.fetched.facts, input.fiscal_year, input.fiscal_period);
   const sourceId = accessionNumber
     ? await upsertSecFilingSource(db, { cik: input.cik, accessionNumber, retrievedAt: asOf })
     : input.fallbackSourceId;
   const target = {
     subject: { kind: "issuer", id: input.issuerId },
-    facts: input.companyFacts,
+    facts: input.fetched.facts,
     fiscal_year: input.fiscal_year,
     fiscal_period: input.fiscal_period,
     accession_number: accessionNumber ?? undefined,
@@ -229,7 +239,7 @@ async function ingestFiling(
     ...(income ? [{ ...income, mapped: mapStatement(registry, income.statement) }] : []),
     ...mapCompanions(registry, companions, target, input.logger),
   ];
-  if (mapped.length === 0) return income?.statement ?? null;
+  if (mapped.length === 0) return { statement: income?.statement ?? null, filing: null };
   await withPinnedTransaction(db, async (client) => {
     // The repair retires stored income facts the filing contradicts, then
     // stores the filing's in their place (the active identity is unique).
@@ -257,8 +267,11 @@ async function ingestFiling(
         }
       }
     }
+    if (accessionNumber) {
+      await recordSecFetchPublication(client, { sourceId, accessionNumber, evidence: input.fetched.evidence });
+    }
   });
-  return income?.statement ?? null;
+  return { statement: income?.statement ?? null, filing: accessionNumber ? { sourceId, accessionNumber } : null };
 }
 
 // The stored, active SEC facts for a statement's period that the filing
@@ -385,16 +398,18 @@ async function upsertSecFilingSource(
     cik: input.cik,
     accession_number: input.accessionNumber,
     retrieved_at: input.retrievedAt,
-    content_hash: createHash("sha256").update(input.accessionNumber).digest("hex"),
+    content_hash: secAccessionVersionHash(input.accessionNumber),
   });
+  // The accession is the source version: a re-ingest refreshes retrieved_at
+  // but never rewrites the hash that publication proofs are bound to.
   const result = await db.query<{ source_id: string }>(
     `insert into sources
        (source_id, provider, kind, canonical_url, trust_tier, license_class, retrieved_at, content_hash)
      values ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz, $8)
      on conflict (source_id)
      do update set canonical_url = excluded.canonical_url,
-                   retrieved_at = excluded.retrieved_at,
-                   content_hash = excluded.content_hash
+                   retrieved_at = excluded.retrieved_at
+             where sources.content_hash is not distinct from excluded.content_hash
      returning source_id::text as source_id`,
     [
       source.source_id,
@@ -407,7 +422,11 @@ async function upsertSecFilingSource(
       source.content_hash,
     ],
   );
-  return (result.rows[0]?.source_id ?? source.source_id) as UUID;
+  const stored = result.rows[0]?.source_id;
+  if (stored === undefined) {
+    throw new Error(`sec_edgar source ${source.source_id} for accession ${input.accessionNumber} has another content_hash; a source version never changes`);
+  }
+  return stored as UUID;
 }
 
 function sourceIdForAccession(accessionNumber: string): UUID {
@@ -518,7 +537,7 @@ async function discoverLatestFiscalYear(
   if (!Number.isInteger(cikNumber) || cikNumber <= 0) return null;
 
   try {
-    const facts = await fetchCompanyFacts(fetcher, cikNumber);
+    const { facts } = await fetchCompanyFacts(fetcher, cikNumber);
     const fiscalYear = latestAnnualRevenueYear(facts);
     return fiscalYear === null ? null : { fiscal_year: fiscalYear };
   } catch (error) {

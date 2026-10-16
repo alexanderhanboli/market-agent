@@ -1,13 +1,16 @@
+import { createHash } from "node:crypto";
 import { parseFinancialJson } from "./lossless-financial-json.ts";
 import {
   SecEdgarFetchError,
   type SecEdgarFetcher,
+  type SecFetchResult,
 } from "./sec-edgar.ts";
 
 export type SecCompanyFactsHttpOptions = {
   userAgent: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  clock?: () => Date;
 };
 
 export function createSecCompanyFactsHttpFetcher(
@@ -16,13 +19,15 @@ export function createSecCompanyFactsHttpFetcher(
   const baseUrl = options.baseUrl ?? "https://data.sec.gov";
   const fetchImpl = options.fetchImpl ?? fetch;
   const userAgent = options.userAgent.trim();
+  const clock = options.clock ?? (() => new Date());
 
   if (userAgent.length === 0) {
     throw new Error("SEC_EDGAR_USER_AGENT must be non-empty when SEC EDGAR fetching is enabled");
   }
 
-  return async (path: string): Promise<unknown> => {
-    const response = await fetchImpl(new URL(path, baseUrl), {
+  return async (path: string): Promise<SecFetchResult> => {
+    const url = new URL(path, baseUrl);
+    const response = await fetchImpl(url, {
       headers: {
         "accept": "application/json",
         "user-agent": userAgent,
@@ -33,9 +38,18 @@ export function createSecCompanyFactsHttpFetcher(
       throw new SecEdgarFetchError(response.status, `sec_edgar: HTTP ${response.status}`);
     }
 
-    // Parse the raw text losslessly: response.json() would already have
-    // rounded financial values through JavaScript numbers.
-    return parseFinancialJson(await response.text());
+    const body = new Uint8Array(await response.arrayBuffer());
+    // Taken after the whole body has arrived: the fetch proves its content
+    // was public by this instant, never by an earlier one.
+    const completed_at = clock().toISOString();
+    return {
+      url: url.toString(),
+      body_sha256: createHash("sha256").update(body).digest("hex"),
+      completed_at,
+      // Parse the raw text losslessly: response.json() would already have
+      // rounded financial values through JavaScript numbers.
+      json: parseFinancialJson(new TextDecoder().decode(body)),
+    };
   };
 }
 
@@ -60,7 +74,7 @@ export function withSecFairAccess(fetcher: SecEdgarFetcher, options: SecFairAcce
   const now = options.now ?? Date.now;
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let nextStart = -Infinity;
-  const paced = async (path: string): Promise<unknown> => {
+  const paced = async (path: string): Promise<SecFetchResult> => {
     // Reserve this request's slot before waiting, so concurrent callers queue
     // behind it instead of starting together.
     const start = Math.max(now(), nextStart);
@@ -69,7 +83,7 @@ export function withSecFairAccess(fetcher: SecEdgarFetcher, options: SecFairAcce
     if (wait > 0) await sleep(wait);
     return fetcher(path);
   };
-  return async (path: string): Promise<unknown> => {
+  return async (path: string): Promise<SecFetchResult> => {
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await paced(path);

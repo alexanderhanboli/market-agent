@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import {
   boundedInteger,
@@ -9,6 +10,7 @@ import {
 } from "../src/lossless-financial-json.ts";
 import { createSecCompanyFactsHttpFetcher } from "../src/sec-edgar-http.ts";
 import { extractStatementWithTokens, fetchCompanyFacts, type SecConceptValue } from "../src/sec-edgar.ts";
+import { secFetched } from "./fakes.ts";
 
 const ISSUER_ID = "11111111-1111-4111-8111-111111111111";
 const SOURCE_ID = "22222222-2222-4222-8222-222222222222";
@@ -61,15 +63,33 @@ test("identifiers and years become bounded integers only after validation", () =
 
 test("the SEC fetch boundary parses losslessly before any JSON number conversion", async () => {
   let accept = "";
+  const body = companyFactsText("383285000000.123456789012345678");
+  let bodyRead = false;
   const fetcher = createSecCompanyFactsHttpFetcher({
     userAgent: "market-agent-test test@example.invalid",
     fetchImpl: async (_url, init) => {
       accept = String((init?.headers as Record<string, string>).accept);
-      return new Response(companyFactsText("383285000000.123456789012345678"), { status: 200 });
+      const response = new Response(body, { status: 200 });
+      const read = response.arrayBuffer.bind(response);
+      response.arrayBuffer = async () => {
+        const bytes = await read();
+        bodyRead = true;
+        return bytes;
+      };
+      return response;
+    },
+    clock: () => {
+      assert.ok(bodyRead, "the completion time is read after the body");
+      return new Date("2024-02-01T10:05:00.000Z");
     },
   });
-  const facts = await fetchCompanyFacts(fetcher, 320193);
+  const { facts, evidence } = await fetchCompanyFacts(fetcher, 320193);
   assert.equal(accept, "application/json");
+  assert.deepEqual(evidence, {
+    url: "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+    body_sha256: createHash("sha256").update(body).digest("hex"),
+    completed_at: "2024-02-01T10:05:00.000Z",
+  });
   const revenue = facts.facts["us-gaap"]!.Revenues!.units.USD![0] as SecConceptValue;
   assert.equal(revenue.val_token, "383285000000.123456789012345678");
   assert.equal(typeof revenue.val, "number", "legacy consumers keep a JS number");
@@ -97,7 +117,7 @@ test("the SEC fetch boundary parses losslessly before any JSON number conversion
 });
 
 test("fixtures with plain JSON numbers carry no source token", async () => {
-  const facts = await fetchCompanyFacts(async () => JSON.parse(companyFactsText("1000")), 320193);
+  const { facts } = await fetchCompanyFacts(async () => secFetched(JSON.parse(companyFactsText("1000"))), 320193);
   const { tokens } = extractStatementWithTokens({
     subject: { kind: "issuer", id: ISSUER_ID },
     facts,
@@ -118,7 +138,7 @@ test("a derived fourth quarter never inherits the annual source token", async ()
     ${quarter("Q1", "2023-01-01", "2023-03-31", "200")},
     ${quarter("Q2", "2023-04-01", "2023-06-30", "250")},
     ${quarter("Q3", "2023-07-01", "2023-09-30", "300")}]}}}}}`;
-  const facts = await fetchCompanyFacts(async () => parseFinancialJson(text), 1);
+  const { facts } = await fetchCompanyFacts(async () => secFetched(parseFinancialJson(text)), 1);
   const { statement, tokens } = extractStatementWithTokens({
     subject: { kind: "issuer", id: ISSUER_ID },
     facts,
@@ -134,9 +154,9 @@ test("a derived fourth quarter never inherits the annual source token", async ()
 
 test("only the schema's numeric fields accept source numbers; anything else is rejected, not rounded", async () => {
   const withValueExtra = companyFactsText("1").replace('"fp":"FY"', '"fp":"FY","restated_val":12345678901234567890');
-  await assert.rejects(() => fetchCompanyFacts(async () => parseFinancialJson(withValueExtra), 320193), /companyfacts value\.restated_val: unexpected numeric field/);
+  await assert.rejects(() => fetchCompanyFacts(async () => secFetched(parseFinancialJson(withValueExtra)), 320193), /companyfacts value\.restated_val: unexpected numeric field/);
   const withTopLevelExtra = companyFactsText("1").replace('"entityName"', '"schemaVersion":2,"entityName"');
-  await assert.rejects(() => fetchCompanyFacts(async () => parseFinancialJson(withTopLevelExtra), 320193), /companyfacts\.schemaVersion: unexpected numeric field/);
+  await assert.rejects(() => fetchCompanyFacts(async () => secFetched(parseFinancialJson(withTopLevelExtra)), 320193), /companyfacts\.schemaVersion: unexpected numeric field/);
   const withConceptExtra = companyFactsText("1").replace('"label":"Revenues"', '"label":"Revenues","decimals":-6');
-  await assert.rejects(() => fetchCompanyFacts(async () => parseFinancialJson(withConceptExtra), 320193), /companyfacts concept\.decimals: unexpected numeric field/);
+  await assert.rejects(() => fetchCompanyFacts(async () => secFetched(parseFinancialJson(withConceptExtra)), 320193), /companyfacts concept\.decimals: unexpected numeric field/);
 });

@@ -111,7 +111,7 @@ async function seedEvidence(db: Client): Promise<void> {
       proof_method: "accession_bound_archive",
       proof_ref: `proof:${source}`,
       proof_hash: HASH.proof,
-      mapping_version: "sec-acceptance-mapping.v1",
+      mapping_version: "test-accession-archive.v1",
     });
   await published(IDS.sourceV1, HASH.v1, "2024-01-10");
   await published(IDS.sourceV2, HASH.v2, "2024-01-20");
