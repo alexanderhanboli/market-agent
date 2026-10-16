@@ -11,8 +11,8 @@ test("a chat owner inspects a sealed series ref against the real schema; a stran
   const client = await connectedClient(t, databaseUrl);
   const db = client as unknown as QueryExecutor;
 
-  const [ownerId, strangerId, issuerId, instrumentId, listingId, sourceId, snapshotId, threadId, seriesRef] =
-    Array.from({ length: 9 }, () => randomUUID());
+  const [ownerId, strangerId, issuerId, instrumentId, listingId, sourceId, snapshotId, threadId, seriesRef, privateSourceId, privateSeriesRef] =
+    Array.from({ length: 11 }, () => randomUUID());
 
   await db.query(`insert into users (user_id, email) values ($1,$2),($3,$4)`, [
     ownerId, `${ownerId}@t.dev`, strangerId, `${strangerId}@t.dev`,
@@ -21,6 +21,12 @@ test("a chat owner inspects a sealed series ref against the real schema; a stran
     `insert into sources (source_id, provider, kind, canonical_url, trust_tier, license_class, retrieved_at)
      values ($1,'polygon','market_data','https://polygon.io/','secondary','licensed',now())`,
     [sourceId],
+  );
+  // Another user's private upload: a series citing it must not open for the owner.
+  await db.query(
+    `insert into sources (source_id, provider, kind, canonical_url, trust_tier, license_class, retrieved_at, user_id)
+     values ($1,'upload','upload','https://example.com/private','user','licensed',now(),$2)`,
+    [privateSourceId, strangerId],
   );
   await db.query(`insert into issuers (issuer_id, legal_name) values ($1,'NVIDIA Corporation')`, [issuerId]);
   await db.query(`insert into instruments (instrument_id, issuer_id, asset_type) values ($1,$2,'common_stock')`, [instrumentId, issuerId]);
@@ -47,7 +53,12 @@ test("a chat owner inspects a sealed series ref against the real schema; a stran
   await db.query(
     `insert into snapshots (snapshot_id, subject_refs, source_ids, series_specs, as_of, basis, normalization, allowed_transforms)
      values ($1, $2::jsonb, $3::jsonb, $4::jsonb, now(), 'split_adjusted', 'pct_return', '{}'::jsonb)`,
-    [snapshotId, JSON.stringify([{ kind: "listing", id: listingId }]), JSON.stringify([sourceId]), JSON.stringify([spec])],
+    [
+      snapshotId,
+      JSON.stringify([{ kind: "listing", id: listingId }]),
+      JSON.stringify([sourceId, privateSourceId]),
+      JSON.stringify([spec, { ...spec, series_ref: privateSeriesRef, source_id: privateSourceId }]),
+    ],
   );
   await db.query(`insert into chat_threads (thread_id, user_id) values ($1,$2)`, [threadId, ownerId]);
   await db.query(
@@ -70,5 +81,10 @@ test("a chat owner inspects a sealed series ref against the real schema; a stran
   await assert.rejects(
     () => loadEvidenceInspection(db, { user_id: ownerId, snapshot_id: snapshotId, ref: { kind: "series", id: randomUUID() } }),
     /ref is not present in snapshot manifest/,
+  );
+  await assert.rejects(
+    () => loadEvidenceInspection(db, { user_id: ownerId, snapshot_id: snapshotId, ref: { kind: "series", id: privateSeriesRef } }),
+    (error: { status?: number }) => error.status === 404,
+    "a series on another user's private source",
   );
 });
