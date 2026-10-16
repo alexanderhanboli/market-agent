@@ -261,7 +261,12 @@ export async function verifySnapshotSeal(
   // checked, so the seal fails rather than certify them (chart-points.ts).
   const charts = flattenBlocks(normalized.blocks).flatMap((block) =>
     block.kind === "perf_comparison" && block.series !== undefined
-      ? [{ block_id: block.id, series_refs: dataRefSeriesRefs(block.data_ref.params), series: block.series as ReadonlyArray<{ points: unknown }> }]
+      ? [{
+        block_id: block.id,
+        series_refs: dataRefSeriesRefs(block.data_ref.params),
+        series: block.series as ReadonlyArray<{ points: unknown }>,
+        subject_refs: block.subject_refs ?? [],
+      }]
       : []
   );
   for (const failure of await verifyChartPoints(charts, normalized.manifest.series_specs ?? [], db)) {

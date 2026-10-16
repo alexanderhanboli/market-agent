@@ -12,7 +12,7 @@ import { PERF_POINTS, perfLines, type PerfLine } from "../../market/src/perf-poi
 import { sessionDate, windowClosedAt, type DailyClose } from "../../market/src/ytd-window.ts";
 import type { JsonValue, QueryExecutor } from "./manifest-staging.ts";
 
-export type ChartPointsReason = "count" | "duplicate" | "unverifiable" | "window" | "hash" | "points";
+export type ChartPointsReason = "count" | "duplicate" | "subject" | "unverifiable" | "range" | "window" | "hash" | "points";
 
 export type ChartPointsFailure = { block_id: string; series_ref: string | null; reason: ChartPointsReason };
 
@@ -20,6 +20,8 @@ export type DrawnChart = {
   block_id: string;
   series_refs: ReadonlyArray<string>;
   series: ReadonlyArray<{ points: unknown }>;
+  // Line i's company: the listing its series' bars must belong to.
+  subject_refs: ReadonlyArray<unknown>;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,9 +31,13 @@ type SealedWindow = { year: number; baseline_date: string; end_date: string };
 type SealedSeries = {
   bar_range_id: string;
   listing_id: string;
+  // The stored range the spec says it is: market_bar_ranges' identity.
+  range: StoredRange;
   bars_sha256: string;
   window: SealedWindow | null;
 };
+
+type StoredRange = { listing_id: string; source_id: string; interval: string; adjustment_basis: string; start: number; end: number };
 
 // One drawn line and the sealed series it claims to be.
 type ChartLine = { series_ref: string; spec: SealedSeries; points: unknown };
@@ -64,8 +70,23 @@ export async function verifyChartPoints(
       else lines.push({ series_ref, spec, points: chart.series[index].points });
     }
     if (lines.length !== chart.series.length || lines.length === 0) continue;
+    const misattributed = lines.find((line, index) => {
+      const subject = chart.subject_refs[index];
+      return !isRecord(subject) || subject.kind !== "listing" || subject.id !== line.spec.listing_id;
+    });
+    if (misattributed !== undefined || chart.subject_refs.length !== lines.length) {
+      fail("subject", misattributed?.series_ref ?? null);
+      continue;
+    }
     if (db === undefined) {
       fail("unverifiable");
+      continue;
+    }
+    // The bars must be the range the spec names, not another listing's or basis'.
+    const stored = await loadRanges(db, lines.map((line) => line.spec.bar_range_id));
+    const unbound = lines.find((line) => !isDeepStrictEqual(stored.get(line.spec.bar_range_id), line.spec.range));
+    if (unbound !== undefined) {
+      fail("range", unbound.series_ref);
       continue;
     }
     const outcome = await recompute(db, lines);
@@ -135,6 +156,32 @@ async function loadBars(db: QueryExecutor, barRangeIds: ReadonlyArray<string>): 
   return bars;
 }
 
+async function loadRanges(db: QueryExecutor, barRangeIds: ReadonlyArray<string>): Promise<Map<string, StoredRange>> {
+  const { rows } = await db.query<{
+    bar_range_id: string;
+    listing_id: string;
+    source_id: string;
+    interval: string;
+    adjustment_basis: string;
+    range_start: Date | string;
+    range_end: Date | string;
+  }>(
+    `select bar_range_id::text as bar_range_id, listing_id::text as listing_id, source_id::text as source_id,
+            interval, adjustment_basis, range_start, range_end
+       from market_bar_ranges
+      where bar_range_id = any($1::uuid[])`,
+    [[...new Set(barRangeIds)]],
+  );
+  return new Map(rows.map((row) => [row.bar_range_id, {
+    listing_id: row.listing_id,
+    source_id: row.source_id,
+    interval: row.interval,
+    adjustment_basis: row.adjustment_basis,
+    start: new Date(row.range_start).getTime(),
+    end: new Date(row.range_end).getTime(),
+  }]));
+}
+
 async function loadTimeZones(db: QueryExecutor, listingIds: ReadonlyArray<string>): Promise<Map<string, string>> {
   const { rows } = await db.query<{ listing_id: string; timezone: string }>(
     `select listing_id::text as listing_id, timezone from listings where listing_id = any($1::uuid[])`,
@@ -146,20 +193,35 @@ async function loadTimeZones(db: QueryExecutor, listingIds: ReadonlyArray<string
 // The fields the check reads, or null when the spec cannot be checked: only
 // daily percent returns are drawn this way.
 function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
-  const { bar_range_id, listing_id, bars_sha256, interval, normalization, points, window } = spec;
+  const { bar_range_id, listing_id, source_id, adjustment_basis, range, bars_sha256, interval, normalization, points, window } = spec;
   if (
     points !== PERF_POINTS ||
     typeof bar_range_id !== "string" ||
     !UUID.test(bar_range_id) ||
     typeof listing_id !== "string" ||
     !UUID.test(listing_id) ||
+    typeof source_id !== "string" ||
+    typeof adjustment_basis !== "string" ||
+    !isRecord(range) ||
+    typeof range.start !== "string" ||
+    typeof range.end !== "string" ||
+    Number.isNaN(Date.parse(range.start)) ||
+    Number.isNaN(Date.parse(range.end)) ||
     typeof bars_sha256 !== "string" ||
     interval !== "1d" ||
     normalization !== "pct_return"
   ) {
     return null;
   }
-  if (window === undefined) return { bar_range_id, listing_id, bars_sha256, window: null };
+  const stored: StoredRange = {
+    listing_id,
+    source_id,
+    interval,
+    adjustment_basis,
+    start: Date.parse(range.start),
+    end: Date.parse(range.end),
+  };
+  if (window === undefined) return { bar_range_id, listing_id, range: stored, bars_sha256, window: null };
   if (
     !isRecord(window) ||
     window.kind !== "ytd" ||
@@ -173,6 +235,7 @@ function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
   return {
     bar_range_id,
     listing_id,
+    range: stored,
     bars_sha256,
     window: { year: window.year, baseline_date: window.baseline_date, end_date: window.end_date },
   };

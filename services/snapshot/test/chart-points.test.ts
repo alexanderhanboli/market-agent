@@ -116,7 +116,19 @@ function sealInput(
 }
 
 // The rows the seal's queries return: timestamptz as a Date, close as float8.
-function barsDb(bars: Record<string, Bar[]>): QueryExecutor & { failures: unknown[] } {
+type StoredRange = { listing_id: string; source_id: string; interval: string; adjustment_basis: string; range_start: string; range_end: string };
+
+// The stored ranges the specs name, unless a test says otherwise.
+const STORED: Record<string, StoredRange> = Object.fromEntries([[nvdaRange, nvdaListing], [amdRange, amdListing]].map(([range, listing]) => [range, {
+  listing_id: listing,
+  source_id: sourceId,
+  interval: "1d",
+  adjustment_basis: "split_adjusted",
+  range_start: "2025-12-01T05:00:00.000Z",
+  range_end: AS_OF,
+}]));
+
+function barsDb(bars: Record<string, Bar[]>, ranges: Record<string, StoredRange> = STORED): QueryExecutor & { failures: unknown[] } {
   const failures: unknown[] = [];
   return {
     failures,
@@ -124,6 +136,11 @@ function barsDb(bars: Record<string, Bar[]>): QueryExecutor & { failures: unknow
       if (text.includes("from market_bars")) {
         const ids = values?.[0] as string[];
         const rows = ids.flatMap((id) => (bars[id] ?? []).map((bar) => ({ bar_range_id: id, ts: new Date(bar.ts), close: bar.close })));
+        return { rows: rows as unknown as R[] };
+      }
+      if (text.includes("from market_bar_ranges")) {
+        const ids = values?.[0] as string[];
+        const rows = ids.flatMap((id) => (ranges[id] ? [{ bar_range_id: id, ...ranges[id], range_start: new Date(ranges[id].range_start), range_end: new Date(ranges[id].range_end) }] : []));
         return { rows: rows as unknown as R[] };
       }
       if (text.includes("from listings")) {
@@ -144,6 +161,23 @@ const pointsFailures = (result: Awaited<ReturnType<typeof verifySnapshotSeal>>) 
 
 test("a latest-window chart whose points are its sealed bars' returns seals", async () => {
   assert.deepEqual(await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars)), { ok: true, failures: [] });
+});
+
+test("a line whose bars are another listing's, source's or basis' range fails, though its points match them (#315 review)", async () => {
+  for (const [field, value] of [["listing_id", amdListing], ["source_id", "00000000-0000-4000-8000-000000000007"], ["adjustment_basis", "unadjusted"], ["range_end", "2026-08-31T00:00:00.000Z"]]) {
+    const result = await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars, { ...STORED, [nvdaRange]: { ...STORED[nvdaRange]!, [field]: value } }));
+    assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: nvdaSeries, reason: "range" }], field);
+  }
+  const missing = await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars, { [amdRange]: STORED[amdRange]! }));
+  assert.deepEqual(pointsFailures(missing), [{ block_id: "perf", series_ref: nvdaSeries, reason: "range" }], "no stored range");
+});
+
+test("a line shown under a company other than its series' listing fails (#315 review)", async () => {
+  const input = sealInput(LATEST);
+  const [chart, ...rest] = input.blocks;
+  const swapped = { ...chart!, subject_refs: [...(chart!.subject_refs ?? [])].reverse() };
+  const result = await verifySnapshotSeal({ ...input, blocks: [swapped, ...rest] }, barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: nvdaSeries, reason: "subject" }]);
 });
 
 test("a YTD chart seals against its sealed window, ignoring sessions stored after it", async () => {
