@@ -56,9 +56,12 @@ async function printStatus(): Promise<void> {
     const rows = await latestLedgerEntries(pool);
     if (rows.length === 0) console.log("weekly-reference: no import recorded");
     for (const row of rows) {
+      const lastImport = row.last_import === null
+        ? "last_import=none"
+        : `last_import=as_of ${row.last_import.as_of_date} sha256 ${row.last_import.sha256.slice(0, 12)} finished ${row.last_import.finished_at}`;
       console.log(
         `weekly-reference ${row.market}: ${row.status} release=${row.release_tag} as_of=${row.as_of_date} ` +
-          `sha256=${row.sha256.slice(0, 12)} rows=${row.rows_ingested} finished=${row.finished_at}`,
+          `sha256=${row.sha256.slice(0, 12)} rows=${row.rows_ingested} finished=${row.finished_at} ${lastImport}`,
       );
     }
   } finally {

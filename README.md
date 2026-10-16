@@ -167,7 +167,7 @@ The screener's vendor universe (about 10,000 US listings with fundamentals and t
 
 ```bash
 ./scripts/dev-shell.sh reference-import            # import the latest bundle; an unchanged bundle is a no-op
-./scripts/dev-shell.sh reference-import --status   # last recorded run per market: status, bundle, sha256, rows, finish time
+./scripts/dev-shell.sh reference-import --status   # per market: the latest run (status, bundle, sha256, rows, finish time) and the last run that imported data
 ./scripts/dev-shell.sh reference-import --force    # re-ingest an unchanged bundle
 ```
 

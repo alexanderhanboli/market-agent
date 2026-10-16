@@ -8,7 +8,7 @@ import {
   run,
 } from "../../../db/test/docker-pg.ts";
 import { runWeeklyReferenceEtl } from "../src/etl.ts";
-import { latestLedgerEntries } from "../src/ledger.ts";
+import { latestLedgerEntries, writeLedgerEntry } from "../src/ledger.ts";
 import { loadVendorScreenerCandidates } from "../../screener/src/db-candidates-vendor.ts";
 import type { WeeklyReferenceBundle, WeeklyReferenceManifest } from "../src/types.ts";
 
@@ -178,7 +178,7 @@ test("weekly-reference ETL seeds the universe, mints vendor facts, and is idempo
 
   // Ledger records the run (partial: TSTC skipped).
   const ledger = await client.query(
-    `select status, rows_total, rows_ingested, rows_skipped, sha256
+    `select status, rows_total, rows_ingested, rows_skipped, sha256, source_id::text as source_id
        from artifact_ingestion_ledger where market = 'US'`,
   );
   assert.equal(ledger.rows.length, 1);
@@ -187,10 +187,20 @@ test("weekly-reference ETL seeds the universe, mints vendor facts, and is idempo
   assert.equal(ledger.rows[0].sha256, "test-sha-abc123");
   const [status] = await latestLedgerEntries(client);
   assert.match(status!.finished_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u);
-  assert.deepEqual({ ...status, finished_at: "" }, {
+  assert.deepEqual({ ...status, finished_at: "", last_import: { ...status!.last_import!, finished_at: "" } }, {
     market: "US", release_tag: "weekly-reference-data", as_of_date: "2026-06-03", sha256: "test-sha-abc123",
     status: "partial", rows_ingested: 2, finished_at: "",
+    last_import: { as_of_date: "2026-06-03", sha256: "test-sha-abc123", finished_at: "" },
   }, "the operator status shows the latest run per market");
+  // A newer bundle that then fails is the latest run, but the last import stays visible (#327 review).
+  await writeLedgerEntry(client, {
+    provider: "xang1234_stock_screener", releaseTag: "weekly-reference-data", market: "US", schemaVersion: "weekly-reference-bundle-v1",
+    bundleAssetName: "weekly-reference-us-20260610.json.gz", sha256: "test-sha-failed", asOfDate: "2026-06-10", sourceId: ledger.rows[0].source_id,
+    ingestionBatchId: "00000000-0000-4000-8000-000000000255", rowsTotal: 3, rowsIngested: 0, rowsSkipped: 3, status: "failed",
+    startedAt: "2099-01-01T00:00:00.000Z", finishedAt: "2099-01-01T00:01:00.000Z",
+  });
+  const [afterFailure] = await latestLedgerEntries(client);
+  assert.deepEqual([afterFailure!.status, afterFailure!.sha256, afterFailure!.last_import?.sha256], ["failed", "test-sha-failed", "test-sha-abc123"]);
 
   // End-to-end: the vendor candidate repository surfaces the ingested universe,
   // fundamentals-first (no daily quote ingested), with technicals populated and the
