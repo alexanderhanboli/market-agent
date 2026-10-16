@@ -224,7 +224,7 @@ test('a cited answer keeps its Markdown: bold, a bullet list, and both fact chip
   assert.doesNotMatch(doc.body.textContent ?? '', /\*\*/)
 })
 
-test('a price return renders as a series chip with the same look as a fact chip', async () => {
+test('a price return renders as a series chip with the same look as a fact chip, and opens its series', async () => {
   const SERIES = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const doc = await renderDocument(richTextBlock('rt-series', [
     { type: 'text', text: 'Revenue was ' },
@@ -239,6 +239,8 @@ test('a price return renders as a series chip with the same look as a fact chip'
   ])
   const classes = [...doc.querySelectorAll('[data-ref-id]')].map((el) => el.getAttribute('class'))
   assert.equal(classes[1], classes[0])
+  const chip = doc.querySelector('[data-ref-kind="series"]')
+  assert.equal(chip?.getAttribute('data-inspection-kind'), 'series')
   assert.equal(doc.querySelector('p')?.textContent, 'Revenue was $12.6B and the shares returned 6.6%.')
 })
 
