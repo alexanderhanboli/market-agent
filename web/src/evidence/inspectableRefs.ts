@@ -138,7 +138,7 @@ function arrayValue(value: unknown): ReadonlyArray<unknown> {
 }
 
 function isInspectionKind(value: unknown): value is EvidenceInspectionRef['kind'] {
-  return value === 'source' || value === 'document' || value === 'claim' || value === 'event' || value === 'fact'
+  return value === 'source' || value === 'document' || value === 'claim' || value === 'event' || value === 'fact' || value === 'series'
 }
 
 function stringValue(value: unknown): string | null {

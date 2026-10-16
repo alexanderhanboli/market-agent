@@ -2514,6 +2514,7 @@
       },
       "source_refs": [
         "00000000-0000-4000-a000-000000000001",
+        "00000000-0000-4000-a000-000000000009",
         "138fef65-4ad7-48cf-b641-6c099b2d0a60"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
@@ -2601,7 +2602,27 @@
         },
         {
           "type": "text",
-          "text": " shows NVIDIA converting a much larger share of revenue into profit.\n- **Price return YTD 2026:** NVIDIA's 5.81% exceeds AMD's 3.17%, though both are modest single-digit returns.\n\nNote that the two fiscal years end about one month apart (NVDA in January 2026, AMD in December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD disclosed in August 2025 that "
+          "text": " shows NVIDIA converting a much larger share of revenue into profit.\n- **Price return YTD 2026:** NVIDIA's "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "ec53e413-bdea-4fae-82f5-eec935b3581a",
+          "format": "5.81%"
+        },
+        {
+          "type": "text",
+          "text": " exceeds AMD's "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "0559b15f-5fac-435d-8e8c-7036c4086775",
+          "format": "3.17%"
+        },
+        {
+          "type": "text",
+          "text": ", though both are modest single-digit returns.\n\nNote that the two fiscal years end about one month apart (NVDA in January 2026, AMD in December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD disclosed in August 2025 that "
         },
         {
           "type": "ref",

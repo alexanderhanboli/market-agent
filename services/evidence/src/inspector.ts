@@ -10,6 +10,7 @@ export const EVIDENCE_INSPECTION_REF_KINDS = [
   "claim",
   "event",
   "fact",
+  "series",
 ] as const;
 
 export type EvidenceInspectionRefKind = (typeof EVIDENCE_INSPECTION_REF_KINDS)[number];
@@ -58,6 +59,23 @@ type SnapshotRow = {
   claim_refs: unknown;
   event_refs: unknown;
   fact_refs: unknown;
+  series_specs: unknown;
+};
+
+// A chart line's spec as chat seals it into snapshots.series_specs.
+type SeriesSpec = {
+  series_ref: string;
+  source_id: string;
+  listing_id: string;
+  bars_sha256?: string;
+  interval?: string;
+  adjustment_basis?: string;
+  normalization?: string;
+  points?: string;
+  delay_class?: string;
+  range?: { start?: string; end?: string };
+  window?: { kind?: string; year?: number; baseline_date?: string; end_date?: string };
+  as_of?: string;
 };
 
 type SourceRow = {
@@ -77,6 +95,7 @@ type SnapshotManifestRefs = {
   claim_refs: ReadonlyArray<string>;
   event_refs: ReadonlyArray<string>;
   fact_refs: ReadonlyArray<string>;
+  series_specs: ReadonlyArray<SeriesSpec>;
 };
 
 export async function loadEvidenceInspection(
@@ -104,8 +123,11 @@ export async function loadEvidenceInspection(
     inspection = await inspectClaim(db, input.snapshot_id, input.ref.id, input.user_id);
   } else if (input.ref.kind === "event") {
     inspection = await inspectEvent(db, input.snapshot_id, input.ref.id);
-  } else {
+  } else if (input.ref.kind === "fact") {
     inspection = await inspectFact(db, input.snapshot_id, input.ref.id, input.user_id);
+  } else {
+    const spec = manifest.series_specs.find((candidate) => candidate.series_ref === input.ref.id)!;
+    inspection = await inspectSeries(db, input.snapshot_id, spec, input.user_id);
   }
 
   return withSnapshotScopedRelatedRefs(inspection, manifest);
@@ -178,7 +200,8 @@ async function loadSnapshotManifest(
             document_refs,
             claim_refs,
             event_refs,
-            fact_refs
+            fact_refs,
+            series_specs
        from snapshots
       where snapshot_id = $1::uuid`,
     [snapshotId],
@@ -195,7 +218,19 @@ function refsFromSnapshotRow(row: SnapshotRow): SnapshotManifestRefs {
     claim_refs: stringArray(row.claim_refs),
     event_refs: stringArray(row.event_refs),
     fact_refs: stringArray(row.fact_refs),
+    series_specs: seriesSpecs(row.series_specs),
   });
+}
+
+function seriesSpecs(value: unknown): ReadonlyArray<SeriesSpec> {
+  const specs = typeof value === "string" ? parseJson(value) : value;
+  if (!Array.isArray(specs)) return Object.freeze([]);
+  return Object.freeze(specs.filter((spec): spec is SeriesSpec =>
+    isRecord(spec) &&
+    typeof spec.series_ref === "string" &&
+    isUuid(spec.source_id) &&
+    isUuid(spec.listing_id)
+  ));
 }
 
 function assertRefBelongsToSnapshot(
@@ -215,7 +250,8 @@ function refsForKind(
   if (kind === "document") return manifest.document_refs;
   if (kind === "claim") return manifest.claim_refs;
   if (kind === "event") return manifest.event_refs;
-  return manifest.fact_refs;
+  if (kind === "fact") return manifest.fact_refs;
+  return manifest.series_specs.map((spec) => spec.series_ref);
 }
 
 function withSnapshotScopedRelatedRefs(
@@ -516,6 +552,82 @@ async function inspectFact(
   });
 }
 
+const ADJUSTMENT_BASIS_LABELS: Readonly<Record<string, string>> = {
+  split_adjusted: "Split-adjusted, excluding dividends",
+  split_and_div_adjusted: "Split- and dividend-adjusted",
+  unadjusted: "Unadjusted",
+};
+const NORMALIZATION_LABELS: Readonly<Record<string, string>> = { pct_return: "Price return" };
+const INTERVAL_LABELS: Readonly<Record<string, string>> = { "1d": "Daily" };
+const DELAY_CLASS_LABELS: Readonly<Record<string, string>> = {
+  eod: "End of day",
+  delayed_15m: "Delayed 15 minutes",
+  real_time: "Real time",
+  unknown: "Unknown",
+};
+const PERF_POINTS = "perf_lines";
+
+// The spec is the snapshot's own sealed record; the listing and source rows
+// only label it, and the source must be visible to this user.
+async function inspectSeries(
+  db: QueryExecutor,
+  snapshotId: string,
+  spec: SeriesSpec,
+  userId: string,
+): Promise<EvidenceInspection> {
+  const { rows } = await db.query<{
+    ticker: string;
+    legal_name: string;
+    canonical_url: string | null;
+  }>(
+    `select l.ticker,
+            iss.legal_name,
+            s.canonical_url
+       from listings l
+       join instruments ins on ins.instrument_id = l.instrument_id
+       join issuers iss on iss.issuer_id = ins.issuer_id
+       join sources s on s.source_id = $2::uuid
+      where l.listing_id = $1::uuid
+        and (s.user_id is null or s.user_id = $3::uuid)`,
+    [spec.listing_id, spec.source_id, userId],
+  );
+  const row = rows[0];
+  if (!row) throw new EvidenceInspectionError(404, "series not found");
+  const label = (labels: Readonly<Record<string, string>>, value: string | undefined) =>
+    value === undefined ? "Unknown" : labels[value] ?? value;
+  return Object.freeze({
+    snapshot_id: snapshotId,
+    ref: Object.freeze({ kind: "series", id: spec.series_ref }),
+    kind: "series",
+    title: `${row.ticker} price series`,
+    subtitle: row.legal_name,
+    badges: Object.freeze(spec.points === PERF_POINTS ? ["sealed", "points_checked"] : ["sealed"]),
+    rows: Object.freeze([
+      { label: "Basis", value: label(ADJUSTMENT_BASIS_LABELS, spec.adjustment_basis) },
+      { label: "Return", value: label(NORMALIZATION_LABELS, spec.normalization) },
+      { label: "Window", value: seriesWindow(spec) },
+      { label: "Interval", value: label(INTERVAL_LABELS, spec.interval) },
+      { label: "Delay", value: label(DELAY_CLASS_LABELS, spec.delay_class) },
+      { label: "As of", value: spec.as_of ?? "Unknown" },
+      ...(typeof spec.bars_sha256 === "string"
+        ? [{ label: "Bars digest", value: `sha256:${spec.bars_sha256.slice(0, 12)}` }]
+        : []),
+    ]),
+    links: sourceLinks(row.canonical_url),
+    related_refs: Object.freeze([{ kind: "source" as const, id: spec.source_id }]),
+  });
+}
+
+// Worded as the perf block's default_range words it.
+function seriesWindow(spec: SeriesSpec): string {
+  const { window, range } = spec;
+  if (window?.kind === "ytd") {
+    return `YTD ${window.year}: ${window.baseline_date} close to ${window.end_date} close`;
+  }
+  const date = (value: string | undefined) => value?.slice(0, 10) ?? "unknown";
+  return `${date(range?.start)} to ${date(range?.end)}`;
+}
+
 function assertRef(ref: EvidenceInspectionRef): void {
   if (!isRecord(ref)) throw new EvidenceInspectionError(400, "ref must be an object");
   if (!EVIDENCE_INSPECTION_REF_KINDS.includes(ref.kind)) {
@@ -577,11 +689,19 @@ function isSafeExternalHref(value: string): boolean {
 }
 
 function assertUuid(value: unknown, label: string): asserts value is string {
-  if (
-    typeof value !== "string" ||
-    !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value)
-  ) {
-    throw new EvidenceInspectionError(400, `${label} must be a UUID`);
+  if (!isUuid(value)) throw new EvidenceInspectionError(400, `${label} must be a UUID`);
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
   }
 }
 

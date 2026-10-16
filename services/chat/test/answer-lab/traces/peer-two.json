@@ -2654,7 +2654,8 @@
       },
       "source_refs": [
         "00000000-0000-4000-a000-000000000001",
-        "138fef65-4ad7-48cf-b641-6c099b2d0a60"
+        "138fef65-4ad7-48cf-b641-6c099b2d0a60",
+        "00000000-0000-4000-a000-000000000009"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
@@ -2761,7 +2762,27 @@
         },
         {
           "type": "text",
-          "text": " (published August 2025).\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so we cannot see whether growth is accelerating or decelerating. No segment or product-line breakdown is provided, so we cannot tell how much of NVDA's revenue is concentrated in data center versus other end markets. No quarterly progression is shown, so the path within each fiscal year is invisible. No forward guidance figures are included.\n\n**Price performance:** Over the nine-month window from December 2025 through August 2026, NVDA returned 6.6% and AMD returned 3.58%, both modestly positive but NVDA ahead."
+          "text": " (published August 2025).\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so we cannot see whether growth is accelerating or decelerating. No segment or product-line breakdown is provided, so we cannot tell how much of NVDA's revenue is concentrated in data center versus other end markets. No quarterly progression is shown, so the path within each fiscal year is invisible. No forward guidance figures are included.\n\n**Price performance:** Over the nine-month window from December 2025 through August 2026, NVDA returned "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "c383d172-585c-4ff9-8ea7-26a9102f21bb",
+          "format": "6.6%"
+        },
+        {
+          "type": "text",
+          "text": " and AMD returned "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "b3ee19bb-1c65-49a0-869b-8364b912ec41",
+          "format": "3.58%"
+        },
+        {
+          "type": "text",
+          "text": ", both modestly positive but NVDA ahead."
         }
       ]
     }

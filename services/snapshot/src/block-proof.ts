@@ -81,6 +81,7 @@ function citesOnlySealed(block: Record<string, unknown>, snapshot: SealedSnapsho
   if (typeof block.kind === "string" && LITERAL_VALUE_KINDS.has(block.kind)) return false;
   try {
     if (block.kind === "perf_comparison" && !eachLineHasItsOwnSeries(block, snapshot)) return false;
+    if (!citedSeriesAllChecked(block, snapshot)) return false;
     return citedRefsAllSealed(block, snapshot);
   } catch {
     return false;
@@ -96,6 +97,13 @@ function eachLineHasItsOwnSeries(block: Record<string, unknown>, snapshot: Seale
   const checked = new Set(snapshot.checked_series_refs);
   return Array.isArray(block.series) && block.series.length > 0 && block.series.length === refs.length &&
     new Set(refs).size === refs.length && refs.every((ref) => checked.has(ref));
+}
+
+// A price return in prose shows its line's last point (#317): the seal checks it
+// against a line whose points it checked only since #236.
+function citedSeriesAllChecked(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {
+  const checked = new Set(snapshot.checked_series_refs);
+  return extractBlockRefs(block as unknown as VerifierBlock).every((ref) => ref.ref_kind !== "series" || checked.has(ref.ref_id));
 }
 
 function citedRefsAllSealed(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {

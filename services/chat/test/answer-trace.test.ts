@@ -32,6 +32,8 @@ const TRACE: TurnTrace = {
         { type: "ref", ref_kind: "fact", ref_id: "f1", format: "$130.5B" },
         { type: "text", text: " in FY2025, from 60.9 billion and 1,234 units." },
         { type: "ref", ref_kind: "claim", ref_id: "c1", format: "Demand stayed strong" },
+        { type: "text", text: "; its shares returned " },
+        { type: "ref", ref_kind: "series", ref_id: "s1", format: "6.6%" },
       ],
     },
     { kind: "metric_row", segments: [{ type: "text", text: "99" }] },
@@ -77,9 +79,9 @@ test("a failed trace write does not fail the turn", async () => {
   assert.deepEqual(await readdir(dir), ["thread-1"]);
 });
 
-test("answerMetrics counts the prose's sealed figures and plain numbers", () => {
+test("answerMetrics counts the prose's sealed figures, a price return's series among them, and plain numbers", () => {
   assert.deepEqual(answerMetrics(TRACE), {
-    figure_refs: 1,
+    figure_refs: 2,
     plain_numbers: 3,
     removed: 1,
     fallback: false,

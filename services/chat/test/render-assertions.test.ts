@@ -181,17 +181,24 @@ test("a ranking across companies lists every company's value and period, and nam
     "By gross margin, highest first: NVDA 74.6% (FY2026), AMD 49.2% (FY2025). No gross margin is shown for AAPL.");
 });
 
-test("a ranking over a price window writes its dates by month and year, as the guard allows (#301)", () => {
+test("a ranking over a price window writes its dates by month and year, as the guard allows (#301), each return a chip on its chart line (#317)", () => {
   const window = "YTD 2026: 2025-12-31 close to 2026-08-31 close";
+  const NVDA_LINE = "d1000000-0000-4000-8000-000000000001";
+  const AMD_LINE = "d1000000-0000-4000-8000-000000000002";
   const returns: EvidencePacket = { ...PACKET, figures: [
-    { id: "F5", company: "NVDA", metric: "Price return", period: window, value: "5.81%", source_ids: [] },
-    { id: "F6", company: "AMD", metric: "Price return", period: window, value: "3.17%", source_ids: [] },
+    { id: "F5", company: "NVDA", metric: "Price return", period: window, value: "5.81%", series_ref: NVDA_LINE, source_ids: ["s-px"] },
+    { id: "F6", company: "AMD", metric: "Price return", period: window, value: "3.17%", series_ref: AMD_LINE, source_ids: ["s-px"] },
   ] };
   const rendered = renderComparison(returns, FACT_BLOCKS, "highest", "F5", ["F5", "F6"]);
   assert.equal(plainText(rendered.segments),
     "Of NVDA and AMD, NVDA's price return was highest: NVDA 5.81%, AMD 3.17% (YTD 2026: Dec 2025 close to Aug 2026 close).");
   assert.equal(rendered.reference_text,
     "Of NVDA and AMD, NVDA's price return was highest: NVDA [[F5]], AMD [[F6]] (YTD 2026: Dec 2025 close to Aug 2026 close).");
+  assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref"), [
+    { type: "ref", ref_kind: "series", ref_id: NVDA_LINE, format: "5.81%" },
+    { type: "ref", ref_kind: "series", ref_id: AMD_LINE, format: "3.17%" },
+  ]);
+  assert.deepEqual(rendered.source_refs, ["s-px"]);
 });
 
 test("an observation names each period once, and segments and acronyms read as written (#208)", () => {

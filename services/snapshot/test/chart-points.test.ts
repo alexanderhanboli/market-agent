@@ -258,3 +258,58 @@ test("a live-rendered chart, with no embedded points, is not checked", async () 
   const { series: _series, ...live } = chart;
   assert.deepEqual(await verifySnapshotSeal({ ...input, blocks: [live, ...rest] }), { ok: true, failures: [] });
 });
+
+// A sealed answer whose prose cites the chart's lines (#317).
+function withChips(input: SnapshotVerificationInput, chips: Array<[string, string]>, sourceRefs = [sourceId]): SnapshotVerificationInput {
+  const answer = {
+    id: "answer",
+    kind: "rich_text",
+    snapshot_id: snapshotId,
+    data_ref: { kind: "rich_text", id: "answer" },
+    source_refs: sourceRefs,
+    as_of: AS_OF,
+    segments: chips.flatMap(([ref_id, format]) => [{ type: "text", text: " returned " }, { type: "ref", ref_kind: "series", ref_id, format }]),
+  } as VerifierBlock;
+  return { ...input, blocks: [answer, ...input.blocks] };
+}
+
+const failures = (result: Awaited<ReturnType<typeof verifySnapshotSeal>>) =>
+  result.failures.map((failure) => [failure.reason_code, failure.details]);
+
+test("a price return chip showing its line's last point as the chart labels it seals (#317)", async () => {
+  const result = await verifySnapshotSeal(withChips(sealInput(LATEST), [[nvdaSeries, "21%"], [amdSeries, "10%"]]), barsDb(LATEST.bars));
+  assert.deepEqual(result, { ok: true, failures: [] });
+});
+
+test("a price return chip showing anything but its line's last point fails (#317)", async () => {
+  const result = await verifySnapshotSeal(withChips(sealInput(LATEST), [[nvdaSeries, "10%"], [amdSeries, "10%"]]), barsDb(LATEST.bars));
+  assert.deepEqual(failures(result), [
+    ["series_ref_format_mismatch", { block_id: "answer", series_ref: nvdaSeries, format: "10%", shown: ["21%"] }],
+  ]);
+});
+
+test("a price return chip on a sealed series no chart draws fails: there is no verified line to show (#317)", async () => {
+  const undrawn = "00000000-0000-4000-8000-000000000043";
+  const input = sealInput(LATEST);
+  const manifest = { ...input.manifest, series_specs: [...input.manifest.series_specs!, spec(undrawn, nvdaListing, nvdaRange, LATEST.hashes[0]!)] };
+  const result = await verifySnapshotSeal(withChips({ ...input, manifest }, [[undrawn, "21%"]]), barsDb(LATEST.bars));
+  assert.deepEqual(failures(result), [
+    ["series_ref_format_mismatch", { block_id: "answer", series_ref: undrawn, format: "21%", shown: [] }],
+  ]);
+});
+
+test("a price return chip on a series the snapshot did not seal fails (#317)", async () => {
+  const unsealed = "00000000-0000-4000-8000-000000000044";
+  const result = await verifySnapshotSeal(withChips(sealInput(LATEST), [[unsealed, "21%"]]), barsDb(LATEST.bars));
+  assert.deepEqual(failures(result), [
+    ["missing_series_ref", { block_id: "answer", series_ref: unsealed }],
+    ["series_ref_format_mismatch", { block_id: "answer", series_ref: unsealed, format: "21%", shown: [] }],
+  ]);
+});
+
+test("a price return chip in prose that does not cite its series' source fails (#317)", async () => {
+  const result = await verifySnapshotSeal(withChips(sealInput(LATEST), [[nvdaSeries, "21%"]], []), barsDb(LATEST.bars));
+  assert.deepEqual(failures(result), [
+    ["missing_source_ref", { block_id: "answer", series_ref: nvdaSeries, source_id: sourceId, scope: "block_series_source" }],
+  ]);
+});

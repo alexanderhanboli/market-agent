@@ -332,12 +332,12 @@ function claimBounds(scope: ResearchScope | undefined, cutoff: string): string {
   return `${route}, published by the ${cutoff.slice(0, 10)} cutoff; a claim repeated by several sources or copies counts once`;
 }
 
-// The packet as the model sees it: short ids only, no fact or source ids.
+// The packet as the model sees it: short ids only, no fact, series or source ids.
 export function packetForModel(packet: EvidencePacket): Record<string, unknown> {
   return {
     route: packet.route,
     cutoff: packet.cutoff,
-    figures: packet.figures.map(({ fact_id: _factId, source_ids: _sourceIds, ...figure }) => figure),
+    figures: packet.figures.map(({ fact_id: _factId, series_ref: _seriesRef, source_ids: _sourceIds, ...figure }) => figure),
     ...(packet.coverage.length > 0 ? { coverage: packet.coverage } : {}),
     ...(packet.gaps.length > 0 ? { gaps: packet.gaps } : {}),
     ...(Object.keys(packet.query_bounds).length > 0 ? { query_bounds: packet.query_bounds } : {}),

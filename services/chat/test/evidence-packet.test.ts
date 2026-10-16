@@ -369,3 +369,29 @@ test("a named quarter's packet says which quarter was read, and reads claims fro
   assert.match(packet.query_bounds.periods!, /^fiscal Q2 2025/);
   assert.equal(claimSelection(named, CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
 });
+
+test("a price return carries its chart line's series and the chart's sources, and the model sees neither (#317)", () => {
+  const NVDA_LINE = "d1000000-0000-4000-8000-000000000001";
+  const AMD_LINE = "d1000000-0000-4000-8000-000000000002";
+  const packet = buildEvidencePacket({
+    cutoff: CUTOFF,
+    factBlocks: [{
+      id: "perf",
+      kind: "perf_comparison",
+      title: "Price return YTD 2026 (split-adjusted, excluding dividends)",
+      default_range: "YTD 2026: 2025-12-31 close to 2026-08-31 close",
+      data_ref: { kind: "perf_comparison", id: "perf", params: { series_refs: [NVDA_LINE, AMD_LINE] } },
+      source_refs: ["s-px"],
+      series: [
+        { name: "NVDA", unit: "%", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 6.6 }] },
+        { name: "AMD", unit: "%", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 3.58 }] },
+      ],
+    }],
+  });
+  assert.deepEqual(packet.figures.map((figure) => [figure.id, figure.company, figure.value, figure.series_ref, figure.source_ids]), [
+    ["F1", "NVDA", "6.6%", NVDA_LINE, ["s-px"]],
+    ["F2", "AMD", "3.58%", AMD_LINE, ["s-px"]],
+  ]);
+  const model = JSON.stringify(packetForModel(packet));
+  assert.deepEqual([model.includes(NVDA_LINE), model.includes("s-px"), model.includes("\"6.6%\"")], [false, false, true]);
+});

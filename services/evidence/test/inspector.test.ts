@@ -25,6 +25,23 @@ const EVENT_ID = "55555555-5555-4555-8555-555555555555";
 const FACT_ID = "66666666-6666-4666-8666-666666666666";
 const OUT_OF_SNAPSHOT_SOURCE_ID = "77777777-7777-4777-8777-777777777777";
 const OUT_OF_SNAPSHOT_DOCUMENT_ID = "88888888-8888-4888-8888-888888888888";
+const SERIES_REF = "99999999-9999-4999-8999-999999999999";
+const LISTING_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const SERIES_SPEC = {
+  series_ref: SERIES_REF,
+  source_id: SOURCE_ID,
+  listing_id: LISTING_ID,
+  bar_range_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  bars_sha256: "3f9a1c0e7b2d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789ab",
+  interval: "1d",
+  adjustment_basis: "split_adjusted",
+  normalization: "pct_return",
+  points: "perf_lines",
+  delay_class: "eod",
+  range: { start: "2025-10-01T00:00:00.000Z", end: "2026-10-15T00:00:00.000Z" },
+  window: { kind: "ytd", year: 2026, baseline_date: "2025-12-31", end_date: "2026-10-15" },
+  as_of: "2026-10-15T20:00:00.000Z",
+};
 
 function stubDb(rowsByQuery: (text: string, values?: unknown[]) => unknown[]) {
   const calls: QueryCall[] = [];
@@ -370,12 +387,112 @@ test("loadEvidenceInspection filters related refs to the sealed snapshot manifes
   assert.equal(JSON.stringify(result.related_refs).includes(OUT_OF_SNAPSHOT_DOCUMENT_ID), false);
 });
 
+function seriesDb(manifest = manifestRow({ series_specs: [SERIES_SPEC] })) {
+  return stubDb((text, values) => {
+    if (text.includes("from chat_messages")) return [{ visible: 1 }];
+    if (text.includes("from snapshots")) return [manifest];
+    if (text.includes("from listings") && values?.[0] === LISTING_ID && values?.[1] === SOURCE_ID) {
+      return [{ ticker: "NVDA", legal_name: "NVIDIA Corporation", canonical_url: "https://www.example.com/bars" }];
+    }
+    return [];
+  });
+}
+
+test("loadEvidenceInspection renders a sealed YTD series spec with its listing and source", async () => {
+  const { db, calls } = seriesDb();
+
+  const result = await loadEvidenceInspection(db, {
+    user_id: USER_ID,
+    snapshot_id: SNAPSHOT_ID,
+    ref: { kind: "series", id: SERIES_REF },
+  });
+
+  assert.deepEqual(result, {
+    snapshot_id: SNAPSHOT_ID,
+    ref: { kind: "series", id: SERIES_REF },
+    kind: "series",
+    title: "NVDA price series",
+    subtitle: "NVIDIA Corporation",
+    badges: ["sealed", "points_checked"],
+    rows: [
+      { label: "Basis", value: "Split-adjusted, excluding dividends" },
+      { label: "Return", value: "Price return" },
+      { label: "Window", value: "YTD 2026: 2025-12-31 close to 2026-10-15 close" },
+      { label: "Interval", value: "Daily" },
+      { label: "Delay", value: "End of day" },
+      { label: "As of", value: "2026-10-15T20:00:00.000Z" },
+      { label: "Bars digest", value: "sha256:3f9a1c0e7b2d" },
+    ],
+    links: [{ label: "Open source", href: "https://www.example.com/bars" }],
+    related_refs: [{ kind: "source", id: SOURCE_ID }],
+  });
+  assert.deepEqual(calls.find((call) => call.text.includes("from listings"))?.values, [LISTING_ID, SOURCE_ID, USER_ID]);
+});
+
+test("loadEvidenceInspection words a series without a window by its stored range, from a JSON-text manifest", async () => {
+  const { window: _window, points: _points, ...latest } = SERIES_SPEC;
+  const { db } = seriesDb(manifestRow({ series_specs: JSON.stringify([latest]) }));
+
+  const result = await loadEvidenceInspection(db, {
+    user_id: USER_ID,
+    snapshot_id: SNAPSHOT_ID,
+    ref: { kind: "series", id: SERIES_REF },
+  });
+
+  assert.deepEqual(result.badges, ["sealed"]);
+  assert.deepEqual(result.rows.find((row) => row.label === "Window"), { label: "Window", value: "2025-10-01 to 2026-10-15" });
+});
+
+test("loadEvidenceInspection rejects a series ref the snapshot did not seal, like a missing fact", async () => {
+  for (const ref of [
+    { kind: "series", id: OUT_OF_SNAPSHOT_SOURCE_ID },
+    { kind: "fact", id: OUT_OF_SNAPSHOT_SOURCE_ID },
+  ] as const) {
+    const { db, calls } = seriesDb();
+    await assert.rejects(
+      () => loadEvidenceInspection(db, { user_id: USER_ID, snapshot_id: SNAPSHOT_ID, ref }),
+      (err: Error) =>
+        err instanceof EvidenceInspectionError &&
+        err.status === 404 &&
+        err.message === "ref is not present in snapshot manifest",
+    );
+    assert.equal(calls.some((call) => call.text.includes("from listings")), false);
+  }
+});
+
+test("loadEvidenceInspection hides a series whose source is not visible to the user", async () => {
+  const { db } = stubDb((text) => {
+    if (text.includes("from chat_messages")) return [{ visible: 1 }];
+    if (text.includes("from snapshots")) return [manifestRow({ series_specs: [SERIES_SPEC] })];
+    return [];
+  });
+  await assert.rejects(
+    () => loadEvidenceInspection(db, { user_id: USER_ID, snapshot_id: SNAPSHOT_ID, ref: { kind: "series", id: SERIES_REF } }),
+    (err: Error) => err instanceof EvidenceInspectionError && err.status === 404 && err.message === "series not found",
+  );
+});
+
+test("loadEvidenceInspection rejects an unknown ref kind with a 400 before querying", async () => {
+  const { db, calls } = seriesDb();
+  await assert.rejects(
+    () =>
+      loadEvidenceInspection(db, {
+        user_id: USER_ID,
+        snapshot_id: SNAPSHOT_ID,
+        ref: { kind: "listing", id: LISTING_ID } as unknown as EvidenceInspectionRef,
+      }),
+    (err: Error) => err instanceof EvidenceInspectionError && err.status === 400 && err.message === "ref.kind is invalid",
+  );
+  assert.equal(calls.length, 0);
+});
+
 function manifestRow(input: {
   source_ids?: readonly string[];
   document_refs?: readonly string[];
   claim_refs?: readonly string[];
   event_refs?: readonly string[];
   fact_refs?: readonly string[];
+  series_specs?: unknown;
 } = {}) {
   return {
     snapshot_id: SNAPSHOT_ID,
@@ -384,6 +501,7 @@ function manifestRow(input: {
     claim_refs: input.claim_refs ?? [CLAIM_ID],
     event_refs: input.event_refs ?? [EVENT_ID],
     fact_refs: input.fact_refs ?? [FACT_ID],
+    series_specs: input.series_specs ?? [],
   };
 }
 

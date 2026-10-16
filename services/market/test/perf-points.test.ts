@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import { perfLines } from "../src/perf-points.ts";
+import { perfLines, returnLabel } from "../src/perf-points.ts";
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 const daily = (closes: number[]) => closes.map((close, index) => ({ ts: `2026-08-${22 + index}T00:00:00.000Z`, close }));
@@ -53,4 +53,8 @@ test("YTD: returns from the baseline close on session dates, digest over only th
     },
   ]);
   assert.deepEqual(drawn.ok && [drawn.window.baselineDate, drawn.window.endDate], ["2025-12-31", "2026-08-31"]);
+});
+
+test("a line's return label is what its chart's hover shows", () => {
+  assert.deepEqual([20, -4.25, -0.0449, 6.6, 3.5800000000000001, 1234.5, 0].map(returnLabel), ["20%", "-4.25%", "-0.04%", "6.6%", "3.58%", "1,235%", "0%"]);
 });

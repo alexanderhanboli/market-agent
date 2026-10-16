@@ -224,6 +224,26 @@ test('a cited answer keeps its Markdown: bold, a bullet list, and both fact chip
   assert.doesNotMatch(doc.body.textContent ?? '', /\*\*/)
 })
 
+test('a price return renders as a series chip with the same look as a fact chip, and opens its series', async () => {
+  const SERIES = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const doc = await renderDocument(richTextBlock('rt-series', [
+    { type: 'text', text: 'Revenue was ' },
+    { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
+    { type: 'text', text: ' and the shares returned ' },
+    { type: 'ref', ref_kind: 'series', ref_id: SERIES, format: '6.6%' },
+    { type: 'text', text: '.' },
+  ]))
+  assert.deepEqual(refAttrs(doc), [
+    ['block-rich-text-rt-series-ref-1', 'fact', FACT_A, '$12.6B'],
+    ['block-rich-text-rt-series-ref-3', 'series', SERIES, '6.6%'],
+  ])
+  const classes = [...doc.querySelectorAll('[data-ref-id]')].map((el) => el.getAttribute('class'))
+  assert.equal(classes[1], classes[0])
+  const chip = doc.querySelector('[data-ref-kind="series"]')
+  assert.equal(chip?.getAttribute('data-inspection-kind'), 'series')
+  assert.equal(doc.querySelector('p')?.textContent, 'Revenue was $12.6B and the shares returned 6.6%.')
+})
+
 test('a ref sits inside a GFM table cell and its format text never reaches the parser', async () => {
   const doc = await renderDocument(richTextBlock('rt-table', [
     { type: 'text', text: '| Metric | FY25 |\n| --- | --- |\n| Revenue | ' },

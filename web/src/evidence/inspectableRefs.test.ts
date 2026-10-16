@@ -89,3 +89,22 @@ test('extractInspectableRefs mirrors verifier refs for nested chart and research
     `document:${DOCUMENT_ID}`,
   ])
 })
+
+test('extractInspectableRefs opens a rich text series chip as a series ref', () => {
+  const SERIES_REF = '77777777-7777-4777-8777-777777777777'
+  const refs = extractInspectableRefs({
+    id: 'rt-1',
+    kind: 'rich_text',
+    snapshot_id: SNAPSHOT_ID,
+    data_ref: { kind: 'rich_text', id: 'rt-1' },
+    source_refs: [],
+    as_of: '2026-05-29T00:00:00.000Z',
+    segments: [
+      { type: 'text', text: 'NVDA returned ' },
+      { type: 'ref', ref_kind: 'series', ref_id: SERIES_REF, format: '6.6%' },
+      { type: 'ref', ref_kind: 'listing', ref_id: FACT_ID, format: 'NVDA' },
+    ],
+  })
+
+  assert.deepEqual(refs.map((ref) => `${ref.ref.kind}:${ref.ref.id}`), [`series:${SERIES_REF}`])
+})

@@ -41,6 +41,9 @@ Each block in a chat message carries three independent claims. They are not a tr
     recomputes the line with the function chat draws it with, and fails on any digest, point or window mismatch
     (`series_points_mismatch`). The chart is linked when its points are embedded and each line has its own sealed
     series. A live-rendered chart, with no embedded points, is never linked.
+  - A price return in prose is a `series` ref (#317). The seal fails unless it shows the last point of the line that
+    series draws in the message's price charts, as the chart labels it (`series_ref_format_mismatch`). The prose is
+    linked only if each series it cites was sealed with the point check.
 - **Calculation (`verified`/`not_verified`):** the server recomputed the result from its recorded inputs. Only a
   `financial_answer` qualifies, and only one whose run, unit and `presentation_hash` have a certificate
   (`snapshot_financial_runs`) in that snapshot.
