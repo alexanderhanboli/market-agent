@@ -188,6 +188,16 @@ export const COMPUTATION_CASES: ReadonlyArray<ComputationCase> = [
     bindings: new Map([bound("gp", { metric: "gross_profit", value: "10", ...FY(2023) }), bound("rev", { metric: "revenue", value: "0", ...FY(2023) })]),
     expected: { out_gm: { kind: "gap", reason_code: "zero_denominator" } },
   },
+  ...([
+    ["operating-margin-exact", "precision_limit", "Operating margin is operating income over revenue: 25 over 100 is exactly 25%.", "25", "100", quotient("25", "100")],
+    ["operating-margin-loss", "negative_base", "An operating loss over positive revenue is a negative margin, not a gap.", "-25", "100", quotient("-25", "100")],
+    ["operating-margin-negative-revenue", "zero_denominator", "A margin over negative revenue is a declared gap.", "25", "-100", { kind: "gap", reason_code: "non_positive_denominator" }],
+  ] as const).map(([id, category, rule, operatingIncome, revenue, expected]): ComputationCase => ({
+    id, category, rule,
+    plan: plan([reported("oi", "a", "operating_income"), reported("rev", "a", "revenue"), { node_id: "om", operation: "operating_margin", numerator: "oi", revenue: "rev" }], ["om"], [], ["a"]),
+    bindings: new Map([bound("oi", { metric: "operating_income", value: operatingIncome, ...FY(2023) }), bound("rev", { metric: "revenue", value: revenue, ...FY(2023) })]),
+    expected: { out_om: expected },
+  })),
   ...([["1", "3"], ["2", "3"], ["1", "8"], ["169148000000", "383285000000.123456789012345678"]] as const).map(([gp, rev], index): ComputationCase => ({
     id: `margin-precision-${index + 1}`, category: "precision_limit",
     rule: "Division keeps 50 significant digits, ties to even, and says whether the value is exact.",

@@ -34,6 +34,17 @@ test("a wrong value fails even when every citation ID is valid", () => {
   assert.deepEqual(reasons(verifyFinancialUnit(records, "section", SEAL_CONTEXT)), ["financial_recompute_mismatch:payload"]);
 });
 
+test("an operating margin of 25 over 100 verifies as 25%; sealed as 26% with valid citations, it fails (#200)", () => {
+  const operating = () => validRecords({ operation: "operating_margin", numerator: "operating_income" }, { revenue: "100", numerator: "25" });
+  const margin = (records: ReturnType<typeof mutable>) => records.results.find((row: { output_id: string }) => row.output_id === "out_gm");
+  assert.equal(margin(mutable(operating())).payload.value, "0.25");
+  const outcome = verifyFinancialUnit(operating(), "section", SEAL_CONTEXT);
+  assert.ok(outcome.ok, JSON.stringify(!outcome.ok && outcome.failures));
+  const tampered = mutable(operating());
+  margin(tampered).payload.value = "0.26";
+  assert.deepEqual(reasons(verifyFinancialUnit(tampered, "section", SEAL_CONTEXT)), ["financial_recompute_mismatch:payload"]);
+});
+
 test("changing the unit, the result hash, or the disposition of a stored result fails", () => {
   const unit = mutable(validRecords());
   unit.results[0].payload.unit = { kind: "currency", currency: "EUR" };
