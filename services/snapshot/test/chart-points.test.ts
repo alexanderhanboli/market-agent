@@ -116,7 +116,16 @@ function sealInput(
 }
 
 // The rows the seal's queries return: timestamptz as a Date, close as float8.
-type StoredRange = { listing_id: string; source_id: string; interval: string; adjustment_basis: string; range_start: string; range_end: string };
+type StoredRange = {
+  listing_id: string;
+  source_id: string;
+  interval: string;
+  adjustment_basis: string;
+  range_start: string;
+  range_end: string;
+  delay_class: string;
+  as_of: string;
+};
 
 // The stored ranges the specs name, unless a test says otherwise.
 const STORED: Record<string, StoredRange> = Object.fromEntries([[nvdaRange, nvdaListing], [amdRange, amdListing]].map(([range, listing]) => [range, {
@@ -126,6 +135,8 @@ const STORED: Record<string, StoredRange> = Object.fromEntries([[nvdaRange, nvda
   adjustment_basis: "split_adjusted",
   range_start: "2025-12-01T05:00:00.000Z",
   range_end: AS_OF,
+  delay_class: "eod",
+  as_of: AS_OF,
 }]));
 
 function barsDb(bars: Record<string, Bar[]>, ranges: Record<string, StoredRange> = STORED): QueryExecutor & { failures: unknown[] } {
@@ -140,7 +151,7 @@ function barsDb(bars: Record<string, Bar[]>, ranges: Record<string, StoredRange>
       }
       if (text.includes("from market_bar_ranges")) {
         const ids = values?.[0] as string[];
-        const rows = ids.flatMap((id) => (ranges[id] ? [{ bar_range_id: id, ...ranges[id], range_start: new Date(ranges[id].range_start), range_end: new Date(ranges[id].range_end) }] : []));
+        const rows = ids.flatMap((id) => (ranges[id] ? [{ bar_range_id: id, ...ranges[id], range_start: new Date(ranges[id].range_start), range_end: new Date(ranges[id].range_end), as_of: new Date(ranges[id].as_of) }] : []));
         return { rows: rows as unknown as R[] };
       }
       if (text.includes("from listings")) {
@@ -170,6 +181,15 @@ test("a line whose bars are another listing's, source's or basis' range fails, t
   }
   const missing = await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars, { [amdRange]: STORED[amdRange]! }));
   assert.deepEqual(pointsFailures(missing), [{ block_id: "perf", series_ref: nvdaSeries, reason: "range" }], "no stored range");
+});
+
+test("a chart whose spec claims fresher or more real-time prices than its stored range fails; an older claim passes (#315 review)", async () => {
+  const realTime = await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars, { ...STORED, [nvdaRange]: { ...STORED[nvdaRange]!, delay_class: "real_time" } }));
+  assert.deepEqual(pointsFailures(realTime), [{ block_id: "perf", series_ref: nvdaSeries, reason: "range" }], "delay class");
+  const older = await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars, { ...STORED, [nvdaRange]: { ...STORED[nvdaRange]!, as_of: "2026-08-31T00:00:00.000Z" } }));
+  assert.deepEqual(pointsFailures(older), [{ block_id: "perf", series_ref: nvdaSeries, reason: "range" }], "the spec is fresher than the stored range");
+  const refreshed = await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars, { ...STORED, [nvdaRange]: { ...STORED[nvdaRange]!, as_of: "2026-09-02T00:00:00.000Z" } }));
+  assert.deepEqual(pointsFailures(refreshed), [], "refreshed since the chart was drawn");
 });
 
 test("a line shown under a company other than its series' listing fails (#315 review)", async () => {

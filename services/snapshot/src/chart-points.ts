@@ -33,6 +33,9 @@ type SealedSeries = {
   listing_id: string;
   // The stored range the spec says it is: market_bar_ranges' identity.
   range: StoredRange;
+  // What the chart's pricing disclosure is compiled from (#315 review).
+  delay_class: string;
+  as_of: number;
   bars_sha256: string;
   window: SealedWindow | null;
 };
@@ -82,9 +85,16 @@ export async function verifyChartPoints(
       fail("unverifiable");
       continue;
     }
-    // The bars must be the range the spec names, not another listing's or basis'.
+    // The bars must be the range the spec names, not another listing's or
+    // basis', and no fresher or more real-time than it: the pricing disclosure
+    // is compiled from the spec. A refresh since the chart was drawn only makes
+    // the stored as_of later.
     const stored = await loadRanges(db, lines.map((line) => line.spec.bar_range_id));
-    const unbound = lines.find((line) => !isDeepStrictEqual(stored.get(line.spec.bar_range_id), line.spec.range));
+    const unbound = lines.find((line) => {
+      const range = stored.get(line.spec.bar_range_id);
+      return range === undefined || !isDeepStrictEqual(range.identity, line.spec.range) ||
+        range.delay_class !== line.spec.delay_class || line.spec.as_of > range.as_of;
+    });
     if (unbound !== undefined) {
       fail("range", unbound.series_ref);
       continue;
@@ -156,7 +166,10 @@ async function loadBars(db: QueryExecutor, barRangeIds: ReadonlyArray<string>): 
   return bars;
 }
 
-async function loadRanges(db: QueryExecutor, barRangeIds: ReadonlyArray<string>): Promise<Map<string, StoredRange>> {
+async function loadRanges(
+  db: QueryExecutor,
+  barRangeIds: ReadonlyArray<string>,
+): Promise<Map<string, { identity: StoredRange; delay_class: string; as_of: number }>> {
   const { rows } = await db.query<{
     bar_range_id: string;
     listing_id: string;
@@ -165,20 +178,26 @@ async function loadRanges(db: QueryExecutor, barRangeIds: ReadonlyArray<string>)
     adjustment_basis: string;
     range_start: Date | string;
     range_end: Date | string;
+    delay_class: string;
+    as_of: Date | string;
   }>(
     `select bar_range_id::text as bar_range_id, listing_id::text as listing_id, source_id::text as source_id,
-            interval, adjustment_basis, range_start, range_end
+            interval, adjustment_basis, range_start, range_end, delay_class, as_of
        from market_bar_ranges
       where bar_range_id = any($1::uuid[])`,
     [[...new Set(barRangeIds)]],
   );
   return new Map(rows.map((row) => [row.bar_range_id, {
-    listing_id: row.listing_id,
-    source_id: row.source_id,
-    interval: row.interval,
-    adjustment_basis: row.adjustment_basis,
-    start: new Date(row.range_start).getTime(),
-    end: new Date(row.range_end).getTime(),
+    identity: {
+      listing_id: row.listing_id,
+      source_id: row.source_id,
+      interval: row.interval,
+      adjustment_basis: row.adjustment_basis,
+      start: new Date(row.range_start).getTime(),
+      end: new Date(row.range_end).getTime(),
+    },
+    delay_class: row.delay_class,
+    as_of: new Date(row.as_of).getTime(),
   }]));
 }
 
@@ -193,7 +212,7 @@ async function loadTimeZones(db: QueryExecutor, listingIds: ReadonlyArray<string
 // The fields the check reads, or null when the spec cannot be checked: only
 // daily percent returns are drawn this way.
 function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
-  const { bar_range_id, listing_id, source_id, adjustment_basis, range, bars_sha256, interval, normalization, points, window } = spec;
+  const { bar_range_id, listing_id, source_id, adjustment_basis, range, delay_class, as_of, bars_sha256, interval, normalization, points, window } = spec;
   if (
     points !== PERF_POINTS ||
     typeof bar_range_id !== "string" ||
@@ -207,6 +226,9 @@ function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
     typeof range.end !== "string" ||
     Number.isNaN(Date.parse(range.start)) ||
     Number.isNaN(Date.parse(range.end)) ||
+    typeof delay_class !== "string" ||
+    typeof as_of !== "string" ||
+    Number.isNaN(Date.parse(as_of)) ||
     typeof bars_sha256 !== "string" ||
     interval !== "1d" ||
     normalization !== "pct_return"
@@ -221,7 +243,8 @@ function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
     start: Date.parse(range.start),
     end: Date.parse(range.end),
   };
-  if (window === undefined) return { bar_range_id, listing_id, range: stored, bars_sha256, window: null };
+  const freshness = { delay_class, as_of: Date.parse(as_of) };
+  if (window === undefined) return { bar_range_id, listing_id, range: stored, ...freshness, bars_sha256, window: null };
   if (
     !isRecord(window) ||
     window.kind !== "ytd" ||
@@ -236,6 +259,7 @@ function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
     bar_range_id,
     listing_id,
     range: stored,
+    ...freshness,
     bars_sha256,
     window: { year: window.year, baseline_date: window.baseline_date, end_date: window.end_date },
   };
