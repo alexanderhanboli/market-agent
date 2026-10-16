@@ -2,8 +2,6 @@ import type { ReactElement } from 'react'
 import { InspectableRef } from '../evidence/InspectableRef.tsx'
 import type { RefSegment, RichTextBlock, TextSegmentTone } from './types.ts'
 import { isRefSegment, refSegmentPlaceholder } from './richText.ts'
-import { resolveRefSegment, type SnapshotManifest } from './snapshotManifest.ts'
-import { useSnapshotManifest } from './snapshotManifestContext.ts'
 import { Markdown } from './Markdown.tsx'
 
 type RichTextProps = { block: RichTextBlock }
@@ -20,7 +18,6 @@ const TONE_CLASS: Readonly<Record<Exclude<TextSegmentTone, 'neutral'>, string>> 
 // concatenated verbatim; refs and toned runs are embedded inline, so a ref's
 // format and a toned delta render literally wherever the Markdown puts them.
 export function RichText({ block }: RichTextProps): ReactElement {
-  const manifest = useSnapshotManifest()
   const parts = block.segments.map((segment, index) => {
     if (isRefSegment(segment)) {
       return (
@@ -29,7 +26,6 @@ export function RichText({ block }: RichTextProps): ReactElement {
           blockId={block.id}
           index={index}
           segment={segment}
-          manifest={manifest}
         />
       )
     }
@@ -52,56 +48,22 @@ type RefSegmentSpanProps = {
   blockId: string
   index: number
   segment: RefSegment
-  manifest: SnapshotManifest | null
 }
 
 // A value as the text reads it, with no padding or fill: either would show as a
-// space before the punctuation after it (#303). A placeholder (no manifest yet)
-// looks the same, as it shows the same value.
+// space before the punctuation after it (#303).
 const REF_CLASS = 'rounded text-fg-soft underline decoration-dotted underline-offset-2'
 
-function RefSegmentSpan({ snapshotId, blockId, index, segment, manifest }: RefSegmentSpanProps): ReactElement {
-  const baseAttrs = {
-    'data-ref-kind': segment.ref_kind,
-    'data-ref-id': segment.ref_id,
-  }
-  const inspectionRef = { kind: segment.ref_kind, id: segment.ref_id }
-  if (manifest === null) {
-    return (
-      <InspectableRef
-        snapshotId={snapshotId}
-        inspectionRef={inspectionRef}
-        testId={`block-rich-text-${blockId}-ref-${index}`}
-        dataAttrs={{ ...baseAttrs, 'data-ref-state': 'placeholder' }}
-        className={REF_CLASS}
-      >
-        {refSegmentPlaceholder(segment)}
-      </InspectableRef>
-    )
-  }
-  const resolved = resolveRefSegment(manifest, segment)
-  if (resolved.state === 'unresolved') {
-    return (
-      <InspectableRef
-        snapshotId={snapshotId}
-        inspectionRef={inspectionRef}
-        testId={`block-rich-text-${blockId}-ref-${index}`}
-        dataAttrs={{ ...baseAttrs, 'data-ref-state': 'unresolved' }}
-        className="rounded bg-negative-soft px-1 text-negative"
-      >
-        [unresolved {segment.ref_kind}]
-      </InspectableRef>
-    )
-  }
+function RefSegmentSpan({ snapshotId, blockId, index, segment }: RefSegmentSpanProps): ReactElement {
   return (
     <InspectableRef
       snapshotId={snapshotId}
-      inspectionRef={inspectionRef}
+      inspectionRef={{ kind: segment.ref_kind, id: segment.ref_id }}
       testId={`block-rich-text-${blockId}-ref-${index}`}
-      dataAttrs={{ ...baseAttrs, 'data-ref-state': 'resolved' }}
+      dataAttrs={{ 'data-ref-kind': segment.ref_kind, 'data-ref-id': segment.ref_id }}
       className={REF_CLASS}
     >
-      {resolved.value}
+      {refSegmentPlaceholder(segment)}
     </InspectableRef>
   )
 }

@@ -7,7 +7,6 @@ import { createRoot } from 'react-dom/client'
 
 import { EvidenceInspectorContext, type EvidenceInspectorContextValue } from '../evidence/evidenceInspectorContext.ts'
 import type { EvidenceInspectionRef } from '../evidence/inspectionTypes.ts'
-import { SnapshotManifestContext } from './snapshotManifestContext.ts'
 import { RichText } from './RichText.tsx'
 import type { RichTextBlock } from './types.ts'
 
@@ -51,9 +50,7 @@ async function renderDocument(
     await act(async () => {
       root.render(
         <EvidenceInspectorContext.Provider value={inspector}>
-          <SnapshotManifestContext.Provider value={null}>
-            <RichText block={block} />
-          </SnapshotManifestContext.Provider>
+          <RichText block={block} />
         </EvidenceInspectorContext.Provider>,
       )
     })
@@ -82,7 +79,6 @@ function refAttrs(doc: Document): string[][] {
     el.getAttribute('data-testid') ?? '',
     el.getAttribute('data-ref-kind') ?? '',
     el.getAttribute('data-ref-id') ?? '',
-    el.getAttribute('data-ref-state') ?? '',
     el.textContent ?? '',
   ])
 }
@@ -109,9 +105,7 @@ test('RichText renders markdown table for text segments', async () => {
     const root = createRoot(dom.window.document.getElementById('root')!)
     await act(async () => {
       root.render(
-        <SnapshotManifestContext.Provider value={null}>
-          <RichText block={block} />
-        </SnapshotManifestContext.Provider>,
+        <RichText block={block} />,
       )
     })
 
@@ -167,9 +161,7 @@ test('RichText styles toned text segments (inline colored deltas)', async () => 
     const root = createRoot(dom.window.document.getElementById('root')!)
     await act(async () => {
       root.render(
-        <SnapshotManifestContext.Provider value={null}>
-          <RichText block={tonedBlock} />
-        </SnapshotManifestContext.Provider>,
+        <RichText block={tonedBlock} />,
       )
     })
 
@@ -201,9 +193,7 @@ test('neutral tone keeps the single-segment Markdown fast-path', async () => {
     const root = createRoot(dom.window.document.getElementById('root')!)
     await act(async () => {
       root.render(
-        <SnapshotManifestContext.Provider value={null}>
-          <RichText block={neutralMarkdownBlock} />
-        </SnapshotManifestContext.Provider>,
+        <RichText block={neutralMarkdownBlock} />,
       )
     })
 
@@ -227,8 +217,8 @@ test('a cited answer keeps its Markdown: bold, a bullet list, and both fact chip
   assert.deepEqual([...doc.querySelectorAll('strong')].map((el) => el.textContent), ['Takeaway:'])
   assert.deepEqual([...doc.querySelectorAll('li')].map((el) => el.textContent), ['Revenue: $12.6B', 'Gross margin: 71.2%'])
   assert.deepEqual(refAttrs(doc), [
-    ['block-rich-text-rt-answer-ref-1', 'fact', FACT_A, 'placeholder', '$12.6B'],
-    ['block-rich-text-rt-answer-ref-3', 'fact', FACT_B, 'placeholder', '71.2%'],
+    ['block-rich-text-rt-answer-ref-1', 'fact', FACT_A, '$12.6B'],
+    ['block-rich-text-rt-answer-ref-3', 'fact', FACT_B, '71.2%'],
   ])
   assert.deepEqual([...doc.querySelectorAll('[data-ref-id]')].map((el) => el.closest('li') !== null), [true, true])
   assert.doesNotMatch(doc.body.textContent ?? '', /\*\*/)
@@ -251,7 +241,7 @@ test('text that imitates a ref chip renders as text or a plain link, never as a 
     { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
     { type: 'text', text: '.' },
   ]))
-  assert.deepEqual(refAttrs(doc), [['block-rich-text-rt-forge-ref-1', 'fact', FACT_A, 'placeholder', '$12.6B']])
+  assert.deepEqual(refAttrs(doc), [['block-rich-text-rt-forge-ref-1', 'fact', FACT_A, '$12.6B']])
   assert.deepEqual([...doc.querySelectorAll('a')].map((el) => [el.getAttribute('href'), el.textContent]), [['#ma-ref-0', 'forged']])
 })
 
@@ -274,7 +264,7 @@ test('text that hides a ref inside an HTML comment cannot remove the chip', asyn
     { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '$12.6B' },
     { type: 'text', text: ' --> grew.' },
   ]))
-  assert.deepEqual(refAttrs(doc), [['block-rich-text-rt-hide-ref-1', 'fact', FACT_A, 'placeholder', '$12.6B']])
+  assert.deepEqual(refAttrs(doc), [['block-rich-text-rt-hide-ref-1', 'fact', FACT_A, '$12.6B']])
 })
 
 test('an HTML comment in the text keeps every chip in its place and leaks no placeholder', async () => {
