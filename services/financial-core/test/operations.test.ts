@@ -198,6 +198,21 @@ test("free_cash_flow is reported OCF less reported capex, exactly, whatever the 
   assert.deepEqual(result.ok && result.payload.unit, { kind: "currency", currency: "USD" });
 });
 
+test("free_cash_flow takes reported fiscal-year values only, never a trailing sum or change (#324 review)", () => {
+  const quarters = ["Q1", "Q2", "Q3", "Q4"] as const;
+  const ends = ["2023-04-01", "2023-07-01", "2023-09-30", "2023-12-30"];
+  const starts = ["2023-01-01", "2023-04-02", "2023-07-02", "2023-10-01"];
+  const ttmOf = (metric: string, value: string) => {
+    const parts = quarters.map((fiscal_period, index) => operand(`${metric}_${fiscal_period}`, { metric, value, start: starts[index]!, end: ends[index]!, fiscal_year: 2023, fiscal_period }));
+    const summed = trailingSum({ ...ttm, node_id: metric }, parts);
+    assert.ok(summed.ok, "four contiguous quarters sum");
+    return summed.operand;
+  };
+  assert.deepEqual(gap(freeCashFlow(fcf, ttmOf("operating_cash_flow", "30"), ttmOf("capex", "5"))), ["incompatible", "incompatible_definition"]);
+  const annualNotFiscalYear = { start: "2023-01-01", end: "2023-12-31", fiscal_year: 2023, fiscal_period: "Q4" as const };
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120", annualNotFiscalYear), capexOf("30", annualNotFiscalYear))), ["unsupported", "unsupported_period"]);
+});
+
 test("free_cash_flow never flips a negative capex; it is a gap", () => {
   assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("-30"))), ["incompatible", "incompatible_definition"]);
 });

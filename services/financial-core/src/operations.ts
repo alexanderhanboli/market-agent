@@ -205,9 +205,13 @@ export function freeCashFlow(node: FreeCashFlowNode, operatingCashFlow: Financia
   if (operatingCashFlow.measure.metric_key !== "operating_cash_flow" || capex.measure.metric_key !== "capex") {
     return operationGap("incompatible_definition", "Free cash flow uses only operating cash flow less capex.");
   }
+  // A trailing sum or change keeps its metric key and can span a year; only reported values qualify.
+  if (operatingCashFlow.value_kind === "derived" || capex.value_kind === "derived") {
+    return operationGap("incompatible_definition", "Free cash flow v1 subtracts reported values, never derived ones.");
+  }
   const incompatible = subjectMismatch(operatingCashFlow, capex) ?? measurementMismatch(operatingCashFlow, capex) ?? periodMismatch(operatingCashFlow, capex);
   if (incompatible) return incompatible;
-  if (classifyDuration(operatingCashFlow.period) !== "annual") return operationGap("unsupported_period", "Free cash flow v1 is defined for a fiscal year only.");
+  if (operatingCashFlow.period.fiscal_period !== "FY" || classifyDuration(operatingCashFlow.period) !== "annual") return operationGap("unsupported_period", "Free cash flow v1 is defined for a fiscal year only.");
   if (rationalSign(capex.value) < 0) {
     return operationGap("incompatible_definition", "Capex v1 is a nonnegative PP&E cash payment; a negative reported value is not one.");
   }
