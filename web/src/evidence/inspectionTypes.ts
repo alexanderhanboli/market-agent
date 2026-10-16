@@ -1,4 +1,4 @@
-export type EvidenceInspectionRefKind = 'source' | 'document' | 'claim' | 'event' | 'fact'
+export type EvidenceInspectionRefKind = 'source' | 'document' | 'claim' | 'event' | 'fact' | 'series'
 
 export type EvidenceInspectionRef = {
   kind: EvidenceInspectionRefKind
