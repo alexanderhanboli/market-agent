@@ -105,7 +105,8 @@ npm test         # contract + AAPL FY2024 income statement verification
   path (`facts.supersedes` / `superseded_by`) keeps the original visible.
 - SEC ingestion records a financial context (`fact_financial_contexts`)
   for every fact taken from a source token: `as_reported`, `original`,
-  consolidated, unadjusted. Ingestion stores only each filing's own
+  consolidated, unadjusted. EPS and share counts get none, since a stock
+  split can restate them and companyfacts does not say so. Ingestion stores only each filing's own
   period, so it records no restatements yet; a later filing's changed
   comparative is not ingested.
 - Period selection, fiscal labels, scale, and unit are part of the
