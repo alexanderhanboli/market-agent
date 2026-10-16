@@ -361,8 +361,7 @@ test('applyBlockLayoutHint synthesizes section source_refs as the union of desce
 
 test('applyBlockLayoutHint stamps each synthetic SectionBlock with the run snapshot_id and as_of', () => {
   // SectionBlock satisfies BaseBlock — it must carry the same snapshot_id
-  // and as_of as the leaves it wraps. Otherwise the SnapshotManifest
-  // resolver can't anchor section-level metadata.
+  // and as_of as the leaves it wraps.
   const out = applyBlockLayoutHint({
     blocks: [richText('a', 'A')],
     hint: parseBlockLayoutHint({ sections: [{ id: 'main', block_ids: ['a'] }] }),

@@ -217,10 +217,8 @@ function synthesizeSection(
     id: `section:${hintId}`,
     kind: 'section',
     snapshot_id: snapshotId,
-    // Sections are layout containers, not data anchors; mark with the
-    // streaming sentinel so the manifest resolver doesn't try to resolve
-    // refs against a non-existent data row. Same convention as
-    // STREAMING_DATA_REF_KIND for in-flight chat blocks.
+    // Sections are layout containers, not data anchors, so they carry the
+    // same sentinel data_ref as in-flight chat blocks.
     data_ref: { kind: STREAMING_DATA_REF_KIND, id: `section:${hintId}` },
     source_refs: dedupeSourceRefs(children),
     as_of: asOf,
