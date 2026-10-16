@@ -147,7 +147,7 @@ export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, 
 }
 
 export type AnswerMetrics = {
-  // Figures in the answer's prose as sealed fact refs.
+  // Figures in the answer's prose as sealed refs: facts, and price returns as series.
   figure_refs: number;
   // Digit runs in its plain text, figures or not ("Q1", "2025", "$4.2").
   plain_numbers: number;
@@ -167,7 +167,7 @@ export function answerMetrics(trace: Pick<TurnTrace, "blocks" | "removed" | "ass
   const text = (segments: ReadonlyArray<Segment>) =>
     segments.map((segment) => (segment.type === "text" ? segment.text ?? "" : "")).join("");
   return {
-    figure_refs: prose.flat().filter((segment) => segment.type === "ref" && segment.ref_kind === "fact").length,
+    figure_refs: prose.flat().filter((segment) => segment.type === "ref" && (segment.ref_kind === "fact" || segment.ref_kind === "series")).length,
     plain_numbers: prose.flatMap((segments) => text(segments).match(/\d+(?:[.,]\d+)*/g) ?? []).length,
     removed: trace.removed.length,
     fallback: prose.some((segments) => [FACT_BLOCKS_FALLBACK_TEXT, NO_ANSWER_FALLBACK_TEXT].includes(text(segments))),
