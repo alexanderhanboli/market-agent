@@ -30,10 +30,9 @@
 // A live YTD turn fetches and stores its window before the cutoff
 // (ytd-hydration.ts); this module still reads only stored bars.
 
-import { createHash } from "node:crypto";
-
 import { MISLABELED_POLYGON_RANGE_SQL } from "../../market/src/cache-repository.ts";
-import { isCurrentEnd, selectYtdWindow, sessionDate, ytdReturns, ytdYear, type YtdWindow } from "../../market/src/ytd-window.ts";
+import { perfLines, type PerfLine } from "../../market/src/perf-points.ts";
+import { isCurrentEnd, sessionDate, ytdYear, type YtdWindow } from "../../market/src/ytd-window.ts";
 import { compileDisclosurePolicy } from "../../snapshot/src/disclosure-policy.ts";
 import type { SnapshotSubjectRef } from "../../snapshot/src/manifest-staging.ts";
 import { stableUuid } from "./chat-ids.ts";
@@ -240,18 +239,20 @@ function ytdBlock(
   let gap = "";
   for (const basis of shared) {
     const sealed = input.listings.map((listing) => sealedOf(listing, basis)!);
-    const window = selectYtdWindow(
-      input.listings.map((listing, index) => ({ label: listing.label, timeZone: zoneOf(listing.id), bars: sealed[index].bars })),
-      input.asOf,
-    );
-    if (!window.ok) {
-      gap ||= window.gap;
+    const drawn = perfLines({
+      kind: "ytd",
+      series: input.listings.map((listing, index) => ({ label: listing.label, timeZone: zoneOf(listing.id), bars: sealed[index].bars })),
+      cutoff: input.asOf,
+    });
+    if (!drawn.ok) {
+      gap ||= drawn.gap;
       continue;
     }
+    const { window } = drawn;
     const stale = input.frozenPrices
       ? undefined
       : input.listings.find((listing) => !isCurrentEnd(window.endDate, input.asOf, zoneOf(listing.id)));
-    if (stale === undefined) return buildYtdPerfBlock({ ranges: sealed, window, snapshotId: input.snapshotId });
+    if (stale === undefined) return buildYtdPerfBlock({ ranges: sealed, window, lines: drawn.lines, snapshotId: input.snapshotId });
     gap ||= `the latest close every company has is ${window.endDate}, too old to be current at the ${sessionDate(input.asOf, zoneOf(stale.id))} cutoff`;
   }
   return ytdGapBlock(input, gap);
@@ -317,25 +318,18 @@ export function buildPerfComparisonBlock(input: {
   if (ranges.some((range) => range.range_start !== first.range_start || range.range_end !== first.range_end)) {
     return null;
   }
-  // ...and on the same dates: keep only dates every company has.
-  const closesByDate = ranges.map((range) => new Map(range.bars.map((bar) => [bar.ts.slice(0, 10), bar.close])));
-  const sharedDates = [...closesByDate[0].keys()]
-    .filter((date) => closesByDate.every((closes) => closes.has(date)))
-    .sort();
-  if (sharedDates.length < 2 || closesByDate.some((closes) => !(closes.get(sharedDates[0])! > 0))) return null;
+  // ...and on the same dates (perf-points.ts).
+  const drawn = perfLines({ kind: "latest", bars: ranges.map((range) => range.bars) });
+  if (!drawn.ok) return null;
+  const dates = drawn.lines[0].points.map((point) => point.x);
 
   return assemblePerfBlock({
     ranges,
     snapshotId: input.snapshotId,
     title: chartTitle(first.adjustment_basis, ""),
     // The window actually drawn: the shared dates, not the stored range.
-    defaultRange: `${sharedDates[0]} to ${sharedDates[sharedDates.length - 1]}`,
-    // The digest pins the whole stored range the line was drawn from.
-    digested: ranges.map((range) => range.bars),
-    points: closesByDate.map((closes) => {
-      const base = closes.get(sharedDates[0])!;
-      return sharedDates.map((date) => ({ x: date, y: (closes.get(date)! / base - 1) * 100 }));
-    }),
+    defaultRange: `${dates[0]} to ${dates[dates.length - 1]}`,
+    lines: drawn.lines,
   });
 }
 
@@ -345,6 +339,7 @@ export function buildPerfComparisonBlock(input: {
 export function buildYtdPerfBlock(input: {
   ranges: ReadonlyArray<SealedPriceRange>;
   window: YtdWindow;
+  lines: ReadonlyArray<PerfLine>;
   snapshotId: string;
 }): Block {
   const { window } = input;
@@ -356,11 +351,7 @@ export function buildYtdPerfBlock(input: {
     snapshotId: input.snapshotId,
     title: chartTitle(input.ranges[0].adjustment_basis, ` YTD ${window.year}`),
     defaultRange: `YTD ${window.year}: ${window.baselineDate} close to ${window.endDate} close${skipped}`,
-    digested: window.bars,
-    points: window.bars.map((bars) => {
-      const returns = ytdReturns(bars);
-      return window.dates.map((date, index) => ({ x: date, y: returns[index] }));
-    }),
+    lines: input.lines,
     window: { kind: "ytd", year: window.year, baseline_date: window.baselineDate, end_date: window.endDate },
   });
 }
@@ -377,9 +368,8 @@ function assemblePerfBlock(input: {
   snapshotId: string;
   title: string;
   defaultRange: string;
-  // Per range: the bars its digest pins, and its line.
-  digested: ReadonlyArray<ReadonlyArray<{ ts: string; close: number }>>;
-  points: ReadonlyArray<ReadonlyArray<{ x: string; y: number }>>;
+  // Per range, its line.
+  lines: ReadonlyArray<PerfLine>;
   window?: Record<string, unknown>;
 }): Block {
   const { ranges } = input;
@@ -388,11 +378,7 @@ function assemblePerfBlock(input: {
     source_id: range.source_id,
     listing_id: range.listing_id,
     bar_range_id: range.bar_range_id,
-    // The cache reuses bar_range_id when it refreshes a range, so the ID alone
-    // does not pin these prices; the digest of the bars does.
-    bars_sha256: createHash("sha256")
-      .update(JSON.stringify(input.digested[index].map((bar) => [bar.ts, bar.close])))
-      .digest("hex"),
+    bars_sha256: input.lines[index].bars_sha256,
     interval: range.interval,
     adjustment_basis: range.adjustment_basis,
     normalization: NORMALIZATION,
@@ -417,7 +403,7 @@ function assemblePerfBlock(input: {
     default_range: input.defaultRange,
     basis: ranges[0].adjustment_basis,
     normalization: NORMALIZATION,
-    series: ranges.map((range, index) => ({ name: range.label, unit: "%", points: input.points[index] })),
+    series: ranges.map((range, index) => ({ name: range.label, unit: "%", points: input.lines[index].points })),
     // Promoted to manifest.series_specs when the answer is sealed.
     provenance_series_specs: specs,
   };
