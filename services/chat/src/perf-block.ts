@@ -31,7 +31,7 @@
 // (ytd-hydration.ts); this module still reads only stored bars.
 
 import { MISLABELED_POLYGON_RANGE_SQL } from "../../market/src/cache-repository.ts";
-import { perfLines, type PerfLine } from "../../market/src/perf-points.ts";
+import { PERF_POINTS, perfLines, type PerfLine } from "../../market/src/perf-points.ts";
 import { isCurrentEnd, sessionDate, ytdYear, type YtdWindow } from "../../market/src/ytd-window.ts";
 import { compileDisclosurePolicy } from "../../snapshot/src/disclosure-policy.ts";
 import type { SnapshotSubjectRef } from "../../snapshot/src/manifest-staging.ts";
@@ -382,6 +382,7 @@ function assemblePerfBlock(input: {
     interval: range.interval,
     adjustment_basis: range.adjustment_basis,
     normalization: NORMALIZATION,
+    points: PERF_POINTS,
     delay_class: range.delay_class,
     range: { start: range.range_start, end: range.range_end },
     ...(input.window ? { window: input.window } : {}),

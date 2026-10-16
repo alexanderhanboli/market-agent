@@ -10,6 +10,7 @@ const SNAPSHOT: SealedSnapshotRecord = {
   document_refs: [],
   source_ids: ["00000000-0000-4000-8000-0000000000a1"],
   series_refs: ["00000000-0000-4000-8000-0000000000e1", "00000000-0000-4000-8000-0000000000e2"],
+  checked_series_refs: ["00000000-0000-4000-8000-0000000000e1", "00000000-0000-4000-8000-0000000000e2"],
   certificates: [{ run_id: "run-1", unit_id: "unit-1", presentation_hash: "a".repeat(64) }],
 };
 
@@ -60,6 +61,11 @@ test("a price chart is source-linked when each drawn line has its own sealed ser
   assert.equal(deriveBlockProof(perf([NVDA, "00000000-0000-4000-8000-0000000000e9"], [line("NVDA"), line("AMD")]), SNAPSHOT).evidence, "unknown", "an unsealed series");
   assert.equal(deriveBlockProof(perf([NVDA, AMD]), SNAPSHOT).evidence, "unknown", "live-rendered: no points");
   assert.equal(deriveBlockProof(perf([], []), SNAPSHOT).evidence, "unknown", "nothing drawn");
+  assert.equal(
+    deriveBlockProof(perf([NVDA, AMD], [line("NVDA"), line("AMD")]), { ...SNAPSHOT, checked_series_refs: [NVDA] }).evidence,
+    "unknown",
+    "a series sealed before the point check",
+  );
 });
 
 test("a table of literal cells is not source-linked by one binding elsewhere on it", () => {

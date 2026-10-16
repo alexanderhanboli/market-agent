@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 
 import { compileDisclosurePolicy } from "../src/disclosure-policy.ts";
-import type { QueryExecutor } from "../src/manifest-staging.ts";
+import type { JsonValue, QueryExecutor } from "../src/manifest-staging.ts";
 import { verifySnapshotSeal, type SnapshotVerificationInput, type VerifierBlock } from "../src/snapshot-verifier.ts";
 
 const snapshotId = "00000000-0000-4000-8000-000000000001";
@@ -67,6 +67,7 @@ function spec(seriesRef: string, listingId: string, barRangeId: string, hash: st
     interval: "1d",
     adjustment_basis: "split_adjusted",
     normalization: "pct_return",
+    points: "perf_lines",
     delay_class: "eod",
     range: { start: "2025-12-01T05:00:00.000Z", end: AS_OF },
     ...(window ? { window } : {}),
@@ -187,6 +188,14 @@ test("without the seal's transaction a chart's points cannot be checked, so it d
     ok: false,
     failures: [{ reason_code: "series_points_mismatch", details: { block_id: "perf", series_ref: null, reason: "unverifiable" } }],
   });
+});
+
+test("a chart whose series spec does not say how its points were drawn cannot be checked", async () => {
+  const input = sealInput(LATEST);
+  const [first, ...others] = input.manifest.series_specs as Array<{ [key: string]: JsonValue }>;
+  const { points: _points, ...unmarked } = first!;
+  const result = await verifySnapshotSeal({ ...input, manifest: { ...input.manifest, series_specs: [unmarked, ...others] } }, barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: nvdaSeries, reason: "unverifiable" }]);
 });
 
 test("a live-rendered chart, with no embedded points, is not checked", async () => {

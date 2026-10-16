@@ -8,7 +8,7 @@
 
 import { isDeepStrictEqual } from "node:util";
 
-import { perfLines, type PerfLine } from "../../market/src/perf-points.ts";
+import { PERF_POINTS, perfLines, type PerfLine } from "../../market/src/perf-points.ts";
 import { sessionDate, windowClosedAt, type DailyClose } from "../../market/src/ytd-window.ts";
 import type { JsonValue, QueryExecutor } from "./manifest-staging.ts";
 
@@ -146,8 +146,9 @@ async function loadTimeZones(db: QueryExecutor, listingIds: ReadonlyArray<string
 // The fields the check reads, or null when the spec cannot be checked: only
 // daily percent returns are drawn this way.
 function sealedSeries(spec: Record<string, unknown>): SealedSeries | null {
-  const { bar_range_id, listing_id, bars_sha256, interval, normalization, window } = spec;
+  const { bar_range_id, listing_id, bars_sha256, interval, normalization, points, window } = spec;
   if (
+    points !== PERF_POINTS ||
     typeof bar_range_id !== "string" ||
     !UUID.test(bar_range_id) ||
     typeof listing_id !== "string" ||

@@ -7,6 +7,10 @@ import { createHash } from "node:crypto";
 
 import { selectYtdWindow, ytdReturns, type DailyClose, type YtdGap, type YtdSeriesInput, type YtdWindow } from "./ytd-window.ts";
 
+// Names how a sealed series' points were drawn: a series spec carrying it was
+// checked point for point at seal (#236); one sealed before has no such check.
+export const PERF_POINTS = "perf_lines";
+
 export type PerfPoint = { x: string; y: number };
 
 // A line's points, and the digest of the bars it pins. The cache reuses
