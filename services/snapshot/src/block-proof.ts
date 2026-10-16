@@ -34,20 +34,22 @@ export type SealedSnapshotRecord = {
   document_refs: ReadonlyArray<string>;
   source_ids: ReadonlyArray<string>;
   series_refs: ReadonlyArray<string>;
+  // The series whose specs say the seal checked their points (PERF_POINTS);
+  // a chart sealed before that check is not linked.
+  checked_series_refs: ReadonlyArray<string>;
   certificates: ReadonlyArray<{ run_id: string; unit_id: string; presentation_hash: string }>;
 };
 
 // Linkage means the values shown are the evidence cited, not merely that the
 // block cites something sealed. Kinds that display literal values with no
 // per-value reference are never linked: the seal accepts a single fact binding
-// on any block, and it drops a chart's embedded points without comparing them
-// to the sealed series or their bars_sha256, so nothing ties what is drawn to
-// what is cited.
-// ponytail: charts earn linkage once a point-to-series check exists (#236).
+// on any block, and it drops these charts' embedded points without comparing
+// them to the sealed series, so nothing ties what is drawn to what is cited.
+// A price chart is the exception (#236): the seal recomputes each drawn line
+// from the series it cites (chart-points.ts).
 const LITERAL_VALUE_KINDS: ReadonlySet<string> = new Set([
   "table",
   "line_chart",
-  "perf_comparison",
   "segment_trajectory",
   "sentiment_trend",
   "mention_volume",
@@ -78,10 +80,22 @@ function isCertified(block: Record<string, unknown>, snapshot: SealedSnapshotRec
 function citesOnlySealed(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {
   if (typeof block.kind === "string" && LITERAL_VALUE_KINDS.has(block.kind)) return false;
   try {
+    if (block.kind === "perf_comparison" && !eachLineHasItsOwnSeries(block, snapshot)) return false;
     return citedRefsAllSealed(block, snapshot);
   } catch {
     return false;
   }
+}
+
+// The lines the seal checked: embedded points, line i drawn from series ref i,
+// no ref shared, each sealed with the point check. A live-rendered chart has
+// no points to have checked.
+function eachLineHasItsOwnSeries(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {
+  const params = isRecord(block.data_ref) && isRecord(block.data_ref.params) ? block.data_ref.params : {};
+  const refs = dataRefSeriesRefs(params as JsonObject);
+  const checked = new Set(snapshot.checked_series_refs);
+  return Array.isArray(block.series) && block.series.length > 0 && block.series.length === refs.length &&
+    new Set(refs).size === refs.length && refs.every((ref) => checked.has(ref));
 }
 
 function citedRefsAllSealed(block: Record<string, unknown>, snapshot: SealedSnapshotRecord): boolean {

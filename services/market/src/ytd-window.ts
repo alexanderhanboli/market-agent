@@ -70,6 +70,14 @@ export function isCurrentEnd(endDate: string, cutoff: string, timeZone: string):
   return endDate >= from.toISOString().slice(0, 10);
 }
 
+// The first instant the `endDate` session has closed on every exchange (#236).
+// Any cutoff that selected a window ending then was no earlier, and in the
+// window's year, so this one selects the same window from the same bars.
+export function windowClosedAt(endDate: string, timeZones: ReadonlyArray<string>): string {
+  const closes = timeZones.map((timeZone) => Date.parse(zonedDateStartUtcIso(endDate, timeZone)) + SESSION_CLOSE_MINUTES * 60_000);
+  return new Date(Math.max(...closes)).toISOString();
+}
+
 // The year a YTD window covers: the cutoff's year on the exchange's calendar.
 export function ytdYear(cutoff: string, timeZone: string): number {
   return Number(localParts(cutoff, timeZone).date.slice(0, 4));

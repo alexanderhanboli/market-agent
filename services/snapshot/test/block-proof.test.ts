@@ -9,7 +9,8 @@ const SNAPSHOT: SealedSnapshotRecord = {
   event_refs: [],
   document_refs: [],
   source_ids: ["00000000-0000-4000-8000-0000000000a1"],
-  series_refs: ["00000000-0000-4000-8000-0000000000e1"],
+  series_refs: ["00000000-0000-4000-8000-0000000000e1", "00000000-0000-4000-8000-0000000000e2"],
+  checked_series_refs: ["00000000-0000-4000-8000-0000000000e1", "00000000-0000-4000-8000-0000000000e2"],
   certificates: [{ run_id: "run-1", unit_id: "unit-1", presentation_hash: "a".repeat(64) }],
 };
 
@@ -33,12 +34,38 @@ test("a chart of literal points is never source-linked: nothing ties its points 
   const SEALED = "00000000-0000-4000-8000-0000000000e1";
   const FACT = "00000000-0000-4000-8000-0000000000f1";
   const drawn = [{ name: "NVDA", points: [{ x: "2026-01-02", y: 999 }] }];
-  for (const kind of ["line_chart", "perf_comparison", "segment_trajectory", "sentiment_trend", "mention_volume"]) {
+  for (const kind of ["line_chart", "segment_trajectory", "sentiment_trend", "mention_volume"]) {
     for (const params of [{ series_ref: SEALED }, { series_refs: [SEALED] }, { fact_bindings: [{ fact_id: FACT }] }]) {
       const chart = { kind, data_ref: { kind, id: "c", params }, series: drawn };
       assert.equal(deriveBlockProof(chart, SNAPSHOT).evidence, "unknown", `${kind} ${JSON.stringify(params)}`);
     }
   }
+});
+
+test("a price chart is source-linked when each drawn line has its own sealed series (#236)", () => {
+  const [NVDA, AMD] = SNAPSHOT.series_refs;
+  const line = (name: string) => ({ name, unit: "%", points: [{ x: "2026-01-02", y: 10 }] });
+  const perf = (seriesRefs: string[], series?: unknown[]) => ({
+    kind: "perf_comparison",
+    data_ref: { kind: "perf_comparison", id: "p", params: { series_refs: seriesRefs } },
+    source_refs: [SNAPSHOT.source_ids[0]],
+    ...(series === undefined ? {} : { series }),
+  });
+  assert.deepEqual(deriveBlockProof(perf([NVDA, AMD], [line("NVDA"), line("AMD")]), SNAPSHOT), {
+    evidence: "linked",
+    calculation: "not_verified",
+    public_by_cutoff: "unknown",
+  });
+  assert.equal(deriveBlockProof(perf([NVDA, NVDA], [line("NVDA"), line("AMD")]), SNAPSHOT).evidence, "unknown", "two lines, one series");
+  assert.equal(deriveBlockProof(perf([NVDA], [line("NVDA"), line("AMD")]), SNAPSHOT).evidence, "unknown", "a line with no series");
+  assert.equal(deriveBlockProof(perf([NVDA, "00000000-0000-4000-8000-0000000000e9"], [line("NVDA"), line("AMD")]), SNAPSHOT).evidence, "unknown", "an unsealed series");
+  assert.equal(deriveBlockProof(perf([NVDA, AMD]), SNAPSHOT).evidence, "unknown", "live-rendered: no points");
+  assert.equal(deriveBlockProof(perf([], []), SNAPSHOT).evidence, "unknown", "nothing drawn");
+  assert.equal(
+    deriveBlockProof(perf([NVDA, AMD], [line("NVDA"), line("AMD")]), { ...SNAPSHOT, checked_series_refs: [NVDA] }).evidence,
+    "unknown",
+    "a series sealed before the point check",
+  );
 });
 
 test("a table of literal cells is not source-linked by one binding elsewhere on it", () => {

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { PERF_POINTS } from "../../market/src/perf-points.ts";
 
 import {
   serializeJsonValue,
@@ -263,7 +264,7 @@ async function loadSealedSnapshots(
       event_refs: string[];
       document_refs: string[];
       source_ids: string[];
-      series_specs: Array<{ series_ref?: unknown }>;
+      series_specs: Array<{ series_ref?: unknown; points?: unknown }>;
     }>(
       `select snapshot_id::text as snapshot_id, fact_refs, claim_refs, event_refs, document_refs, source_ids, series_specs
          from snapshots
@@ -290,6 +291,9 @@ async function loadSealedSnapshots(
     document_refs: row.document_refs ?? [],
     source_ids: row.source_ids ?? [],
     series_refs: (row.series_specs ?? []).flatMap((spec) => typeof spec?.series_ref === "string" ? [spec.series_ref] : []),
+    checked_series_refs: (row.series_specs ?? []).flatMap((spec) =>
+      typeof spec?.series_ref === "string" && spec.points === PERF_POINTS ? [spec.series_ref] : []
+    ),
     certificates: certificatesBySnapshot.get(row.snapshot_id) ?? [],
   }]));
 }
