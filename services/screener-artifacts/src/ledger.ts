@@ -77,3 +77,25 @@ export async function writeLedgerEntry(db: QueryExecutor, entry: LedgerEntry): P
     ],
   );
 }
+
+export type LedgerStatusRow = {
+  market: string;
+  release_tag: string;
+  as_of_date: string;
+  sha256: string;
+  status: LedgerStatus;
+  rows_ingested: number;
+  finished_at: string;
+};
+
+// The operator's view (`job:weekly-reference -- --status`): the latest recorded
+// run per market, failed runs included, newest first.
+export async function latestLedgerEntries(db: QueryExecutor): Promise<LedgerStatusRow[]> {
+  const result = await db.query(
+    `select distinct on (market) market, release_tag, as_of_date::text as as_of_date, sha256, status,
+            rows_ingested, to_char(finished_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as finished_at
+       from artifact_ingestion_ledger
+      order by market, finished_at desc`,
+  );
+  return result.rows as LedgerStatusRow[];
+}

@@ -821,6 +821,18 @@ status() {
   printf "summary   %-8s %s\n" "library" "shared package; no standalone dev HTTP server"
 }
 
+# The weekly-reference import (#255) against this stack's database: the one
+# scheduled ingestion path. Extra args pass through (--force, --status).
+reference_import() {
+  if [[ "$(container_status postgres)" != "running" ]]; then
+    echo "postgres is not running; start it with ./scripts/dev-shell.sh up" >&2
+    return 1
+  fi
+  (cd "$ROOT/services/screener-artifacts" && \
+    SCREENER_ARTIFACTS_ENABLE=true SCREENER_ARTIFACTS_MARKETS="${SCREENER_ARTIFACTS_MARKETS:-US}" \
+    npm run --silent job:weekly-reference -- "$@")
+}
+
 configure_runtime_env
 
 if [[ "${MARKET_AGENT_DEV_SHELL_SOURCE_ONLY:-0}" == "1" ]]; then
@@ -833,8 +845,9 @@ case "${1:-}" in
   # A fresh worktree's packages, for running tests and scripts without a stack.
   install) install_node_packages ;;
   status) status ;;
+  reference-import) shift; reference_import "$@" ;;
   *)
-    echo "Usage: [DEV_PROFILE=chat|full] ./scripts/dev-shell.sh <up|down|status|install>" >&2
+    echo "Usage: [DEV_PROFILE=chat|full] ./scripts/dev-shell.sh <up|down|status|install|reference-import [--force|--status]>" >&2
     exit 1
     ;;
 esac

@@ -8,6 +8,7 @@ import {
   run,
 } from "../../../db/test/docker-pg.ts";
 import { runWeeklyReferenceEtl } from "../src/etl.ts";
+import { latestLedgerEntries } from "../src/ledger.ts";
 import { loadVendorScreenerCandidates } from "../../screener/src/db-candidates-vendor.ts";
 import type { WeeklyReferenceBundle, WeeklyReferenceManifest } from "../src/types.ts";
 
@@ -184,6 +185,12 @@ test("weekly-reference ETL seeds the universe, mints vendor facts, and is idempo
   assert.equal(ledger.rows[0].status, "partial");
   assert.equal(Number(ledger.rows[0].rows_ingested), 2);
   assert.equal(ledger.rows[0].sha256, "test-sha-abc123");
+  const [status] = await latestLedgerEntries(client);
+  assert.match(status!.finished_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u);
+  assert.deepEqual({ ...status, finished_at: "" }, {
+    market: "US", release_tag: "weekly-reference-data", as_of_date: "2026-06-03", sha256: "test-sha-abc123",
+    status: "partial", rows_ingested: 2, finished_at: "",
+  }, "the operator status shows the latest run per market");
 
   // End-to-end: the vendor candidate repository surfaces the ingested universe,
   // fundamentals-first (no daily quote ingested), with technicals populated and the

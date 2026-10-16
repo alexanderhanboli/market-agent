@@ -161,6 +161,24 @@ cd services/market && npm test
 
 Operator disclosure: Nasdaq Trader, OpenFIGI, and GLEIF are free reference enrichment sources for missing identity fields only; they are not stronger than existing SEC/Polygon/local identity. Stooq EOD bars are not realtime quotes or intraday bars.
 
+### Weekly reference import
+
+The screener's vendor universe (about 10,000 US listings with fundamentals and technicals) comes from the weekly `xang1234/stock-screener` reference bundle. Nothing is deployed, so the import runs on the host that runs the dev stack, against its Postgres:
+
+```bash
+./scripts/dev-shell.sh reference-import            # import the latest bundle; an unchanged bundle is a no-op
+./scripts/dev-shell.sh reference-import --status   # last recorded run per market: status, bundle, sha256, rows, finish time
+./scripts/dev-shell.sh reference-import --force    # re-ingest an unchanged bundle
+```
+
+The upstream bundle publishes on Saturdays around 08:10 ET. To schedule the import, add a crontab line on the dev host, set to a time after that in the host's own time zone. The command fails with a clear message and a non-zero exit when Postgres is not running:
+
+```
+30 10 * * 6 cd /path/to/market-agent && ./scripts/dev-shell.sh reference-import >> .dev/logs/reference-import.log 2>&1
+```
+
+Every run that reaches the bundle records a row in `artifact_ingestion_ledger`, keyed by bundle sha256, with status `succeeded`, `partial`, or `failed`; `--status` reads it. A download or connection failure shows only in the log and the exit code.
+
 ### Signing in (dev)
 
 The "Sign in" button in the top bar (and inside the auth panel) sets a stable mock user in development, so your watchlists, threads, and portfolios persist across runs. Protected surfaces — **Chat**, **Analyze**, and **Agents** — require it; Home, Symbol detail, and Screener are browsable without signing in.
