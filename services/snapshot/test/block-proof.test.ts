@@ -68,6 +68,23 @@ test("a price chart is source-linked when each drawn line has its own sealed ser
   );
 });
 
+test("prose citing a price return is source-linked only when its series was sealed with the point check (#317)", () => {
+  const [NVDA, AMD] = SNAPSHOT.series_refs;
+  const prose = {
+    kind: "rich_text",
+    source_refs: [SNAPSHOT.source_ids[0]],
+    segments: [
+      { type: "text", text: "NVDA returned " },
+      { type: "ref", ref_kind: "series", ref_id: NVDA, format: "6.6%" },
+      { type: "text", text: " and AMD " },
+      { type: "ref", ref_kind: "series", ref_id: AMD, format: "3.58%" },
+    ],
+  };
+  assert.deepEqual(deriveBlockProof(prose, SNAPSHOT), { evidence: "linked", calculation: "not_verified", public_by_cutoff: "unknown" });
+  assert.equal(deriveBlockProof(prose, { ...SNAPSHOT, checked_series_refs: [NVDA] }).evidence, "unknown", "a series sealed before the point check");
+  assert.equal(deriveBlockProof(prose, { ...SNAPSHOT, series_refs: [NVDA], checked_series_refs: [NVDA, AMD] }).evidence, "unknown", "a series the snapshot did not seal");
+});
+
 test("a table of literal cells is not source-linked by one binding elsewhere on it", () => {
   const literal = {
     kind: "table",
