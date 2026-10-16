@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { dockerAvailable } from "../../../db/test/docker-pg.ts";
-import { IDS, ORIGINAL_REVENUE } from "../../financial-engine/test/db-fixtures.ts";
+import { IDS, ORIGINAL_REVENUE, seedCashResilience } from "../../financial-engine/test/db-fixtures.ts";
 import {
   financialSectionIds,
   loadAnalyzeFinancialSections,
@@ -30,7 +30,7 @@ function values(section: Published): Record<string, string> {
 test("numerical sections are chosen per playbook; narrative sections stay with the memo", () => {
   assert.deepEqual(financialSectionIds(playbook("earnings_quality")), ["revenue_trend"]);
   assert.deepEqual(financialSectionIds(playbook("peer_comparison")), ["peer_table"]);
-  assert.deepEqual(financialSectionIds(playbook("investment_memo")), ["financial_health", "revenue_trend"]);
+  assert.deepEqual(financialSectionIds(playbook("investment_memo")), ["financial_health", "cash_resilience", "revenue_trend"]);
   assert.deepEqual(financialSectionIds(playbook("variant_view")), []);
 });
 
@@ -76,17 +76,18 @@ test("analyze financial sections", { timeout: 300_000 }, async (t) => {
     return;
   }
   const { db, pool, templateId } = await memoDatabase(t, "analyze-fin-section");
+  await seedCashResilience(db);
 
   await t.test("each numerical section is its own certified unit under one plan and cutoff", async () => {
     const memo = await createMemoRun(db, pool, { templateId, playbookId: "investment_memo" });
     const result = await memo.publish();
     assert.equal(result.coverage, "complete");
-    assert.deepEqual(result.sections.map((section) => section.section_id), ["financial_health", "revenue_trend"]);
-    const [health, trend] = result.sections.map(published);
+    assert.deepEqual(result.sections.map((section) => section.section_id), ["financial_health", "cash_resilience", "revenue_trend"]);
+    const [health, resilience, trend] = result.sections.map(published);
     assert.notEqual(health.snapshot_id, trend.snapshot_id, "each section is sealed alone");
     assert.notEqual(health.snapshot_id, memo.snapshotId, "no certified number is merged into the narrative snapshot");
     assert.equal(health.run_id, trend.run_id, "one run fixes the context for every section");
-    for (const section of [health, trend]) {
+    for (const section of [health, resilience, trend]) {
       assert.equal(section.block.kind, "financial_answer");
       assert.equal(section.block.financial.knowledge_cutoff, CUTOFF);
     }
@@ -97,7 +98,8 @@ test("analyze financial sections", { timeout: 300_000 }, async (t) => {
     });
     assert.match(values(trend).revenue_trend_growth!, /^0\.04/u, "growth is computed from the as-reported values");
     assert.match(values(health).financial_health_gross_margin!, /^0\.44/u);
-    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 });
+    assert.deepEqual(Object.values(values(resilience!)), ["120", "100", "300", "600", "200", "1.2", "0.5", "1.5"], "five inputs and the three ratios (#210)");
+    assert.deepEqual(await committed(db, memo.runId), { sections: 3, certificates: 3, plans: 1 });
     assert.deepEqual(await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }), result, "reads return the committed sections");
   });
 

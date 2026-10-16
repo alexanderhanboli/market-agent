@@ -214,6 +214,20 @@ export const COMPUTATION_CASES: ReadonlyArray<ComputationCase> = [
     ["fcf-large-decimal", "exact_source_token", "Large-decimal tokens subtract exactly, digit for digit.", "118254000000.123456789012345678", "9447000000.000000000000000001"],
   ] as const).map(([id, category, rule, ocf, capex]): ComputationCase => fcfCase(id, category, rule, ocf, capex, { kind: "value", value: subtractRational(rational(ocf), rational(capex)), exact: true })),
   fcfCase("fcf-negative-capex", "negative_base", "A negative reported capex is a gap: its sign is never flipped or guessed.", "120", "-30", { kind: "gap", reason_code: "incompatible_definition" }),
+  ...([
+    ["cash-conversion", "operating_cash_flow_to_net_income", "operating_cash_flow", "net_income", "120", "100", false],
+    ["liabilities-to-assets", "liabilities_to_assets", "total_liabilities", "total_assets", "300", "600", true],
+    ["liabilities-to-equity", "liabilities_to_equity", "total_liabilities", "total_equity", "300", "200", true],
+  ] as const).map(([id, ratioKey, numerator, denominator, top, bottom, instant]): ComputationCase => {
+    const period = instant ? { kind: "instant" as const, start: null, end: "2023-12-31", fiscal_year: 2023, fiscal_period: "FY" as const } : FY(2023);
+    return {
+      id, category: "precision_limit",
+      rule: "Cash resilience (#210) uses the approved ratios: flows over one fiscal year, balances at its end.",
+      plan: plan([reported("num", "a", numerator), reported("den", "a", denominator), { node_id: "r", operation: "ratio", ratio_key: ratioKey, numerator: "num", denominator: "den" }], ["r"], [], ["a"]),
+      bindings: new Map([bound("num", { metric: numerator, value: top, ...period }), bound("den", { metric: denominator, value: bottom, ...period })]),
+      expected: { out_r: quotient(top, bottom) },
+    };
+  }),
   ...([["1", "3"], ["2", "3"], ["1", "8"], ["169148000000", "383285000000.123456789012345678"]] as const).map(([gp, rev], index): ComputationCase => ({
     id: `margin-precision-${index + 1}`, category: "precision_limit",
     rule: "Division keeps 50 significant digits, ties to even, and says whether the value is exact.",

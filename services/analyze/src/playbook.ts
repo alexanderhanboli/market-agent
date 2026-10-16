@@ -97,6 +97,7 @@ export const ANALYZE_PLAYBOOKS: ReadonlyArray<AnalyzePlaybook> = Object.freeze([
     sections: Object.freeze([
       section("investment_thesis", "Investment thesis", true, "rich_text"),
       section("financial_health", "Financial health & profitability", true, "metric_row"),
+      section("cash_resilience", "Cash resilience", false, "metric_row"),
       section("revenue_trend", "Revenue trend", false, "line_chart"),
       section("growth_drivers", "Growth drivers", true, "rich_text"),
       section("downside_risks", "Downside risks", true, "table"),

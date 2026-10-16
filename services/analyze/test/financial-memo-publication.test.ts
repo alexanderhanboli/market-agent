@@ -9,7 +9,7 @@ import { dockerAvailable } from "../../../db/test/docker-pg.ts";
 import { createEvidenceFinancialPort } from "../../financial-engine/src/evidence-adapter.ts";
 import { listRecoverableRuns, recoverRun } from "../../financial-engine/src/recovery.ts";
 import { requestCancellation } from "../../financial-engine/src/run-repo.ts";
-import { IDS } from "../../financial-engine/test/db-fixtures.ts";
+import { IDS, seedCashResilience } from "../../financial-engine/test/db-fixtures.ts";
 import { snapshotTransactionClient } from "../../snapshot/src/snapshot-sealer.ts";
 import { analyzeFinancialRecovery, loadAnalyzeFinancialSections } from "../src/financial-section.ts";
 import { committed, createMemoRun, memoDatabase } from "./financial-fixtures.ts";
@@ -20,6 +20,7 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
     return;
   }
   const { db, pool, templateId } = await memoDatabase(t, "analyze-fin-publish");
+  await seedCashResilience(db);
   /** Fails the memo record for one section, as a storage fault after its snapshot and certificate were written. */
   const failSection = async (sectionId: string) => db.query(`
     create function fail_memo_section() returns trigger language plpgsql as $$
@@ -41,15 +42,15 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
     } finally {
       await restore();
     }
-    assert.deepEqual(statuses(failed), { financial_health: "published", revenue_trend: "gap:publication_failed" });
+    assert.deepEqual(statuses(failed), { financial_health: "published", cash_resilience: "published", revenue_trend: "gap:publication_failed" });
     assert.equal(failed.coverage, "partial", "a memo with a failed section never reads as complete");
-    assert.deepEqual(await committed(db, memo.runId), { sections: 1, certificates: 1, plans: 1 }, "the failed section left no snapshot or certificate");
+    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 }, "the failed section left no snapshot or certificate");
     assert.equal((await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }))!.coverage, "partial");
 
     const retried = await memo.publish();
-    assert.deepEqual(statuses(retried), { financial_health: "published", revenue_trend: "published" });
+    assert.deepEqual(statuses(retried), { financial_health: "published", cash_resilience: "published", revenue_trend: "published" });
     assert.equal(retried.coverage, "complete");
-    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 }, "each section published once, from the saved plan");
+    assert.deepEqual(await committed(db, memo.runId), { sections: 3, certificates: 3, plans: 1 }, "each section published once, from the saved plan");
     assert.deepEqual(await memo.publish(), retried, "a further retry changes nothing");
   });
 
@@ -75,7 +76,7 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
     } finally {
       client.release();
     }
-    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 });
+    assert.deepEqual(await committed(db, memo.runId), { sections: 3, certificates: 3, plans: 1 });
     assert.equal((await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }))!.coverage, "complete");
   });
 
@@ -102,9 +103,9 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
     const run = (await db.query(`select run_id::text from financial_runs where parent_id = $1`, [memo.runId])).rows[0];
     await requestCancellation(db, IDS.owner, run.run_id);
     const result = await memo.publish();
-    assert.deepEqual(statuses(result), { financial_health: "published", revenue_trend: "gap:run_cancelled" });
+    assert.deepEqual(statuses(result), { financial_health: "published", cash_resilience: "published", revenue_trend: "gap:run_cancelled" });
     assert.equal(result.coverage, "partial");
-    assert.deepEqual(await committed(db, memo.runId), { sections: 1, certificates: 1, plans: 1 });
+    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 });
   });
 
   await t.test("an erased run's sections read as gaps, and deleting the memo run erases its runs", async () => {

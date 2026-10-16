@@ -11,7 +11,7 @@ import { EMPTY_DISPLAY, GridValidationError } from "./types.ts";
 import type { JsonValue } from "../../observability/src/types.ts";
 import { parseReaderQuestionParams, readerQuestionProducer } from "./reader-question-column.ts";
 import { latestEpsDilutedProducer, latestRevenueProducer } from "./fiscal-fact-column.ts";
-import { isFinancialColumn, parseFinancialColumnParams } from "./financial-column.ts";
+import { CERTIFIED_ONLY_COLUMNS, isFinancialColumn, parseFinancialColumnParams } from "./financial-column.ts";
 
 export const READER_QUESTION_COLUMN_KEY = "reader_question";
 export const MAX_READER_COLUMNS_PER_GRID = 3;
@@ -149,7 +149,25 @@ const latestMarketCapProducer: GridColumnProducer = async (deps, ctx) => {
   };
 };
 
+// Certified only: with the financial lane off there is no legacy value to show.
+const certifiedOnlyProducer: GridColumnProducer = async () => ({ status: "no_coverage", display: EMPTY_DISPLAY, coverageFlag: "certified_only" });
+
+const CERTIFIED_ONLY_LABELS: Readonly<Record<string, string>> = {
+  latest_operating_cash_flow: "Operating cash flow (latest FY)",
+  latest_net_income: "Net income (latest FY)",
+  latest_total_liabilities: "Total liabilities (latest FY end)",
+  latest_total_assets: "Total assets (latest FY end)",
+  latest_total_equity: "Stockholders' equity (latest FY end)",
+  latest_cash_conversion: "Cash conversion: OCF / net income (latest FY)",
+  latest_liabilities_to_assets: "Liabilities / assets (latest FY end)",
+  latest_liabilities_to_equity: "Liabilities / equity (latest FY end)",
+};
+
 const CATALOG: ReadonlyMap<string, ColumnCatalogEntry> = new Map([
+  ...CERTIFIED_ONLY_COLUMNS.map((column_key): [string, ColumnCatalogEntry] => [
+    column_key,
+    { column_key, label: CERTIFIED_ONLY_LABELS[column_key]!, kind: "deterministic", producer: certifiedOnlyProducer },
+  ]),
   [
     "latest_market_cap",
     {

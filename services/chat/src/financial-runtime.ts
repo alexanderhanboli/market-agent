@@ -19,8 +19,10 @@ import {
   type FinancialRuntimeAuthority,
   type FinancialSubjectRef,
 } from "../../financial-core/src/index.ts";
+import { cashResilienceDraft, LATEST_FISCAL_YEAR, type CashResiliencePeriod } from "../../financial-engine/src/cash-resilience.ts";
 import type { PersistParentArtifact } from "../../financial-engine/src/finalize.ts";
 import {
+  buildDeterministicPlan,
   planFinancialRequest,
   resolveClarification,
   type Clarification,
@@ -202,8 +204,38 @@ async function planTurn(
     // de-duplicate again once the answer resolves the ambiguous mention.
     subjects = await distinctRequested(db, await applyAnswer(subjects, context.clarificationAnswer, planningContext, text));
   }
+  if (CASH_RESILIENCE.test(text)) return planCashResilience(planningContext(subjects), text);
   // A failing or unreachable model is a planning gap (publishRequest); the narrative composer is never a fallback for numbers.
   return planFinancialRequest(planningContext(subjects), text, deps.planningModel ?? noModel);
+}
+
+const CASH_RESILIENCE = /\bcash[- ]resilience\b/iu;
+// The view is annual and has no score, rank, or cash/debt measure; a request
+// for one is unsupported rather than answered with the annual view.
+const OUTSIDE_CASH_RESILIENCE = /\b(?:quarters?|quarterly|Q[1-4]|TTM|LTM|trailing|scores?|scoring|rank|ranks|ranking|peers?|debt|net cash)\b/iu;
+const FISCAL_YEAR = /\b(?:FY\s?)?(20\d{2})\b/u;
+
+/**
+ * An explicit cash-resilience request is planned deterministically, with no
+ * model: the fixed annual view for each requested company, for the fiscal
+ * year the message names or the latest one. An unresolved company is asked
+ * about first, exactly as the model path asks before planning.
+ */
+async function planCashResilience(context: PlanningContext, text: string): Promise<PlanningResult> {
+  if (OUTSIDE_CASH_RESILIENCE.test(text)) {
+    return { outcome: "unsupported", reason: "cash resilience is an annual view without scores, peer ranks, or cash and debt measures", issues: [], model_calls: 0 };
+  }
+  if (context.requested_subjects.some((subject) => subject.resolution.status !== "resolved")) return planFinancialRequest(context, text, noModel);
+  const year = FISCAL_YEAR.exec(text)?.[1];
+  const period: CashResiliencePeriod = year ? { kind: "fiscal_period", fiscal_year: Number(year), fiscal_period: "FY" } : LATEST_FISCAL_YEAR;
+  const slots = context.requested_subjects.map((subject, index) => ({ slot_id: `s${index}`, mention: subject.mention }));
+  const parts = slots.map((slot) => cashResilienceDraft(slot.slot_id, period, ""));
+  return buildDeterministicPlan(context, {
+    subjects: slots,
+    operations: parts.flatMap((part) => part.operations),
+    outputs: parts.flatMap((part) => part.outputs),
+    thresholds: [],
+  });
 }
 
 /**
@@ -345,7 +377,7 @@ const FINANCIAL_TERMS = new RegExp(
   `\\b(${[
     // Catalog labels without qualifiers: "EPS (basic)" is asked about as "EPS".
     ...[...METRIC_CATALOG_V1.values(), ...RATIO_CATALOG_V1.values()].map((definition) => definition.label.replace(/\s*\(.*\)$/u, "")),
-    "sales", "margin", "margins", "earnings per share", "EPS", "profit", "cash flow", "free cash flow", "capex", "net income", "operating income",
+    "sales", "margin", "margins", "earnings per share", "EPS", "profit", "cash flow", "free cash flow", "capex", "cash resilience", "net income", "operating income",
   ].map((term) => term.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&")).join("|")})\\b`,
   "iu",
 );
