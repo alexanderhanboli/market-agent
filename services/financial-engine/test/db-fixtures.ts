@@ -327,3 +327,38 @@ export async function completedRun(
   const rows = (await db.query<{ output_id: string; result_id: string }>(`select output_id, result_id::text from financial_results where run_id = $1`, [runId])).rows;
   return { runId, results: Object.fromEntries(rows.map((row) => [row.output_id, row.result_id])) };
 }
+
+/** Issuer A's FY2023 cash-resilience inputs (#210), certified like the seeded revenue: flows over the year, balances at its end. */
+export const CASH_RESILIENCE_VALUES = { operating_cash_flow: "120", net_income: "100", total_liabilities: "300", total_assets: "600", total_equity: "200" } as const;
+
+export async function seedCashResilience(db: Client, values: Partial<Record<keyof typeof CASH_RESILIENCE_VALUES, string>> = {}): Promise<void> {
+  const balances = new Set(["total_liabilities", "total_assets", "total_equity"]);
+  for (const [metricKey, fallback] of Object.entries(CASH_RESILIENCE_VALUES)) {
+    const value = values[metricKey as keyof typeof CASH_RESILIENCE_VALUES] ?? fallback;
+    const instant = balances.has(metricKey);
+    const metricId = (await db.query<{ metric_id: string }>(
+      `insert into metrics (metric_id, metric_key, display_name, unit_class, aggregation, interpretation, canonical_source_class)
+       values (gen_random_uuid(), $1, $1, 'currency', $2, 'neutral', 'gaap')
+       on conflict (metric_key) do update set metric_key = excluded.metric_key
+       returning metric_id::text`,
+      [metricKey, instant ? "point_in_time" : "sum"],
+    )).rows[0]!.metric_id;
+    const factId = (await db.query<{ fact_id: string }>(
+      `insert into facts (subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+                          value_num, unit, currency, scale, as_of, reported_at, observed_at, source_id, method, verification_status,
+                          freshness_class, coverage_level, confidence)
+       values ('issuer', $1, $2, 'fiscal_y', $3, '2023-12-31', 2023, 'FY', $4, 'currency', 'USD', 1,
+               '2024-02-01T00:00:00Z', '2024-01-10T00:00:00Z', '2024-02-01T00:00:00Z', $5, 'reported', 'authoritative', 'filing_time', 'full', 1)
+       returning fact_id::text`,
+      [IDS.issuerA, metricId, instant ? null : "2023-01-01", value, IDS.sourceV1],
+    )).rows[0]!.fact_id;
+    await recordFactPrecisionAttestation(db, {
+      fact_id: factId, precision_class: "source_token_preserved", raw_token: value, token_proof_hash: HASH.proof, source_locator: `locator:${factId}`, validation_method: "fixture",
+    });
+    await recordFactFinancialContext(db, {
+      fact_id: factId, context_version: "context.v1", period_type: instant ? "instant" : "duration", dimension_scope: "consolidated", dimension_members: [],
+      reporting_basis: "as_reported", adjustment_basis: "unadjusted", share_basis: "not_applicable", fiscal_calendar_version: "fiscal-calendar.v1",
+      disclosure_relation: "original", source_context_ref: null,
+    });
+  }
+}

@@ -258,7 +258,7 @@ test("same numeric operands with different periods, currencies, or scopes never 
 test("ratio accepts only approved pairs and enforces denominator constraints", () => {
   assert.ok(RATIO_CATALOG_V1.has("liabilities_to_equity"));
   const tl = operand("tl", { metric: "total_liabilities", value: "80", kind: "instant", end: "2023-12-31" });
-  const eq = operand("eq", { metric: "stockholders_equity", value: "-20", kind: "instant", end: "2023-12-31" });
+  const eq = operand("eq", { metric: "total_equity", value: "-20", kind: "instant", end: "2023-12-31" });
   const node: RatioNode = { node_id: "lte", operation: "ratio", operation_version: "ratio.v1", ratio_key: "liabilities_to_equity", numerator: "tl", denominator: "eq" };
   assert.deepEqual(gap(ratio(node, tl, eq)), ["not_applicable", "non_positive_denominator"]);
   const unknownPair = { ...node, ratio_key: "revenue_to_eps" };

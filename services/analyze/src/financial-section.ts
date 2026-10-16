@@ -16,6 +16,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createRuntimeAuthority, type FinancialRuntimeAuthority } from "../../financial-core/src/index.ts";
+import { cashResilienceDraft, LATEST_FISCAL_YEAR } from "../../financial-engine/src/cash-resilience.ts";
 import type { PersistParentArtifact } from "../../financial-engine/src/finalize.ts";
 import { buildDeterministicPlan, type DeterministicUnits, type PlanningContext, type RequestedSubject } from "../../financial-engine/src/planner.ts";
 import type { FinancialEvidencePort, FinancialPool, SqlExecutor } from "../../financial-engine/src/ports.ts";
@@ -95,6 +96,7 @@ const FINANCIAL_SECTIONS: Readonly<Record<string, (slots: ReadonlyArray<string>)
       outputs: [{ output_id: "financial_health_gross_margin", node_id: margin.node_id }],
     };
   },
+  cash_resilience: () => cashResilienceDraft(PRIMARY_SLOT, LATEST_FISCAL_YEAR, "cash_resilience_"),
 };
 
 /** The playbook's sections the engine computes; narrative sections are not listed. */

@@ -39,13 +39,32 @@ export type GridFinancialDeps = Readonly<{
   evidence: (executor: SqlExecutor) => FinancialEvidencePort;
 }>;
 
-type FinancialColumn = Readonly<{ metric_key: string }> | Readonly<{ unsupported: string }>;
+/** A reported value, or an approved ratio computed over its two reported inputs in the cell's own plan. */
+type FinancialColumn =
+  | Readonly<{ metric_key: string; annual_only?: true }>
+  | Readonly<{ ratio_key: string; numerator: string; denominator: string; annual_only: true }>
+  | Readonly<{ unsupported: string }>;
 
 const FINANCIAL_COLUMNS: Readonly<Record<string, FinancialColumn>> = {
   latest_revenue: { metric_key: "revenue" },
   latest_eps_diluted: { metric_key: "eps_diluted" },
   latest_market_cap: { unsupported: "market_cap_needs_price_share_timing_proof" },
+  // The annual cash-resilience view (#210).
+  latest_operating_cash_flow: { metric_key: "operating_cash_flow", annual_only: true },
+  latest_net_income: { metric_key: "net_income", annual_only: true },
+  latest_total_liabilities: { metric_key: "total_liabilities", annual_only: true },
+  latest_total_assets: { metric_key: "total_assets", annual_only: true },
+  latest_total_equity: { metric_key: "total_equity", annual_only: true },
+  latest_cash_conversion: { ratio_key: "operating_cash_flow_to_net_income", numerator: "operating_cash_flow", denominator: "net_income", annual_only: true },
+  latest_liabilities_to_assets: { ratio_key: "liabilities_to_assets", numerator: "total_liabilities", denominator: "total_assets", annual_only: true },
+  latest_liabilities_to_equity: { ratio_key: "liabilities_to_equity", numerator: "total_liabilities", denominator: "total_equity", annual_only: true },
 };
+
+/** Columns that only the engine answers: with the lane off they have no legacy value. */
+export const CERTIFIED_ONLY_COLUMNS: ReadonlyArray<string> = Object.keys(FINANCIAL_COLUMNS).filter((key) => {
+  const column = FINANCIAL_COLUMNS[key]!;
+  return "annual_only" in column;
+});
 
 export type FinancialColumnParams = Readonly<{ period_type: "annual" | "quarterly"; offset: number }>;
 
@@ -70,6 +89,8 @@ export function parseFinancialColumnParams(columnKey: string, params: unknown): 
   if (unknown.length > 0) throw new GridValidationError(`${columnKey} params do not allow: ${unknown.join(", ")}`);
   const periodType = record.period_type ?? "annual";
   if (periodType !== "annual" && periodType !== "quarterly") throw new GridValidationError(`${columnKey} period_type must be annual or quarterly`);
+  const column = FINANCIAL_COLUMNS[columnKey];
+  if (periodType !== "annual" && column !== undefined && "annual_only" in column) throw new GridValidationError(`${columnKey} is annual only`);
   const offset = record.offset ?? 0;
   if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0 || offset > MAX_PERIOD_OFFSET) {
     throw new GridValidationError(`${columnKey} offset must be an integer from 0 to ${MAX_PERIOD_OFFSET}`);
@@ -114,7 +135,7 @@ export async function publishGridFinancialCells(deps: GridFinancialDeps, run: Gr
         if (run.mode === "enforce") await write(row.rowNumber, instance, unsupportedCell("unsupported" in column ? column.unsupported : "subject_not_an_issuer"));
         continue;
       }
-      computed.push({ rowNumber: row.rowNumber, subject: { kind: "issuer", id: row.subject.id }, instance, metric_key: column.metric_key, params: parseFinancialColumnParams(instance.column_key, instance.params) });
+      computed.push({ rowNumber: row.rowNumber, subject: { kind: "issuer", id: row.subject.id }, instance, column, params: parseFinancialColumnParams(instance.column_key, instance.params) });
     }
   }
   if (computed.length === 0) return "published";
@@ -168,30 +189,42 @@ function gridAuthority(userId: string, gridRunId: string, mode: "shadow" | "enfo
   });
 }
 
-type ComputedCell = Readonly<{ rowNumber: number; subject: FinancialSubjectRef; instance: ColumnInstance; metric_key: string; params: FinancialColumnParams }>;
+type ComputedColumn = Exclude<FinancialColumn, { unsupported: string }>;
+type ComputedCell = Readonly<{ rowNumber: number; subject: FinancialSubjectRef; instance: ColumnInstance; column: ComputedColumn; params: FinancialColumnParams }>;
 
 const slotOf = (rowNumber: number) => `r${rowNumber}`;
 const unitOf = (cell: ComputedCell) => `${cell.instance.column_instance_id}_r${cell.rowNumber}`;
 const UNIT_ID = /^(c\d+)_r(\d+)$/u;
 
-/** The run's plan draft and its units: one reported value, output, and unit per numerical cell. */
+/** The run's plan draft and its units: one output and unit per numerical cell, over that cell's own nodes. */
 function planShape(cells: ReadonlyArray<ComputedCell>): { draft: object; units: DeterministicUnits } {
   const rows = [...new Set(cells.map((cell) => cell.rowNumber))].sort((left, right) => left - right);
   return {
     draft: {
       subjects: rows.map((rowNumber) => ({ slot_id: slotOf(rowNumber), mention: `row ${rowNumber}` })),
-      operations: cells.map((cell) => ({
-        node_id: unitOf(cell),
-        operation: "reported_metric",
-        subject_slot: slotOf(cell.rowNumber),
-        metric_key: cell.metric_key,
-        period: { kind: "latest", period_type: cell.params.period_type, offset: cell.params.offset },
-      })),
+      operations: cells.flatMap(cellOperations),
       outputs: cells.map((cell) => ({ output_id: `o_${unitOf(cell)}`, node_id: unitOf(cell) })),
       thresholds: [],
     },
     units: cells.map((cell) => ({ unit_id: unitOf(cell), output_ids: [`o_${unitOf(cell)}`] })),
   };
+}
+
+function cellOperations(cell: ComputedCell): Array<Record<string, unknown>> {
+  const reported = (nodeId: string, metricKey: string) => ({
+    node_id: nodeId,
+    operation: "reported_metric",
+    subject_slot: slotOf(cell.rowNumber),
+    metric_key: metricKey,
+    period: { kind: "latest", period_type: cell.params.period_type, offset: cell.params.offset },
+  });
+  const { column } = cell;
+  if ("metric_key" in column) return [reported(unitOf(cell), column.metric_key)];
+  return [
+    reported(`${unitOf(cell)}_num`, column.numerator),
+    reported(`${unitOf(cell)}_den`, column.denominator),
+    { node_id: unitOf(cell), operation: "ratio", ratio_key: column.ratio_key, numerator: `${unitOf(cell)}_num`, denominator: `${unitOf(cell)}_den` },
+  ];
 }
 
 async function planningContext(db: SqlExecutor, run: GridFinancialRun, authority: FinancialRuntimeAuthority, cells: ReadonlyArray<ComputedCell>): Promise<PlanningContext> {

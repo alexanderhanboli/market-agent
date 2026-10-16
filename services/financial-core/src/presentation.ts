@@ -122,7 +122,7 @@ export function presentFinancialUnit(input: {
       disposition: result.disposition === "computed" ? "verified" : result.disposition,
       subject_label_id: slot === null ? null : subjectLabelId(slot),
       measure_label_id: labels.intern("measure", measureKey(plan, node), measureText(plan, node)),
-      period_label_id: labels.intern("period", JSON.stringify(periodSelectors(plan, node)), periodText(plan, node)),
+      period_label_id: labels.intern("period", JSON.stringify([periodSelectors(plan, node), measuresInstant(plan, node)]), periodText(plan, node)),
       presented: presentPayload(plan, node, result.payload, labels.entries),
       result_hash: result.result_hash,
     };
@@ -242,7 +242,11 @@ function presentPayload(plan: FinancialPlanV1, node: OperationNode, payload: unk
     case "value": {
       const unit = record.unit as FinancialUnit;
       const value = parseValue(record.value as string);
-      return { kind: "value", ...formatValue(value, unit), value: record.value as string, unit, exact: record.exact as boolean };
+      // An approved ratio (leverage, cash conversion) reads as a multiple; margins and changes stay percentages.
+      const text = node.operation === "ratio" && unit.kind === "ratio"
+        ? { text: `${fixed(value, 2)}x`, full_text: `${canonicalDecimalString(value)}x` }
+        : formatValue(value, unit);
+      return { kind: "value", ...text, value: record.value as string, unit, exact: record.exact as boolean };
     }
     case "predicate": {
       const outcome = record.outcome as boolean;
@@ -411,8 +415,20 @@ function periodSelectors(plan: FinancialPlanV1, node: OperationNode): PeriodSele
   return [...distinct.values()];
 }
 
+// A balance is a point in time: "end of FY2023", never the year's amount.
 function periodText(plan: FinancialPlanV1, node: OperationNode): string {
-  return periodSelectors(plan, node).map(selectorText).join(" vs ");
+  const text = periodSelectors(plan, node).map(selectorText).join(" vs ");
+  return measuresInstant(plan, node) ? `end of ${text}` : text;
+}
+
+/** Whether every reported value under the node is a point-in-time measure. */
+function measuresInstant(plan: FinancialPlanV1, node: OperationNode): boolean {
+  if (node.operation === "reported_metric") {
+    const kind = resolveMetricDefinition(node.metric_key)?.value_kind;
+    return kind === "balance" || kind === "share_count";
+  }
+  const dependencies = operationDependencies(node).map((id) => plan.operations.find((entry) => entry.node_id === id)!);
+  return dependencies.length > 0 && dependencies.every((dependency) => measuresInstant(plan, dependency));
 }
 
 function selectorText(selector: PeriodSelector): string {

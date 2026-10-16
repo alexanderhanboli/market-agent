@@ -57,7 +57,9 @@ export const METRIC_CATALOG_V1: ReadonlyMap<MetricKey, MetricDefinition> = new M
     metric("weighted_average_diluted_shares", "Weighted-average diluted shares", "share_count_average", "shares", "diluted"),
     metric("total_assets", "Total assets", "balance", "currency"),
     metric("total_liabilities", "Total liabilities", "balance", "currency"),
-    metric("stockholders_equity", "Stockholders' equity", "balance", "currency"),
+    // Keyed as stored: SEC ingestion maps us-gaap StockholdersEquity (parent
+    // equity, before noncontrolling interest) to total_equity.
+    metric("total_equity", "Stockholders' equity", "balance", "currency"),
     metric("shares_outstanding", "Shares outstanding", "share_count", "shares"),
   ].map((definition) => [definition.metric_key, definition]),
 );
@@ -85,7 +87,7 @@ export const RATIO_CATALOG_V1: ReadonlyMap<MetricKey, RatioDefinition> = new Map
     {
       ratio_key: "liabilities_to_assets",
       definition_version: "liabilities_to_assets.v1",
-      label: "Total liabilities / total assets",
+      label: "Total liabilities / total assets (period-end balance sheet)",
       numerator: "total_liabilities",
       denominator: "total_assets",
       denominator_constraint: "positive" as const,
@@ -94,16 +96,16 @@ export const RATIO_CATALOG_V1: ReadonlyMap<MetricKey, RatioDefinition> = new Map
     {
       ratio_key: "liabilities_to_equity",
       definition_version: "liabilities_to_equity.v1",
-      label: "Total liabilities / stockholders' equity",
+      label: "Total liabilities / stockholders' equity (period-end balance sheet)",
       numerator: "total_liabilities",
-      denominator: "stockholders_equity",
+      denominator: "total_equity",
       denominator_constraint: "positive" as const,
       timing: "same_instant" as const,
     },
     {
       ratio_key: "operating_cash_flow_to_net_income",
       definition_version: "operating_cash_flow_to_net_income.v1",
-      label: "Operating cash flow / net income",
+      label: "Cash conversion: operating cash flow / net income (reported period)",
       numerator: "operating_cash_flow",
       denominator: "net_income",
       denominator_constraint: "positive" as const,

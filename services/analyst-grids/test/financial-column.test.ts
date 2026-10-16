@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { dockerAvailable } from "../../../db/test/docker-pg.ts";
-import { IDS } from "../../financial-engine/test/db-fixtures.ts";
+import { IDS, seedCashResilience } from "../../financial-engine/test/db-fixtures.ts";
 import { validateColumnSpecs } from "../src/column-catalog.ts";
 import { isFinancialColumn, parseFinancialColumnParams } from "../src/financial-column.ts";
 import { cellsByPosition, CUTOFF, gridDatabase, REVENUE_COLUMNS, settled, startRun, waitForRun } from "./financial-fixtures.ts";
@@ -15,12 +15,25 @@ test("numerical columns take a period relative to the run's cutoff; anything els
   }
 });
 
+const CASH_RESILIENCE_COLUMNS = [
+  "latest_operating_cash_flow", "latest_net_income", "latest_total_liabilities", "latest_total_assets", "latest_total_equity",
+  "latest_cash_conversion", "latest_liabilities_to_assets", "latest_liabilities_to_equity",
+];
+
+test("cash-resilience columns are annual only (#210)", () => {
+  for (const column_key of CASH_RESILIENCE_COLUMNS) {
+    assert.deepEqual(parseFinancialColumnParams(column_key, { offset: 1 }), { period_type: "annual", offset: 1 });
+    assert.throws(() => validateColumnSpecs([{ column_key, params: { period_type: "quarterly" } }]), /annual only/u, column_key);
+  }
+});
+
 test("grid financial columns", { timeout: 300_000 }, async (t) => {
   if (!dockerAvailable()) {
     t.skip("Docker is required for grid financial column coverage");
     return;
   }
   const { db, pool } = await gridDatabase(t, "grid-fin-column");
+  await seedCashResilience(db);
 
   await t.test("each cell is its own certified unit; two instances of one column never share a result", async () => {
     const { runId } = await startRun(pool);
@@ -58,6 +71,19 @@ test("grid financial columns", { timeout: 300_000 }, async (t) => {
     assert.equal(plans, 1, "one plan fixes the cutoff for every cell");
   });
 
+  await t.test("cash-resilience columns certify the five inputs and three ratios per row; a row without them is a gap (#210)", async () => {
+    const { runId } = await startRun(pool, { columns: CASH_RESILIENCE_COLUMNS.map((column_key) => ({ column_key })) });
+    const cells = cellsByPosition(await waitForRun(pool, runId, settled));
+    const row = (index: number) => CASH_RESILIENCE_COLUMNS.map((_, column) => cells[`${index}:c${column}`]!);
+    const presented = (cell: ReturnType<typeof row>[number]) => (cell.financial_block as { financial: { results: Array<{ presented: { value?: string } }> } }).financial.results[0]!.presented.value;
+    assert.deepEqual(row(0).map((cell) => [cell.status, cell.display?.value, presented(cell)]), [
+      ["ok", "USD 120.00", "120"], ["ok", "USD 100.00", "100"], ["ok", "USD 300.00", "300"], ["ok", "USD 600.00", "600"], ["ok", "USD 200.00", "200"],
+      ["ok", "1.20x", "1.2"], ["ok", "0.50x", "0.5"], ["ok", "1.50x", "1.5"],
+    ]);
+    assert.deepEqual(row(1).map((cell) => cell.coverage_flag), [...Array(5).fill("missing_input"), ...Array(3).fill("blocked_by_dependency")]);
+    assert.ok(row(0).every((cell) => cell.financial_block && cell.snapshot_id === (cell.financial_block as { snapshot_id: string }).snapshot_id), "each cell is sealed and reloadable");
+  });
+
   await t.test("latest-period columns honor the pinned cutoff", async () => {
     const { runId } = await startRun(pool, { asOf: "2024-01-05T00:00:00.000Z", columns: [{ column_key: "latest_revenue" }] });
     const cells = cellsByPosition(await waitForRun(pool, runId, settled));
@@ -76,6 +102,12 @@ test("grid financial columns", { timeout: 300_000 }, async (t) => {
     assert.deepEqual(detail.rows.map((row) => row.subject_ref.id), [IDS.issuerA, IDS.issuerB]);
     assert.equal(detail.cells.length, 6);
     assert.ok(detail.cells.every((cell) => cell.column_key !== "latest_eps_diluted"));
+  });
+
+  await t.test("with the lane off, a certified-only column shows no value", async () => {
+    const { runId } = await startRun(pool, { mode: "off", asOf: CUTOFF, columns: [{ column_key: "latest_cash_conversion" }] });
+    const detail = await waitForRun(pool, runId, settled);
+    assert.deepEqual(detail.cells.map((cell) => [cell.status, cell.coverage_flag, cell.financial_block]), [["no_coverage", "certified_only", null], ["no_coverage", "certified_only", null]]);
   });
 
   await t.test("the lane off keeps the legacy producers and certifies nothing", async () => {
