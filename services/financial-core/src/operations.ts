@@ -8,6 +8,7 @@
 import type {
   BoundFinancialInputV1,
   ChangeNode,
+  FreeCashFlowNode,
   GapDisposition,
   LocalId,
   MarginNode,
@@ -197,6 +198,34 @@ export function margin(node: MarginNode, numerator: FinancialOperand, revenue: F
   const incompatible = subjectMismatch(numerator, revenue) ?? measurementMismatch(numerator, revenue) ?? periodMismatch(numerator, revenue);
   if (incompatible) return incompatible;
   return quotient(node.node_id, { metric_key: node.operation, definition_version: node.operation_version, derivations: [] }, numerator, revenue);
+}
+
+/** Annual operating cash flow less PP&E cash capex, both as reported; capex is never sign-flipped. */
+export function freeCashFlow(node: FreeCashFlowNode, operatingCashFlow: FinancialOperand, capex: FinancialOperand): OperandOutcome {
+  if (operatingCashFlow.measure.metric_key !== "operating_cash_flow" || capex.measure.metric_key !== "capex") {
+    return operationGap("incompatible_definition", "Free cash flow uses only operating cash flow less capex.");
+  }
+  // A trailing sum or change keeps its metric key and can span a year; only reported values qualify.
+  if (operatingCashFlow.value_kind === "derived" || capex.value_kind === "derived") {
+    return operationGap("incompatible_definition", "Free cash flow v1 subtracts reported values, never derived ones.");
+  }
+  const incompatible = subjectMismatch(operatingCashFlow, capex) ?? measurementMismatch(operatingCashFlow, capex) ?? periodMismatch(operatingCashFlow, capex);
+  if (incompatible) return incompatible;
+  if (operatingCashFlow.period.fiscal_period !== "FY" || classifyDuration(operatingCashFlow.period) !== "annual") return operationGap("unsupported_period", "Free cash flow v1 is defined for a fiscal year only.");
+  if (rationalSign(capex.value) < 0) {
+    return operationGap("incompatible_definition", "Capex v1 is a nonnegative PP&E cash payment; a negative reported value is not one.");
+  }
+  const value = subtractRationals(operatingCashFlow.value, capex.value);
+  if (value === null) return operationGap("numeric_limit_exceeded", "Free cash flow exceeds supported numeric limits.");
+  return success({
+    node_id: node.node_id,
+    value,
+    subject_slot: operatingCashFlow.subject_slot,
+    measure: { metric_key: node.operation, definition_version: node.operation_version, derivations: [] },
+    value_kind: "derived",
+    period: operatingCashFlow.period,
+    measurement: operatingCashFlow.measurement,
+  });
 }
 
 export function ratio(node: RatioNode, numerator: FinancialOperand, denominator: FinancialOperand): OperandOutcome {

@@ -12,6 +12,7 @@ const OPERATION_PHRASES: Record<Exclude<OperationNode["operation"], "reported_me
   gross_margin: "gross margin",
   operating_margin: "operating margin",
   net_margin: "net margin",
+  free_cash_flow: "free cash flow (operating cash flow less PP&E cash capex)",
   ratio: "approved ratio",
   trailing_sum: "trailing four-quarter sum",
   threshold: "threshold check",

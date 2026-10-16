@@ -106,7 +106,11 @@ npm test         # contract + AAPL FY2024 income statement verification
 - SEC ingestion records a financial context (`fact_financial_contexts`)
   for every fact taken from a source token: `as_reported`, `original`,
   consolidated, unadjusted. EPS and share counts get none, since a stock
-  split can restate them and companyfacts does not say so. Ingestion stores only each filing's own
+  split can restate them and companyfacts does not say so. Capex is
+  certified only from `PaymentsToAcquirePropertyPlantAndEquipment`;
+  capex mapped from `PaymentsToAcquireProductiveAssets` still appears in
+  statements but gets no context, since that concept adds purchased
+  intangibles. Ingestion stores only each filing's own
   period, so it records no restatements yet; a later filing's changed
   comparative is not ingested.
 - Period selection, fiscal labels, scale, and unit are part of the

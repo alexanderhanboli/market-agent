@@ -359,6 +359,8 @@ function measureText(plan: FinancialPlanV1, node: OperationNode): string {
       return "Operating margin (operating income / revenue)";
     case "net_margin":
       return "Net margin (net income / revenue)";
+    case "free_cash_flow":
+      return "Free cash flow (OCF less PP&E cash capex)";
     case "ratio":
       return resolveRatioDefinition(node.ratio_key)?.label ?? node.ratio_key;
     case "absolute_change":
@@ -385,6 +387,7 @@ function measureKey(plan: FinancialPlanV1, node: OperationNode): string {
     case "gross_margin":
     case "operating_margin":
     case "net_margin":
+    case "free_cash_flow":
       return node.operation;
     case "absolute_change":
     case "percent_change_positive_base":

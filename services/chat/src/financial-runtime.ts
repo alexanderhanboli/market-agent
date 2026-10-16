@@ -345,7 +345,7 @@ const FINANCIAL_TERMS = new RegExp(
   `\\b(${[
     // Catalog labels without qualifiers: "EPS (basic)" is asked about as "EPS".
     ...[...METRIC_CATALOG_V1.values(), ...RATIO_CATALOG_V1.values()].map((definition) => definition.label.replace(/\s*\(.*\)$/u, "")),
-    "sales", "margin", "margins", "earnings per share", "EPS", "profit", "cash flow", "net income", "operating income",
+    "sales", "margin", "margins", "earnings per share", "EPS", "profit", "cash flow", "free cash flow", "capex", "net income", "operating income",
   ].map((term) => term.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&")).join("|")})\\b`,
   "iu",
 );

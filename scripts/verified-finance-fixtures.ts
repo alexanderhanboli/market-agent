@@ -118,6 +118,15 @@ const FY = (year: number) => ({ start: `${year}-01-01`, end: `${year}-12-31`, fi
 const value = (token: string): GoldenExpectation => ({ kind: "value", value: rational(token), exact: true });
 const quotient = (numerator: string, denominator: string): GoldenExpectation => ({ kind: "value", ...policyQuotient(numerator, denominator) });
 
+function fcfCase(id: string, category: GoldenCategory, rule: string, ocf: string, capex: string, expected: GoldenExpectation): ComputationCase {
+  return {
+    id, category, rule,
+    plan: plan([reported("ocf", "a", "operating_cash_flow"), reported("capex", "a", "capex"), { node_id: "fcf", operation: "free_cash_flow", operating_cash_flow: "ocf", capex: "capex" }], ["fcf"], [], ["a"]),
+    bindings: new Map([bound("ocf", { metric: "operating_cash_flow", value: ocf, ...FY(2023) }), bound("capex", { metric: "capex", value: capex, ...FY(2023) })]),
+    expected: { out_fcf: expected },
+  };
+}
+
 // A 52/53-week fiscal year: Q4 runs 14 weeks (98 days) and is still one quarter.
 const QUARTERS_53_WEEK = [
   { fiscal_period: "Q1" as const, start: "2023-01-01", end: "2023-04-01", value: "90753000000.25" },
@@ -198,6 +207,13 @@ export const COMPUTATION_CASES: ReadonlyArray<ComputationCase> = [
     bindings: new Map([bound("oi", { metric: "operating_income", value: operatingIncome, ...FY(2023) }), bound("rev", { metric: "revenue", value: revenue, ...FY(2023) })]),
     expected: { out_om: expected },
   })),
+  ...([
+    ["fcf-exact", "exact_source_token", "Free cash flow is reported OCF less reported PP&E cash capex: 120 less 30 is 90.", "120", "30"],
+    ["fcf-zero-capex", "exact_source_token", "Zero capex leaves free cash flow equal to OCF.", "120", "0"],
+    ["fcf-negative-ocf", "negative_base", "Negative OCF is subtracted from as reported: -10 less 30 is -40.", "-10", "30"],
+    ["fcf-large-decimal", "exact_source_token", "Large-decimal tokens subtract exactly, digit for digit.", "118254000000.123456789012345678", "9447000000.000000000000000001"],
+  ] as const).map(([id, category, rule, ocf, capex]): ComputationCase => fcfCase(id, category, rule, ocf, capex, { kind: "value", value: subtractRational(rational(ocf), rational(capex)), exact: true })),
+  fcfCase("fcf-negative-capex", "negative_base", "A negative reported capex is a gap: its sign is never flipped or guessed.", "120", "-30", { kind: "gap", reason_code: "incompatible_definition" }),
   ...([["1", "3"], ["2", "3"], ["1", "8"], ["169148000000", "383285000000.123456789012345678"]] as const).map(([gp, rev], index): ComputationCase => ({
     id: `margin-precision-${index + 1}`, category: "precision_limit",
     rule: "Division keeps 50 significant digits, ties to even, and says whether the value is exact.",
