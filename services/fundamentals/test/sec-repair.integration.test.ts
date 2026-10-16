@@ -31,9 +31,11 @@ test("the backfill replaces an income fact the old selector got wrong, keeping h
   const db = await connectedPool(t, databaseUrl);
   await db.query(await readFile(join(workspaceRoot, "db", "seed", "metrics.sql"), "utf8"));
   await db.query(`insert into issuers (issuer_id, legal_name, cik) values ($1, 'Apple Inc.', '320193')`, [ISSUER_ID]);
+  let now = new Date("2024-11-02T00:00:00.000Z");
   const fetcher = createSecCompanyFactsHttpFetcher({
     userAgent: "market-agent-test test@example.invalid",
     fetchImpl: async () => new Response(companyFactsText(), { status: 200 }),
+    clock: () => now,
   });
   const lookup = { issuer_id: ISSUER_ID, family: "income" as const, basis: "as_reported" as const, fiscal_year: 2024, fiscal_period: "FY" as const };
   await createSecBackedStatementRepository(db, {
@@ -58,6 +60,7 @@ test("the backfill replaces an income fact the old selector got wrong, keeping h
   const [wrong] = await factOf("revenue");
   const [netIncome] = await factOf("net_income");
 
+  now = new Date("2024-12-01T00:00:00.000Z");
   await backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
     fetcher,

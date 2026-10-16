@@ -12,6 +12,7 @@ import {
   type SecConceptValue,
 } from "../src/sec-edgar.ts";
 import { FundamentalsDataUnavailableError } from "../src/availability.ts";
+import { secCompanyFetcher } from "./fakes.ts";
 
 const ISSUER_ID = "11111111-1111-4111-8111-111111111111";
 const SOURCE_ID = "22222222-2222-4222-8222-222222222222";
@@ -19,10 +20,10 @@ const SOURCE_ID = "22222222-2222-4222-8222-222222222222";
 test("SEC-backed statements persist companyfacts and repeat reads from facts", async () => {
   const db = new FakeFundamentalsDb();
   let fetchCount = 0;
-  const fetcher: SecEdgarFetcher = async () => {
+  const fetcher: SecEdgarFetcher = secCompanyFetcher(() => {
     fetchCount += 1;
     return companyFacts();
-  };
+  });
   const statements = createSecBackedStatementRepository(db, {
     fetcher,
     sourceId: SOURCE_ID,
@@ -67,7 +68,7 @@ test("SEC-backed statements store the filing's cash flow and balance sheet besid
   usGaap.Assets = annualInstant(5000, 4000);
   usGaap.CashAndCashEquivalentsAtCarryingValue = annualInstant(700, 600);
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => facts,
+    fetcher: secCompanyFetcher(() => facts),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });
@@ -119,7 +120,7 @@ test("a discrete quarter derived across filings records each filing in its linea
     },
   };
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => facts,
+    fetcher: secCompanyFetcher(() => facts),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });
@@ -145,7 +146,7 @@ test("the backfill stores cash flow and balance sheet for income periods already
   const db = new FakeFundamentalsDb();
   // The income statement was stored before the other families were ingested.
   await createSecBackedStatementRepository(db, {
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
@@ -157,19 +158,25 @@ test("the backfill stores cash flow and balance sheet for income periods already
   usGaap.NetCashProvidedByUsedInOperatingActivities = annualUsd(300, 250);
   usGaap.Assets = annualInstant(5000, 4000);
   let fetches = 0;
+  let ticks = 0;
   const result = await backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
-    fetcher: async () => {
+    fetcher: secCompanyFetcher(() => {
       fetches += 1;
       return facts;
-    },
+    }, { completed_at: "2026-05-09T10:05:00.000Z" }),
     sourceId: SOURCE_ID,
-    clock: () => new Date("2026-05-09T00:00:00.000Z"),
+    clock: () => new Date(Date.parse("2026-05-09T11:00:00.000Z") + 60_000 * ticks++),
   });
 
   assert.deepEqual(result, { periods: 1 });
   assert.equal(fetches, 1);
   assert.equal(stored("operating_cash_flow")[0]?.value_num, 300);
+  // Every stored family is dated by the download's completion, not by processing time.
+  assert.deepEqual(
+    [stored("operating_cash_flow")[0]?.as_of, stored("total_assets")[0]?.as_of, db.sources.at(-1)?.[6]],
+    ["2026-05-09T10:05:00.000Z", "2026-05-09T10:05:00.000Z", "2026-05-09T10:05:00.000Z"],
+  );
   assert.equal(stored("total_assets")[0]?.period_end, "2024-12-31");
   // The income statement is not written again.
   assert.equal(stored("revenue").length, 1);
@@ -181,7 +188,7 @@ test("the backfill stores cash flow and balance sheet for income periods already
 test("the backfill replaces income facts the old period selector got wrong, keeping the right ones", async () => {
   const db = new FakeFundamentalsDb();
   await createSecBackedStatementRepository(db, {
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
@@ -193,7 +200,7 @@ test("the backfill replaces income facts the old period selector got wrong, keep
 
   await backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-09T00:00:00.000Z"),
   });
@@ -217,7 +224,7 @@ test("the backfill replaces income facts the old period selector got wrong, keep
 test("the backfill retires every wrong row of a metric, whichever filing stored it", async () => {
   const db = new FakeFundamentalsDb();
   await createSecBackedStatementRepository(db, {
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
@@ -231,7 +238,7 @@ test("the backfill retires every wrong row of a metric, whichever filing stored 
 
   await backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-09T00:00:00.000Z"),
   });
@@ -247,7 +254,7 @@ test("the backfill retires every wrong row of a metric, whichever filing stored 
 test("the backfill retires a wrong income fact whose metric the filing no longer yields for the period", async () => {
   const db = new FakeFundamentalsDb();
   await createSecBackedStatementRepository(db, {
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   }).find({ issuer_id: ISSUER_ID, family: "income", basis: "as_reported", fiscal_year: 2024, fiscal_period: "FY" });
@@ -260,7 +267,7 @@ test("the backfill retires a wrong income fact whose metric the filing no longer
 
   await backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-09T00:00:00.000Z"),
   });
@@ -273,7 +280,7 @@ test("the backfill retires a wrong income fact whose metric the filing no longer
   db.facts.push(agreeing);
   await backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
-    fetcher: async () => companyFacts(),
+    fetcher: secCompanyFetcher(() => companyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-10T00:00:00.000Z"),
   });
@@ -284,10 +291,10 @@ test("the backfill downloads nothing for an issuer with no income periods on fil
   let fetches = 0;
   const result = await backfillSecCompanionStatements(new FakeFundamentalsDb(), {
     issuerId: ISSUER_ID,
-    fetcher: async () => {
+    fetcher: secCompanyFetcher(() => {
       fetches += 1;
       return companyFacts();
-    },
+    }),
     sourceId: SOURCE_ID,
   });
   assert.deepEqual(result, { periods: 0 });
@@ -305,7 +312,7 @@ test("SEC-backed statements keep the income statement when another family cannot
   usGaap.PaymentsToAcquirePropertyPlantAndEquipment = capex;
   const warnings: unknown[][] = [];
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => facts,
+    fetcher: secCompanyFetcher(() => facts),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
     logger: { warn: (...args: unknown[]) => warnings.push(args) },
@@ -330,10 +337,10 @@ test("SEC-backed statements persist quarterly companyfacts as fiscal_q facts", a
   const db = new FakeFundamentalsDb();
   let fetchCount = 0;
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => {
+    fetcher: secCompanyFetcher(() => {
       fetchCount += 1;
       return quarterlyCompanyFacts();
-    },
+    }),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });
@@ -373,7 +380,7 @@ test("SEC-backed statements persist quarterly companyfacts as fiscal_q facts", a
 test("SEC-backed quarterly statements choose a discrete accession over a YTD-heavy accession", async () => {
   const db = new FakeFundamentalsDb();
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => mixedQuarterlyAccessionCompanyFacts(),
+    fetcher: secCompanyFetcher(() => mixedQuarterlyAccessionCompanyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });
@@ -399,7 +406,7 @@ test("SEC-backed quarterly statements choose a discrete accession over a YTD-hea
 test("SEC-backed statements derive Q4 from annual and first-three-quarter companyfacts", async () => {
   const db = new FakeFundamentalsDb();
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => fourthQuarterCompanyFacts(),
+    fetcher: secCompanyFetcher(() => fourthQuarterCompanyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });
@@ -432,7 +439,7 @@ test("SEC-backed statements derive distinct source ids from full accessions with
 test("SEC-backed statements only persist facts from the selected filing accession", async () => {
   const db = new FakeFundamentalsDb();
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => mixedAccessionCompanyFacts(),
+    fetcher: secCompanyFetcher(() => mixedAccessionCompanyFacts()),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });
@@ -453,10 +460,10 @@ test("SEC-backed statements only persist facts from the selected filing accessio
 test("SEC-backed stats can ingest latest annual companyfacts on demand", async () => {
   const db = new FakeFundamentalsDb();
   let fetchCount = 0;
-  const fetcher: SecEdgarFetcher = async () => {
+  const fetcher: SecEdgarFetcher = secCompanyFetcher(() => {
     fetchCount += 1;
     return companyFacts();
-  };
+  });
   const statements = createSecBackedStatementRepository(db, {
     fetcher,
     sourceId: SOURCE_ID,
@@ -867,7 +874,7 @@ function annualValues(current: number, prior: number): SecConceptValue[] {
 async function statementSourceIdFor(facts: ReturnType<typeof companyFacts>): Promise<string | undefined> {
   const db = new FakeFundamentalsDb();
   const statements = createSecBackedStatementRepository(db, {
-    fetcher: async () => facts,
+    fetcher: secCompanyFetcher(() => facts),
     sourceId: SOURCE_ID,
     clock: () => new Date("2026-05-08T00:00:00.000Z"),
   });

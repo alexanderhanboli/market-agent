@@ -17,6 +17,7 @@ import {
   selectSecConceptValue,
   type ExtractStatementInput,
   type SecCompanyFacts,
+  type SecCompanyFactsFetch,
   type SecEdgarFetcher,
   type SecDerivation,
   type SecSourceToken,
@@ -97,9 +98,9 @@ export function createSecBackedStatementRepository(
       }
 
       try {
-        const companyFacts = await fetchCompanyFacts(options.fetcher, cikNumber);
+        const fetched = await fetchCompanyFacts(options.fetcher, cikNumber);
         return await ingestFiling(db, {
-          companyFacts,
+          fetched,
           cik: cikNumber,
           issuerId: lookup.issuer_id,
           fiscal_year: lookup.fiscal_year,
@@ -160,10 +161,10 @@ export async function backfillSecCompanionStatements(
     [input.issuerId, SEC_INCOME_METRIC_KEYS],
   );
   if (rows.length === 0) return { periods: 0 };
-  const companyFacts = await fetchCompanyFacts(input.fetcher, cik);
+  const fetched = await fetchCompanyFacts(input.fetcher, cik);
   for (const period of rows) {
     await ingestFiling(db, {
-      companyFacts,
+      fetched,
       cik,
       issuerId: input.issuerId,
       fiscal_year: period.fiscal_year,
@@ -188,11 +189,12 @@ type Extracted = {
 // cash flow and balance sheet beside it. Income is "require" (a lookup: it must
 // extract) or "repair" (a backfill: stored income facts that differ from the
 // filing are replaced; a period it cannot extract is left as it is). Returns
-// the income statement, or null without it.
+// the income statement, or null without it. Every period of one download is
+// dated by that download's completion, never by when it was processed.
 async function ingestFiling(
   db: FundamentalsTransactionalQueryExecutor,
   input: {
-    companyFacts: SecCompanyFacts;
+    fetched: SecCompanyFactsFetch;
     cik: number;
     issuerId: UUID;
     fiscal_year: number;
@@ -203,14 +205,14 @@ async function ingestFiling(
     logger: Pick<Console, "warn">;
   },
 ): Promise<NormalizedStatement | null> {
-  const asOf = input.clock().toISOString();
-  const accessionNumber = statementAccession(input.companyFacts, input.fiscal_year, input.fiscal_period);
+  const asOf = input.fetched.evidence.completed_at;
+  const accessionNumber = statementAccession(input.fetched.facts, input.fiscal_year, input.fiscal_period);
   const sourceId = accessionNumber
     ? await upsertSecFilingSource(db, { cik: input.cik, accessionNumber, retrievedAt: asOf })
     : input.fallbackSourceId;
   const target = {
     subject: { kind: "issuer", id: input.issuerId },
-    facts: input.companyFacts,
+    facts: input.fetched.facts,
     fiscal_year: input.fiscal_year,
     fiscal_period: input.fiscal_period,
     accession_number: accessionNumber ?? undefined,
@@ -518,7 +520,7 @@ async function discoverLatestFiscalYear(
   if (!Number.isInteger(cikNumber) || cikNumber <= 0) return null;
 
   try {
-    const facts = await fetchCompanyFacts(fetcher, cikNumber);
+    const { facts } = await fetchCompanyFacts(fetcher, cikNumber);
     const fiscalYear = latestAnnualRevenueYear(facts);
     return fiscalYear === null ? null : { fiscal_year: fiscalYear };
   } catch (error) {

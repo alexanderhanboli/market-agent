@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { withSecFairAccess } from "../src/sec-edgar-http.ts";
 import { SecEdgarFetchError } from "../src/sec-edgar.ts";
+import { secFetched } from "./fakes.ts";
 
 function fakeClock() {
   let now = 0;
@@ -26,7 +27,7 @@ test("requests are spaced at least the minimum interval apart", async () => {
   const fetcher = withSecFairAccess(async () => {
     starts.push(clock.now());
     clock.advance(20); // a fast response
-    return {};
+    return secFetched({});
   }, { minIntervalMs: 150, now: clock.now, sleep: clock.sleep });
 
   for (let i = 0; i < 3; i += 1) await fetcher(`/api/${i}`);
@@ -36,7 +37,7 @@ test("requests are spaced at least the minimum interval apart", async () => {
 
 test("concurrent requests queue behind each other instead of starting together", async () => {
   const waits: number[] = [];
-  const fetcher = withSecFairAccess(async () => ({}), {
+  const fetcher = withSecFairAccess(async () => secFetched({}), {
     minIntervalMs: 150,
     now: () => 0,
     sleep: async (ms) => {
@@ -53,10 +54,10 @@ test("a 429 is retried with exponential backoff, then succeeds", async () => {
   const fetcher = withSecFairAccess(async () => {
     calls += 1;
     if (calls <= 2) throw new SecEdgarFetchError(429, "sec_edgar: HTTP 429");
-    return { ok: true };
+    return secFetched({ ok: true });
   }, { minIntervalMs: 0, retries: 3, backoffMs: 1000, now: clock.now, sleep: clock.sleep });
 
-  assert.deepEqual(await fetcher("/api/x"), { ok: true });
+  assert.deepEqual((await fetcher("/api/x")).json, { ok: true });
   assert.equal(calls, 3);
   assert.deepEqual(clock.sleeps, [1000, 2000]);
 });

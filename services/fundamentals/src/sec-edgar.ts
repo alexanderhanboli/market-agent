@@ -58,7 +58,16 @@ export type SecCompanyFacts = {
 
 // --- Fetcher abstraction ---------------------------------------------------
 
-export type SecEdgarFetcher = (path: string) => Promise<unknown>;
+/** What one SEC fetch proves: which URL returned these bytes, and when the body was fully read. */
+export type SecFetchEvidence = Readonly<{
+  url: string;
+  body_sha256: string;
+  completed_at: string;
+}>;
+
+export type SecFetchResult = SecFetchEvidence & Readonly<{ json: unknown }>;
+
+export type SecEdgarFetcher = (path: string) => Promise<SecFetchResult>;
 
 export class SecEdgarFetchError extends Error {
   readonly status: number;
@@ -74,13 +83,16 @@ export function companyFactsPath(cik: number): string {
   return `/api/xbrl/companyfacts/CIK${String(cik).padStart(10, "0")}.json`;
 }
 
+export type SecCompanyFactsFetch = Readonly<{ facts: SecCompanyFacts; evidence: SecFetchEvidence }>;
+
 export async function fetchCompanyFacts(
   fetcher: SecEdgarFetcher,
   cik: number,
-): Promise<SecCompanyFacts> {
-  const raw = fromLosslessCompanyFacts(await fetcher(companyFactsPath(cik)));
+): Promise<SecCompanyFactsFetch> {
+  const { json, ...evidence } = await fetcher(companyFactsPath(cik));
+  const raw = fromLosslessCompanyFacts(json);
   assertCompanyFacts(raw, "fetchCompanyFacts.response");
-  return raw;
+  return { facts: raw, evidence };
 }
 
 // A lossless response carries SourceNumber tokens where the companyfacts

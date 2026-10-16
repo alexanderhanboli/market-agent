@@ -21,6 +21,7 @@ import {
   type MetricDefinition,
 } from "../src/metric-mapper.ts";
 import { aaplIssuer } from "./fixtures.ts";
+import { secFetched } from "./fakes.ts";
 
 const AAPL_CIK = 320193;
 const AAPL_FY2024_ACCN = "0000320193-24-000123";
@@ -685,17 +686,19 @@ test("companyFactsPath rejects invalid CIKs", () => {
 test("fetchCompanyFacts calls the fetcher with the padded path and returns the parsed payload", async () => {
   const calls: string[] = [];
   const fixture = aaplCompanyFactsFixture();
+  const fetched = secFetched(fixture, { completed_at: "2024-02-01T10:05:00.000Z" });
   const fetcher: SecEdgarFetcher = async (path) => {
     calls.push(path);
-    return fixture;
+    return fetched;
   };
-  const facts = await fetchCompanyFacts(fetcher, AAPL_CIK);
+  const { facts, evidence } = await fetchCompanyFacts(fetcher, AAPL_CIK);
   assert.deepEqual(calls, ["/api/xbrl/companyfacts/CIK0000320193.json"]);
   assert.equal(facts.entityName, "Apple Inc.");
+  assert.deepEqual(evidence, { url: fetched.url, body_sha256: fetched.body_sha256, completed_at: "2024-02-01T10:05:00.000Z" });
 });
 
 test("fetchCompanyFacts rejects malformed responses", async () => {
-  const fetcher: SecEdgarFetcher = async () => ({ wrong: "shape" });
+  const fetcher: SecEdgarFetcher = async () => secFetched({ wrong: "shape" });
   await assert.rejects(
     fetchCompanyFacts(fetcher, AAPL_CIK),
     /cik/,
