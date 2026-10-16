@@ -147,7 +147,7 @@ test("SEC ingestion binds source versions and their publication proofs", { timeo
       ? { fact_id: selection.input.candidate.fact_id, attestation_id: selection.input.publication.attestation_id, public_by: selection.input.publication.available_no_later_than }
       : selection;
 
-  await t.test("a precise SEC fact without context or precision proof is a declared gap", async () => {
+  await t.test("an ingested SEC fact carries its filing's original context; an untokened one is a precision gap", async () => {
     await db.query(`insert into issuers (issuer_id, legal_name, cik) values ($1, 'Select Corp', '320190')`, [SELECT_ISSUER]);
     const feed = { filings: { recent: { accessionNumber: [ORIGINAL], acceptanceDateTime: ["2024-01-10T16:30:05.000Z"] } } };
     await createSecBackedStatementRepository(db, {
@@ -155,7 +155,25 @@ test("SEC ingestion binds source versions and their publication proofs", { timeo
       sourceId: FALLBACK_SOURCE_ID,
       logger: { warn: () => {} },
     }).find({ ...FY2023, issuer_id: SELECT_ISSUER });
-    assert.deepEqual(await selectRevenue(db, SELECT_ISSUER, FETCHED_AT), { status: "gap", reason_code: "context_unverified" });
+    const factId = await factOn(ORIGINAL);
+    assert.deepEqual(
+      (await db.query(
+        `select period_type, dimension_scope, reporting_basis, adjustment_basis, share_basis, disclosure_relation, source_context_ref
+           from fact_financial_contexts where fact_id = $1`,
+        [factId],
+      )).rows,
+      [{
+        period_type: "duration",
+        dimension_scope: "consolidated",
+        reporting_basis: "as_reported",
+        adjustment_basis: "unadjusted",
+        share_basis: "not_applicable",
+        disclosure_relation: "original",
+        source_context_ref: `sec_edgar:companyfacts:CIK0000320190#Revenues|USD|${ORIGINAL}|2023-01-01..2023-12-31`,
+      }],
+    );
+    const [fetchProof] = await proofIdFor(ORIGINAL);
+    assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, FETCHED_AT)), { fact_id: factId, attestation_id: fetchProof, public_by: FETCHED_AT });
 
     const legacyIssuer = "33000000-0000-4000-8000-0000000000e2";
     const legacy = "0000320191-24-000010";
@@ -173,7 +191,6 @@ test("SEC ingestion binds source versions and their publication proofs", { timeo
 
   await t.test("a fetch completed at 10:05 cannot support a 10:00 cutoff, whatever acceptance says; it supports 10:05", async () => {
     const factId = await factOn(ORIGINAL);
-    await recordFactFinancialContext(db, originalContext(factId));
     const [fetchProof] = await proofIdFor(ORIGINAL);
     assert.equal(
       (await db.query(`select raw_value from sec_filing_acceptances where accession = $1`, [ORIGINAL])).rows[0].raw_value,

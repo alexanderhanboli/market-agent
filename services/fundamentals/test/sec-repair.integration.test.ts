@@ -18,7 +18,8 @@ function companyFactsText(): string {
     `[${fy(a, "2021-09-26", "2022-09-24")},${fy(b, "2022-09-25", "2023-09-30")},${fy(c, "2023-10-01", "2024-09-28")}]`;
   return `{"cik":320193,"entityName":"Apple Inc.","facts":{"us-gaap":{
     "RevenueFromContractWithCustomerExcludingAssessedTax":{"label":"","description":"","units":{"USD":${years(394328000000, 383285000000, 391035000000)}}},
-    "NetIncomeLoss":{"label":"","description":"","units":{"USD":${years(99803000000, 96995000000, 93736000000)}}}
+    "NetIncomeLoss":{"label":"","description":"","units":{"USD":${years(99803000000, 96995000000, 93736000000)}}},
+    "EarningsPerShareDiluted":{"label":"","description":"","units":{"USD/shares":${years(6.11, 6.13, 6.08)}}}
   }}}`;
 }
 
@@ -59,15 +60,31 @@ test("the backfill replaces an income fact the old selector got wrong, keeping h
   )).rows;
   const [wrong] = await factOf("revenue");
   const [netIncome] = await factOf("net_income");
+  // Stored before ingestion recorded financial contexts.
+  await db.query(`delete from fact_financial_contexts where fact_id = $1`, [netIncome!.fact_id]);
 
   now = new Date("2024-12-01T00:00:00.000Z");
-  await backfillSecCompanionStatements(db, {
+  const backfill = () => backfillSecCompanionStatements(db, {
     issuerId: ISSUER_ID,
     fetcher,
     sourceId: FALLBACK_SOURCE_ID,
     clock: () => new Date("2024-12-01T00:00:00.000Z"),
     logger: { warn: () => {} },
   });
+  await backfill();
+  const contexts = async () => (await db.query<{ metric_key: string; disclosure_relation: string }>(
+    `select m.metric_key, c.disclosure_relation
+       from fact_financial_contexts c join facts f on f.fact_id = c.fact_id join metrics m on m.metric_id = f.metric_id
+      where f.subject_id = $1 and f.invalidated_at is null order by m.metric_key`,
+    [ISSUER_ID],
+  )).rows;
+  // A split before the filing restates per-share values, and companyfacts cannot tell: EPS stays a gap.
+  assert.deepEqual(await contexts(), [
+    { metric_key: "net_income", disclosure_relation: "original" },
+    { metric_key: "revenue", disclosure_relation: "original" },
+  ]);
+  await backfill();
+  assert.deepEqual((await contexts()).length, 2, "a second backfill records no context twice");
 
   const revenue = await factOf("revenue");
   assert.equal(revenue.length, 2);

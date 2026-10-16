@@ -23,6 +23,7 @@ import {
   type SecSourceToken,
 } from "./sec-edgar.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
+import { recordFactFinancialContext } from "../../evidence/src/financial-context.ts";
 import { withPinnedTransaction, type TransactionalQueryExecutor } from "./pinned-transaction.ts";
 import { recordSecFetchPublication, secAccessionVersionHash } from "./sec-publication-proof.ts";
 import { recordSecFilingAcceptances, type SecFilingRef } from "./sec-acceptance.ts";
@@ -761,7 +762,8 @@ function firstCurrency(lines: ReadonlyArray<StatementLine>): string | null {
 // (legacy fixtures, derived fourth quarters) keep the legacy number and get no
 // precision proof, so strict financial binding treats them as gaps. A line
 // that conflicts was written by another ingestion, which recorded its own
-// proof atomically; older legacy facts are proven only by the backfill.
+// proof atomically; older legacy facts are proven only by the backfill. Each
+// token's fact, inserted or already stored, gets its financial context.
 async function persistStatementFacts(
   db: FundamentalsQueryExecutor,
   statement: MappedStatement,
@@ -817,19 +819,89 @@ async function persistStatementFacts(
       ],
     );
     const factId = inserted.rows[0]?.fact_id;
-    if (token && factId) {
+    if (!token) {
+      if (factId) insertedIds.set(line.metric_key, factId);
+      continue;
+    }
+    const locator = `sec_edgar:companyfacts:CIK${String(provenance.cik).padStart(10, "0")}#${token.concept}|${token.unit}|${token.accn}|${token.start ?? ""}..${token.end}`;
+    if (factId) {
       await recordFactPrecisionAttestation(db, {
         fact_id: factId,
         precision_class: "source_token_preserved",
         raw_token: token.token,
         token_proof_hash: secTokenProofHash(provenance.cik, token),
-        source_locator: `sec_edgar:companyfacts:CIK${String(provenance.cik).padStart(10, "0")}#${token.concept}|${token.unit}|${token.accn}|${token.start ?? ""}..${token.end}`,
+        source_locator: locator,
         validation_method: "sec_companyfacts_lossless_json.v1",
       });
+      insertedIds.set(line.metric_key, factId);
     }
-    if (factId) insertedIds.set(line.metric_key, factId);
+    await recordSecOriginalContext(db, statement, line, token, locator);
   }
   return insertedIds;
+}
+
+// A split before a filing is issued restates its per-share values and share
+// counts, its own period's included, and companyfacts does not say whether
+// one did: their adjustment basis is unknown, so they get no context.
+const SEC_SHARE_METRIC_KEYS: ReadonlySet<string> = new Set([
+  "eps_basic",
+  "eps_diluted",
+  "shares_outstanding_basic",
+  "shares_outstanding_diluted",
+]);
+
+// Selection takes every token from the filing whose own period it is, never
+// from a later filing's comparative, so the stored fact is that filing's
+// original disclosure. Companyfacts carries only undimensioned values, which
+// are consolidated. The active fact the line stored (here or by an earlier
+// ingestion) is locked before its context is checked, so two ingestions of
+// one filing record it once; a stored fact whose value or dates differ from
+// the token gets none.
+async function recordSecOriginalContext(
+  db: FundamentalsQueryExecutor,
+  statement: MappedStatement,
+  line: MappedStatement["lines"][number],
+  token: SecSourceToken,
+  locator: string,
+): Promise<void> {
+  if (SEC_SHARE_METRIC_KEYS.has(line.metric_key)) return;
+  const { rows } = await db.query<{ fact_id: string }>(
+    `select f.fact_id::text as fact_id
+       from facts f
+      where f.subject_kind = 'issuer' and f.subject_id = $1 and f.metric_id = $2 and f.period_kind = $3
+        and f.fiscal_year = $4 and f.fiscal_period = $5 and f.source_id = $6 and f.method = 'reported'
+        and ${factActiveSql("f")}
+        and f.period_start is not distinct from $7::date and f.period_end = $8::date and f.value_num = $9::numeric
+      for update`,
+    [
+      statement.subject.id,
+      line.metric_id,
+      statement.period_kind,
+      statement.fiscal_year,
+      statement.fiscal_period,
+      statement.source_id,
+      statement.period_start,
+      statement.period_end,
+      token.token,
+    ],
+  );
+  const factId = rows[0]?.fact_id;
+  if (!factId) return;
+  const existing = await db.query(`select 1 from fact_financial_contexts where fact_id = $1`, [factId]);
+  if (existing.rows.length > 0) return;
+  await recordFactFinancialContext(db, {
+    fact_id: factId,
+    context_version: "sec_companyfacts_context.v1",
+    period_type: token.start === null ? "instant" : "duration",
+    dimension_scope: "consolidated",
+    dimension_members: [],
+    reporting_basis: "as_reported",
+    adjustment_basis: "unadjusted",
+    share_basis: "not_applicable",
+    fiscal_calendar_version: "sec_filer_fiscal_year.v1",
+    disclosure_relation: "original",
+    source_context_ref: locator,
+  });
 }
 
 // A discrete quarter computed from filed values (a cash flow year to date less
