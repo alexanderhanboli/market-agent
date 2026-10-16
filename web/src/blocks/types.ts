@@ -53,8 +53,7 @@ export type DataRef = {
 }
 
 // Sentinel data_ref.kind for blocks that are still streaming (no canonical
-// snapshot landed yet). Ref resolvers should treat this as "no manifest"
-// rather than try to resolve refs against a non-existent snapshot.
+// snapshot landed yet).
 export const STREAMING_DATA_REF_KIND = 'streaming'
 
 export type InteractiveSpec = {

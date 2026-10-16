@@ -19,12 +19,9 @@ type ThreadReport = {
   url: string
   screenshot: string
   answers: number
-  // Chips showing a value the user can open. Chat provides no snapshot manifest,
-  // so its chips stay "placeholder": they show their own value and open the
-  // evidence panel. "unresolved" (the manifest lacks the ref) shows no value.
+  // Chips in the narrative. Each shows its own value and opens the evidence panel.
   fact_chips: number
   claim_chips: number
-  unresolved_chips: number
   // In the model's narrative, the message's first rich text (local-runtime.ts
   // puts the answer's own blocks before its fact blocks): what answer-lab counts.
   plain_numbers: number
@@ -81,12 +78,11 @@ async function main(argv: string[]): Promise<number> {
       })
       await page.goto(url)
       const answered = await page.locator('[data-role="assistant"]').first().waitFor({ timeout: ANSWER_TIMEOUT_MS }).then(() => true, () => false)
-      // Chips resolve once the snapshot manifest loads.
       await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
       // The message list mounts only the messages near its scroll position, so
       // it is walked top to bottom and each assistant message counted once, by id.
       let complete = false
-      const seen = new Map<string, { fact_chips: number; claim_chips: number; unresolved_chips: number; plain: string[]; notes: number }>()
+      const seen = new Map<string, { fact_chips: number; claim_chips: number; plain: string[]; notes: number }>()
       const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)))))
       const scrollTo = (top: number) => page.evaluate((top) => {
         const list = document.querySelector('[data-inspect-scroller]')
@@ -119,9 +115,8 @@ async function main(argv: string[]): Promise<number> {
             }
             return {
               id: item.getAttribute('data-message-id')!,
-              fact_chips: narrative?.querySelectorAll('[data-ref-kind="fact"]:not([data-ref-state="unresolved"])').length ?? 0,
-              claim_chips: narrative?.querySelectorAll('[data-ref-kind="claim"]:not([data-ref-state="unresolved"])').length ?? 0,
-              unresolved_chips: narrative?.querySelectorAll('[data-ref-kind][data-ref-state="unresolved"]').length ?? 0,
+              fact_chips: narrative?.querySelectorAll('[data-ref-kind="fact"]').length ?? 0,
+              claim_chips: narrative?.querySelectorAll('[data-ref-kind="claim"]').length ?? 0,
               plain: numbers(narrative),
               notes: notes.reduce((sum, note) => sum + numbers(note).length, 0),
             }
@@ -155,7 +150,6 @@ async function main(argv: string[]): Promise<number> {
         answers: counts.length,
         fact_chips: counts.reduce((sum, message) => sum + message.fact_chips, 0),
         claim_chips: counts.reduce((sum, message) => sum + message.claim_chips, 0),
-        unresolved_chips: counts.reduce((sum, message) => sum + message.unresolved_chips, 0),
         plain_numbers: counts.reduce((sum, message) => sum + message.plain.length, 0),
         plain_samples: counts.flatMap((message) => message.plain).slice(0, 12),
         note_numbers: counts.reduce((sum, message) => sum + message.notes, 0),
@@ -169,14 +163,13 @@ async function main(argv: string[]): Promise<number> {
   }
   writeFileSync(join(values.out, 'summary.json'), `${JSON.stringify(reports, null, 2)}\n`)
   const rows = [
-    ['thread', 'complete', 'answers', 'fact chips', 'claim chips', 'unresolved', 'plain #', 'note #', 'console errors'],
+    ['thread', 'complete', 'answers', 'fact chips', 'claim chips', 'plain #', 'note #', 'console errors'],
     ...reports.map((report) => [
       report.thread,
       report.complete ? 'yes' : 'NO',
       String(report.answers),
       String(report.fact_chips),
       String(report.claim_chips),
-      String(report.unresolved_chips),
       String(report.plain_numbers),
       String(report.note_numbers),
       String(report.console_errors.length),

@@ -8,11 +8,9 @@ import {
 import { extractInspectableRefs } from '../evidence/inspectableRefs.ts'
 import type { EvidenceBlockInspection } from '../evidence/inspectionTypes.ts'
 import { useEvidenceInspector } from '../evidence/useEvidenceInspector.ts'
-import type { SnapshotManifest } from './snapshotManifest.ts'
 import { BlockProofContext, proofLabels, proofRows, type BlockProof } from './blockProof.ts'
 import { VerificationLabel } from './VerificationLabel.tsx'
 import type { VerificationKind } from './verification.ts'
-import { SnapshotManifestContext } from './snapshotManifestContext.ts'
 
 type BlockRegistryProviderProps = {
   registry: BlockRegistry
@@ -21,15 +19,6 @@ type BlockRegistryProviderProps = {
 
 export function BlockRegistryProvider({ registry, children }: BlockRegistryProviderProps): ReactElement {
   return <BlockRegistryContext.Provider value={registry}>{children}</BlockRegistryContext.Provider>
-}
-
-type SnapshotManifestProviderProps = {
-  manifest: SnapshotManifest
-  children: ReactNode
-}
-
-export function SnapshotManifestProvider({ manifest, children }: SnapshotManifestProviderProps): ReactElement {
-  return <SnapshotManifestContext.Provider value={manifest}>{children}</SnapshotManifestContext.Provider>
 }
 
 // `verification` overrides the kind's own label, e.g. for an answer that failed verification.

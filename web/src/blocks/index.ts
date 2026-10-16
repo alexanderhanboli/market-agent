@@ -91,15 +91,7 @@ export {
 } from './layoutHint.ts'
 export type { BlockLayoutHint, BlockLayoutHintSection } from './layoutHint.ts'
 
-export { createSnapshotManifest, resolveRefSegment } from './snapshotManifest.ts'
-export type { ResolvedRefSegment, SnapshotManifest } from './snapshotManifest.ts'
-
-export {
-  SnapshotManifestContext,
-  useSnapshotManifest,
-} from './snapshotManifestContext.ts'
-
-export { BlockRegistryProvider, BlockView, SnapshotManifestProvider } from './BlockView.tsx'
+export { BlockRegistryProvider, BlockView } from './BlockView.tsx'
 export { MemoizedBlockView } from './MemoizedBlockView.tsx'
 export { blockPropsAreEqual } from './blockMemoization.ts'
 export { createDefaultBlockRegistry } from './defaultBlockRegistry.ts'

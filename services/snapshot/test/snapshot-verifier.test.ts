@@ -2193,3 +2193,71 @@ test("verifySnapshotSeal rejects unknown block kinds even when data_ref matches"
     actual: "made_up_block",
   });
 });
+
+const shownFactBlock = (kind: string, id: string, body: JsonObject) => ({
+  ...baseInput.blocks[0],
+  id,
+  kind,
+  data_ref: { ...baseInput.blocks[0].data_ref, kind, id },
+  fact_refs: undefined,
+  claim_refs: undefined,
+  event_refs: undefined,
+  ...body,
+});
+const metricRowShowing = (format: string) =>
+  shownFactBlock("metric_row", "metric-revenue", { items: [{ label: "Revenue", value_ref: factId, format }] });
+const revenueBarsShowing = (format: string) =>
+  shownFactBlock("revenue_bars", "revenue-bars", { bars: [{ label: "Q1", value_ref: factId, format }] });
+const chipShowing = (format?: string) =>
+  shownFactBlock("rich_text", "answer", {
+    segments: [
+      { type: "text", text: "Revenue was " },
+      { type: "ref", ref_kind: "fact", ref_id: factId, ...(format === undefined ? {} : { format }) },
+    ],
+  });
+const sealShowing = (...blocks: ReadonlyArray<object>) =>
+  verifySnapshotSeal({ ...baseInput, blocks: [...blocks, baseInput.blocks[1]] } as SnapshotVerificationInput);
+const formatMismatch = (format: string, shown: string[]) => ({
+  ok: false,
+  failures: [
+    { reason_code: "fact_ref_format_mismatch", details: { block_id: "answer", fact_id: factId, format, shown } },
+  ],
+});
+
+test("verifySnapshotSeal accepts a fact chip that shows its metric_row value", async () => {
+  assert.deepEqual(await sealShowing(metricRowShowing("$62.1B"), chipShowing("$62.1B")), { ok: true, failures: [] });
+});
+
+test("verifySnapshotSeal rejects a fact chip that shows a different value than its metric_row", async () => {
+  assert.deepEqual(
+    await sealShowing(metricRowShowing("$62.1B"), chipShowing("$61.0B")),
+    formatMismatch("$61.0B", ["$62.1B"]),
+  );
+});
+
+test("verifySnapshotSeal accepts a fact chip matching any block that shows the fact", async () => {
+  const blocks = [metricRowShowing("$62.1B"), revenueBarsShowing("$62,100M")];
+  assert.deepEqual(await sealShowing(...blocks, chipShowing("$62.1B")), { ok: true, failures: [] });
+  assert.deepEqual(await sealShowing(...blocks, chipShowing("$62,100M")), { ok: true, failures: [] });
+  assert.deepEqual(
+    await sealShowing(...blocks, chipShowing("$61.0B")),
+    formatMismatch("$61.0B", ["$62.1B", "$62,100M"]),
+  );
+});
+
+test("verifySnapshotSeal accepts a fact chip when no block shows the fact with a format", async () => {
+  const unformatted = shownFactBlock("metric_row", "metric-revenue", { items: [{ label: "Revenue", value_ref: factId }] });
+  assert.deepEqual(await sealShowing(unformatted, chipShowing("$62.1B")), { ok: true, failures: [] });
+  assert.deepEqual(await sealShowing(metricRowShowing("$62.1B"), chipShowing()), { ok: true, failures: [] });
+});
+
+test("verifySnapshotSeal checks fact chips against metrics_comparison cell and revenue_bars formats", async () => {
+  const peerTable = { ...metricsComparisonBlock, cells: [[{ value_ref: factId, format: "$62.1B" }, null]] };
+  assert.deepEqual(await sealShowing(peerTable, chipShowing("$62.1B")), { ok: true, failures: [] });
+  assert.deepEqual(await sealShowing(peerTable, chipShowing("$61.0B")), formatMismatch("$61.0B", ["$62.1B"]));
+  assert.deepEqual(await sealShowing(revenueBarsShowing("$62,100M"), chipShowing("$62,100M")), { ok: true, failures: [] });
+  assert.deepEqual(
+    await sealShowing(revenueBarsShowing("$62,100M"), chipShowing("$61.0B")),
+    formatMismatch("$61.0B", ["$62,100M"]),
+  );
+});

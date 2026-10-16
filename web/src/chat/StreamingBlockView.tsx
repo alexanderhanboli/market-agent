@@ -44,9 +44,7 @@ function StreamingRichTextBlock({ blockId, segments, status }: StreamingRichText
     () => ({
       id: blockId,
       kind: 'rich_text',
-      // The renderer doesn't read these fields, but RichTextBlock is
-      // structurally typed — fill with stream-marker values so a ref
-      // resolver downstream can detect "no snapshot yet" via data_ref.kind.
+      // No snapshot exists yet, so these hold stream-marker values.
       snapshot_id: '',
       data_ref: { kind: STREAMING_DATA_REF_KIND, id: blockId },
       source_refs: [],
