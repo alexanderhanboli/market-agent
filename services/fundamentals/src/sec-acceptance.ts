@@ -3,72 +3,17 @@
 // publication proof: it is stored in sec_filing_acceptances, which nothing
 // reads to decide eligibility at a cutoff.
 //
-// Format rule. The submissions feed (filings.recent.acceptanceDateTime) gives
-// values like "2024-11-01T18:04:43.000Z". The digits are EDGAR's acceptance
-// wall clock in Eastern time (America/New_York); the trailing "Z" is not a UTC
-// designator. A bare "YYYY-MM-DD" is date precision, recorded as the end of
-// that Eastern day. Anything else is malformed, and so is an Eastern wall
-// clock that does not exist or occurs twice (a DST change): parsed_at stays
-// null and the raw value is kept as given.
+// The feed's time zone is not established, so its values are kept raw and
+// unparsed. EDGAR does not document it, and the two SEC surfaces disagree: for
+// NVDA's filings (checked 2026-10-16), filings.recent.acceptanceDateTime read
+// eight hours after the "Accepted" time on each filing's EDGAR index page
+// (2026-08-27T00:36:00.000Z against 2026-08-26 16:36:00), neither the four or
+// five hours a UTC reading of the feed implies nor the zero an Eastern one
+// does. Conflicting timing stays unknown (#199).
 
-import { endOfLocalDay } from "../../financial-core/src/public-time.ts";
 import type { SecEdgarFetcher } from "./sec-edgar.ts";
 import type { FundamentalsQueryExecutor } from "./sec-facts-repository.ts";
 import type { UUID } from "./subject-ref.ts";
-
-export const SEC_ACCEPTANCE_TIMEZONE = "America/New_York";
-
-export type ParsedSecAcceptance = Readonly<
-  | { parsed_at: string; timing_precision: "instant" | "date" }
-  | { parsed_at: null; timing_precision: null }
->;
-
-const UNKNOWN: ParsedSecAcceptance = { parsed_at: null, timing_precision: null };
-const INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?Z$/u;
-const DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
-const HOUR_MS = 3_600_000;
-
-export function parseSecAcceptance(raw: string): ParsedSecAcceptance {
-  const date = DATE.exec(raw);
-  if (date) {
-    return validWallClock(date.slice(1, 4).map(Number), [0, 0, 0, 0])
-      ? { parsed_at: endOfLocalDay(raw, SEC_ACCEPTANCE_TIMEZONE), timing_precision: "date" }
-      : UNKNOWN;
-  }
-  const instant = INSTANT.exec(raw);
-  if (!instant) return UNKNOWN;
-  const [year, month, day, hour, minute, second] = instant.slice(1, 7).map(Number) as [number, number, number, number, number, number];
-  const ms = Number(instant[7] ?? "0");
-  if (!validWallClock([year, month, day], [hour, minute, second, ms])) return UNKNOWN;
-  const wall = Date.UTC(year, month - 1, day, hour, minute, second, ms);
-  // Eastern is UTC-4 (EDT) or UTC-5 (EST): the wall clock is exactly one of
-  // those instants unless it falls in a DST gap or overlap.
-  const matches = [4, 5].map((hours) => wall + hours * HOUR_MS).filter((candidate) => easternWallClock(candidate) === wall);
-  return matches.length === 1 ? { parsed_at: new Date(matches[0]!).toISOString(), timing_precision: "instant" } : UNKNOWN;
-}
-
-function validWallClock([year, month, day]: number[], [hour, minute, second]: number[]): boolean {
-  const date = new Date(Date.UTC(year!, month! - 1, day!));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month! - 1 && date.getUTCDate() === day
-    && hour! < 24 && minute! < 60 && second! < 60;
-}
-
-const EASTERN = new Intl.DateTimeFormat("en-US", {
-  timeZone: SEC_ACCEPTANCE_TIMEZONE,
-  hourCycle: "h23",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
-
-/** The Eastern wall clock at `instant`, as if it were a UTC timestamp. */
-function easternWallClock(instant: number): number {
-  const parts = Object.fromEntries(EASTERN.formatToParts(new Date(instant)).map((part) => [part.type, Number(part.value)]));
-  return Date.UTC(parts.year!, parts.month! - 1, parts.day!, parts.hour!, parts.minute!, parts.second!, instant % 1000);
-}
 
 export function submissionsPath(cik: number): string {
   return `/submissions/CIK${String(cik).padStart(10, "0")}.json`;
@@ -112,12 +57,11 @@ export async function recordSecFilingAcceptances(
     const conflicts = [...seen].sort();
     const latest = prior[0];
     if (latest && latest.raw_value === rawValue && [...latest.conflicts].sort().join("\n") === conflicts.join("\n")) continue;
-    const parsed = conflicts.length > 0 ? UNKNOWN : parseSecAcceptance(rawValue);
     await db.query(
       `insert into sec_filing_acceptances
          (source_id, accession, raw_value, parsed_at, timing_precision, source_timezone, evidence_ref, evidence_hash, conflicts)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
-      [filing.sourceId, filing.accessionNumber, rawValue, parsed.parsed_at, parsed.timing_precision, SEC_ACCEPTANCE_TIMEZONE,
+      [filing.sourceId, filing.accessionNumber, rawValue, null, null, null,
         fetched.url, fetched.body_sha256, JSON.stringify(conflicts)],
     );
   }

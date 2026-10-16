@@ -60,9 +60,10 @@ test("SEC acceptance metadata is recorded apart from publication proof", { timeo
     }).find(lookup(issuerId));
     const recorded = {
       raw_value: "2024-01-10T16:30:05.000Z",
-      parsed_at: "2024-01-10T21:30:05.000Z",
-      timing_precision: "instant",
-      source_timezone: "America/New_York",
+      // Kept raw: the feed's time zone is not established (sec-acceptance.ts).
+      parsed_at: null,
+      timing_precision: null,
+      source_timezone: null,
       evidence_ref: SUBMISSIONS_URL,
       evidence_hash: secFetched(feed).body_sha256,
       conflicts: [],
@@ -84,8 +85,6 @@ test("SEC acceptance metadata is recorded apart from publication proof", { timeo
     assert.deepEqual((await acceptances(accession))[1], {
       ...recorded,
       raw_value: "2024-01-10T16:31:00.000Z",
-      parsed_at: null,
-      timing_precision: null,
       evidence_hash: secFetched(revised).body_sha256,
       conflicts: ["2024-01-10T16:30:05.000Z"],
     });
@@ -155,11 +154,12 @@ test("SEC acceptance metadata is recorded apart from publication proof", { timeo
     );
     await recordFactPrecisionAttestation(db, { fact_id: factId, precision_class: "source_token_preserved", raw_token: "1000", token_proof_hash: "e".repeat(64), source_locator: null, validation_method: "fixture" });
     await recordFactFinancialContext(db, originalContext(factId));
-    await recordSecFilingAcceptances(db, secCompanyFetcher(() => ({}), { submissions: submissions([[accession, "2024-01-10T16:30:05.000Z"]]) }), {
-      cik: 320197,
-      filings: [{ sourceId, accessionNumber: accession }],
-      logger: { warn: () => {} },
-    });
+    // A parsed acceptance well before the cutoff, as a future parser could record it.
+    await db.query(
+      `insert into sec_filing_acceptances (source_id, accession, raw_value, parsed_at, timing_precision, source_timezone, evidence_ref, evidence_hash)
+       values ($1, $2, '2024-01-10T16:30:05.000Z', '2024-01-10T21:30:05Z', 'instant', 'UTC', $3, $4)`,
+      [sourceId, accession, SUBMISSIONS_URL, "f".repeat(64)],
+    );
     assert.equal((await acceptances(accession))[0]?.parsed_at, "2024-01-10T21:30:05.000Z");
 
     const cutoff = "2024-01-15T23:59:59.999-05:00";

@@ -176,9 +176,9 @@ test("SEC ingestion binds source versions and their publication proofs", { timeo
     await recordFactFinancialContext(db, originalContext(factId));
     const [fetchProof] = await proofIdFor(ORIGINAL);
     assert.equal(
-      (await db.query(`select ${utc("parsed_at")} as parsed_at from sec_filing_acceptances where accession = $1`, [ORIGINAL])).rows[0].parsed_at,
-      "2024-01-10T21:30:05.000Z",
-      "acceptance before the cutoff is on file",
+      (await db.query(`select raw_value from sec_filing_acceptances where accession = $1`, [ORIGINAL])).rows[0].raw_value,
+      "2024-01-10T16:30:05.000Z",
+      "an acceptance weeks before the cutoff, in any zone, is on file",
     );
     assert.deepEqual(await selectRevenue(db, SELECT_ISSUER, "2024-02-01T10:00:00-05:00"), { status: "gap", reason_code: "missing_input" });
     assert.deepEqual(chosen(await selectRevenue(db, SELECT_ISSUER, "2024-02-01T10:05:00-05:00")), { fact_id: factId, attestation_id: fetchProof, public_by: FETCHED_AT });

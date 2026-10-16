@@ -12,7 +12,7 @@ function insertAcceptance(overrides: Record<string, string> = {}): string {
     raw_value: "'2024-01-10T16:30:05.000Z'",
     parsed_at: "'2024-01-10T21:30:05Z'",
     timing_precision: "'instant'",
-    source_timezone: "'America/New_York'",
+    source_timezone: "'UTC'",
     evidence_ref: "'https://data.sec.gov/submissions/CIK0000320193.json'",
     evidence_hash: `'${"a".repeat(64)}'`,
     ...overrides,
@@ -30,10 +30,12 @@ test("0056 SEC filing acceptances", { timeout: 300_000 }, async (t) => {
   await applyCanonicalSchema(db);
   await db.query(`insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at) values ('${SOURCE}', 'sec_edgar', 'filing', 'primary', 'public', now())`);
 
-  await t.test("a parsed value carries its precision; a conflict or malformed value carries neither", async () => {
+  await t.test("a parsed value carries its precision and zone; an unparsed, conflicting or malformed one carries neither", async () => {
     assert.equal((await db.query(insertAcceptance())).rowCount, 1);
-    assert.equal((await db.query(insertAcceptance({ parsed_at: "null", timing_precision: "null", conflicts: `'["2024-01-11T09:00:00.000Z"]'` }))).rowCount, 1);
+    assert.equal((await db.query(insertAcceptance({ parsed_at: "null", timing_precision: "null", source_timezone: "null" }))).rowCount, 1);
+    assert.equal((await db.query(insertAcceptance({ parsed_at: "null", timing_precision: "null", source_timezone: "null", conflicts: `'["2024-01-11T09:00:00.000Z"]'` }))).rowCount, 1);
     await expectRejected(db, insertAcceptance({ timing_precision: "null" }), /sec_filing_acceptances_parsed/);
+    await expectRejected(db, insertAcceptance({ source_timezone: "null" }), /sec_filing_acceptances_parsed/);
     await expectRejected(db, insertAcceptance({ conflicts: `'["2024-01-11T09:00:00.000Z"]'` }), /sec_filing_acceptances_conflicts/);
     await expectRejected(db, insertAcceptance({ accession: "'320193-24-6'" }), /accession/);
     await expectRejected(db, insertAcceptance({ timing_precision: "'observed_public'" }), /timing_precision/);
