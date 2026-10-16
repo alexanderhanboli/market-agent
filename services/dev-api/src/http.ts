@@ -53,9 +53,11 @@ import {
   type ThemeMembershipRationaleRow,
 } from "../../themes/src/index.ts";
 import {
+  EVIDENCE_INSPECTION_REF_KINDS,
   EvidenceInspectionError,
   type EvidenceInspection,
   type EvidenceInspectionRef,
+  type EvidenceInspectionRefKind,
 } from "../../evidence/src/inspector.ts";
 import {
   handleLlmSettingsRequest,
@@ -866,16 +868,10 @@ function readEvidenceInspectionRefValue(value: unknown): EvidenceInspectionRef {
   }
   const kind = value.kind;
   const id = readRequiredUuidValue(value.id, "ref.id");
-  if (
-    kind !== "source" &&
-    kind !== "document" &&
-    kind !== "claim" &&
-    kind !== "event" &&
-    kind !== "fact"
-  ) {
+  if (!(EVIDENCE_INSPECTION_REF_KINDS as ReadonlyArray<unknown>).includes(kind)) {
     throw new DevApiHttpError(400, "ref.kind is invalid");
   }
-  return { kind, id };
+  return { kind: kind as EvidenceInspectionRefKind, id };
 }
 
 function readSubjectRefFromQuery(url: URL): SubjectRef {

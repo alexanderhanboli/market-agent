@@ -322,6 +322,31 @@ test("POST /v1/evidence/inspect returns adapter inspection", async (t) => {
   assert.equal(body.rows?.[0]?.value, "sec");
 });
 
+test("POST /v1/evidence/inspect passes every inspectable kind to the adapter, a series included (#317)", async (t) => {
+  const seen: string[] = [];
+  const base = await startServer(t, {}, {
+    adapters: {
+      ...createFixtureDevApiAdapters(),
+      evidence: {
+        inspect: async ({ snapshotId, ref }) => {
+          seen.push(ref.kind);
+          return { snapshot_id: snapshotId, ref, kind: ref.kind, title: "t", subtitle: null, badges: [], rows: [], links: [], related_refs: [] };
+        },
+      },
+    },
+  });
+  const inspect = (kind: string) => fetch(`${base}/v1/evidence/inspect`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-user-id": "00000000-0000-4000-8000-000000000001" },
+    body: JSON.stringify({ snapshot_id: "11111111-1111-4111-8111-111111111111", ref: { kind, id: "22222222-2222-4222-8222-222222222222" } }),
+  });
+  for (const kind of ["source", "document", "claim", "event", "fact", "series"]) {
+    assert.equal((await inspect(kind)).status, 200, kind);
+  }
+  assert.deepEqual(seen, ["source", "document", "claim", "event", "fact", "series"]);
+  assert.equal((await inspect("chart")).status, 400);
+});
+
 test("POST /v1/evidence/inspect hides missing and authorization reason", async (t) => {
   const base = await startServer(t, {}, {
     adapters: {
