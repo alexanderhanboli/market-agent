@@ -7,7 +7,7 @@ import { RichText } from './RichText.tsx'
 import {
   isRefSegment,
   isTextSegment,
-  refSegmentPlaceholder,
+  refSegmentText,
 } from './richText.ts'
 import type { RefSegment, RichTextBlock, TextSegment } from './types.ts'
 
@@ -23,33 +23,33 @@ test('isTextSegment / isRefSegment narrow on the discriminator', () => {
   assert.equal(isRefSegment(ref), true)
 })
 
-test('refSegmentPlaceholder prefers `format` when present', () => {
+test('refSegmentText prefers `format` when present', () => {
   const ref: RefSegment = {
     type: 'ref',
     ref_kind: 'fact',
     ref_id: '11111111-1111-4111-9111-111111111111',
     format: '$85.8B',
   }
-  assert.equal(refSegmentPlaceholder(ref), '$85.8B')
+  assert.equal(refSegmentText(ref), '$85.8B')
 })
 
-test('refSegmentPlaceholder falls back to a short kind+id label when format is missing', () => {
+test('refSegmentText falls back to a short kind+id label when format is missing', () => {
   const ref: RefSegment = {
     type: 'ref',
     ref_kind: 'claim',
     ref_id: '12345678-1234-4abc-9def-1234567890ab',
   }
-  assert.equal(refSegmentPlaceholder(ref), '[claim:12345678]')
+  assert.equal(refSegmentText(ref), '[claim:12345678]')
 })
 
-test('refSegmentPlaceholder ignores empty `format` and falls back to the id label', () => {
+test('refSegmentText ignores empty `format` and falls back to the id label', () => {
   const ref: RefSegment = {
     type: 'ref',
     ref_kind: 'event',
     ref_id: '00000000-0000-4000-9000-000000000abc',
     format: '',
   }
-  assert.equal(refSegmentPlaceholder(ref), '[event:00000000]')
+  assert.equal(refSegmentText(ref), '[event:00000000]')
 })
 
 test('RichText renders ref segments as inspectable controls', () => {

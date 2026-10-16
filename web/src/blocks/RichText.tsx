@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { InspectableRef } from '../evidence/InspectableRef.tsx'
 import type { RefSegment, RichTextBlock, TextSegmentTone } from './types.ts'
-import { isRefSegment, refSegmentPlaceholder } from './richText.ts'
+import { isRefSegment, refSegmentText } from './richText.ts'
 import { Markdown } from './Markdown.tsx'
 
 type RichTextProps = { block: RichTextBlock }
@@ -63,7 +63,7 @@ function RefSegmentSpan({ snapshotId, blockId, index, segment }: RefSegmentSpanP
       dataAttrs={{ 'data-ref-kind': segment.ref_kind, 'data-ref-id': segment.ref_id }}
       className={REF_CLASS}
     >
-      {refSegmentPlaceholder(segment)}
+      {refSegmentText(segment)}
     </InspectableRef>
   )
 }
