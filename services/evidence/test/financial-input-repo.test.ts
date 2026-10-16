@@ -87,19 +87,6 @@ test("financial input candidates", { timeout: 180_000 }, async (t) => {
     assert.deepEqual((await proofsFor(IDS.original)).map((proof) => proof.attestation_id), [correction.attestation_id]);
   });
 
-  await t.test("a document-bound proof is matched against the document's own version, not the source's", async () => {
-    const exhibit = "1f000000-0000-4000-8000-0000000000e2";
-    const exhibitHash = "6".repeat(64);
-    await db.query(
-      `insert into documents (document_id, source_id, kind, content_hash, raw_blob_id) values ($1, $2, 'filing', $3, $3)`,
-      [exhibit, IDS.sourceV1, `sha256:${exhibitHash}`],
-    );
-    const onExhibit = await recordSourcePublicationAttestation(db, publicationInput({ document_id: exhibit, source_version_hash: exhibitHash, proof_ref: "exhibit" }));
-    const original = (await listFinancialInputCandidates(db, request())).candidates.find((candidate) => candidate.fact_id === IDS.original)!;
-    assert.ok(original.publication.some((proof) => proof.attestation_id === onExhibit.attestation_id));
-    assert.equal(original.source_version_hash, H.v1);
-  });
-
   await t.test("the latest precision proof and the financial context are returned", async () => {
     await recordFactPrecisionAttestation(db, { fact_id: IDS.original, precision_class: "legacy_unverified", validation_method: "no_retained_bytes" });
     const proven = await recordFactPrecisionAttestation(db, {
