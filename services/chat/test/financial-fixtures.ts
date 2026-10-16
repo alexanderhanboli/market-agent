@@ -16,6 +16,8 @@ export const MISSING_ISSUER = "4f000000-0000-4000-8000-0000000000a9";
 // A listing of issuer A, as the resolver offers for a ticker (seeded by the tests that use AMBL).
 export const LISTING_A = "4f000000-0000-4000-8000-0000000000b1";
 export const INSTRUMENT_A = "4f000000-0000-4000-8000-0000000000c1";
+// An issuer whose facts only SEC ingestion writes (seeded by the tests that use OPM).
+export const SEC_ISSUER = "4f000000-0000-4000-8000-0000000000d1";
 
 /**
  * AAA and BBB resolve to the seeded issuers; AMB is ambiguous between them, and AMBL
@@ -29,6 +31,7 @@ export function resolveMention(mention: string): Promise<ChatSubjectPreResolutio
     ALPHA: resolved(IDS.issuerA, "Alpha Industries Inc."),
     BBB: resolved(IDS.issuerB, "Beta Holdings Corp."),
     CCC: resolved(MISSING_ISSUER, "Gamma Unlisted"),
+    OPM: resolved(SEC_ISSUER, "Operating Example Corp"),
     AMB: {
       status: "needs_clarification", input_text: mention, normalized_input: mention, message: "ambiguous",
       candidates: [

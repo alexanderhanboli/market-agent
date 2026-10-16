@@ -38,7 +38,11 @@ export const F = {
   digest: "8".repeat(64),
 } as const;
 
-export function marginPlan(): FinancialPlanV1 {
+/** The margin a fixture computes: its operation, and the numerator metric bound to slot `a_gp`. */
+export type FixtureMargin = Readonly<{ operation: "gross_margin" | "operating_margin"; numerator: "gross_profit" | "operating_income" }>;
+const GROSS_MARGIN: FixtureMargin = { operation: "gross_margin", numerator: "gross_profit" };
+
+export function marginPlan(margin: FixtureMargin = GROSS_MARGIN): FinancialPlanV1 {
   const reported = (nodeId: string, metric: string) => ({
     node_id: nodeId,
     operation: "reported_metric" as const,
@@ -65,12 +69,12 @@ export function marginPlan(): FinancialPlanV1 {
     policies: { reporting_basis: "as_reported", period_policy: "exact_fiscal", freshness: { max_age_days: null }, source_policy_version: "sources.v1" },
     metric_definitions: [
       { metric_key: "revenue", definition_version: "revenue.v1" },
-      { metric_key: "gross_profit", definition_version: "gross_profit.v1" },
+      { metric_key: margin.numerator, definition_version: `${margin.numerator}.v1` },
     ],
     operations: [
       reported("a_rev", "revenue"),
-      reported("a_gp", "gross_profit"),
-      { node_id: "a_gm", operation: "gross_margin", operation_version: "gross_margin.v1", numerator: "a_gp", revenue: "a_rev" },
+      reported("a_gp", margin.numerator),
+      { node_id: "a_gm", operation: margin.operation, operation_version: `${margin.operation}.v1`, numerator: "a_gp", revenue: "a_rev" },
     ],
     outputs: [
       { output_id: "out_rev", node_id: "a_rev", unit_id: "section" },
@@ -127,12 +131,15 @@ function evidence(factId: string): LoadedEvidence {
   };
 }
 
-/** Records a correct run of `marginPlan()` would persist, ready to seal. */
-export function validRecords(): FinancialUnitRecords {
-  const plan = marginPlan();
+/** Records a correct run of `marginPlan(margin)` would persist, ready to seal. */
+export function validRecords(
+  margin: FixtureMargin = GROSS_MARGIN,
+  values: Readonly<{ revenue: string; numerator: string }> = { revenue: "383285000000.123456789012345678", numerator: "169148000000" },
+): FinancialUnitRecords {
+  const plan = marginPlan(margin);
   const inputs = [
-    boundInput("a_rev", F.revenueFact, "revenue", "383285000000.123456789012345678"),
-    boundInput("a_gp", F.grossProfitFact, "gross_profit", "169148000000"),
+    boundInput("a_rev", F.revenueFact, "revenue", values.revenue),
+    boundInput("a_gp", F.grossProfitFact, margin.numerator, values.numerator),
   ];
   const bindings = new Map<string, SlotBinding>(inputs.map((input) => [input.input_slot, {
     status: "bound",
