@@ -850,6 +850,14 @@ const SEC_SHARE_METRIC_KEYS: ReadonlySet<string> = new Set([
   "shares_outstanding_diluted",
 ]);
 
+// A metric mapped from several concepts is certified only from the reviewed
+// one: capex v1 is cash paid for PP&E, and PaymentsToAcquireProductiveAssets
+// (which some filers tag instead) adds purchased intangibles. Facts from the
+// other concepts stay readable in statements but get no context.
+const SEC_CERTIFIED_CONCEPTS: Readonly<Record<string, string>> = {
+  capex: "PaymentsToAcquirePropertyPlantAndEquipment",
+};
+
 // Selection takes every token from the filing whose own period it is, never
 // from a later filing's comparative, so the stored fact is that filing's
 // original disclosure. Companyfacts carries only undimensioned values, which
@@ -865,6 +873,8 @@ async function recordSecOriginalContext(
   locator: string,
 ): Promise<void> {
   if (SEC_SHARE_METRIC_KEYS.has(line.metric_key)) return;
+  const certifiedConcept = SEC_CERTIFIED_CONCEPTS[line.metric_key];
+  if (certifiedConcept !== undefined && token.concept !== certifiedConcept) return;
   const { rows } = await db.query<{ fact_id: string }>(
     `select f.fact_id::text as fact_id
        from facts f

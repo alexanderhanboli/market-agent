@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hashCanonical, planSemanticHash, presentationHash } from "../../financial-core/src/index.ts";
 import { verifyFinancialSnapshot, verifyFinancialUnit, type FinancialVerification } from "../src/financial-verifier.ts";
-import { F, mutable, SEAL_CONTEXT, validRecords } from "./financial-fixtures.ts";
+import { F, FREE_CASH_FLOW, mutable, OPERATING_MARGIN, SEAL_CONTEXT, validRecords } from "./financial-fixtures.ts";
 
 function reasons(outcome: FinancialVerification): string[] {
   return outcome.ok ? [] : outcome.failures.map((failure) => `${failure.reason_code}:${String(failure.details.field ?? failure.details.reason ?? failure.details.state ?? "")}`);
@@ -35,7 +35,7 @@ test("a wrong value fails even when every citation ID is valid", () => {
 });
 
 test("an operating margin of 25 over 100 verifies as 25%; sealed as 26% with valid citations, it fails (#200)", () => {
-  const operating = () => validRecords({ operation: "operating_margin", numerator: "operating_income" }, { revenue: "100", numerator: "25" });
+  const operating = () => validRecords(OPERATING_MARGIN, { a_rev: "100", a_gp: "25" });
   const margin = (records: ReturnType<typeof mutable>) => records.results.find((row: { output_id: string }) => row.output_id === "out_gm");
   assert.equal(margin(mutable(operating())).payload.value, "0.25");
   const outcome = verifyFinancialUnit(operating(), "section", SEAL_CONTEXT);
@@ -43,6 +43,34 @@ test("an operating margin of 25 over 100 verifies as 25%; sealed as 26% with val
   const tampered = mutable(operating());
   margin(tampered).payload.value = "0.26";
   assert.deepEqual(reasons(verifyFinancialUnit(tampered, "section", SEAL_CONTEXT)), ["financial_recompute_mismatch:payload"]);
+});
+
+test("free cash flow of OCF 120 less capex 30 verifies as 90; a tampered result, capex, OCF binding, or label fails (#211)", () => {
+  const fcf = () => mutable(validRecords(FREE_CASH_FLOW, { a_rev: "120", a_gp: "30" }));
+  const result = (records: ReturnType<typeof mutable>) => records.results.find((row: { output_id: string }) => row.output_id === "out_gm");
+  const outcome = verifyFinancialUnit(fcf(), "section", SEAL_CONTEXT);
+  assert.ok(outcome.ok, JSON.stringify(!outcome.ok && outcome.failures));
+  const { results, labels } = outcome.block.financial;
+  assert.deepEqual(
+    results.map((entry: any) => [labels[entry.measure_label_id]!.text, entry.presented.full_text]),
+    [["Operating cash flow", "USD 120"], ["Free cash flow (OCF less PP&E cash capex)", "USD 90"]],
+  );
+
+  const tamperedResult = fcf();
+  result(tamperedResult).payload.value = "150";
+  assert.deepEqual(reasons(verifyFinancialUnit(tamperedResult, "section", SEAL_CONTEXT)), ["financial_recompute_mismatch:payload"]);
+  const tamperedCapex = fcf();
+  rehashBinding(tamperedCapex, "a_gp", (payload) => {
+    payload.numeric = { ...payload.numeric, raw_token: "20", value: "20", native_value: "20" };
+  });
+  assert.equal(verifyFinancialUnit(tamperedCapex, "section", SEAL_CONTEXT).ok, false, "a rewritten capex value is recomputed, not trusted");
+  const movedLocator = fcf();
+  rehashBinding(movedLocator, "a_gp", (payload) => { payload.source = { ...payload.source, locator: "sec_edgar:companyfacts:CIK0000000001#PaymentsToAcquireProductiveAssets|USD|x|2023-01-01..2023-12-31" }; });
+  assert.equal(verifyFinancialUnit(movedLocator, "section", SEAL_CONTEXT).ok, false, "a capex binding pointed at another concept fails");
+  const swapped = fcf();
+  const ocf = swapped.bindings.find((binding: { input_slot: string }) => binding.input_slot === "a_rev");
+  ocf.fact_id = F.grossProfitFact;
+  assert.equal(verifyFinancialUnit(swapped, "section", SEAL_CONTEXT).ok, false, "an OCF binding moved to another fact fails");
 });
 
 test("changing the unit, the result hash, or the disposition of a stored result fails", () => {

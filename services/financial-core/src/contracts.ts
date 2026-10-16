@@ -35,6 +35,7 @@ export const OPERATION_KINDS = [
   "gross_margin",
   "operating_margin",
   "net_margin",
+  "free_cash_flow",
   "ratio",
   "trailing_sum",
   "threshold",
@@ -190,6 +191,11 @@ export type MarginNode = NodeBase & {
   numerator: LocalId;
   revenue: LocalId;
 };
+export type FreeCashFlowNode = NodeBase & {
+  operation: "free_cash_flow";
+  operating_cash_flow: LocalId;
+  capex: LocalId;
+};
 export type RatioNode = NodeBase & {
   operation: "ratio";
   ratio_key: MetricKey;
@@ -213,6 +219,7 @@ export type OperationNode =
   | ReportedMetricNode
   | ChangeNode
   | MarginNode
+  | FreeCashFlowNode
   | RatioNode
   | TrailingSumNode
   | ThresholdNode
@@ -422,6 +429,8 @@ export function operationDependencies(node: OperationNode): LocalId[] {
     case "operating_margin":
     case "net_margin":
       return [node.numerator, node.revenue];
+    case "free_cash_flow":
+      return [node.operating_cash_flow, node.capex];
     case "ratio":
       return [node.numerator, node.denominator];
     case "trailing_sum":

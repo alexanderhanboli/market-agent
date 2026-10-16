@@ -49,6 +49,9 @@ export const METRIC_CATALOG_V1: ReadonlyMap<MetricKey, MetricDefinition> = new M
     metric("operating_income", "Operating income", "flow", "currency"),
     metric("net_income", "Net income", "flow", "currency"),
     metric("operating_cash_flow", "Operating cash flow", "flow", "currency"),
+    // Cash paid for PP&E, reported as a nonnegative outflow (SEC ingestion
+    // certifies only PaymentsToAcquirePropertyPlantAndEquipment).
+    metric("capex", "Capital expenditures (PP&E cash payments)", "flow", "currency"),
     metric("eps_basic", "EPS (basic)", "per_share", "currency_per_share", "basic"),
     metric("eps_diluted", "EPS (diluted)", "per_share", "currency_per_share", "diluted"),
     metric("weighted_average_diluted_shares", "Weighted-average diluted shares", "share_count_average", "shares", "diluted"),

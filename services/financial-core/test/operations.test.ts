@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChangeNode, MarginNode, RatioNode, TrailingSumNode } from "../src/contracts.ts";
+import type { ChangeNode, FreeCashFlowNode, MarginNode, RatioNode, TrailingSumNode } from "../src/contracts.ts";
 import { RATIO_CATALOG_V1 } from "../src/definitions.ts";
 import { OPERATION_REGISTRY } from "../src/operation-registry.ts";
 import { convertDimensionless, type DimensionlessUnit } from "../src/dimensions.ts";
@@ -9,6 +9,7 @@ import { rationalFromDecimal, type ExactRational } from "../src/rational.ts";
 import {
   absoluteChange,
   FinancialIntegrityError,
+  freeCashFlow,
   margin,
   operandFromBoundInput,
   percentChangePositiveBase,
@@ -47,7 +48,7 @@ function dec(token: string): ExactDecimal {
 test("the catalog registers exactly the approved operations, each versioned", () => {
   assert.deepEqual(
     Object.keys(OPERATION_REGISTRY).sort(),
-    ["absolute_change", "gross_margin", "net_margin", "operating_margin", "peer_compare", "percent_change_positive_base", "ratio", "reported_metric", "threshold", "trailing_sum"],
+    ["absolute_change", "free_cash_flow", "gross_margin", "net_margin", "operating_margin", "peer_compare", "percent_change_positive_base", "ratio", "reported_metric", "threshold", "trailing_sum"],
   );
   for (const [kind, spec] of Object.entries(OPERATION_REGISTRY)) assert.equal(spec.operation_version, `${kind}.v1`);
 });
@@ -179,6 +180,40 @@ test("gross_margin: success, zero revenue, negative revenue, and mismatched cont
   assert.deepEqual(gap(margin(grossMargin, gp, eurRevenue)), ["incompatible", "incompatible_currency"]);
   const wrongNumerator = operand("gp", { metric: "net_income", value: "1", ...FY2023 });
   assert.deepEqual(gap(margin(grossMargin, wrongNumerator, rev)), ["incompatible", "incompatible_definition"]);
+});
+
+// --- free_cash_flow -----------------------------------------------------------
+
+const fcf: FreeCashFlowNode = { node_id: "fcf", operation: "free_cash_flow", operation_version: "free_cash_flow.v1", operating_cash_flow: "ocf", capex: "capex" };
+const ocfOf = (value: string, extra: Partial<InputSpec> = {}) => operand("ocf", { metric: "operating_cash_flow", value, ...FY2023, ...extra });
+const capexOf = (value: string, extra: Partial<InputSpec> = {}) => operand("capex", { metric: "capex", value, ...FY2023, ...extra });
+
+test("free_cash_flow is reported OCF less reported capex, exactly, whatever the sign of OCF", () => {
+  assert.equal(value(freeCashFlow(fcf, ocfOf("120"), capexOf("30"))), "90");
+  assert.equal(value(freeCashFlow(fcf, ocfOf("120"), capexOf("0"))), "120");
+  assert.equal(value(freeCashFlow(fcf, ocfOf("-10"), capexOf("30"))), "-40");
+  assert.equal(value(freeCashFlow(fcf, ocfOf("118254000000.123456789012345678"), capexOf("9447000000.000000000000000001"))), "108807000000.123456789012345677");
+  const result = freeCashFlow(fcf, ocfOf("120"), capexOf("30"));
+  assert.deepEqual(result.ok && result.operand.measure, { metric_key: "free_cash_flow", definition_version: "free_cash_flow.v1", derivations: [] });
+  assert.deepEqual(result.ok && result.payload.unit, { kind: "currency", currency: "USD" });
+});
+
+test("free_cash_flow never flips a negative capex; it is a gap", () => {
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("-30"))), ["incompatible", "incompatible_definition"]);
+});
+
+test("free_cash_flow combines one fiscal year only, in one currency, scope, and basis", () => {
+  const q2 = { start: "2023-04-01", end: "2023-06-30", fiscal_period: "Q2" as const };
+  const sixMonths = { start: "2023-01-01", end: "2023-06-30", fiscal_period: "Q2" as const };
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("50", q2), capexOf("10", q2))), ["unsupported", "unsupported_period"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("50", sixMonths), capexOf("10", sixMonths))), ["unsupported", "unsupported_period"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("30", { start: "2023-02-01", end: "2024-01-31" }))), ["incompatible", "incompatible_period"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("30", FY2022))), ["incompatible", "incompatible_period"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("30", { unit: { kind: "currency", currency: "EUR" } }))), ["incompatible", "incompatible_currency"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("30", { scope: "segment", members: [{ axis: "srt:Segment", member: "Cloud" }] }))), ["incompatible", "incompatible_scope"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("30", { reporting: "as_restated" }))), ["incompatible", "incompatible_basis"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, ocfOf("120"), capexOf("30", { slot: "b" }))), ["incompatible", "incompatible_scope"]);
+  assert.deepEqual(gap(freeCashFlow(fcf, operand("ocf", { metric: "net_income", value: "120", ...FY2023 }), capexOf("30"))), ["incompatible", "incompatible_definition"]);
 });
 
 test("margins are exact when the quotient terminates", () => {

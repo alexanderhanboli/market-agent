@@ -212,6 +212,7 @@
         { "$ref": "#/$defs/ReportedMetricNode" },
         { "$ref": "#/$defs/ChangeNode" },
         { "$ref": "#/$defs/MarginNode" },
+        { "$ref": "#/$defs/FreeCashFlowNode" },
         { "$ref": "#/$defs/RatioNode" },
         { "$ref": "#/$defs/TrailingSumNode" },
         { "$ref": "#/$defs/ThresholdNode" },
@@ -253,6 +254,18 @@
         "operation_version": { "$ref": "#/$defs/VersionTag" },
         "numerator": { "$ref": "#/$defs/LocalId" },
         "revenue": { "$ref": "#/$defs/LocalId" }
+      }
+    },
+    "FreeCashFlowNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "operation", "operation_version", "operating_cash_flow", "capex"],
+      "properties": {
+        "node_id": { "$ref": "#/$defs/LocalId" },
+        "operation": { "const": "free_cash_flow" },
+        "operation_version": { "$ref": "#/$defs/VersionTag" },
+        "operating_cash_flow": { "$ref": "#/$defs/LocalId" },
+        "capex": { "$ref": "#/$defs/LocalId" }
       }
     },
     "RatioNode": {

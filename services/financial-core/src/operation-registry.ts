@@ -6,6 +6,7 @@
 import type { FinancialPlanV1, OperationKind, OperationNode, ReportedMetricNode, VersionTag } from "./contracts.ts";
 import {
   absoluteChange,
+  freeCashFlow,
   margin,
   percentChangePositiveBase,
   ratio,
@@ -70,6 +71,12 @@ export const OPERATION_REGISTRY: { readonly [K in OperationKind]: OperationSpec<
     operation_version: "net_margin.v1",
     interpretation: "Net income / revenue for the identical period, scope, and basis; revenue must be positive.",
     evaluate: marginOf,
+  },
+  free_cash_flow: {
+    ...VALUE_OPERATION,
+    operation_version: "free_cash_flow.v1",
+    interpretation: "Annual operating cash flow less PP&E cash capex for the identical fiscal year, scope, and basis; capex must be nonnegative.",
+    evaluate: (node, operands) => freeCashFlow(node, required(node, operands, 0), required(node, operands, 1)),
   },
   ratio: {
     ...VALUE_OPERATION,

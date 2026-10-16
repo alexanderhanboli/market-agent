@@ -38,11 +38,20 @@ export const F = {
   digest: "8".repeat(64),
 } as const;
 
-/** The margin a fixture computes: its operation, and the numerator metric bound to slot `a_gp`. */
-export type FixtureMargin = Readonly<{ operation: "gross_margin" | "operating_margin"; numerator: "gross_profit" | "operating_income" }>;
-const GROSS_MARGIN: FixtureMargin = { operation: "gross_margin", numerator: "gross_profit" };
+/** The calculation a fixture seals at `a_gm`: the metrics bound to slots `a_rev` and `a_gp`, and the node over them. */
+export type FixtureCalculation = Readonly<{ metrics: Readonly<{ a_rev: string; a_gp: string }>; node: Readonly<Record<string, string>> }>;
+const margin = (operation: string, numerator: string): FixtureCalculation => ({
+  metrics: { a_rev: "revenue", a_gp: numerator },
+  node: { operation, operation_version: `${operation}.v1`, numerator: "a_gp", revenue: "a_rev" },
+});
+export const GROSS_MARGIN = margin("gross_margin", "gross_profit");
+export const OPERATING_MARGIN = margin("operating_margin", "operating_income");
+export const FREE_CASH_FLOW: FixtureCalculation = {
+  metrics: { a_rev: "operating_cash_flow", a_gp: "capex" },
+  node: { operation: "free_cash_flow", operation_version: "free_cash_flow.v1", operating_cash_flow: "a_rev", capex: "a_gp" },
+};
 
-export function marginPlan(margin: FixtureMargin = GROSS_MARGIN): FinancialPlanV1 {
+export function marginPlan(calculation: FixtureCalculation = GROSS_MARGIN): FinancialPlanV1 {
   const reported = (nodeId: string, metric: string) => ({
     node_id: nodeId,
     operation: "reported_metric" as const,
@@ -68,13 +77,13 @@ export function marginPlan(margin: FixtureMargin = GROSS_MARGIN): FinancialPlanV
     time: { knowledge_cutoff: F.cutoff, cutoff_timezone: "America/New_York", time_mode: "public_information" },
     policies: { reporting_basis: "as_reported", period_policy: "exact_fiscal", freshness: { max_age_days: null }, source_policy_version: "sources.v1" },
     metric_definitions: [
-      { metric_key: "revenue", definition_version: "revenue.v1" },
-      { metric_key: margin.numerator, definition_version: `${margin.numerator}.v1` },
+      { metric_key: calculation.metrics.a_rev, definition_version: `${calculation.metrics.a_rev}.v1` },
+      { metric_key: calculation.metrics.a_gp, definition_version: `${calculation.metrics.a_gp}.v1` },
     ],
     operations: [
-      reported("a_rev", "revenue"),
-      reported("a_gp", margin.numerator),
-      { node_id: "a_gm", operation: margin.operation, operation_version: `${margin.operation}.v1`, numerator: "a_gp", revenue: "a_rev" },
+      reported("a_rev", calculation.metrics.a_rev),
+      reported("a_gp", calculation.metrics.a_gp),
+      { node_id: "a_gm", ...calculation.node },
     ],
     outputs: [
       { output_id: "out_rev", node_id: "a_rev", unit_id: "section" },
@@ -131,15 +140,15 @@ function evidence(factId: string): LoadedEvidence {
   };
 }
 
-/** Records a correct run of `marginPlan(margin)` would persist, ready to seal. */
+/** Records a correct run of `marginPlan(calculation)` would persist, ready to seal. */
 export function validRecords(
-  margin: FixtureMargin = GROSS_MARGIN,
-  values: Readonly<{ revenue: string; numerator: string }> = { revenue: "383285000000.123456789012345678", numerator: "169148000000" },
+  calculation: FixtureCalculation = GROSS_MARGIN,
+  values: Readonly<{ a_rev: string; a_gp: string }> = { a_rev: "383285000000.123456789012345678", a_gp: "169148000000" },
 ): FinancialUnitRecords {
-  const plan = marginPlan(margin);
+  const plan = marginPlan(calculation);
   const inputs = [
-    boundInput("a_rev", F.revenueFact, "revenue", values.revenue),
-    boundInput("a_gp", F.grossProfitFact, margin.numerator, values.numerator),
+    boundInput("a_rev", F.revenueFact, calculation.metrics.a_rev, values.a_rev),
+    boundInput("a_gp", F.grossProfitFact, calculation.metrics.a_gp, values.a_gp),
   ];
   const bindings = new Map<string, SlotBinding>(inputs.map((input) => [input.input_slot, {
     status: "bound",
