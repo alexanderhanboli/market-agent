@@ -42,7 +42,8 @@ test("SEC company facts reach storage and strict reads without losing digits", {
   const statements = createSecBackedStatementRepository(db, {
     fetcher: createSecCompanyFactsHttpFetcher({
       userAgent: "market-agent-test test@example.invalid",
-      fetchImpl: async () => {
+      fetchImpl: async (url) => {
+        if (String(url).includes("/submissions/")) return new Response(`{"filings":{"recent":{"accessionNumber":[],"acceptanceDateTime":[]}}}`, { status: 200 });
         fetches += 1;
         return new Response(companyFactsText(), { status: 200 });
       },

@@ -25,6 +25,7 @@ import {
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
 import { withPinnedTransaction, type TransactionalQueryExecutor } from "./pinned-transaction.ts";
 import { recordSecFetchPublication, secAccessionVersionHash } from "./sec-publication-proof.ts";
+import { recordSecFilingAcceptances, type SecFilingRef } from "./sec-acceptance.ts";
 import { createHash } from "node:crypto";
 import { factActiveSql, factKnownAtSql } from "../../evidence/src/fact-activity.ts";
 import { FundamentalsDataUnavailableError } from "./availability.ts";
@@ -100,7 +101,7 @@ export function createSecBackedStatementRepository(
 
       try {
         const fetched = await fetchCompanyFacts(options.fetcher, cikNumber);
-        return await ingestFiling(db, {
+        const ingested = await ingestFiling(db, {
           fetched,
           cik: cikNumber,
           issuerId: lookup.issuer_id,
@@ -111,6 +112,8 @@ export function createSecBackedStatementRepository(
           clock,
           logger,
         });
+        await recordSecFilingAcceptances(db, options.fetcher, { cik: cikNumber, filings: ingested.filing ? [ingested.filing] : [], logger });
+        return ingested.statement;
       } catch (error) {
         const unavailable = classifySecIngestionError(error);
         logger.warn("sec_edgar fundamentals ingestion failed", {
@@ -163,8 +166,9 @@ export async function backfillSecCompanionStatements(
   );
   if (rows.length === 0) return { periods: 0 };
   const fetched = await fetchCompanyFacts(input.fetcher, cik);
+  const filings: SecFilingRef[] = [];
   for (const period of rows) {
-    await ingestFiling(db, {
+    const { filing } = await ingestFiling(db, {
       fetched,
       cik,
       issuerId: input.issuerId,
@@ -175,7 +179,9 @@ export async function backfillSecCompanionStatements(
       clock: input.clock ?? (() => new Date()),
       logger: input.logger ?? console,
     });
+    if (filing) filings.push(filing);
   }
+  await recordSecFilingAcceptances(db, input.fetcher, { cik, filings, logger: input.logger ?? console });
   return { periods: rows.length };
 }
 
@@ -190,7 +196,8 @@ type Extracted = {
 // cash flow and balance sheet beside it. Income is "require" (a lookup: it must
 // extract) or "repair" (a backfill: stored income facts that differ from the
 // filing are replaced; a period it cannot extract is left as it is). Returns
-// the income statement, or null without it. Every period of one download is
+// the income statement, or null without it, and the accession filing it stored
+// facts on. Every period of one download is
 // dated by that download's completion, never by when it was processed.
 async function ingestFiling(
   db: FundamentalsTransactionalQueryExecutor,
@@ -205,7 +212,7 @@ async function ingestFiling(
     clock: () => Date;
     logger: Pick<Console, "warn">;
   },
-): Promise<NormalizedStatement | null> {
+): Promise<{ statement: NormalizedStatement | null; filing: SecFilingRef | null }> {
   const asOf = input.fetched.evidence.completed_at;
   const accessionNumber = statementAccession(input.fetched.facts, input.fiscal_year, input.fiscal_period);
   const sourceId = accessionNumber
@@ -232,7 +239,7 @@ async function ingestFiling(
     ...(income ? [{ ...income, mapped: mapStatement(registry, income.statement) }] : []),
     ...mapCompanions(registry, companions, target, input.logger),
   ];
-  if (mapped.length === 0) return income?.statement ?? null;
+  if (mapped.length === 0) return { statement: income?.statement ?? null, filing: null };
   await withPinnedTransaction(db, async (client) => {
     // The repair retires stored income facts the filing contradicts, then
     // stores the filing's in their place (the active identity is unique).
@@ -264,7 +271,7 @@ async function ingestFiling(
       await recordSecFetchPublication(client, { sourceId, accessionNumber, evidence: input.fetched.evidence });
     }
   });
-  return income?.statement ?? null;
+  return { statement: income?.statement ?? null, filing: accessionNumber ? { sourceId, accessionNumber } : null };
 }
 
 // The stored, active SEC facts for a statement's period that the filing
