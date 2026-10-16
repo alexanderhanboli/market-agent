@@ -18,7 +18,9 @@ create table sec_filing_acceptances (
   evidence_hash text not null check (evidence_hash ~ '^[0-9a-f]{64}$'),
   -- Every other value seen for this accession, in this feed or recorded before.
   conflicts jsonb not null default '[]'::jsonb check (jsonb_typeof(conflicts) = 'array'),
-  recorded_at timestamptz not null default now(),
+  -- The insert's own time, not its transaction's: a writer that waited on the
+  -- filing's lock inserts after the one it waited for (sec-acceptance.ts).
+  recorded_at timestamptz not null default clock_timestamp(),
   constraint sec_filing_acceptances_parsed check ((parsed_at is null) = (timing_precision is null) and (parsed_at is null) = (source_timezone is null)),
   constraint sec_filing_acceptances_conflicts check (jsonb_array_length(conflicts) = 0 or parsed_at is null)
 );

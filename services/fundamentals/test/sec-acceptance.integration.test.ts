@@ -116,6 +116,34 @@ test("SEC acceptance metadata is recorded apart from publication proof", { timeo
     ]);
   });
 
+  await t.test("concurrent recorders of one filing record a value once, and a differing one as a conflict (#320 review)", async () => {
+    const record = async (accession: string, sourceId: string, raw: string) =>
+      recordSecFilingAcceptances(db, secCompanyFetcher(() => ({}), { submissions: submissions([[accession, raw]]) }), {
+        cik: 320198,
+        filings: [{ sourceId, accessionNumber: accession }],
+        logger: { warn: () => {} },
+      });
+    const newSource = async (sourceId: string, accession: string) => db.query(
+      `insert into sources (source_id, provider, kind, trust_tier, license_class, retrieved_at, content_hash)
+       values ($1, 'sec_edgar', 'filing', 'primary', 'public', now(), $2)`,
+      [sourceId, createHash("sha256").update(accession).digest("hex")],
+    );
+    const same = "0000320198-24-000001";
+    await newSource("34000000-0000-4000-8000-0000000000e1", same);
+    await Promise.all(Array.from({ length: 4 }, () => record(same, "34000000-0000-4000-8000-0000000000e1", "2024-01-10T16:30:05.000Z")));
+    assert.equal((await acceptances(same)).length, 1, "one value, recorded once");
+
+    const differing = "0000320198-24-000002";
+    await newSource("34000000-0000-4000-8000-0000000000e2", differing);
+    await Promise.all([
+      record(differing, "34000000-0000-4000-8000-0000000000e2", "2024-01-10T16:30:05.000Z"),
+      record(differing, "34000000-0000-4000-8000-0000000000e2", "2024-01-10T16:31:00.000Z"),
+    ]);
+    const rows = await acceptances(differing);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows[1]!.conflicts, [rows[0]!.raw_value], "the later row records the earlier value as a conflict");
+  });
+
   await t.test("a failed submissions fetch is logged and the ingest still stores its facts", async () => {
     const accession = "0000320196-24-000001";
     const issuerId = await newIssuer(320196);

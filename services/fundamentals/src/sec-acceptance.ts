@@ -12,6 +12,7 @@
 // does. Conflicting timing stays unknown (#199).
 
 import type { SecEdgarFetcher } from "./sec-edgar.ts";
+import { withPinnedTransaction, type TransactionalQueryExecutor } from "./pinned-transaction.ts";
 import type { FundamentalsQueryExecutor } from "./sec-facts-repository.ts";
 import type { UUID } from "./subject-ref.ts";
 
@@ -27,7 +28,7 @@ export type SecFilingRef = Readonly<{ sourceId: UUID; accessionNumber: string }>
  * or an unreadable feed is logged and records nothing.
  */
 export async function recordSecFilingAcceptances(
-  db: FundamentalsQueryExecutor,
+  db: TransactionalQueryExecutor<FundamentalsQueryExecutor>,
   fetcher: SecEdgarFetcher,
   input: { cik: number; filings: ReadonlyArray<SecFilingRef>; logger: Pick<Console, "warn"> },
 ): Promise<void> {
@@ -47,23 +48,28 @@ export async function recordSecFilingAcceptances(
   for (const filing of new Map(input.filings.map((entry) => [entry.accessionNumber, entry])).values()) {
     const values = [...new Set(recent.flatMap((entry) => (entry.accession === filing.accessionNumber ? [entry.raw] : [])))];
     if (values.length === 0) continue;
-    const prior = (await db.query<{ raw_value: string; conflicts: string[] }>(
-      `select raw_value, conflicts from sec_filing_acceptances where accession = $1 order by recorded_at desc, acceptance_id`,
-      [filing.accessionNumber],
-    )).rows;
-    const rawValue = values[0]!;
-    const seen = new Set([...values, ...prior.flatMap((row) => [row.raw_value, ...row.conflicts])]);
-    seen.delete(rawValue);
-    const conflicts = [...seen].sort();
-    const latest = prior[0];
-    if (latest && latest.raw_value === rawValue && [...latest.conflicts].sort().join("\n") === conflicts.join("\n")) continue;
-    await db.query(
-      `insert into sec_filing_acceptances
-         (source_id, accession, raw_value, parsed_at, timing_precision, source_timezone, evidence_ref, evidence_hash, conflicts)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
-      [filing.sourceId, filing.accessionNumber, rawValue, null, null, null,
-        fetched.url, fetched.body_sha256, JSON.stringify(conflicts)],
-    );
+    // The filing's source row, locked as the publication proof locks it, so
+    // concurrent ingests of one filing see each other's value before deciding.
+    await withPinnedTransaction(db, async (client) => {
+      await client.query(`select source_id from sources where source_id = $1 for update`, [filing.sourceId]);
+      const prior = (await client.query<{ raw_value: string; conflicts: string[] }>(
+        `select raw_value, conflicts from sec_filing_acceptances where accession = $1 order by recorded_at desc, acceptance_id`,
+        [filing.accessionNumber],
+      )).rows;
+      const rawValue = values[0]!;
+      const seen = new Set([...values, ...prior.flatMap((row) => [row.raw_value, ...row.conflicts])]);
+      seen.delete(rawValue);
+      const conflicts = [...seen].sort();
+      const latest = prior[0];
+      if (latest && latest.raw_value === rawValue && [...latest.conflicts].sort().join("\n") === conflicts.join("\n")) return;
+      await client.query(
+        `insert into sec_filing_acceptances
+           (source_id, accession, raw_value, parsed_at, timing_precision, source_timezone, evidence_ref, evidence_hash, conflicts)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+        [filing.sourceId, filing.accessionNumber, rawValue, null, null, null,
+          fetched.url, fetched.body_sha256, JSON.stringify(conflicts)],
+      );
+    });
   }
 }
 
