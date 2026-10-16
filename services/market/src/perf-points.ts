@@ -13,6 +13,12 @@ export const PERF_POINTS = "perf_lines";
 
 export type PerfPoint = { x: string; y: number };
 
+// A line's return as its chart's hover shows it (web SeriesChart
+// formatHoverValue): what the answer quotes and the seal checks a chip against.
+export function returnLabel(y: number): string {
+  return `${y.toLocaleString("en-US", { maximumFractionDigits: Math.abs(y) >= 1000 ? 0 : 2 })}%`;
+}
+
 // A line's points, and the digest of the bars it pins. The cache reuses
 // bar_range_id when it refreshes a range, so the ID alone does not pin prices.
 export type PerfLine = { points: ReadonlyArray<PerfPoint>; bars_sha256: string };
