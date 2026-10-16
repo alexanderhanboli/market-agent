@@ -116,9 +116,9 @@ export type VerifierBlock = {
   upside_ref?: string;
   subject_refs?: ReadonlyArray<VerifierSubjectRef>;
   subjects?: ReadonlyArray<VerifierSubjectRef>;
-  // metrics_comparison value matrix; a null entry is a gap. Only value_ref
-  // matters to verification (each is a sealed fact ref).
-  cells?: ReadonlyArray<ReadonlyArray<{ value_ref: string } | null>>;
+  // metrics_comparison value matrix; a null entry is a gap. value_ref is a
+  // sealed fact ref; format is what the cell shows for it.
+  cells?: ReadonlyArray<ReadonlyArray<{ value_ref: string; format?: string } | null>>;
 };
 
 export type VerifierToolAction = {
@@ -172,6 +172,7 @@ export type SnapshotVerifierReasonCode =
   | "invalid_block_binding"
   | "block_after_snapshot_as_of"
   | "fact_binding_mismatch"
+  | "fact_ref_format_mismatch"
   | "missing_required_disclosure"
   | "unapproved_side_effect";
 
@@ -246,6 +247,7 @@ export async function verifySnapshotSeal(
   try {
     verifyManifestRefs(normalized, addFailure);
     verifyBlockBindings(normalized, addFailure);
+    verifyFactRefFormats(normalized, addFailure);
     verifyDisclosures(normalized, addFailure);
     verifyApprovals(normalized, addFailure);
   } catch (error) {
@@ -623,12 +625,13 @@ function normalizeBlock(block: VerifierBlock, index: number): VerifierBlock {
   });
 }
 
-// metrics_comparison cells: keep just the sealed value_ref of each non-null
-// cell so extractBlockRefs can bind them; a null entry is a rendered gap.
+// metrics_comparison cells: keep the sealed value_ref of each non-null cell so
+// extractBlockRefs can bind them, and its format so fact chips can be checked
+// against it; a null entry is a rendered gap.
 function normalizeCells(
   value: unknown,
   label: string,
-): ReadonlyArray<ReadonlyArray<{ value_ref: string } | null>> | undefined {
+): ReadonlyArray<ReadonlyArray<{ value_ref: string; format?: string } | null>> | undefined {
   const rows = optionalArray<unknown>(value, label);
   if (rows === undefined) return undefined;
   return Object.freeze(
@@ -640,11 +643,10 @@ function normalizeCells(
           if (cell === undefined || typeof cell !== "object") {
             throw new Error(`${label}[${rowIndex}][${cellIndex}]: must be an object or null`);
           }
+          const { value_ref, format } = cell as { value_ref?: unknown; format?: unknown };
           return Object.freeze({
-            value_ref: assertUuidV4(
-              (cell as { value_ref?: unknown }).value_ref,
-              `${label}[${rowIndex}][${cellIndex}].value_ref`,
-            ),
+            value_ref: assertUuidV4(value_ref, `${label}[${rowIndex}][${cellIndex}].value_ref`),
+            ...(typeof format === "string" ? { format } : {}),
           });
         }),
       );
@@ -1262,6 +1264,47 @@ function verifyBlockBindings(
       }
     }
   }
+}
+
+// A fact chip in prose must show what the message's fact blocks show for the
+// same fact. A fact no block shows with a format has nothing to compare.
+function verifyFactRefFormats(
+  input: NormalizedInput,
+  addFailure: (reason: SnapshotVerifierReasonCode, details: JsonObject) => void,
+): void {
+  const blocks = flattenBlocks(input.blocks);
+  const shown = new Map<string, Set<string>>();
+  for (const block of blocks) {
+    for (const entry of shownFactEntries(block)) {
+      if (!isRecord(entry) || typeof entry.value_ref !== "string" || typeof entry.format !== "string") continue;
+      const formats = shown.get(entry.value_ref) ?? new Set<string>();
+      formats.add(entry.format);
+      shown.set(entry.value_ref, formats);
+    }
+  }
+  for (const block of blocks) {
+    if (block.kind !== "rich_text") continue;
+    for (const segment of block.segments ?? []) {
+      if (!isRecord(segment) || segment.type !== "ref" || segment.ref_kind !== "fact") continue;
+      if (typeof segment.ref_id !== "string" || typeof segment.format !== "string") continue;
+      const formats = shown.get(segment.ref_id);
+      if (formats === undefined || formats.has(segment.format)) continue;
+      addFailure("fact_ref_format_mismatch", {
+        block_id: block.id,
+        fact_id: segment.ref_id,
+        format: segment.format,
+        shown: [...formats],
+      });
+    }
+  }
+}
+
+// The block entries that show a fact's value_ref beside its format.
+function shownFactEntries(block: VerifierBlock): ReadonlyArray<unknown> {
+  if (block.kind === "metric_row") return block.items ?? [];
+  if (block.kind === "revenue_bars") return block.bars ?? [];
+  if (block.kind === "metrics_comparison") return (block.cells ?? []).flat();
+  return [];
 }
 
 function flattenBlocks(blocks: ReadonlyArray<VerifierBlock>): VerifierBlock[] {
