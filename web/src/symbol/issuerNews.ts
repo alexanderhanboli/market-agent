@@ -1,6 +1,8 @@
 // Client for the issuer News & filings rail. Hits the public evidence read
 // `/v1/evidence/issuer-news` (no session required — subject detail is public).
 
+import { defineResource } from '../fetch/resource.ts'
+
 export type IssuerNewsKind =
   | 'filing'
   | 'transcript'
@@ -58,3 +60,13 @@ export function formatRelativeTime(iso: string | null, now: Date = new Date()): 
   if (months < 12) return `${months}mo ago`
   return `${Math.floor(months / 12)}y ago`
 }
+
+const NEWS_RAIL_LIMIT = 8
+
+export const recentIssuerNews = defineResource({
+  freshness: 'intraday',
+  load: async (issuerId: string, signal) => ({
+    kind: 'ready',
+    data: await fetchIssuerNews(issuerId, { signal, limit: NEWS_RAIL_LIMIT }),
+  }),
+})

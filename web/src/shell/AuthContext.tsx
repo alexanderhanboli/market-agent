@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { forgetUserData } from '../fetch/resource.ts'
 import { AuthContext, DEFAULT_MOCK_SESSION, type AuthContextValue, type AuthSession } from './authTypes'
 
 // Mock in-memory auth provider. P0.1.2 deliberately does not commit to a real
@@ -14,10 +15,12 @@ export function AuthProvider({
   const [session, setSession] = useState<AuthSession | null>(initialSession)
 
   const signIn = useCallback((next?: AuthSession) => {
+    forgetUserData()
     setSession(next ?? DEFAULT_MOCK_SESSION)
   }, [])
 
   const signOut = useCallback(() => {
+    forgetUserData()
     setSession(null)
   }, [])
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { afterEach } from 'node:test'
 
 import { JSDOM } from 'jsdom'
 import { act, type ReactElement } from 'react'
@@ -11,6 +11,9 @@ import type { SegmentFactsEnvelope } from '../../symbol/segments.ts'
 import type { ResolvedSubject } from '../../symbol/search.ts'
 import type { GetStatementsRequest, GetStatementsResponse } from '../../symbol/statements.ts'
 import { FinancialsSection } from './FinancialsSection.tsx'
+import { resetResourcesForTests } from '../../fetch/resource.ts'
+
+afterEach(resetResourcesForTests)
 
 const ISSUER_ID = '33333333-3333-4333-a333-333333333333'
 

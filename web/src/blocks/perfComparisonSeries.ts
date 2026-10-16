@@ -9,8 +9,9 @@
 // snapshots): the same sealed block renders the same chart on any future day,
 // and anything fresher must go through the explicit refresh flow.
 
+import { defineResource } from '../fetch/resource.ts'
 import type { AdjustmentBasis, GetSeriesResponse, NormalizedSeriesQuery } from '../symbol/series.ts'
-import { dailySeriesQuery } from '../symbol/series.ts'
+import { dailySeriesQuery, fetchSeries } from '../symbol/series.ts'
 import { formatSubjectRefShort } from './subjectRef.ts'
 import type { PerfComparisonBlock, Series, SubjectRef } from './types.ts'
 
@@ -58,3 +59,15 @@ export function seriesFromPerfResponse(response: GetSeriesResponse): ReadonlyArr
   }
   return series
 }
+
+export const perfComparisonSeries = defineResource({
+  freshness: 'pinned',
+  load: async (query: NormalizedSeriesQuery, signal) => {
+    const response = await fetchSeries(query, { signal })
+    const series = seriesFromPerfResponse(response)
+    if (series.length === 0) return { kind: 'unavailable', reason: 'no series available' }
+    return series.length < query.subject_refs.length
+      ? { kind: 'ready', data: series, incomplete: true }
+      : { kind: 'ready', data: series }
+  },
+})

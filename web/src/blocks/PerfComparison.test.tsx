@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { JSDOM } from 'jsdom'
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
+
+import { resetResourcesForTests } from '../fetch/resource.ts'
+import type { NormalizedSeriesQuery } from '../symbol/series.ts'
 
 import { PerfComparison } from './PerfComparison.tsx'
 import type { PerfComparisonBlock } from './types.ts'
@@ -54,3 +60,57 @@ test('PerfComparison with explicitly empty sealed series shows it as unavailable
   assert.match(html, /No sealed price data/)
 })
 
+test('a live comparison with a failed listing is fetched again on revisit', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const globals = globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean; document?: Document; window?: Window }
+  const previous = { ...globals }
+  const originalFetch = globalThis.fetch
+  let requests = 0
+  globals.IS_REACT_ACT_ENVIRONMENT = true
+  globals.document = dom.window.document
+  globals.window = dom.window as unknown as Window
+  globalThis.fetch = async (_input, init) => {
+    requests += 1
+    const query = JSON.parse(String(init?.body)) as NormalizedSeriesQuery
+    const results = query.subject_refs.map((listing, i) =>
+      i === 0
+        ? {
+            listing,
+            outcome: {
+              outcome: 'available',
+              data: { listing, bars: [{ ts: '2026-08-02T00:00:00Z', close: 0 }, { ts: '2026-08-03T00:00:00Z', close: 3 }] },
+            },
+          }
+        : { listing, outcome: { outcome: 'unavailable', reason: 'missing_coverage' } },
+    )
+    return new Response(JSON.stringify({ query, results }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  const root = createRoot(dom.window.document.getElementById('root')!)
+  const flush = () => act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+  const chart = () => dom.window.document.querySelector('[data-testid="block-perf-comparison-perf-1-chart"]')
+
+  try {
+    await act(async () => root.render(<PerfComparison block={BASE} />))
+    await flush()
+    assert.notEqual(chart(), null)
+
+    await act(async () => root.render(<></>))
+    await act(async () => root.render(<PerfComparison block={BASE} />))
+    await flush()
+    assert.equal(requests, 2)
+    assert.notEqual(chart(), null)
+  } finally {
+    await act(async () => root.unmount())
+    resetResourcesForTests()
+    globalThis.fetch = originalFetch
+    globals.IS_REACT_ACT_ENVIRONMENT = previous.IS_REACT_ACT_ENVIRONMENT
+    globals.document = previous.document
+    globals.window = previous.window
+    dom.window.close()
+  }
+})

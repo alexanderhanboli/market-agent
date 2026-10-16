@@ -1,4 +1,5 @@
 import type { SubjectRef } from './search.ts'
+import { defineResource, type FetchedResult } from '../fetch/resource.ts'
 
 export const HOLDER_KINDS = ['institutional', 'insider'] as const
 export type HolderKind = (typeof HOLDER_KINDS)[number]
@@ -118,4 +119,30 @@ const INSIDER_TRANSACTION_LABELS: Readonly<Record<InsiderTransactionType, string
 
 export function insiderTransactionLabel(type: InsiderTransactionType): string {
   return INSIDER_TRANSACTION_LABELS[type]
+}
+
+export const institutionalHolders = defineResource({
+  freshness: 'filed',
+  load: (issuerId: string, signal) => loadHolders(issuerId, 'institutional', isInstitutionalHolders, signal),
+})
+
+export const insiderHolders = defineResource({
+  freshness: 'filed',
+  load: (issuerId: string, signal) => loadHolders(issuerId, 'insider', isInsiderHolders, signal),
+})
+
+async function loadHolders<E extends HoldersEnvelope>(
+  issuerId: string,
+  kind: E['kind'],
+  narrow: (envelope: HoldersEnvelope) => envelope is E,
+  signal: AbortSignal,
+): Promise<FetchedResult<E>> {
+  const data = await fetchHolders(issuerId, kind, { signal })
+  if (!holdersBelongToIssuer(data, issuerId)) {
+    return { kind: 'unavailable', reason: 'holders response did not match requested issuer' }
+  }
+  if (!narrow(data)) {
+    return { kind: 'unavailable', reason: `expected ${kind} kind, received ${data.kind}` }
+  }
+  return { kind: 'ready', data }
 }

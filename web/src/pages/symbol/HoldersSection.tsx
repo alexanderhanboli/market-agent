@@ -6,13 +6,11 @@ import {
   formatCompactDollars,
   formatCurrency2,
 } from '../../symbol/format.ts'
+import { useResource } from '../../fetch/resource.ts'
 import {
-  fetchHolders,
-  holdersBelongToIssuer,
+  insiderHolders,
   insiderTransactionLabel,
-  isInsiderHolders,
-  isInstitutionalHolders,
-  type HoldersEnvelope,
+  institutionalHolders,
   type InsiderHoldersEnvelope,
   type InsiderTransaction,
   type InsiderTransactionType,
@@ -36,7 +34,6 @@ import {
 import { MetricBars, type MetricBar } from '../../symbol/MetricBars.tsx'
 import { StackedBar } from '../../symbol/StackedBar.tsx'
 import { Th } from '../../symbol/Th.tsx'
-import { useFetched, type FetchedResult } from '../../symbol/useFetched.ts'
 import { SECTION_STACK_CLASS } from '../../symbol/surfaceStyles.ts'
 
 const TOP_OWNERS = 6
@@ -45,15 +42,8 @@ export function HoldersSection() {
   const { subject } = useSubjectDetailContext()
   const issuerId = issuerIdFromSubject(subject)
 
-  const institutional = useFetched<InstitutionalHoldersEnvelope>(
-    issuerId,
-    (id, signal) =>
-      loadHolders(id, 'institutional', isInstitutionalHolders, signal),
-  )
-  const insider = useFetched<InsiderHoldersEnvelope>(
-    issuerId,
-    (id, signal) => loadHolders(id, 'insider', isInsiderHolders, signal),
-  )
+  const institutional = useResource(institutionalHolders, issuerId)
+  const insider = useResource(insiderHolders, issuerId)
 
   return (
     <div data-testid="section-holders" className={SECTION_STACK_CLASS}>
@@ -111,22 +101,6 @@ export function HoldersSection() {
       </Card>
     </div>
   )
-}
-
-async function loadHolders<E extends HoldersEnvelope>(
-  issuerId: string,
-  kind: E['kind'],
-  narrow: (envelope: HoldersEnvelope) => envelope is E,
-  signal: AbortSignal,
-): Promise<FetchedResult<E>> {
-  const data = await fetchHolders(issuerId, kind, { signal })
-  if (!holdersBelongToIssuer(data, issuerId)) {
-    return { kind: 'unavailable', reason: 'holders response did not match requested issuer' }
-  }
-  if (!narrow(data)) {
-    return { kind: 'unavailable', reason: `expected ${kind} kind, received ${data.kind}` }
-  }
-  return { kind: 'ready', data }
 }
 
 // Top owners as bars (% of shares), scaled to the largest holder, with the

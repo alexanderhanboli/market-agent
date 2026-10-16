@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { VisibleFetchState } from './useFetched.ts'
+import type { VisibleFetchState } from '../fetch/resource.ts'
 
 type FetchStateViewProps<T> = {
   state: VisibleFetchState<T>
@@ -25,7 +25,20 @@ export function FetchStateView<T>({
       </p>
     )
   }
-  return <>{children(state.data)}</>
+  return (
+    <>
+      {children(state.data)}
+      {state.refreshError !== null && <RefreshFailedNote noun={noun} error={state.refreshError} />}
+    </>
+  )
+}
+
+export function RefreshFailedNote({ noun, error }: { noun: string; error: string }) {
+  return (
+    <p className="text-xs text-faint">
+      Showing earlier {noun}; refresh failed: {error}
+    </p>
+  )
 }
 
 function capitalize(value: string): string {

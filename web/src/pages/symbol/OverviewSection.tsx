@@ -1,38 +1,25 @@
 import { useState, type ReactNode } from 'react'
 import { useSubjectDetailContext } from '../../shell/subjectDetailOutletContext.ts'
 import { Card } from '../../symbol/Card.tsx'
-import { FetchStateView } from '../../symbol/FetchStateView.tsx'
-import { useFetched } from '../../symbol/useFetched.ts'
+import { FetchStateView, RefreshFailedNote } from '../../symbol/FetchStateView.tsx'
+import { useResource } from '../../fetch/resource.ts'
 import {
-  fetchIssuerProfile,
   issuerIdFromSubject,
-  profileBelongsToIssuer,
+  issuerProfile,
   type IssuerProfile,
   type IssuerProfileExchange,
 } from '../../symbol/profile.ts'
-import {
-  fetchKeyStats,
-  statsBelongToIssuer,
-  type KeyStatsEnvelope,
-} from '../../symbol/stats.ts'
+import { keyStats } from '../../symbol/stats.ts'
 import { listingIdForQuote } from '../../symbol/quote.ts'
-import {
-  dailySeriesQuery,
-  fetchSeries,
-  singleListingOutcome,
-  type NormalizedBar,
-  type PriceWindow,
-} from '../../symbol/series.ts'
+import { liveDailySeries, type NormalizedBar, type PriceWindow } from '../../symbol/series.ts'
 import { SeriesChart } from '../../blocks/SeriesChart.tsx'
 import { SegmentedToggle } from '../../symbol/SegmentedToggle.tsx'
 import { SectorChip } from '../../symbol/SectorChip.tsx'
-import { useConsensus } from '../../symbol/useConsensus.ts'
+import { analystConsensus } from '../../symbol/consensus.ts'
 import { ConsensusBody, PriceTargetBody } from '../../symbol/consensusViews.tsx'
 import { buildKeyStatsGrid } from './keyStatsGrid.ts'
 import { KeyStatsGrid } from './KeyStatsGrid.tsx'
 import { SECTION_STACK_CLASS } from '../../symbol/surfaceStyles.ts'
-
-type PriceSeries = { bars: NormalizedBar[]; currency: string }
 
 const PRICE_WINDOW_OPTIONS: ReadonlyArray<{ value: PriceWindow; label: string }> = [
   { value: '5D', label: '5D' },
@@ -48,50 +35,18 @@ export function OverviewSection() {
   const issuerId = issuerIdFromSubject(subject)
   const listingId = listingIdForQuote(subject)
 
-  const profile = useFetched<IssuerProfile>(issuerId, async (id, signal) => {
-    const data = await fetchIssuerProfile(id, { signal })
-    if (!profileBelongsToIssuer(data, id)) {
-      return { kind: 'unavailable', reason: 'profile response did not match requested issuer' }
-    }
-    return { kind: 'ready', data }
-  })
-
-  const stats = useFetched<KeyStatsEnvelope>(issuerId, async (id, signal) => {
-    const data = await fetchKeyStats(id, { signal })
-    if (!statsBelongToIssuer(data, id)) {
-      return { kind: 'unavailable', reason: 'stats response did not match requested issuer' }
-    }
-    return { kind: 'ready', data }
-  })
+  const profile = useResource(issuerProfile, issuerId)
+  const stats = useResource(keyStats, issuerId)
 
   const [priceWindow, setPriceWindow] = useState<PriceWindow>('1M')
-  // Window lives in the key so a toggle is one intentional re-fetch and a
-  // return visit to the same window is a cache hit — not a per-render re-key.
-  const seriesKey = listingId === null ? null : `${listingId}|${priceWindow}`
-
-  const series = useFetched<PriceSeries>(seriesKey, async (_key, signal) => {
-    if (listingId === null) {
-      return { kind: 'unavailable', reason: 'no listing context for this subject' }
-    }
-    // Live surface: anchored at "now" by contract (sealed blocks pin as_of).
-    const query = dailySeriesQuery([{ kind: 'listing', id: listingId }], priceWindow, 'raw', new Date())
-    if (query === null) {
-      return { kind: 'unavailable', reason: 'unknown price window' }
-    }
-    const response = await fetchSeries(query, { signal })
-    const outcome = singleListingOutcome(response, listingId)
-    if (outcome === null) {
-      return { kind: 'unavailable', reason: 'series response did not include this listing' }
-    }
-    if (outcome.outcome === 'unavailable') {
-      return { kind: 'unavailable', reason: outcome.detail ?? outcome.reason }
-    }
-    return { kind: 'ready', data: { bars: outcome.data.bars, currency: outcome.data.currency } }
-  })
+  const series = useResource(
+    liveDailySeries,
+    listingId === null ? null : { listingId, window: priceWindow },
+  )
 
   // Analyst consensus + price target are surfaced on the landing tab (not only
   // under Earnings), matching the reference design — same shared fetch.
-  const consensus = useConsensus(issuerId)
+  const consensus = useResource(analystConsensus, issuerId)
 
   // The dense stats grid renders from whatever's loaded — prev close/currency
   // from the shared quote, intraday cells from the latest bars, fundamentals
@@ -142,6 +97,9 @@ export function OverviewSection() {
         </FetchStateView>
       </Card>
       <KeyStatsGrid cells={statCells} />
+      {stats.status === 'ready' && stats.refreshError !== null && (
+        <RefreshFailedNote noun="key stats" error={stats.refreshError} />
+      )}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <Card testId="overview-profile" headingId="overview-profile-heading" heading="Company profile">
           <FetchStateView

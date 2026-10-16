@@ -7,17 +7,17 @@ import {
   quoteDirection,
   SIGNED_BY_QUOTE_DIRECTION,
   subjectDisplayName,
+  type QuoteSnapshot as QuoteSnapshotData,
   type ResolvedSubject,
   type RouteResolvedSubject,
 } from './quote.ts'
-import type { SubjectQuoteState } from './useSubjectQuote.ts'
+import type { VisibleFetchState } from '../fetch/resource.ts'
 import { ChangePill } from './ChangePill.tsx'
+import { RefreshFailedNote } from './FetchStateView.tsx'
 
 type QuoteSnapshotProps = {
   subject: ResolvedSubject | RouteResolvedSubject
-  // The quote is fetched once by the shell (useSubjectQuote) and shared with
-  // the Overview grid via context — QuoteSnapshot is purely presentational.
-  quoteState: SubjectQuoteState
+  quoteState: VisibleFetchState<QuoteSnapshotData>
 }
 
 export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
@@ -73,6 +73,7 @@ export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
           <span title={quote.source_id}>{formatProviderName(quote.provider, quote.source_id)}</span>
         </div>
       </div>
+      {quoteState.refreshError !== null && <RefreshFailedNote noun="quote" error={quoteState.refreshError} />}
       <IssuerProfileLine profile={issuerProfile} />
     </section>
   )

@@ -1,3 +1,4 @@
+import { defineResource } from '../fetch/resource.ts'
 import type { SubjectRef } from './search.ts'
 
 export type BarInterval = '1m' | '5m' | '15m' | '1h' | '1d'
@@ -193,3 +194,23 @@ export function singleListingOutcome(
   const entry = response.results.find((r) => r.listing.id === listingId)
   return entry ? entry.outcome : null
 }
+
+// Keyed on the window, not the query: the live chart anchors at "now" when
+// the load runs, so the key stays stable across refreshes.
+export const liveDailySeries = defineResource({
+  freshness: 'intraday',
+  load: async ({ listingId, window }: { listingId: string; window: PriceWindow }, signal) => {
+    const query = dailySeriesQuery([{ kind: 'listing', id: listingId }], window, 'raw', new Date())
+    if (query === null) {
+      return { kind: 'unavailable', reason: 'unknown price window' }
+    }
+    const outcome = singleListingOutcome(await fetchSeries(query, { signal }), listingId)
+    if (outcome === null) {
+      return { kind: 'unavailable', reason: 'series response did not include this listing' }
+    }
+    if (outcome.outcome === 'unavailable') {
+      return { kind: 'unavailable', reason: outcome.detail ?? outcome.reason }
+    }
+    return { kind: 'ready', data: { bars: outcome.data.bars, currency: outcome.data.currency } }
+  },
+})

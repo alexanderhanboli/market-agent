@@ -5,8 +5,9 @@ import { Card } from '../../symbol/Card.tsx'
 import { FetchStateView } from '../../symbol/FetchStateView.tsx'
 import { issuerIdFromSubject } from '../../symbol/profile.ts'
 import { SegmentedToggle } from '../../symbol/SegmentedToggle.tsx'
+import { useResource } from '../../fetch/resource.ts'
 import {
-  fetchStatements,
+  financialStatements,
   findLineValue,
   recentFiscalQuarterPeriods,
   recentFyPeriods,
@@ -18,11 +19,10 @@ import { formatCompactDollars } from '../../symbol/format.ts'
 import { formatSignedPercent } from '../../symbol/quote.ts'
 import {
   axisLabel,
-  fetchSegments,
+  segmentFacts,
   type SegmentAxis,
   type SegmentFactsEnvelope,
 } from '../../symbol/segments.ts'
-import { useFetched } from '../../symbol/useFetched.ts'
 import { formatPeriodLabel, revenueBarsFromStatements } from '../../symbol/financialsCharts.ts'
 import { MetricBars, type MetricBar } from '../../symbol/MetricBars.tsx'
 import { signedDirection } from '../../symbol/signedColor.ts'
@@ -75,39 +75,35 @@ export function FinancialsSection() {
   const [basis, setBasis] = useState<StatementBasis>('as_reported')
   const [axis, setAxis] = useState<SegmentAxis>('business')
 
-  const statementsKey = issuerId === null ? null : `${issuerId}|${basis}|${periodMode}`
-  const segmentsKey = issuerId === null ? null : `${issuerId}|${axis}`
   const periodSpan =
     periodMode === 'annual' ? `last ${PERIOD_COUNT} FY` : `last ${QUARTER_PERIOD_COUNT} quarters`
 
-  const statements = useFetched<GetStatementsResponse>(statementsKey, async (_key, signal) => {
-    const periods = periodMode === 'annual'
-      ? recentFyPeriods(LATEST_FISCAL_YEAR, PERIOD_COUNT)
-      : recentFiscalQuarterPeriods(LATEST_FISCAL_YEAR, LATEST_FISCAL_QUARTER, QUARTER_PERIOD_COUNT)
-    const data = await fetchStatements(
-      {
-        subject_ref: { kind: 'issuer', id: issuerId! },
-        statement: STATEMENT_FAMILY,
-        periods,
-        basis,
-      },
-      { signal },
-    )
-    return { kind: 'ready', data }
-  })
+  const statements = useResource(
+    financialStatements,
+    issuerId === null
+      ? null
+      : {
+          subject_ref: { kind: 'issuer', id: issuerId },
+          statement: STATEMENT_FAMILY,
+          periods:
+            periodMode === 'annual'
+              ? recentFyPeriods(LATEST_FISCAL_YEAR, PERIOD_COUNT)
+              : recentFiscalQuarterPeriods(LATEST_FISCAL_YEAR, LATEST_FISCAL_QUARTER, QUARTER_PERIOD_COUNT),
+          basis,
+        },
+  )
 
-  const segments = useFetched<SegmentFactsEnvelope>(segmentsKey, async (_key, signal) => {
-    const data = await fetchSegments(
-      {
-        subject_ref: { kind: 'issuer', id: issuerId! },
-        axis,
-        period: SEGMENT_PERIOD,
-        basis: 'as_reported',
-      },
-      { signal },
-    )
-    return { kind: 'ready', data }
-  })
+  const segments = useResource(
+    segmentFacts,
+    issuerId === null
+      ? null
+      : {
+          subject_ref: { kind: 'issuer', id: issuerId },
+          axis,
+          period: SEGMENT_PERIOD,
+          basis: 'as_reported',
+        },
+  )
 
   return (
     <div data-testid="section-financials" className={SECTION_STACK_CLASS}>

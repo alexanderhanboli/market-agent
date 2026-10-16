@@ -25,7 +25,12 @@ const APPLE_QUOTE: QuoteSnapshot = {
   provider: 'polygon_market',
 }
 
-const READY_STATE: QuoteRowState = { status: 'ready', data: APPLE_QUOTE }
+const READY_STATE: QuoteRowState = {
+  status: 'ready',
+  data: APPLE_QUOTE,
+  refreshing: false,
+  refreshError: null,
+}
 
 const APPLE_READY_VIEW: QuoteRowView = {
   href: `/symbol/${encodeURIComponent('listing:' + APPLE_LISTING_ID)}/overview`,
@@ -68,7 +73,7 @@ test('quoteRowView falls back to a truncated id when the listing is unavailable'
 })
 
 test('quoteRowView shows an idle view for non-listing subjects (no fetch keyed)', () => {
-  // useFetched returns 'idle' when its key is null — the case for held
+  // useResource returns 'idle' when its params are null — the case for held
   // holdings whose subject_ref is instrument-kind (HOLDING_SUBJECT_KINDS
   // in services/portfolio/src/holdings.ts).
   const view = quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF)

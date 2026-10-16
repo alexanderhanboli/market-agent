@@ -9,6 +9,7 @@ import {
   type SubjectRef,
 } from './search.ts'
 import type { SignedDirection } from './signedColor.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type { ResolvedSubject, RouteResolvedSubject }
 
@@ -243,3 +244,13 @@ export function subjectDisplayName(subject: ResolvedSubject | RouteResolvedSubje
 // Re-export so callers don't need to import from search.ts when they're
 // already pulling quote helpers.
 export type { IssuerContext, ListingContext }
+
+export const listingQuote = defineResource({
+  freshness: 'live',
+  load: async (listingId: string, signal) => {
+    const quote = await fetchQuoteSnapshot(listingId, { signal })
+    return quoteBelongsToListing(quote, listingId)
+      ? { kind: 'ready', data: quote }
+      : { kind: 'unavailable', reason: 'quote response did not match requested listing' }
+  },
+})
