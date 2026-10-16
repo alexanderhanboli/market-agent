@@ -1,0 +1,197 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import test from "node:test";
+
+import { compileDisclosurePolicy } from "../src/disclosure-policy.ts";
+import type { QueryExecutor } from "../src/manifest-staging.ts";
+import { verifySnapshotSeal, type SnapshotVerificationInput, type VerifierBlock } from "../src/snapshot-verifier.ts";
+
+const snapshotId = "00000000-0000-4000-8000-000000000001";
+const sourceId = "00000000-0000-4000-8000-000000000006";
+const nvdaListing = "00000000-0000-4000-8000-000000000021";
+const amdListing = "00000000-0000-4000-8000-000000000022";
+const nvdaRange = "00000000-0000-4000-8000-000000000031";
+const amdRange = "00000000-0000-4000-8000-000000000032";
+const nvdaSeries = "00000000-0000-4000-8000-000000000041";
+const amdSeries = "00000000-0000-4000-8000-000000000042";
+const AS_OF = "2026-09-01T00:00:00.000Z";
+
+const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
+
+type Bar = { ts: string; close: number };
+type Line = { points: Array<{ x: string; y: number }> };
+
+const daily = (closes: number[]): Bar[] => closes.map((close, index) => ({ ts: `2026-08-${22 + index}T00:00:00.000Z`, close }));
+// New York sessions stamped at local midnight.
+const ny = (date: string, close: number): Bar => ({ ts: `${date}T${date >= "2026-03-08" ? "04" : "05"}:00:00.000Z`, close });
+
+const LATEST = {
+  bars: { [nvdaRange]: daily([100, 110, 121]), [amdRange]: daily([50, 45, 55]) },
+  hashes: [
+    sha256('[["2026-08-22T00:00:00.000Z",100],["2026-08-23T00:00:00.000Z",110],["2026-08-24T00:00:00.000Z",121]]'),
+    sha256('[["2026-08-22T00:00:00.000Z",50],["2026-08-23T00:00:00.000Z",45],["2026-08-24T00:00:00.000Z",55]]'),
+  ],
+  series: [
+    { points: [{ x: "2026-08-22", y: 0 }, { x: "2026-08-23", y: 10.000000000000009 }, { x: "2026-08-24", y: 20.999999999999996 }] },
+    { points: [{ x: "2026-08-22", y: 0 }, { x: "2026-08-23", y: -9.999999999999998 }, { x: "2026-08-24", y: 10.000000000000009 }] },
+  ],
+};
+
+const YTD_WINDOW = { kind: "ytd", year: 2026, baseline_date: "2025-12-31", end_date: "2026-08-31" };
+const YTD = {
+  // AMD's Dec 30 close is before the baseline, and NVDA's Sep 1 session was
+  // stored after the window ended: neither is in the window or its digest.
+  bars: {
+    [nvdaRange]: [ny("2025-12-31", 100), ny("2026-01-02", 110), ny("2026-08-31", 120), ny("2026-09-01", 130)],
+    [amdRange]: [ny("2025-12-30", 40), ny("2025-12-31", 50), ny("2026-01-02", 45), ny("2026-08-31", 60)],
+  },
+  hashes: [
+    sha256('[["2025-12-31T05:00:00.000Z",100],["2026-01-02T05:00:00.000Z",110],["2026-08-31T04:00:00.000Z",120]]'),
+    sha256('[["2025-12-31T05:00:00.000Z",50],["2026-01-02T05:00:00.000Z",45],["2026-08-31T04:00:00.000Z",60]]'),
+  ],
+  series: [
+    { points: [{ x: "2025-12-31", y: 0 }, { x: "2026-01-02", y: 10 }, { x: "2026-08-31", y: 20 }] },
+    { points: [{ x: "2025-12-31", y: 0 }, { x: "2026-01-02", y: -10 }, { x: "2026-08-31", y: 20 }] },
+  ],
+};
+
+type Window = Record<string, string | number>;
+
+function spec(seriesRef: string, listingId: string, barRangeId: string, hash: string, window?: Window) {
+  return {
+    series_ref: seriesRef,
+    source_id: sourceId,
+    listing_id: listingId,
+    bar_range_id: barRangeId,
+    bars_sha256: hash,
+    interval: "1d",
+    adjustment_basis: "split_adjusted",
+    normalization: "pct_return",
+    delay_class: "eod",
+    range: { start: "2025-12-01T05:00:00.000Z", end: AS_OF },
+    ...(window ? { window } : {}),
+    as_of: AS_OF,
+  };
+}
+
+function sealInput(
+  chart: { hashes: string[]; series: Line[] },
+  options: { window?: Window; seriesRefs?: string[] } = {},
+): SnapshotVerificationInput {
+  const specs = [
+    spec(nvdaSeries, nvdaListing, nvdaRange, chart.hashes[0], options.window),
+    spec(amdSeries, amdListing, amdRange, chart.hashes[1], options.window),
+  ];
+  const manifest = {
+    subject_refs: [{ kind: "listing" as const, id: nvdaListing }, { kind: "listing" as const, id: amdListing }],
+    fact_refs: [],
+    claim_refs: [],
+    event_refs: [],
+    document_refs: [],
+    source_ids: [sourceId],
+    series_specs: specs,
+    as_of: AS_OF,
+    basis: "split_adjusted" as const,
+    normalization: "pct_return" as const,
+  };
+  const policy = compileDisclosurePolicy({ snapshot_id: snapshotId, manifest });
+  const block = {
+    id: "perf",
+    kind: "perf_comparison",
+    snapshot_id: snapshotId,
+    data_ref: { kind: "perf_comparison", id: "perf", params: { series_refs: options.seriesRefs ?? [nvdaSeries, amdSeries] } },
+    source_refs: [sourceId],
+    as_of: AS_OF,
+    subject_refs: manifest.subject_refs,
+    series: chart.series,
+  } as VerifierBlock;
+  return {
+    snapshot_id: snapshotId,
+    manifest,
+    sources: [{ source_id: sourceId }],
+    required_disclosures: policy.required_disclosures,
+    blocks: [block, ...(policy.required_disclosure_blocks as unknown as VerifierBlock[])],
+  };
+}
+
+// The rows the seal's queries return: timestamptz as a Date, close as float8.
+function barsDb(bars: Record<string, Bar[]>): QueryExecutor & { failures: unknown[] } {
+  const failures: unknown[] = [];
+  return {
+    failures,
+    async query<R extends Record<string, unknown>>(text: string, values?: unknown[]) {
+      if (text.includes("from market_bars")) {
+        const ids = values?.[0] as string[];
+        const rows = ids.flatMap((id) => (bars[id] ?? []).map((bar) => ({ bar_range_id: id, ts: new Date(bar.ts), close: bar.close })));
+        return { rows: rows as unknown as R[] };
+      }
+      if (text.includes("from listings")) {
+        const ids = values?.[0] as string[];
+        return { rows: ids.map((id) => ({ listing_id: id, timezone: "America/New_York" })) as unknown as R[] };
+      }
+      if (text.includes("insert into verifier_fail_logs")) {
+        failures.push(JSON.parse(String(values?.[3])));
+        return { rows: [] };
+      }
+      throw new Error(`unexpected query: ${text}`);
+    },
+  };
+}
+
+const pointsFailures = (result: Awaited<ReturnType<typeof verifySnapshotSeal>>) =>
+  result.failures.filter((failure) => failure.reason_code === "series_points_mismatch").map((failure) => failure.details);
+
+test("a latest-window chart whose points are its sealed bars' returns seals", async () => {
+  assert.deepEqual(await verifySnapshotSeal(sealInput(LATEST), barsDb(LATEST.bars)), { ok: true, failures: [] });
+});
+
+test("a YTD chart seals against its sealed window, ignoring sessions stored after it", async () => {
+  assert.deepEqual(await verifySnapshotSeal(sealInput(YTD, { window: YTD_WINDOW }), barsDb(YTD.bars)), { ok: true, failures: [] });
+});
+
+test("a drawn point that differs from the sealed bars' return fails the seal", async () => {
+  const series = [LATEST.series[0], { points: [...LATEST.series[1].points.slice(0, 2), { x: "2026-08-24", y: 12 }] }];
+  const db = barsDb(LATEST.bars);
+  const result = await verifySnapshotSeal(sealInput({ ...LATEST, series }), db);
+  assert.equal(result.ok, false);
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: amdSeries, reason: "points" }]);
+  assert.deepEqual(db.failures, [{ block_id: "perf", series_ref: amdSeries, reason: "points" }]);
+});
+
+test("a stored close that changed since the chart was drawn fails on its digest", async () => {
+  const bars = { ...LATEST.bars, [nvdaRange]: daily([100, 110, 122]) };
+  const result = await verifySnapshotSeal(sealInput(LATEST), barsDb(bars));
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: nvdaSeries, reason: "hash" }]);
+});
+
+test("a YTD chart whose sealed window is not the one its bars give fails on the window", async () => {
+  const window = { ...YTD_WINDOW, baseline_date: "2025-12-30" };
+  const result = await verifySnapshotSeal(sealInput(YTD, { window }), barsDb(YTD.bars));
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: null, reason: "window" }]);
+});
+
+test("a drawn line with no sealed series behind it fails on the count", async () => {
+  const series = [...LATEST.series, { points: [{ x: "2026-08-22", y: 0 }, { x: "2026-08-23", y: 5 }] }];
+  const result = await verifySnapshotSeal(sealInput({ ...LATEST, series }), barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: null, reason: "count" }]);
+});
+
+test("two lines citing one sealed series fail as a duplicate", async () => {
+  const result = await verifySnapshotSeal(sealInput(LATEST, { seriesRefs: [nvdaSeries, nvdaSeries] }), barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: nvdaSeries, reason: "duplicate" }]);
+});
+
+test("without the seal's transaction a chart's points cannot be checked, so it does not seal", async () => {
+  const result = await verifySnapshotSeal(sealInput(LATEST));
+  assert.deepEqual(result, {
+    ok: false,
+    failures: [{ reason_code: "series_points_mismatch", details: { block_id: "perf", series_ref: null, reason: "unverifiable" } }],
+  });
+});
+
+test("a live-rendered chart, with no embedded points, is not checked", async () => {
+  const input = sealInput(LATEST);
+  const [chart, ...rest] = input.blocks;
+  const { series: _series, ...live } = chart;
+  assert.deepEqual(await verifySnapshotSeal({ ...input, blocks: [live, ...rest] }), { ok: true, failures: [] });
+});

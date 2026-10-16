@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { completedSessionsEnd, isCompletedSession, isCurrentEnd, selectYtdWindow, sessionDate, ytdReturns, type DailyClose } from "../src/ytd-window.ts";
+import { completedSessionsEnd, isCompletedSession, isCurrentEnd, selectYtdWindow, sessionDate, windowClosedAt, ytdReturns, type DailyClose } from "../src/ytd-window.ts";
 
 const NY = "America/New_York";
 // Bars are stamped at the start of their New York session date: 05:00Z in
@@ -135,4 +135,16 @@ test("a window is current when it ends within a week of the last completed sessi
   assert.equal(isCurrentEnd("2026-05-29", "2026-05-30T16:00:00.000Z", NY), true);
   // Tokyo reopens Thursday May 7, 2026 after Golden Week (closed May 2-6): Friday May 1 is current.
   assert.equal(isCurrentEnd("2026-05-01", "2026-05-07T01:00:00.000Z", "Asia/Tokyo"), true);
+});
+
+test("a window's end session closes at 16:00 on the last exchange to close it (#236)", () => {
+  assert.equal(windowClosedAt("2026-08-31", [NY]), "2026-08-31T20:00:00.000Z");
+  assert.equal(windowClosedAt("2026-08-31", ["Asia/Tokyo", NY]), "2026-08-31T20:00:00.000Z");
+  assert.equal(windowClosedAt("2026-12-31", ["Asia/Tokyo"]), "2026-12-31T07:00:00.000Z");
+});
+
+test("selecting at the window's close finds the window a later cutoff selected (#236)", () => {
+  const series = [{ label: "NVDA", timeZone: NY, bars: [bar("2025-12-31", 100), bar("2026-01-02", 110), bar("2026-08-31", 120)] }];
+  const original = selectYtdWindow(series, "2026-09-01T03:00:00.000Z");
+  assert.deepEqual(selectYtdWindow(series, windowClosedAt("2026-08-31", [NY])), original);
 });

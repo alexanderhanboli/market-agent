@@ -20,6 +20,7 @@ import {
   type RequiredDisclosure,
 } from "./disclosure-policy.ts";
 import { validateSnapshotTransformManifest } from "./snapshot-transform.ts";
+import { verifyChartPoints } from "./chart-points.ts";
 import type { FinancialSealClaim } from "./financial-verifier-loader.ts";
 import type { FinancialVerification, FinancialVerifierReasonCode } from "./financial-verifier.ts";
 
@@ -174,6 +175,7 @@ export type SnapshotVerifierReasonCode =
   | "fact_binding_mismatch"
   | "fact_ref_format_mismatch"
   | "missing_required_disclosure"
+  | "series_points_mismatch"
   | "unapproved_side_effect";
 
 export type SnapshotVerifierFailure = {
@@ -252,6 +254,18 @@ export async function verifySnapshotSeal(
     verifyApprovals(normalized, addFailure);
   } catch (error) {
     return invalidVerifierInputResult(input, db, error);
+  }
+
+  // A chart's embedded points are recomputed from the bars its sealed series
+  // pin, read through the seal's database client; without one they cannot be
+  // checked, so the seal fails rather than certify them (chart-points.ts).
+  const charts = flattenBlocks(normalized.blocks).flatMap((block) =>
+    block.kind === "perf_comparison" && block.series !== undefined
+      ? [{ block_id: block.id, series_refs: dataRefSeriesRefs(block.data_ref.params), series: block.series as ReadonlyArray<{ points: unknown }> }]
+      : []
+  );
+  for (const failure of await verifyChartPoints(charts, normalized.manifest.series_specs ?? [], db)) {
+    addFailure("series_points_mismatch", failure);
   }
 
   // A financial claim is verified against the ledger, which also generates its answer block.
@@ -535,6 +549,10 @@ function normalizeBlock(block: VerifierBlock, index: number): VerifierBlock {
   const bars = optionalArray<unknown>(block.bars, `verifySnapshotSeal.blocks[${index}].bars`);
   const distribution = optionalArray<unknown>(block.distribution, `verifySnapshotSeal.blocks[${index}].distribution`);
   const quarters = optionalArray<unknown>(block.quarters, `verifySnapshotSeal.blocks[${index}].quarters`);
+  // Only a price chart's points are checked against its sealed series.
+  const series = block.kind === "perf_comparison"
+    ? optionalArray<unknown>(block.series, `verifySnapshotSeal.blocks[${index}].series`)
+    : undefined;
   const subjectRefs = optionalArray<VerifierSubjectRef>(
     block.subject_refs,
     `verifySnapshotSeal.blocks[${index}].subject_refs`,
@@ -585,6 +603,14 @@ function normalizeBlock(block: VerifierBlock, index: number): VerifierBlock {
     ...(bars === undefined ? {} : { bars: Object.freeze([...bars]) }),
     ...(distribution === undefined ? {} : { distribution: Object.freeze([...distribution]) }),
     ...(quarters === undefined ? {} : { quarters: Object.freeze([...quarters]) }),
+    ...(series === undefined
+      ? {}
+      : {
+          series: Object.freeze(series.map((line, lineIndex) => {
+            if (!isRecord(line)) throw new Error(`verifySnapshotSeal.blocks[${index}].series[${lineIndex}]: must be an object`);
+            return Object.freeze({ points: line.points });
+          })),
+        }),
     ...(block.analyst_count_ref === undefined
       ? {}
       : { analyst_count_ref: assertUuidV4(block.analyst_count_ref, `verifySnapshotSeal.blocks[${index}].analyst_count_ref`) }),
