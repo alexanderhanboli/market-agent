@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { returnLabel } from "../../market/src/perf-points.ts";
 import type {
   JsonObject,
   JsonValue,
@@ -169,6 +170,7 @@ export type SnapshotVerifierReasonCode =
   | "missing_claim_ref"
   | "missing_event_ref"
   | "missing_document_ref"
+  | "missing_series_ref"
   | "missing_source_ref"
   | "invalid_block_binding"
   | "block_after_snapshot_as_of"
@@ -176,6 +178,7 @@ export type SnapshotVerifierReasonCode =
   | "fact_ref_format_mismatch"
   | "missing_required_disclosure"
   | "series_points_mismatch"
+  | "series_ref_format_mismatch"
   | "unapproved_side_effect";
 
 export type SnapshotVerifierFailure = {
@@ -250,6 +253,7 @@ export async function verifySnapshotSeal(
     verifyManifestRefs(normalized, addFailure);
     verifyBlockBindings(normalized, addFailure);
     verifyFactRefFormats(normalized, addFailure);
+    verifySeriesRefFormats(normalized, addFailure);
     verifyDisclosures(normalized, addFailure);
     verifyApprovals(normalized, addFailure);
   } catch (error) {
@@ -1248,6 +1252,21 @@ function verifyBlockBindings(
         });
       }
     }
+    for (const { ref_id: series_ref } of extractedRefsForBlock(block, "series")) {
+      if (!manifestSeriesRefs.has(series_ref)) {
+        addFailure("missing_series_ref", { block_id: block.id, series_ref });
+        continue;
+      }
+      const source_id = manifestSeriesRefs.get(series_ref);
+      if (source_id != null && !block.source_refs.includes(source_id)) {
+        addFailure("missing_source_ref", {
+          block_id: block.id,
+          series_ref,
+          source_id,
+          scope: "block_series_source",
+        });
+      }
+    }
     for (const { ref_id: source_id } of extractedRefsForBlock(block, "source")) {
       if (!sourceIds.has(source_id)) {
         addFailure("missing_source_ref", {
@@ -1325,6 +1344,45 @@ function verifyFactRefFormats(
         fact_id: segment.ref_id,
         format: segment.format,
         shown: [...formats],
+      });
+    }
+  }
+}
+
+// A series chip in prose is a price return: the last point of the line its
+// series draws in the message's price charts, as the chart labels it. The
+// points themselves are checked against the stored bars (chart-points.ts), so
+// a chip no chart draws has nothing verified to show and fails.
+function verifySeriesRefFormats(
+  input: NormalizedInput,
+  addFailure: (reason: SnapshotVerifierReasonCode, details: JsonObject) => void,
+): void {
+  const blocks = flattenBlocks(input.blocks);
+  const shown = new Map<string, Set<string>>();
+  for (const block of blocks) {
+    if (block.kind !== "perf_comparison") continue;
+    const refs = dataRefSeriesRefs(block.data_ref.params);
+    for (const [index, line] of (block.series ?? []).entries()) {
+      const points = isRecord(line) && Array.isArray(line.points) ? line.points : [];
+      const last = points.at(-1);
+      if (refs[index] === undefined || !isRecord(last) || typeof last.y !== "number") continue;
+      const labels = shown.get(refs[index]) ?? new Set<string>();
+      labels.add(returnLabel(last.y));
+      shown.set(refs[index], labels);
+    }
+  }
+  for (const block of blocks) {
+    if (block.kind !== "rich_text") continue;
+    for (const segment of block.segments ?? []) {
+      if (!isRecord(segment) || segment.type !== "ref" || segment.ref_kind !== "series") continue;
+      if (typeof segment.ref_id !== "string") continue;
+      const labels = shown.get(segment.ref_id) ?? new Set<string>();
+      if (typeof segment.format === "string" && labels.has(segment.format)) continue;
+      addFailure("series_ref_format_mismatch", {
+        block_id: block.id,
+        series_ref: segment.ref_id,
+        format: typeof segment.format === "string" ? segment.format : null,
+        shown: [...labels],
       });
     }
   }
@@ -1508,7 +1566,7 @@ function seriesRefsForManifest(manifest: SnapshotVerifierManifest): ReadonlyMap<
 }
 
 export type ExtractedBlockRef = {
-  ref_kind: "fact" | "claim" | "event" | "document" | "source";
+  ref_kind: "fact" | "claim" | "event" | "document" | "source" | "series";
   ref_id: string;
 };
 
@@ -1628,7 +1686,8 @@ function pushTypedRef(
     ref_kind === "claim" ||
     ref_kind === "event" ||
     ref_kind === "document" ||
-    ref_kind === "source"
+    ref_kind === "source" ||
+    ref_kind === "series"
   ) {
     if (ref_id === undefined) return;
     refs.push({
