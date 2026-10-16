@@ -237,3 +237,24 @@ test("the planner runs on the existing model router's complete() with determinis
   assert.equal(result.outcome === "ready" && result.plan.planner.model, "router-model");
   assert.equal((requests[0] as { temperature: number }).temperature, 0);
 });
+
+test("a free cash flow answer always publishes the OCF and capex it subtracts, before the result (#324 review)", async () => {
+  const period = { kind: "fiscal_period", fiscal_year: 2023, fiscal_period: "FY" };
+  const model = scripted({
+    outcome: "ready",
+    subjects: [{ slot_id: "a", mention: "Apple" }],
+    operations: [
+      { node_id: "ocf", operation: "reported_metric", subject_slot: "a", metric_key: "operating_cash_flow", period },
+      { node_id: "capex", operation: "reported_metric", subject_slot: "a", metric_key: "capex", period },
+      { node_id: "fcf", operation: "free_cash_flow", operating_cash_flow: "ocf", capex: "capex" },
+    ],
+    outputs: [{ output_id: "ocf_input", node_id: "fcf" }],
+    thresholds: [],
+  });
+  const result = await planFinancialRequest(context({ requested_subjects: [resolved(0)] }), "Apple's FY2023 free cash flow", model);
+  assert.equal(result.outcome, "ready", JSON.stringify(result));
+  assert.deepEqual(
+    result.outcome === "ready" && result.plan.outputs.map((output) => [output.output_id, output.node_id, output.unit_id]),
+    [["ocf_input_", "ocf", "answer"], ["capex_input", "capex", "answer"], ["ocf_input", "fcf", "answer"]],
+  );
+});

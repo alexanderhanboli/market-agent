@@ -33,7 +33,7 @@ function companyFacts(cik: number, accession: string, capexConcept: string) {
   };
 }
 
-/** A planning model that drafts free cash flow, with both inputs as outputs, for one company and period. */
+/** A planning model that drafts free cash flow for one company and period, publishing only the result. */
 function freeCashFlowModel(mention: string, fiscalYear = 2023): PlanningModel {
   const period = { kind: "fiscal_period", fiscal_year: fiscalYear, fiscal_period: "FY" };
   return (async () => ({
@@ -46,7 +46,7 @@ function freeCashFlowModel(mention: string, fiscalYear = 2023): PlanningModel {
         { node_id: "capex", operation: "reported_metric", subject_slot: "a", metric_key: "capex", period },
         { node_id: "fcf", operation: "free_cash_flow", operating_cash_flow: "ocf", capex: "capex" },
       ],
-      outputs: [{ output_id: "out_ocf", node_id: "ocf" }, { output_id: "out_capex", node_id: "capex" }, { output_id: "out_fcf", node_id: "fcf" }],
+      outputs: [{ output_id: "out_fcf", node_id: "fcf" }],
       thresholds: [],
     }),
   })) as unknown as PlanningModel;
