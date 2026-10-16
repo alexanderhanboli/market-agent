@@ -33,7 +33,7 @@ function insertSourceAttestation(overrides: Record<string, string> = {}): string
     proof_method: "'accession_bound_archive'",
     proof_ref: "'s3://proofs/0000320193-24-000006'",
     proof_hash: `'${OTHER_HASH}'`,
-    mapping_version: "'sec-acceptance-mapping.v1'",
+    mapping_version: "'test-accession-archive.v1'",
     ...overrides,
   };
   return `insert into source_publication_attestations (${Object.keys(values).join(", ")}) values (${Object.values(values).join(", ")}) returning attestation_id`;

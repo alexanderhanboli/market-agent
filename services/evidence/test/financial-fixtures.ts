@@ -101,7 +101,7 @@ export function publicationInput(overrides: Record<string, unknown> = {}) {
     proof_method: "accession_bound_archive" as const,
     proof_ref: "s3://proofs/0000320193-24-000006",
     proof_hash: H.proof,
-    mapping_version: "sec-acceptance-mapping.v1",
+    mapping_version: "test-accession-archive.v1",
     ...overrides,
   };
 }
