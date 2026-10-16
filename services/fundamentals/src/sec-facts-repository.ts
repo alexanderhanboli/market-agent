@@ -389,14 +389,16 @@ async function upsertSecFilingSource(
     retrieved_at: input.retrievedAt,
     content_hash: createHash("sha256").update(input.accessionNumber).digest("hex"),
   });
+  // The accession is the source version: a re-ingest refreshes retrieved_at
+  // but never rewrites the hash that publication proofs are bound to.
   const result = await db.query<{ source_id: string }>(
     `insert into sources
        (source_id, provider, kind, canonical_url, trust_tier, license_class, retrieved_at, content_hash)
      values ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz, $8)
      on conflict (source_id)
      do update set canonical_url = excluded.canonical_url,
-                   retrieved_at = excluded.retrieved_at,
-                   content_hash = excluded.content_hash
+                   retrieved_at = excluded.retrieved_at
+             where sources.content_hash is not distinct from excluded.content_hash
      returning source_id::text as source_id`,
     [
       source.source_id,
@@ -409,7 +411,11 @@ async function upsertSecFilingSource(
       source.content_hash,
     ],
   );
-  return (result.rows[0]?.source_id ?? source.source_id) as UUID;
+  const stored = result.rows[0]?.source_id;
+  if (stored === undefined) {
+    throw new Error(`sec_edgar source ${source.source_id} for accession ${input.accessionNumber} has another content_hash; a source version never changes`);
+  }
+  return stored as UUID;
 }
 
 function sourceIdForAccession(accessionNumber: string): UUID {
