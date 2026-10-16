@@ -52,7 +52,7 @@ create type ir_asset_kind as enum (
   'transcript'
 );
 create type parse_status as enum ('pending', 'parsed', 'failed', 'superseded');
-create type fact_method as enum ('reported', 'derived', 'estimated', 'vendor', 'extracted');
+create type fact_method as enum ('reported', 'derived', 'estimated', 'vendor', 'extracted', 'restated');
 create type verification_status as enum ('authoritative', 'candidate', 'corroborated', 'disputed');
 create type freshness_class as enum ('real_time', 'delayed_15m', 'eod', 'filing_time', 'stale');
 create type coverage_level as enum ('full', 'partial', 'sparse', 'unavailable');
@@ -610,6 +610,13 @@ create unique index facts_active_reported_identity_idx
     and superseded_by is null
     and fiscal_year is not null
     and fiscal_period is not null;
+alter table facts add constraint facts_restated_supersedes
+  check (method <> 'restated' or supersedes is not null);
+create unique index facts_active_restated_identity_idx
+  on facts(subject_kind, subject_id, metric_id, period_kind, fiscal_year, fiscal_period, source_id)
+  where method = 'restated'
+    and invalidated_at is null
+    and superseded_by is null;
 
 create table fact_review_queue (
   review_id uuid primary key default gen_random_uuid(),

@@ -36,6 +36,8 @@ export async function resolvePeriodContext(
         and f.subject_id = $1
         and f.invalidated_at is null
         and f.superseded_by is null
+        -- A restatement of an earlier year is never its latest period, however recently it was stored.
+        and f.method <> 'restated'
         and f.entitlement_channels ? $2
         and f.period_kind in ('fiscal_q','fiscal_y','ttm')
       order by f.as_of desc, f.period_end desc nulls last, f.created_at desc, f.fact_id desc

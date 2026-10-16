@@ -353,7 +353,7 @@ function bindingsFor(plan: FinancialPlanV1, records: FinancialUnitRecords): Bind
 function ineligibility(input: BoundFinancialInputV1, evidence: LoadedEvidence | undefined, plan: FinancialPlanV1): string | null {
   if (!evidence) return "fact_unavailable";
   if (evidence.invalidated) return "fact_invalidated";
-  if (evidence.method !== "reported" && evidence.method !== "extracted") return "fact_not_reported";
+  if (evidence.method !== "reported" && evidence.method !== "extracted" && evidence.method !== "restated") return "fact_not_reported";
   if (evidence.source_id !== input.source.source_id) return "source_changed";
   if (plan.time.time_mode === "public_information" && evidence.source_user_id !== null) return "source_not_public";
   if (evidence.source_version_hash !== input.source.source_version_hash) return "source_version_changed";

@@ -127,6 +127,27 @@ test("latest_revenue picks the most recently reported fiscal fact and seals it",
   assert.equal(verification.ok, true, `seal must verify; failures: ${JSON.stringify(verification.failures ?? [])}`);
 });
 
+test("latest_revenue ignores a restatement of an earlier year stored after the latest one (#321)", async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "grid-col-restated");
+  const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;
+  const seeded = await seedIssuerWithMetric(db, "revenue", "currency");
+  const fiscal = (fiscalYear: number, value: number, asOf: string) =>
+    seedFiscalFact(db, { ...seeded, value, unit: "currency", periodKind: "fiscal_y", fiscalYear, fiscalPeriod: "FY", periodEnd: `${fiscalYear}-12-31`, asOf });
+  const original2023 = await fiscal(2023, 6_000_000_000, "2024-02-01T00:00:00.000Z");
+  const latest = await fiscal(2024, 6_475_000_000, "2025-02-01T00:00:00.000Z");
+  await db.query(
+    `insert into facts (subject_kind, subject_id, metric_id, period_kind, value_num, unit, as_of, observed_at, source_id, method, verification_status,
+                        freshness_class, coverage_level, confidence, fiscal_year, fiscal_period, period_end, supersedes)
+     select subject_kind, subject_id, metric_id, period_kind, 5900000000, unit, '2025-06-01T00:00:00Z', now(), source_id, 'restated', verification_status,
+            freshness_class, coverage_level, confidence, fiscal_year, fiscal_period, period_end, fact_id
+       from facts where fact_id = $1`,
+    [original2023],
+  );
+
+  const result = await getColumn("latest_revenue")!.producer({ db }, ctx(seeded.issuerId));
+  assert.equal(result.primaryRef?.id, latest, "FY2024 stays the latest value");
+});
+
 test("latest_eps_diluted formats per-share values precisely", async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "grid-col-eps");
   const db = (await connectedClient(t, databaseUrl)) as unknown as QueryExecutor;

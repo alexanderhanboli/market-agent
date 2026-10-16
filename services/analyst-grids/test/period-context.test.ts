@@ -67,6 +67,23 @@ test("resolvePeriodContext ignores a newer point fact and returns the latest fis
   assert.deepEqual(period?.document_refs, []);
 });
 
+test("resolvePeriodContext ignores a restatement of an earlier year stored after the latest one (#321)", async (t) => {
+  const { databaseUrl } = await bootstrapDatabase(t, "grid-period-restated");
+  const db = await connectedClient(t, databaseUrl);
+  await seedFact(db, { period_kind: "fiscal_y", fiscal_year: 2023, fiscal_period: "FY", period_end: "2023-12-31", as_of: "2024-02-01T00:00:00.000Z" });
+  await seedFact(db, { period_kind: "fiscal_y", fiscal_year: 2024, fiscal_period: "FY", period_end: "2024-12-31", as_of: "2025-02-01T00:00:00.000Z" });
+  await db.query(
+    `insert into facts (subject_kind, subject_id, metric_id, period_kind, period_end, fiscal_year, fiscal_period, value_num, unit, as_of, observed_at,
+                        source_id, method, verification_status, freshness_class, coverage_level, confidence, entitlement_channels, supersedes)
+     select subject_kind, subject_id, metric_id, period_kind, period_end, fiscal_year, fiscal_period, 95, unit, '2025-06-01T00:00:00Z', '2025-06-01T00:00:00Z',
+            source_id, 'restated', verification_status, freshness_class, coverage_level, confidence, entitlement_channels, fact_id
+       from facts where fiscal_year = 2023`,
+  );
+
+  const period = await resolvePeriodContext(db, { kind: "issuer", id: ISSUER });
+  assert.equal(period?.fiscal_year, 2024, "the later-stored 2023 restatement is not the latest period");
+});
+
 test("resolvePeriodContext ignores facts outside the app entitlement channel", async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "grid-period-entitlement");
   const db = await connectedClient(t, databaseUrl);

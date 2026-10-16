@@ -65,7 +65,7 @@ export type FinancialInputCandidate = Readonly<{
   scale_text: string;
   unit: string;
   currency: string | null;
-  method: "reported" | "extracted";
+  method: "reported" | "extracted" | "restated";
   verification_status: "authoritative" | "corroborated";
   reported_at: string | null;
   observed_at: string;
@@ -146,7 +146,7 @@ export async function listFinancialInputCandidates(db: RowQueryExecutor, request
         and f.value_num is not null
         and f.value_num not in ('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric)
         and f.invalidated_at is null
-        and f.method in ('reported', 'extracted')
+        and f.method in ('reported', 'extracted', 'restated')
         and f.verification_status in ('authoritative', 'corroborated')
         and f.entitlement_channels ? $6
         and (s.user_id is null or ($7 = 'owner_visible' and s.user_id = $8::uuid))
