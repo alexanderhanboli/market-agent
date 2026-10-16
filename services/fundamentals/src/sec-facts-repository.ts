@@ -24,6 +24,7 @@ import {
 } from "./sec-edgar.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
 import { withPinnedTransaction, type TransactionalQueryExecutor } from "./pinned-transaction.ts";
+import { recordSecFetchPublication, secAccessionVersionHash } from "./sec-publication-proof.ts";
 import { createHash } from "node:crypto";
 import { factActiveSql, factKnownAtSql } from "../../evidence/src/fact-activity.ts";
 import { FundamentalsDataUnavailableError } from "./availability.ts";
@@ -259,6 +260,9 @@ async function ingestFiling(
         }
       }
     }
+    if (accessionNumber) {
+      await recordSecFetchPublication(client, { sourceId, accessionNumber, evidence: input.fetched.evidence });
+    }
   });
   return income?.statement ?? null;
 }
@@ -387,7 +391,7 @@ async function upsertSecFilingSource(
     cik: input.cik,
     accession_number: input.accessionNumber,
     retrieved_at: input.retrievedAt,
-    content_hash: createHash("sha256").update(input.accessionNumber).digest("hex"),
+    content_hash: secAccessionVersionHash(input.accessionNumber),
   });
   // The accession is the source version: a re-ingest refreshes retrieved_at
   // but never rewrites the hash that publication proofs are bound to.

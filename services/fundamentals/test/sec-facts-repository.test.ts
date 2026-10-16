@@ -540,6 +540,7 @@ class FakeFundamentalsDb {
   readonly metrics = metricDefinitions();
   readonly facts: FactRecord[] = [];
   readonly sources: unknown[][] = [];
+  readonly attestations: unknown[][] = [];
   readonly transactions: string[] = [];
 
   async connect() {
@@ -565,6 +566,19 @@ class FakeFundamentalsDb {
     if (sql.includes("insert into sources")) {
       this.sources.push(values);
       return rows([{ source_id: values[0] }]);
+    }
+    // The publication proof recorded with each ingest (sec-publication-proof.ts).
+    if (sql.includes("from sources where source_id = $1 for update")) return rows([]);
+    if (sql.includes("from current_source_publication_attestations")) {
+      return rows(this.attestations.filter((row) => row[0] === values[0] && row[2] === values[1] && Date.parse(String(row[4])) <= Date.parse(String(values[2]))));
+    }
+    if (sql.includes("normalized_content_hash(s.content_hash) as source_hash")) {
+      const source = this.sources.findLast((row) => row[0] === values[0]);
+      return rows(source ? [{ source_hash: source[7], document_hash: null, document_source_id: null }] : []);
+    }
+    if (sql.includes("insert into source_publication_attestations")) {
+      this.attestations.push(values);
+      return rows([{ attestation_id: `attestation-${this.attestations.length}` }]);
     }
     if (sql.includes("select distinct on (m.metric_key)")) {
       const [subjectId, periodKind, fiscalYear, fiscalPeriod, metricKeys] = values as [
