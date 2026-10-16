@@ -2981,7 +2981,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [source, document, claim, event, fact]
+          enum: [source, document, claim, event, fact, series]
         id:
           type: string
           format: uuid
@@ -3025,7 +3025,7 @@ components:
           $ref: '#/components/schemas/EvidenceInspectionRef'
         kind:
           type: string
-          enum: [source, document, claim, event, fact]
+          enum: [source, document, claim, event, fact, series]
         title:
           type: string
         subtitle:
