@@ -80,3 +80,11 @@ test('validateBlock rejects entirely malformed input (string, number, null)', ()
     assert.equal(result.valid, false, `expected ${JSON.stringify(garbage)} to fail validation`)
   }
 })
+
+test('validateBlock accepts a series ref segment and rejects an unknown ref kind', () => {
+  const withKind = (ref_kind: string) => ({
+    ...richTextFixture,
+    segments: [{ type: 'ref', ref_kind, ref_id: '33333333-3333-4333-8333-333333333333', format: '6.6%' }],
+  })
+  assert.deepEqual([validateBlock(withKind('series')).valid, validateBlock(withKind('chart')).valid], [true, false])
+})

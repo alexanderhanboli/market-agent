@@ -2574,7 +2574,8 @@
         }
       },
       "source_refs": [
-        "00000000-0000-4000-a000-000000000001"
+        "00000000-0000-4000-a000-000000000001",
+        "00000000-0000-4000-a000-000000000009"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
@@ -2661,7 +2662,27 @@
         },
         {
           "type": "text",
-          "text": ". Note that the fiscal years end four months apart—AAPL's ends in September 2025 and NVDA's in January 2026—so they cover different calendar months.\n\n**Counterpoint:** Despite NVDA's superior growth and profitability metrics, the price returns over the shown window are close: AAPL at 6.05% versus NVDA at 6.6%. This suggests that either the market had already priced in NVDA's fundamental advantage before the window began, or that investors see offsetting risks not captured in these headline numbers.\n\n**What the data cannot tell:** No prior-year revenue or margin figures are shown for either company, so we cannot assess whether NVDA's margins are expanding or AAPL's are compressing. No segment breakdown is provided, so we cannot see how concentrated each company's revenue is. No management guidance or KPI claims were returned."
+          "text": ". Note that the fiscal years end four months apart—AAPL's ends in September 2025 and NVDA's in January 2026—so they cover different calendar months.\n\n**Counterpoint:** Despite NVDA's superior growth and profitability metrics, the price returns over the shown window are close: AAPL at "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "a70a34a2-3265-44c1-8e8c-1590c6a44d80",
+          "format": "6.05%"
+        },
+        {
+          "type": "text",
+          "text": " versus NVDA at "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "03714e96-1525-4a91-8fb6-ec615013527d",
+          "format": "6.6%"
+        },
+        {
+          "type": "text",
+          "text": ". This suggests that either the market had already priced in NVDA's fundamental advantage before the window began, or that investors see offsetting risks not captured in these headline numbers.\n\n**What the data cannot tell:** No prior-year revenue or margin figures are shown for either company, so we cannot assess whether NVDA's margins are expanding or AAPL's are compressing. No segment breakdown is provided, so we cannot see how concentrated each company's revenue is. No management guidance or KPI claims were returned."
         }
       ]
     }

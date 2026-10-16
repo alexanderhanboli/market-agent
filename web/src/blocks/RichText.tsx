@@ -55,6 +55,19 @@ type RefSegmentSpanProps = {
 const REF_CLASS = 'rounded text-fg-soft underline decoration-dotted underline-offset-2'
 
 function RefSegmentSpan({ snapshotId, blockId, index, segment }: RefSegmentSpanProps): ReactElement {
+  // The inspector does not read a series yet (#317): its chip is the same text, not a control.
+  if (segment.ref_kind === 'series') {
+    return (
+      <span
+        data-testid={`block-rich-text-${blockId}-ref-${index}`}
+        data-ref-kind={segment.ref_kind}
+        data-ref-id={segment.ref_id}
+        className={REF_CLASS}
+      >
+        {refSegmentText(segment)}
+      </span>
+    )
+  }
   return (
     <InspectableRef
       snapshotId={snapshotId}

@@ -7,6 +7,7 @@ import { displayOf, proseSegments, referenceTable, typedDigits } from "../src/pr
 const NVDA_REVENUE = "a1000000-0000-4000-8000-000000000001";
 const AMD_MARGIN = "a1000000-0000-4000-8000-000000000002";
 const CLAIM = "c1000000-0000-4000-8000-000000000001";
+const NVDA_LINE = "d1000000-0000-4000-8000-000000000001";
 const binding = (fact_id: string) => ({ fact_id, unit: "USD", period_kind: "fiscal_y", fiscal_year: 2026, fiscal_period: "FY", period_end: "2026-01-25", source_id: "s" });
 const BLOCKS = [{
   id: "b1",
@@ -21,8 +22,8 @@ const PACKET: EvidencePacket = {
   figures: [
     { id: "F1", company: "NVDA", metric: "Revenue", period: "FY2026", period_end: "2026-01-25", value: "$209.9B", fact_id: NVDA_REVENUE, source_ids: ["s-nvda"] },
     { id: "F2", company: "AMD", metric: "Gross Margin", period: "FY2025", period_end: "2025-12-27", value: "49.9%", fact_id: AMD_MARGIN, source_ids: ["s-amd"] },
-    // A price return read off its chart: no fact behind it.
-    { id: "F3", company: "NVDA", metric: "Price return", period: "YTD 2026: 2025-12-31 close to 2026-08-31 close", value: "6.6%", source_ids: [] },
+    // A price return read off its chart line: no fact behind it, its series instead.
+    { id: "F3", company: "NVDA", metric: "Price return", period: "YTD 2026: 2025-12-31 close to 2026-08-31 close", value: "6.6%", series_ref: NVDA_LINE, source_ids: ["s-px"] },
     { id: "F4", company: "NVDA", metric: "P/E", period: "Q42026", value: "52.3x", fact_id: "not-a-uuid", source_ids: [] },
   ],
   coverage: [],
@@ -110,8 +111,10 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
   assert.deepEqual(typedDigits("Revenue in Q4.", { years: new Set(), words: new Set(), companies: [] }), []);
 });
 
-test("prose converts to segments: a sealed fact ref, a claim ref, and plain text for a figure with no fact to seal", () => {
-  const converted = proseSegments("NVDA's revenue was [[F1]] versus AMD's margin of [[F2]]; management said: [[C1]] Its return was [[F3]] and P/E [[F4]].", TABLE, BLOCKS);
+test("prose converts to segments: a sealed fact ref, a claim ref, a series ref for a price return, and plain text for a figure with neither fact nor series to seal", () => {
+  const unsealed = { id: "F9", company: "AMD", metric: "Price return", value: "3.58%", source_ids: [] };
+  const table = referenceTable({ ...PACKET, figures: [...PACKET.figures, unsealed] }, BLOCKS);
+  const converted = proseSegments("NVDA's revenue was [[F1]] versus AMD's margin of [[F2]]; management said: [[C1]] Its return was [[F3]], AMD's [[F9]] and P/E [[F4]].", table, BLOCKS);
   assert.deepEqual(converted.segments, [
     { type: "text", text: "NVDA's revenue was " },
     { type: "ref", ref_kind: "fact", ref_id: NVDA_REVENUE, format: "$209.9B" },
@@ -119,10 +122,12 @@ test("prose converts to segments: a sealed fact ref, a claim ref, and plain text
     { type: "ref", ref_kind: "fact", ref_id: AMD_MARGIN, format: "49.9%" },
     { type: "text", text: "; management said: " },
     { type: "ref", ref_kind: "claim", ref_id: CLAIM, format: "These restrictions on MI308 GPUs led to approximately $800 million in charges." },
-    { type: "text", text: " Its return was 6.6% and P/E 52.3x." },
+    { type: "text", text: " Its return was " },
+    { type: "ref", ref_kind: "series", ref_id: NVDA_LINE, format: "6.6%" },
+    { type: "text", text: ", AMD's 3.58% and P/E 52.3x." },
   ]);
   assert.deepEqual(converted.fact_bindings.map((entry) => entry.fact_id), [NVDA_REVENUE, AMD_MARGIN]);
-  assert.deepEqual(converted.source_refs, ["s-nvda", "s-amd", "s-claim"]);
+  assert.deepEqual(converted.source_refs, ["s-nvda", "s-amd", "s-claim", "s-px"]);
 });
 
 test("a unit the model repeats beside a reference is dropped only when the value already carries it", () => {

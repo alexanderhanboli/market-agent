@@ -2460,6 +2460,7 @@
         }
       },
       "source_refs": [
+        "00000000-0000-4000-a000-000000000009",
         "00000000-0000-4000-a000-000000000001"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
@@ -2467,7 +2468,27 @@
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVIDIA has outperformed AMD year-to-date in 2026 on price return, and its latest fiscal-year fundamentals are stronger across every metric shown—revenue, growth, gross margin, and net margin.\n\n**Trend across periods shown:** Only one fiscal-year period is displayed for each company, so no multi-period trend is visible. The YTD price-return window runs from the end of December 2025 through the end of August 2026 for both names. NVDA returned 5.81% over that window; AMD returned 3.17%.\n\n**What is strong and what is weak:** NVIDIA is stronger on every figure shown. Revenue of "
+          "text": "**Takeaway:** NVIDIA has outperformed AMD year-to-date in 2026 on price return, and its latest fiscal-year fundamentals are stronger across every metric shown—revenue, growth, gross margin, and net margin.\n\n**Trend across periods shown:** Only one fiscal-year period is displayed for each company, so no multi-period trend is visible. The YTD price-return window runs from the end of December 2025 through the end of August 2026 for both names. NVDA returned "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "dffb79e3-eac9-43e3-831d-eafdca5aa699",
+          "format": "5.81%"
+        },
+        {
+          "type": "text",
+          "text": " over that window; AMD returned "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "8961b45c-2fd7-4288-8ea6-1699f1de18fa",
+          "format": "3.17%"
+        },
+        {
+          "type": "text",
+          "text": ".\n\n**What is strong and what is weak:** NVIDIA is stronger on every figure shown. Revenue of "
         },
         {
           "type": "ref",

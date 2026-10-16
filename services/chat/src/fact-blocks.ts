@@ -967,6 +967,8 @@ export type DisplayedFigure = {
   // (#207); never sent to the model.
   fact_id?: string;
   block_id?: string;
+  // A price return's chart line, by its sealed series (#317); never sent to the model.
+  series_ref?: string;
 };
 
 export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[] {
@@ -1032,11 +1034,14 @@ export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[
       // Each line's return over the window drawn (its last point), credited to
       // its company, so the answer can discuss the chart and the guard checks it.
       const series = (block.series ?? []) as ReadonlyArray<{ name?: string; points?: ReadonlyArray<{ y?: number }> }>;
+      const seriesRefs = (block.data_ref as { params?: { series_refs?: unknown } } | undefined)?.params?.series_refs;
       const period = typeof block.default_range === "string" ? { period: block.default_range } : {};
-      return series.flatMap((line) => {
+      return series.flatMap((line, index) => {
         const last = line.points?.at(-1)?.y;
+        // Line i is drawn from series_refs[i].
+        const seriesRef = Array.isArray(seriesRefs) && typeof seriesRefs[index] === "string" ? { series_ref: seriesRefs[index] as string } : {};
         return line.name && typeof last === "number"
-          ? [{ company: line.name, metric: "Price return", ...period, value: returnLabel(last), ...shownIn }]
+          ? [{ company: line.name, metric: "Price return", ...period, value: returnLabel(last), ...shownIn, ...seriesRef }]
           : [];
       });
     }

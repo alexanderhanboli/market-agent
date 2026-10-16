@@ -202,7 +202,8 @@
           "enum": [
             "fact",
             "claim",
-            "event"
+            "event",
+            "series"
           ]
         },
         "ref_id": {
