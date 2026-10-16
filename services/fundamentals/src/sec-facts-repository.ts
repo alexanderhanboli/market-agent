@@ -268,6 +268,18 @@ async function ingestFiling(
         }
       }
     }
+    if (accessionNumber && input.fiscal_period === "FY") {
+      await recordSecRestatements(client, {
+        facts: input.fetched.facts,
+        cik: input.cik,
+        issuerId: input.issuerId,
+        fiscalYear: input.fiscal_year,
+        accessionNumber,
+        sourceId,
+        asOf,
+        clock: input.clock,
+      });
+    }
     if (accessionNumber) {
       await recordSecFetchPublication(client, { sourceId, accessionNumber, evidence: input.fetched.evidence });
     }
@@ -850,6 +862,8 @@ const SEC_SHARE_METRIC_KEYS: ReadonlySet<string> = new Set([
   "shares_outstanding_diluted",
 ]);
 
+const SEC_CONTEXT_VERSION = "sec_companyfacts_context.v1";
+
 // A metric mapped from several concepts is certified only from the reviewed
 // one: capex v1 is cash paid for PP&E, and PaymentsToAcquireProductiveAssets
 // (which some filers tag instead) adds purchased intangibles. Facts from the
@@ -901,7 +915,7 @@ async function recordSecOriginalContext(
   if (existing.rows.length > 0) return;
   await recordFactFinancialContext(db, {
     fact_id: factId,
-    context_version: "sec_companyfacts_context.v1",
+    context_version: SEC_CONTEXT_VERSION,
     period_type: token.start === null ? "instant" : "duration",
     dimension_scope: "consolidated",
     dimension_members: [],
@@ -937,6 +951,113 @@ async function derivationLineage(
     input_source_ids: [...new Set(sources.values())],
     inputs: derivation.inputs.map((input) => ({ ...input, source_id: sources.get(input.accn)! })),
   };
+}
+
+// A 10-K repeats the two prior years beside its own (#321). Each stored
+// original disclosure of those years is compared with this filing's value for
+// the same concept, unit and dates. An unchanged value adds nothing; a changed
+// one is stored as that year's restatement, on this filing's source, naming
+// the original it restates. Two different values in the filing, a value
+// without its lossless token, or an original with no recorded concept is left
+// as it is. A restated fact's method keeps it out of every as-reported reader.
+async function recordSecRestatements(
+  db: FundamentalsQueryExecutor,
+  input: {
+    facts: SecCompanyFacts;
+    cik: number;
+    issuerId: UUID;
+    fiscalYear: number;
+    accessionNumber: string;
+    sourceId: UUID;
+    asOf: string;
+    clock: () => Date;
+  },
+): Promise<void> {
+  const { rows: originals } = await db.query<{
+    fact_id: string;
+    metric_id: string;
+    period_kind: string;
+    period_start: string | null;
+    period_end: string;
+    fiscal_year: number;
+    unit: string;
+    currency: string | null;
+    scale: string;
+    source_context_ref: string | null;
+  }>(
+    `select f.fact_id::text as fact_id, f.metric_id::text as metric_id, f.period_kind::text as period_kind,
+            f.period_start::text as period_start, f.period_end::text as period_end, f.fiscal_year,
+            f.unit, f.currency, f.scale::text as scale, c.source_context_ref
+       from facts f
+       join fact_financial_contexts c on c.fact_id = f.fact_id
+      where f.subject_kind = 'issuer' and f.subject_id = $1 and f.method = 'reported' and f.fiscal_period = 'FY'
+        and f.fiscal_year between $2 - 2 and $2 - 1
+        and ${factActiveSql("f")}
+        and c.context_version = $3 and c.disclosure_relation = 'original'`,
+    [input.issuerId, input.fiscalYear, SEC_CONTEXT_VERSION],
+  );
+  const usGaap = input.facts.facts["us-gaap"] ?? {};
+  for (const original of originals) {
+    const located = /#([^|]+)\|([^|]+)\|([^|]+)\|/u.exec(original.source_context_ref ?? "");
+    if (!located || located[3] === input.accessionNumber) continue;
+    const [, concept, unit] = located;
+    const presented = (usGaap[concept!]?.units?.[unit!] ?? []).filter((value) =>
+      value.accn === input.accessionNumber && value.form === "10-K" && (value.start ?? null) === original.period_start && value.end === original.period_end);
+    const tokens = [...new Set(presented.map((value) => value.val_token ?? null))];
+    if (tokens.length !== 1 || tokens[0] === null) continue;
+    const token: SecSourceToken = { token: tokens[0]!, concept: concept!, unit: unit!, accn: input.accessionNumber, start: original.period_start, end: original.period_end };
+    // Compared with the latest disclosure, so a later 10-K repeating a restated value adds nothing.
+    const latest = await db.query<{ changed: boolean }>(
+      `select r.value_num <> $2::numeric as changed
+         from facts r
+        where r.fact_id = $1::uuid or (r.supersedes = $1::uuid and r.method = 'restated' and ${factActiveSql("r")})
+        order by r.as_of desc, r.created_at desc
+        limit 1`,
+      [original.fact_id, token.token],
+    );
+    if (!latest.rows[0]?.changed) continue;
+    const inserted = await db.query<{ fact_id: string }>(
+      `insert into facts (
+         subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+         value_num, unit, currency, scale, as_of, reported_at, observed_at, source_id, method, definition_version,
+         verification_status, freshness_class, coverage_level, confidence, supersedes
+       ) values (
+         'issuer', $1, $2, $3, $4, $5, $6, 'FY', $7, $8, $9, $10, $11, $15, $12, $13, 'restated', 1,
+         'authoritative', 'filing_time', 'full', 1, $14
+       )
+       on conflict do nothing
+       returning fact_id::text as fact_id`,
+      [
+        input.issuerId, original.metric_id, original.period_kind, original.period_start, original.period_end, original.fiscal_year,
+        token.token, original.unit, original.currency, original.scale, input.asOf, input.clock().toISOString(), input.sourceId, original.fact_id,
+        presented[0]!.filed,
+      ],
+    );
+    const factId = inserted.rows[0]?.fact_id;
+    if (!factId) continue;
+    const locator = `sec_edgar:companyfacts:CIK${String(input.cik).padStart(10, "0")}#${token.concept}|${token.unit}|${token.accn}|${token.start ?? ""}..${token.end}`;
+    await recordFactPrecisionAttestation(db, {
+      fact_id: factId,
+      precision_class: "source_token_preserved",
+      raw_token: token.token,
+      token_proof_hash: secTokenProofHash(input.cik, token),
+      source_locator: locator,
+      validation_method: "sec_companyfacts_lossless_json.v1",
+    });
+    await recordFactFinancialContext(db, {
+      fact_id: factId,
+      context_version: SEC_CONTEXT_VERSION,
+      period_type: original.period_start === null ? "instant" : "duration",
+      dimension_scope: "consolidated",
+      dimension_members: [],
+      reporting_basis: "as_restated",
+      adjustment_basis: "unadjusted",
+      share_basis: "not_applicable",
+      fiscal_calendar_version: "sec_filer_fiscal_year.v1",
+      disclosure_relation: "economic_restatement",
+      source_context_ref: locator,
+    });
+  }
 }
 
 /** Binds the exact token to its location in the SEC response. */

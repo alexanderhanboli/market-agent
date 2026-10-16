@@ -670,6 +670,8 @@ class FakeFundamentalsDb {
       for (const fact of this.facts) if ((values[0] as string[]).includes(fact.fact_id)) fact.superseded_by = values[1] as string;
       return rows([]);
     }
+    // Restatement detection's stored originals: the fake records no financial contexts, so there are none.
+    if (sql.includes("join fact_financial_contexts c on c.fact_id = f.fact_id")) return rows([]);
     if (sql.includes("select max(f.fiscal_year)")) {
       const fiscalYears = this.facts
         .filter((fact) => metricKeyFor(this.metrics, fact.metric_id) === "revenue")

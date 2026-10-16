@@ -53,6 +53,8 @@ export function fiscalFactProducer(
           and f.value_num is not null
           and f.invalidated_at is null
           and f.superseded_by is null
+          -- A restatement of an earlier year is never its latest value, however recently it was stored.
+          and f.method <> 'restated'
           and f.entitlement_channels ? $3
           and f.period_kind in ('fiscal_q','fiscal_y','ttm')
         order by f.as_of desc, f.period_end desc nulls last, f.created_at desc, f.fact_id desc

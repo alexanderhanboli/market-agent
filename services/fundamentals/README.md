@@ -110,9 +110,15 @@ npm test         # contract + AAPL FY2024 income statement verification
   certified only from `PaymentsToAcquirePropertyPlantAndEquipment`;
   capex mapped from `PaymentsToAcquireProductiveAssets` still appears in
   statements but gets no context, since that concept adds purchased
-  intangibles. Ingestion stores only each filing's own
-  period, so it records no restatements yet; a later filing's changed
-  comparative is not ingested.
+  intangibles.
+- A 10-K's comparative for one of the two prior years that differs from
+  the latest stored disclosure is stored as a restatement: `method =
+  'restated'`, on the later filing's source, `supersedes` naming the
+  original, with an `as_restated` / `economic_restatement` context. An
+  unchanged comparative, two different values in one filing, or an
+  original without a recorded concept adds nothing. Readers of
+  as-reported facts filter `method = 'reported'`, so they never see a
+  restatement; only certified selection with `as_restated` picks it.
 - Period selection, fiscal labels, scale, and unit are part of the
   contract, not caller-side cleanup. `value_num × scale` resolves to the
   native unit (e.g. millions × 1_000_000 = native USD).

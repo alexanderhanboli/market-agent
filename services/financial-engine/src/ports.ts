@@ -37,7 +37,7 @@ export type InputCandidate = Readonly<{
   scale_text: string;
   /** Null when the stored unit has no financial-contract equivalent. */
   unit: FinancialUnit | null;
-  method: "reported" | "extracted";
+  method: "reported" | "extracted" | "restated";
   verification_status: "authoritative" | "corroborated";
   observed_at: string;
   supersedes: string | null;
