@@ -1,4 +1,4 @@
-import { createElement, type ReactElement, type ReactNode } from 'react'
+import { Component, createElement, type ReactElement, type ReactNode } from 'react'
 import type { Block } from './types.ts'
 import {
   BlockRegistryContext,
@@ -26,11 +26,53 @@ export function BlockRegistryProvider({ registry, children }: BlockRegistryProvi
 // label says what is actually established, not the kind's default.
 type BlockViewProps = { block: Block; verification?: VerificationKind; proof?: BlockProof }
 
+export function BlockView(props: BlockViewProps): ReactElement {
+  return (
+    <BlockErrorBoundary key={props.block.id} block={props.block}>
+      <RegisteredBlockView {...props} />
+    </BlockErrorBoundary>
+  )
+}
+
+type BoundaryState = { failed: boolean; block: Block }
+
+class BlockErrorBoundary extends Component<{ block: Block; children: ReactNode }, BoundaryState> {
+  state: BoundaryState = { failed: false, block: this.props.block }
+
+  static getDerivedStateFromError(): Partial<BoundaryState> {
+    return { failed: true }
+  }
+
+  // A new copy of the block (a later history load, a corrected stream) gets a
+  // fresh attempt; the same block keeps its failure.
+  static getDerivedStateFromProps(props: { block: Block }, state: BoundaryState): BoundaryState | null {
+    return props.block === state.block ? null : { failed: false, block: props.block }
+  }
+
+  componentDidCatch(error: unknown): void {
+    console.error(`Block ${this.props.block.id} (${this.props.block.kind}) failed to render`, error)
+  }
+
+  render(): ReactNode {
+    if (!this.state.failed) return this.props.children
+    return (
+      <div
+        data-testid="block-render-failed"
+        data-block-id={this.props.block.id}
+        data-block-kind={this.props.block.kind}
+        className="rounded border border-dashed border-line-strong px-2 py-1 text-xs text-muted"
+      >
+        This part of the answer couldn't be displayed.
+      </div>
+    )
+  }
+}
+
 // Dispatches a block to its registered renderer. If no renderer is
 // registered for the kind (e.g., a sibling-bead kind hasn't shipped yet),
 // renders an unobtrusive placeholder so a snapshot still surfaces the
 // gap to a reviewer instead of silently dropping content.
-export function BlockView({ block, verification: verificationOverride, proof }: BlockViewProps): ReactElement {
+function RegisteredBlockView({ block, verification: verificationOverride, proof }: BlockViewProps): ReactElement {
   const registry = useBlockRegistry()
   const inspector = useEvidenceInspector()
   const renderer = registry.resolve(block.kind)

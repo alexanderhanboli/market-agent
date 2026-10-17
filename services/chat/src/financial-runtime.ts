@@ -34,9 +34,9 @@ import {
 import type { FinancialEvidencePort, FinancialPool, SqlExecutor } from "../../financial-engine/src/ports.ts";
 import { requireFinancialReadiness } from "../../financial-engine/src/readiness.ts";
 import { publishRequest, type FinancialMode, type RequestGap } from "../../financial-engine/src/request.ts";
-import type { FinancialAnswerBlock } from "../../snapshot/src/financial-verifier.ts";
 import type { ChatTurnRunContext } from "./coordinator.ts";
 import { contentHashForText, stableUuid } from "./chat-ids.ts";
+import { logUnreadMessage, readChatMessage, type ChatReadMessage } from "./messages.ts";
 import { COMPARATIVE, companyKey, extractSubjectMentions } from "./subject-extraction.ts";
 import type { ChatResolvedSubjectPreResolution, ChatSubjectPreResolution } from "./subjects.ts";
 import type { ResearchScope } from "./research-scope.ts";
@@ -49,7 +49,7 @@ export type ChatClarificationAnswer = Readonly<{ clarification_id: string; choic
 export type ChatFinancialTurn =
   | Readonly<{ kind: "clarification"; clarification: Clarification }>
   | Readonly<{ kind: "gap"; reason_code: string; text: string }>
-  | Readonly<{ kind: "published"; run_id: string; message_id: string; snapshot_id: string; block: FinancialAnswerBlock | null }>;
+  | Readonly<{ kind: "published"; run_id: string; message_id: string; message: ChatReadMessage | null }>;
 
 export type ChatFinancialTurnContext = ChatTurnRunContext & { clarificationAnswer?: ChatClarificationAnswer };
 
@@ -131,13 +131,10 @@ export function createChatFinancialRuntime(deps: ChatFinancialRuntimeDeps): Chat
         if (outcome.reason === "publication_failed") throw new Error("the financial answer could not be committed");
         return gap(outcome.reason);
       case "driven": {
-        if (outcome.report === null) return publishedFromMessage(deps.pool, outcome.run_id, messageId);
-        const [unit] = outcome.report.finalized;
-        if (unit?.result.status === "published") {
-          const { publication } = unit.result;
-          return { kind: "published", run_id: publication.run_id, message_id: messageId, snapshot_id: publication.snapshot_id, block: publication.block };
-        }
-        if (unit?.result.status === "existing" || (!unit && outcome.report.existing > 0)) return publishedFromMessage(deps.pool, outcome.run_id, messageId);
+        const [unit] = outcome.report?.finalized ?? [];
+        const committed = outcome.report === null || unit?.result.status === "published" || unit?.result.status === "existing" ||
+          (!unit && outcome.report.existing > 0);
+        if (committed) return published(deps.pool, outcome.run_id, context.threadId, messageId);
         return gap(unit?.result.status === "rejected" ? "verification_failed" : "run_failed");
       }
     }
@@ -364,9 +361,15 @@ function persistAssistantMessage(threadId: string, messageId: string, scope: Res
   };
 }
 
-async function publishedFromMessage(db: SqlExecutor, runId: string, messageId: string): Promise<ChatFinancialTurn> {
-  const row = (await db.query<{ snapshot_id: string }>(`select snapshot_id::text from chat_messages where message_id = $1`, [messageId])).rows[0];
-  return row ? { kind: "published", run_id: runId, message_id: messageId, snapshot_id: row.snapshot_id, block: null } : gap("run_failed");
+async function published(db: SqlExecutor, runId: string, threadId: string, messageId: string): Promise<ChatFinancialTurn> {
+  let message: ChatReadMessage | null;
+  try {
+    message = await readChatMessage(db, { thread_id: threadId, message_id: messageId });
+  } catch (error) {
+    logUnreadMessage(messageId, error);
+    return { kind: "published", run_id: runId, message_id: messageId, message: null };
+  }
+  return message ? { kind: "published", run_id: runId, message_id: messageId, message } : gap("run_failed");
 }
 
 function gap(reason_code: ChatGap): Extract<ChatFinancialTurn, { kind: "gap" }> {

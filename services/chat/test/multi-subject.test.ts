@@ -8,6 +8,7 @@ import {
   type ChatTurnRunContext,
 } from "../src/coordinator.ts";
 import type { ChatResolvedSubjectPreResolution, ChatSubjectPreResolution } from "../src/subjects.ts";
+import { readMessage } from "./read-message-fixture.ts";
 
 const LISTING_IDS: Record<string, string> = {
   NVDA: "62000000-0000-4000-8000-000000000001",
@@ -281,7 +282,7 @@ test("naming a new company after a comparison, without saying add or replace, as
     loadPriorSubjects: priorOf("NVDA", "AMD"),
     persistAssistantMessage: async (input) => {
       persisted.push(input);
-      return { snapshot_id: "snapshot-1", message_id: "message-1" };
+      return readMessage({ snapshot_id: "snapshot-1", message_id: "message-1" });
     },
     runner: () => {
       ran = true;
@@ -311,7 +312,7 @@ test("an ambiguous company's question is saved as a text block the verifier acce
     preResolveSubject,
     persistAssistantMessage: async (input) => {
       persisted.push(input);
-      return { snapshot_id: "snapshot-1", message_id: "message-1" };
+      return readMessage({ snapshot_id: "snapshot-1", message_id: "message-1" });
     },
     runner: () => {},
   }).getOrCreateTurn({ threadId: "thread-1", runId: "run-1", userIntent: "Compare GOOGL and NVDA" });

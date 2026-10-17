@@ -11,6 +11,7 @@ import { databaseUrl, engineDatabase, IDS } from "../../financial-engine/test/db
 import { createChatCoordinator, type ChatAnalystToolRuntime, type ChatTurnInput } from "../src/coordinator.ts";
 import { createChatFinancialRuntime, type ChatFinancialMode } from "../src/financial-runtime.ts";
 import type { ChatSubjectPreResolution } from "../src/subjects.ts";
+import { readMessage } from "./read-message-fixture.ts";
 
 export const MISSING_ISSUER = "4f000000-0000-4000-8000-0000000000a9";
 // A listing of issuer A, as the resolver offers for a ticker (seeded by the tests that use AMBL).
@@ -91,7 +92,7 @@ export function chatHarness(
     analystToolRuntime: options.analyst ?? forbiddenAnalyst,
     persistAssistantMessage: async (message) => {
       persisted.push(message.turnId);
-      return { snapshot_id: randomUUID(), message_id: randomUUID() };
+      return readMessage({ snapshot_id: randomUUID(), message_id: randomUUID(), thread_id: message.threadId });
     },
     financialRuntime: createChatFinancialRuntime({
       mode: options.mode ?? "enforce",

@@ -11,12 +11,12 @@ export type TurnState =
   | { phase: 'persisting'; turn: TurnIds }
   | { phase: 'not_sent'; text: string; error: string }
   | { phase: 'streaming'; turn: TurnIds; stream: StreamState }
-  | { phase: 'sealing'; turn: TurnIds; stream: StreamState; sealedId: string }
-  | { phase: 'kept'; turn: TurnIds; stream: StreamState; sealedId: string; reason: 'not_in_history' | 'history_failed' }
-  | { phase: 'failed'; turn: TurnIds; stream: StreamState; error: string }
+  // A failed turn's way back: reopen its stream, or, when the stream completed
+  // without a sealed message, reload the thread (replaying it changes nothing)
+  // until a load returns messageId, the saved answer the completion named.
+  | { phase: 'failed'; turn: TurnIds; stream: StreamState; error: string; recovery: 'retry_stream' }
+  | { phase: 'failed'; turn: TurnIds; stream: StreamState; error: string; recovery: 'reload_thread'; messageId: string | null }
   | { phase: 'unverified'; turn: TurnIds; stream: StreamState }
-
-export type KeptTurn = Extract<TurnState, { phase: 'kept' }>
 
 type LoadedHistory =
   | { kind: 'loading' }
@@ -29,18 +29,28 @@ export type HistoryState = {
   // The last generation that resolved, ok or failed.
   settled: number
   loaded: LoadedHistory
-  // Locally POSTed messages that no load has returned yet.
-  unconfirmed: ReadonlyArray<ChatMessage>
+  // Messages the server returned outside a history load (the POSTed question,
+  // the sealed answer from turn.completed) that no load has returned yet.
+  local: ReadonlyArray<ChatMessage>
 }
+
+export type Reconcile =
+  | { kind: 'none' }
+  | { kind: 'awaiting_hand_off' }
+  | { kind: 'awaiting_load'; gen: number }
+
+const RECONCILED: Reconcile = { kind: 'none' }
 
 export type ChatSessionState = {
   threadId: string | null
   history: HistoryState
   turn: TurnState
-  // Kept answers a later ask moved aside. Each is the only copy of its answer
-  // until a history load returns its sealed id.
-  retained: ReadonlyArray<KeptTurn>
   sealedTurns: number
+  // A turn failed and another was asked after it. The failed turn's answer may
+  // still commit, unseen, but the server runs a thread's turns in order, so it
+  // has committed by the time the next turn hands off. Only the load that
+  // hand-off requests, or a later one, can show it.
+  reconcile: Reconcile
   // A send on this thread that is not the session's turn is still going.
   backgroundRun: boolean
   // Bumped by every thread.opened that changes the thread, but not by
@@ -63,16 +73,19 @@ export type ChatSessionAction =
   | { type: 'history.failed'; threadId: string; gen: number; message: string }
 
 export const STREAM_DISCONNECTED = 'The analyst stream disconnected.'
+export const NOT_SEALED = "Couldn't show the saved copy of this answer."
+export const NOT_IN_THREAD = "The saved copy of this answer isn't in the thread yet."
+export const RELOAD_FAILED = "Couldn't load the saved copy of this answer."
 
 const IDLE: TurnState = { phase: 'idle' }
 const EMPTY_READY: LoadedHistory = { kind: 'ready', messages: [] }
 
 export const INITIAL_CHAT_SESSION: ChatSessionState = {
   threadId: null,
-  history: { requested: 0, settled: 0, loaded: EMPTY_READY, unconfirmed: [] },
+  history: { requested: 0, settled: 0, loaded: EMPTY_READY, local: [] },
   turn: IDLE,
-  retained: [],
   sealedTurns: 0,
+  reconcile: RECONCILED,
   backgroundRun: false,
   opens: 0,
 }
@@ -81,16 +94,16 @@ function openedSession(threadId: string | null, opens: number): ChatSessionState
   if (threadId === null) return { ...INITIAL_CHAT_SESSION, opens }
   return {
     threadId,
-    history: { requested: 1, settled: 0, loaded: { kind: 'loading' }, unconfirmed: [] },
+    history: { requested: 1, settled: 0, loaded: { kind: 'loading' }, local: [] },
     turn: IDLE,
-    retained: [],
     sealedTurns: 0,
+    reconcile: RECONCILED,
     backgroundRun: false,
     opens,
   }
 }
 
-const ASKABLE_PHASES: ReadonlySet<TurnState['phase']> = new Set(['idle', 'not_sent', 'kept', 'failed', 'unverified'])
+const ASKABLE_PHASES: ReadonlySet<TurnState['phase']> = new Set(['idle', 'not_sent', 'failed', 'unverified'])
 
 function askable(s: ChatSessionState): boolean {
   return ASKABLE_PHASES.has(s.turn.phase) && !s.backgroundRun
@@ -101,23 +114,25 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
     case 'thread.opened':
       return a.threadId === s.threadId ? s : openedSession(a.threadId, s.opens + 1)
 
-    case 'ask.started': {
+    case 'ask.started':
       if (!askable(s)) return s
-      const retained = s.turn.phase === 'kept' ? [...s.retained, s.turn] : s.retained
-      return { ...s, retained, turn: { phase: 'persisting', turn: a.turn } }
-    }
+      return {
+        ...s,
+        reconcile: s.turn.phase === 'failed' ? { kind: 'awaiting_hand_off' } : s.reconcile,
+        turn: { phase: 'persisting', turn: a.turn },
+      }
 
     case 'thread.created':
       if (s.threadId !== null || s.turn.phase !== 'persisting') return s
       return {
         ...s,
         threadId: a.threadId,
-        history: { requested: 0, settled: 0, loaded: EMPTY_READY, unconfirmed: [] },
+        history: { requested: 0, settled: 0, loaded: EMPTY_READY, local: [] },
       }
 
     case 'message.persisted': {
       if (a.threadId !== s.threadId || s.turn.phase !== 'persisting') return s
-      const history = withUnconfirmed(s.history, a.message)
+      const history = withLocal(s.history, a.message)
       return {
         ...s,
         history: { ...history, loaded: history.loaded.kind === 'ready' ? history.loaded : EMPTY_READY },
@@ -134,10 +149,10 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
 
     case 'stream.disconnected':
       if (a.threadId !== s.threadId || s.turn.phase !== 'streaming' || s.turn.turn.runId !== a.runId) return s
-      return { ...s, turn: { phase: 'failed', turn: s.turn.turn, stream: s.turn.stream, error: STREAM_DISCONNECTED } }
+      return { ...s, turn: { phase: 'failed', turn: s.turn.turn, stream: s.turn.stream, error: STREAM_DISCONNECTED, recovery: 'retry_stream' } }
 
     case 'stream.reopened':
-      if (s.turn.phase !== 'failed') return s
+      if (s.turn.phase !== 'failed' || s.turn.recovery !== 'retry_stream') return s
       return {
         ...s,
         turn: { phase: 'streaming', turn: s.turn.turn, stream: { ...s.turn.stream, turn_status: 'started', error: null } },
@@ -147,15 +162,9 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
       if (a.threadId !== s.threadId || a.running === s.backgroundRun) return s
       return { ...s, backgroundRun: a.running }
 
-    case 'history.requested': {
+    case 'history.requested':
       if (s.threadId === null) return s
-      const requested = s.history.requested + 1
-      const loaded: LoadedHistory = s.history.loaded.kind === 'error' ? { kind: 'loading' } : s.history.loaded
-      const turn: TurnState = s.turn.phase === 'kept'
-        ? { phase: 'sealing', turn: s.turn.turn, stream: s.turn.stream, sealedId: s.turn.sealedId }
-        : s.turn
-      return { ...s, history: { ...s.history, requested, loaded }, turn }
-    }
+      return { ...s, history: requestHistory(s.history) }
 
     case 'history.loaded': {
       if (a.threadId !== s.threadId || a.gen !== s.history.requested) return s
@@ -164,38 +173,41 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
         requested: s.history.requested,
         settled: a.gen,
         loaded: { kind: 'ready', messages: a.messages },
-        unconfirmed: s.history.unconfirmed.filter((m) => !loadedIds.has(m.message_id)),
+        local: s.history.local.filter((m) => !loadedIds.has(m.message_id)),
       }
-      const retained = s.retained.length === 0 ? s.retained : s.retained
-        .filter((kept) => !loadedIds.has(kept.sealedId))
-        .map((kept): KeptTurn => ({ ...kept, reason: 'not_in_history' }))
-      if (s.turn.phase === 'sealing' || s.turn.phase === 'kept') {
-        if (loadedIds.has(s.turn.sealedId)) return { ...s, history, retained, turn: IDLE, sealedTurns: s.sealedTurns + 1 }
-        if (s.turn.phase === 'sealing') {
-          return { ...s, history, retained, turn: { ...keptFrom(s.turn), reason: 'not_in_history' } }
-        }
+      // A reload of a failed turn was requested after that turn ended, so it
+      // reconciles; any other load counts only if a hand-off requested it.
+      if (s.turn.phase !== 'failed' || s.turn.recovery !== 'reload_thread') return { ...s, history, reconcile: reconciledBy(s.reconcile, a.gen) }
+      // The reload's hand-off: the saved answer replaces the streamed one in this state.
+      if (s.turn.messageId === null || loadedIds.has(s.turn.messageId)) {
+        return { ...s, history, turn: IDLE, sealedTurns: s.sealedTurns + 1, reconcile: RECONCILED }
       }
-      return { ...s, history, retained }
+      return { ...s, history, turn: { ...s.turn, error: NOT_IN_THREAD }, reconcile: RECONCILED }
     }
 
     case 'history.failed': {
       if (a.threadId !== s.threadId || a.gen !== s.history.requested) return s
       const loaded: LoadedHistory = s.history.loaded.kind === 'ready' ? s.history.loaded : { kind: 'error', message: a.message }
-      const turn: TurnState = s.turn.phase === 'sealing' ? { ...keptFrom(s.turn), reason: 'history_failed' } : s.turn
+      const turn = s.turn.phase === 'failed' && s.turn.recovery === 'reload_thread' ? { ...s.turn, error: RELOAD_FAILED } : s.turn
       return { ...s, history: { ...s.history, settled: a.gen, loaded }, turn }
     }
   }
 }
 
-function withUnconfirmed(history: HistoryState, message: ChatMessage): HistoryState {
-  const known = (m: ChatMessage) => m.message_id === message.message_id
-  if (history.unconfirmed.some(known)) return history
-  if (history.loaded.kind === 'ready' && history.loaded.messages.some(known)) return history
-  return { ...history, unconfirmed: [...history.unconfirmed, message] }
+function reconciledBy(reconcile: Reconcile, gen: number): Reconcile {
+  return reconcile.kind === 'awaiting_load' && gen >= reconcile.gen ? RECONCILED : reconcile
 }
 
-function keptFrom(turn: Extract<TurnState, { phase: 'sealing' }>) {
-  return { phase: 'kept' as const, turn: turn.turn, stream: turn.stream, sealedId: turn.sealedId }
+function requestHistory(history: HistoryState): HistoryState {
+  const loaded: LoadedHistory = history.loaded.kind === 'error' ? { kind: 'loading' } : history.loaded
+  return { ...history, requested: history.requested + 1, loaded }
+}
+
+function withLocal(history: HistoryState, message: ChatMessage): HistoryState {
+  const known = (m: ChatMessage) => m.message_id === message.message_id
+  if (history.local.some(known)) return history
+  if (history.loaded.kind === 'ready' && history.loaded.messages.some(known)) return history
+  return { ...history, local: [...history.local, message] }
 }
 
 function reduceStreamEvent(s: ChatSessionState, threadId: string, event: ChatSseEvent): ChatSessionState {
@@ -203,27 +215,26 @@ function reduceStreamEvent(s: ChatSessionState, threadId: string, event: ChatSse
   if (threadId !== s.threadId || turn.phase !== 'streaming' || event.run_id !== turn.turn.runId) return s
   const stream = applyChatStreamEvent(turn.stream, event)
   if (stream === turn.stream) return s
-  if (stream.turn_status === 'completed' && stream.completed_message_id !== null) {
-    const requested = s.history.requested + 1
-    return {
-      ...s,
-      history: { ...s.history, requested },
-      turn: { phase: 'sealing', turn: turn.turn, stream, sealedId: stream.completed_message_id },
-    }
-  }
   switch (stream.turn_status) {
+    case 'completed':
+      // The hand-off: the sealed answer joins the thread in the state that drops the stream.
+      return {
+        ...s,
+        history: s.reconcile.kind === 'none' ? withLocal(s.history, stream.sealed) : requestHistory(withLocal(s.history, stream.sealed)),
+        reconcile: s.reconcile.kind === 'none' ? RECONCILED : { kind: 'awaiting_load', gen: s.history.requested + 1 },
+        turn: IDLE,
+        sealedTurns: s.sealedTurns + 1,
+      }
+    case 'unsealed':
+      return { ...s, turn: { phase: 'failed', turn: turn.turn, stream, error: NOT_SEALED, recovery: 'reload_thread', messageId: stream.message_id } }
     case 'unverified':
       return { ...s, turn: { phase: 'unverified', turn: turn.turn, stream } }
     case 'error':
-      return { ...s, turn: { phase: 'failed', turn: turn.turn, stream, error: `Stream error: ${stream.error ?? 'unknown'}` } }
+      return { ...s, turn: { phase: 'failed', turn: turn.turn, stream, error: `Stream error: ${stream.error ?? 'unknown'}`, recovery: 'retry_stream' } }
     default:
       return { ...s, turn: { ...turn, stream } }
   }
 }
-
-// A retained answer belongs right after its own question, so every message
-// that came after that question renders after it, in the list tail.
-export type RetainedView = { kept: KeptTurn; after: ReadonlyArray<ChatMessage> }
 
 export type ThreadView = {
   threadId: string | null
@@ -236,7 +247,6 @@ export type ThreadView = {
   listKey: number
   listMounted: boolean
   turn: TurnState
-  retained: ReadonlyArray<RetainedView>
   backgroundRun: boolean
   canAsk: boolean
   firstQuestion: string | null
@@ -246,44 +256,22 @@ export type ThreadView = {
 
 // Keyed on the loaded history so the list keeps one messages array across
 // turn-only updates and its memoized rows don't re-render on every delta.
-const mergedMessages = new WeakMap<object, { unconfirmed: ReadonlyArray<ChatMessage>; messages: ReadonlyArray<ChatMessage> }>()
+const mergedMessages = new WeakMap<object, { local: ReadonlyArray<ChatMessage>; messages: ReadonlyArray<ChatMessage> }>()
 
 function visibleMessages(history: HistoryState): ReadonlyArray<ChatMessage> {
   const loaded = history.loaded.kind === 'ready' ? history.loaded.messages : []
-  if (history.unconfirmed.length === 0) return loaded
+  if (history.local.length === 0) return loaded
   const cached = mergedMessages.get(history.loaded)
-  if (cached?.unconfirmed === history.unconfirmed) return cached.messages
-  const messages = [...loaded, ...history.unconfirmed]
-  mergedMessages.set(history.loaded, { unconfirmed: history.unconfirmed, messages })
+  if (cached?.local === history.local) return cached.messages
+  const messages = [...loaded, ...history.local]
+  mergedMessages.set(history.loaded, { local: history.local, messages })
   return messages
-}
-
-const NOTHING_RETAINED: ReadonlyArray<RetainedView> = []
-const placements = new WeakMap<object, { messages: ReadonlyArray<ChatMessage>; list: ReadonlyArray<ChatMessage>; retained: ReadonlyArray<RetainedView> }>()
-
-function placeRetained(messages: ReadonlyArray<ChatMessage>, retained: ReadonlyArray<KeptTurn>) {
-  if (retained.length === 0) return { list: messages, retained: NOTHING_RETAINED }
-  const cached = placements.get(retained)
-  if (cached?.messages === messages) return cached
-  const cuts: number[] = []
-  for (const kept of retained) {
-    const question = messages.findIndex((m) => m.message_id === kept.turn.messageId)
-    cuts.push(Math.max(question === -1 ? messages.length : question + 1, cuts.at(-1) ?? 0))
-  }
-  const placed = {
-    messages,
-    list: messages.slice(0, cuts[0]),
-    retained: retained.map((kept, i) => ({ kept, after: messages.slice(cuts[i], cuts[i + 1] ?? messages.length) })),
-  }
-  placements.set(retained, placed)
-  return placed
 }
 
 export function selectThreadView(s: ChatSessionState): ThreadView {
   const { history, turn } = s
-  const all = visibleMessages(history)
-  const { list: messages, retained } = placeRetained(all, s.retained)
-  const firstUser = all.find((m) => m.role === 'user')
+  const messages = visibleMessages(history)
+  const firstUser = messages.find((m) => m.role === 'user')
   const pendingText = turn.phase === 'persisting' ? turn.turn.text : turn.phase === 'not_sent' ? turn.text : null
   return {
     threadId: s.threadId,
@@ -294,7 +282,6 @@ export function selectThreadView(s: ChatSessionState): ThreadView {
     listKey: s.opens,
     listMounted: history.loaded.kind === 'ready' || turn.phase !== 'idle',
     turn,
-    retained,
     backgroundRun: s.backgroundRun,
     canAsk: askable(s),
     firstQuestion: (firstUser ? messageText(firstUser) : null) || pendingText,

@@ -1,4 +1,5 @@
 import { REF_SEGMENT_KINDS, type Block, type RefSegmentKind, type RichTextSegment } from '../blocks/types.ts'
+import { parseSealedMessage, type SealedChatMessage } from './messageTypes.ts'
 import type { ChatSseEvent } from './sseEventTypes.ts'
 import {
   markPlanStepDone,
@@ -33,7 +34,7 @@ export function isStreamingRichText(block: StreamingBlock): block is StreamingRi
   return block.kind === 'rich_text'
 }
 
-export type StreamingTurnStatus = 'idle' | 'started' | 'completed' | 'error' | 'unverified'
+export type StreamingTurnStatus = StreamState['turn_status']
 
 // A turn that failed verification but was shown anyway (development only,
 // CHAT_VERIFICATION_MODE=display_unverified). It was not saved, so the full
@@ -44,24 +45,25 @@ export type UnverifiedTurn = {
 }
 
 export type StreamState = {
-  turn_status: StreamingTurnStatus
   blocks_by_id: ReadonlyMap<string, StreamingBlock>
   block_order: ReadonlyArray<string>
   plan_steps: ReadonlyArray<StreamPlanStep>
-  // Captured from turn.completed so the consumer can fetch the canonical
-  // sealed message once the snapshot has landed.
-  completed_message_id: string | null
   // Captured from turn.error.
   error: string | null
   unverified?: UnverifiedTurn | null
-}
+} & (
+  | { turn_status: 'idle' | 'started' | 'error' | 'unverified' }
+  | { turn_status: 'completed'; sealed: SealedChatMessage }
+  // Completed without a sealed message the client could accept, so there is
+  // nothing to hand off to; message_id names the saved answer when the event did.
+  | { turn_status: 'unsealed'; message_id: string | null }
+)
 
 export const INITIAL_STREAM_STATE: StreamState = Object.freeze({
   turn_status: 'idle',
   blocks_by_id: new Map<string, StreamingBlock>(),
   block_order: [],
   plan_steps: [],
-  completed_message_id: null,
   error: null,
 })
 
@@ -76,7 +78,6 @@ export function applyChatStreamEvent(state: StreamState, event: ChatSseEvent): S
         blocks_by_id: new Map(),
         block_order: [],
         plan_steps: planStepsForTurnStarted(event),
-        completed_message_id: null,
         error: null,
         unverified: null,
       }
@@ -89,25 +90,23 @@ export function applyChatStreamEvent(state: StreamState, event: ChatSseEvent): S
           turn_status: 'unverified',
           blocks_by_id: new Map(),
           block_order: [],
-          completed_message_id: null,
           error: null,
           unverified,
         }
       }
-      // Without a message_id there is no sealed copy to fetch, so the turn
-      // fails instead of waiting for one.
-      const completedId = readString(event.message_id)
-      if (completedId === null) {
+      const sealed = parseSealedMessage(event.message, { threadId: event.thread_id, messageId: event.message_id })
+      // The block graph stays either way: on a hand-off the session drops the
+      // stream in the same state that adds the sealed message.
+      if (sealed === null) {
         return {
           ...state,
-          turn_status: 'error',
+          turn_status: 'unsealed',
+          message_id: readString(event.message_id),
           plan_steps: markRunningPlanStepsError(state.plan_steps),
-          error: 'turn.completed missing message_id',
+          error: 'turn.completed carried no valid sealed message',
         }
       }
-      // The block graph stays: the session renders it until the sealed message
-      // is in history, then drops the whole stream.
-      return { ...state, turn_status: 'completed', completed_message_id: completedId, error: null }
+      return { ...state, turn_status: 'completed', sealed, error: null }
     }
 
     case 'turn.error':

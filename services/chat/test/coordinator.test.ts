@@ -11,6 +11,7 @@ import {
 } from "../src/coordinator.ts";
 import type { ChatResolvedSubjectPreResolution } from "../src/subjects.ts";
 import { DEFAULT_BUNDLE_ID } from "../src/bundle-routing.ts";
+import { readMessage } from "./read-message-fixture.ts";
 
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -483,10 +484,7 @@ test("default turn runner calls analyst tool runtime and persists after verifica
     },
     persistAssistantMessage: async ({ threadId, role, blocks, content_hash }) => {
       steps.push(`persist:${threadId}:${role}:${content_hash}:${blocks.length}`);
-      return {
-        snapshot_id: "22222222-2222-4222-a222-222222222222",
-        message_id: "33333333-3333-4333-a333-333333333333",
-      };
+      return readMessage({ snapshot_id: "22222222-2222-4222-a222-222222222222", message_id: "33333333-3333-4333-a333-333333333333" });
     },
   });
 
@@ -683,10 +681,7 @@ test("explicit dev fallback emits synthetic strict Block[] analyst content", asy
     allowSyntheticAnalystFallback: true,
     persistAssistantMessage: async ({ blocks }) => {
       persistedBlocks.push(...blocks);
-      return {
-        snapshot_id: "22222222-2222-4222-a222-222222222222",
-        message_id: "33333333-3333-4333-a333-333333333333",
-      };
+      return readMessage({ snapshot_id: "22222222-2222-4222-a222-222222222222", message_id: "33333333-3333-4333-a333-333333333333" });
     },
   });
 
@@ -936,10 +931,7 @@ test("subject clarification turns use the injected renderer before persistence",
     }),
     persistAssistantMessage: async ({ blocks, content_hash }) => {
       persisted.push(`${content_hash}:${blocks[0].text}`);
-      return {
-        snapshot_id: "22222222-2222-4222-a222-222222222222",
-        message_id: "33333333-3333-4333-a333-333333333333",
-      };
+      return readMessage({ snapshot_id: "22222222-2222-4222-a222-222222222222", message_id: "33333333-3333-4333-a333-333333333333" });
     },
     runner: ({ emit }) => {
       emit("turn.completed", { message_id: "model-message" });
@@ -1134,9 +1126,9 @@ test("the answering model is reported on turn.completed and saved with the messa
   const saved: Array<string | undefined> = [];
   const answered = createChatCoordinator({
     analystToolRuntime: async (context) => ({ ...(await successfulRuntime(context)), answered_by: "opencode-go/qwen3.8-max" }),
-    persistAssistantMessage: async ({ answered_by }) => {
+    persistAssistantMessage: async ({ threadId, answered_by }) => {
       saved.push(answered_by);
-      return { snapshot_id: "00000000-0000-4000-8000-000000000099", message_id: "00000000-0000-4000-8000-000000000098" };
+      return readMessage({ snapshot_id: "00000000-0000-4000-8000-000000000099", message_id: "00000000-0000-4000-8000-000000000098", thread_id: threadId });
     },
   });
   const turn = answered.getOrCreateTurn({ threadId: "t", runId: "r" });

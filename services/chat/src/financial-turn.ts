@@ -2,15 +2,16 @@
 // only the turn's start: no tool previews, values, titles, or error detail
 // that could expose an unverified number. A certified answer is announced only
 // after the transaction that wrote its snapshot, certificate, and message has
-// committed; clients then read the committed message. Clarifications and gaps
-// are ordinary narrative messages with no numbers.
+// committed, and its turn.completed carries that committed message. Clarifications
+// and gaps are ordinary narrative messages with no numbers.
 
 import type {
-  ChatAssistantMessagePersistence,
+  ChatAssistantMessageCommit,
   ChatTurnRunContext,
   ChatTurnRunner,
 } from "./coordinator.ts";
 import { contentHashForText, stableUuid } from "./chat-ids.ts";
+import { firstBlockId, sealedCompletion } from "./messages.ts";
 import type { ChatFinancialRuntime, ChatFinancialTurn, ChatFinancialTurnContext } from "./financial-runtime.ts";
 
 export const FINANCIAL_BUNDLE_ID = "financial_answer";
@@ -18,7 +19,7 @@ export const FINANCIAL_BUNDLE_ID = "financial_answer";
 /** Routes financial turns to the financial lane; every other turn goes to `runner` unchanged. */
 export function financialAwareRunner(
   runner: ChatTurnRunner,
-  options: { financialRuntime?: ChatFinancialRuntime; persistAssistantMessage?: ChatAssistantMessagePersistence },
+  options: { financialRuntime?: ChatFinancialRuntime; persistAssistantMessage?: ChatAssistantMessageCommit },
 ): ChatTurnRunner {
   const runtime = options.financialRuntime;
   if (!runtime) return runner;
@@ -45,15 +46,16 @@ export function financialAwareRunner(
 async function emitFinancialTurn(
   context: ChatFinancialTurnContext,
   turn: ChatFinancialTurn,
-  persistAssistantMessage: ChatAssistantMessagePersistence | undefined,
+  persistAssistantMessage: ChatAssistantMessageCommit | undefined,
 ): Promise<void> {
   const { emit } = context;
   if (turn.kind === "published") {
-    const blockId = turn.block?.id ?? `financial-answer-${turn.message_id}`;
-    emit("snapshot.sealed", { snapshot_id: turn.snapshot_id, status: "sealed", verification: { ok: true } });
+    const { message } = turn;
+    const blockId = (message && firstBlockId(message)) ?? `financial-answer-${turn.message_id}`;
+    if (message) emit("snapshot.sealed", { snapshot_id: message.snapshot_id, status: "sealed", verification: { ok: true } });
     emit("block.began", { block_id: blockId, kind: "financial_answer" });
     emit("block.completed", { block_id: blockId });
-    emit("turn.completed", { message_id: turn.message_id, bundle_id: FINANCIAL_BUNDLE_ID, financial: { run_id: turn.run_id } });
+    emit("turn.completed", { ...sealedCompletion(turn, turn.message_id), bundle_id: FINANCIAL_BUNDLE_ID, financial: { run_id: turn.run_id } });
     return;
   }
 
@@ -71,17 +73,15 @@ async function emitFinancialTurn(
     segments: [{ type: "text", text }],
   }];
   const contentHash = contentHashForText(JSON.stringify(blocks));
-  let messageId = stableUuid(`financial-${turn.kind}-message:${context.threadId}:${turnId}`);
-  if (persistAssistantMessage) {
-    const persisted = await persistAssistantMessage({ threadId: context.threadId, runId: context.runId, turnId, role: "assistant", blocks, content_hash: contentHash });
-    messageId = persisted.message_id;
-    emit("snapshot.sealed", { snapshot_id: persisted.snapshot_id, status: "sealed" });
-  }
+  const persisted = persistAssistantMessage
+    ? await persistAssistantMessage({ threadId: context.threadId, runId: context.runId, turnId, role: "assistant", blocks, content_hash: contentHash })
+    : null;
+  if (persisted) emit("snapshot.sealed", { snapshot_id: persisted.snapshot_id, status: "sealed" });
   emit("block.began", { block_id: blockId, kind: "rich_text" });
   emit("block.delta", { block_id: blockId, delta: { segment: { type: "text", text } } });
   emit("block.completed", { block_id: blockId, content_hash: contentHash });
   emit("turn.completed", {
-    message_id: messageId,
+    ...sealedCompletion(persisted, stableUuid(`financial-${turn.kind}-message:${context.threadId}:${turnId}`)),
     bundle_id: FINANCIAL_BUNDLE_ID,
     ...(turn.kind === "clarification"
       ? {

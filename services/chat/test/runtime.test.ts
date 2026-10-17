@@ -70,7 +70,7 @@ test("runtime config loads assistant persistence from configured module", async 
   const modulePath = join(dir, "persistence.mjs");
   await writeFile(
     modulePath,
-    "export async function persistAssistantMessage() { return { snapshot_id: 'snapshot-1', message_id: 'message-1' }; }",
+    "export async function persistAssistantMessage() { return { message_id: 'message-1', thread_id: 'thread-1', role: 'assistant', snapshot_id: 'snapshot-1', blocks: [], content_hash: 'sha256:test', created_at: '2026-05-06T00:00:00.000Z', answered_by: null, block_proofs: {} }; }",
   );
 
   const options = await loadChatServerOptionsFromEnv({
@@ -86,8 +86,15 @@ test("runtime config loads assistant persistence from configured module", async 
     blocks: [],
     content_hash: "sha256:test",
   }), {
-    snapshot_id: "snapshot-1",
     message_id: "message-1",
+    thread_id: "thread-1",
+    role: "assistant",
+    snapshot_id: "snapshot-1",
+    blocks: [],
+    content_hash: "sha256:test",
+    created_at: "2026-05-06T00:00:00.000Z",
+    answered_by: null,
+    block_proofs: {},
   });
 });
 
@@ -95,7 +102,7 @@ test("runtime config resolves relative persistence modules from the process cwd"
   const dir = await mkdtemp(join(tmpdir(), "chat-runtime-relative-"));
   await writeFile(
     join(dir, "persistence.mjs"),
-    "export async function persistAssistantMessage() { return { snapshot_id: 'relative-snapshot', message_id: 'relative-message' }; }",
+    "export async function persistAssistantMessage() { return { message_id: 'relative-message', thread_id: 'thread-1', role: 'assistant', snapshot_id: 'relative-snapshot', blocks: [], content_hash: 'sha256:test', created_at: '2026-05-06T00:00:00.000Z', answered_by: null, block_proofs: {} }; }",
   );
 
   const options = await loadChatServerOptionsFromEnv({
@@ -111,8 +118,15 @@ test("runtime config resolves relative persistence modules from the process cwd"
     blocks: [],
     content_hash: "sha256:test",
   }), {
-    snapshot_id: "relative-snapshot",
     message_id: "relative-message",
+    thread_id: "thread-1",
+    role: "assistant",
+    snapshot_id: "relative-snapshot",
+    blocks: [],
+    content_hash: "sha256:test",
+    created_at: "2026-05-06T00:00:00.000Z",
+    answered_by: null,
+    block_proofs: {},
   });
 });
 

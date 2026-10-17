@@ -1,6 +1,7 @@
 import './installDomBeforeReact.ts'
 
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { JSDOM } from 'jsdom'
@@ -34,6 +35,10 @@ class FakeEventSource {
     return new URL(this.url, 'http://localhost').searchParams
   }
 
+  get threadId(): string {
+    return /\/v1\/chat\/threads\/([^/]+)\/stream/.exec(this.url)?.[1] ?? ''
+  }
+
   addEventListener(type: string, listener: (event: MessageEvent) => void) {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener])
   }
@@ -48,7 +53,7 @@ class FakeEventSource {
     const data = JSON.stringify({
       type,
       seq,
-      thread_id: '',
+      thread_id: this.threadId,
       run_id: this.params.get('run_id'),
       turn_id: this.params.get('turn_id'),
       ...payload,
@@ -302,30 +307,27 @@ async function streamAnswer(h: Harness, source: FakeEventSource) {
   await h.flush()
 }
 
-async function complete(h: Harness, source: FakeEventSource) {
-  await act(async () => source.emit('turn.completed', 5, { message_id: 'a1' }))
+async function complete(h: Harness, source: FakeEventSource, message: unknown = sealedAnswer(source.threadId)) {
+  await act(async () => source.emit('turn.completed', 5, { message_id: 'a1', message }))
   await h.flush()
 }
 
-test('every commit from the first streamed text through the hand-off shows the answer exactly once', async () => {
+const HISTORY_T1 = '/v1/chat/threads/T1/messages'
+// The sealed answer as rendered: its block carries the label its server proof earns.
+const SEALED_TEXT = `Source-linked narrative${ANSWER}`
+
+test('the completion hands off to the sealed answer it carries: no history GET, and the answer once in every commit', async () => {
   const server = new FakeServer()
-  const sealedLoad = deferred<{ body: unknown }>()
-  server.history = () => sealedLoad.promise
   const h = await renderChat('/chat', server)
   try {
     await h.ask('Analyze NVDA')
     assert.equal(h.path(), '/chat/T1')
     await streamAnswer(h, FakeEventSource.instances[0])
-    await complete(h, FakeEventSource.instances[0])
-
-    assert.equal(h.query('[data-testid="streaming-turn"]')?.getAttribute('data-turn-status'), 'sealing')
-    assert.equal(server.gets('/v1/chat/threads/T1/messages'), 1)
     const listBefore = h.query('[data-testid="virtualized-message-list"]')
     assert.notEqual(listBefore, null)
+    await complete(h, FakeEventSource.instances[0])
 
-    await act(async () => sealedLoad.resolve({ body: { messages: [server.postedUser('T1'), sealedAnswer('T1')] } }))
-    await h.flush()
-
+    assert.equal(server.gets(HISTORY_T1), 0)
     const first = h.frames.findIndex((frame) => frame.includes(ANSWER))
     assert.notEqual(first, -1)
     assert.deepEqual(
@@ -334,8 +336,86 @@ test('every commit from the first streamed text through the hand-off shows the a
     )
     assert.deepEqual(h.frames.filter((frame) => frame.includes('Loading message history.')), [])
     assert.equal(h.query('[data-testid="virtualized-message-list"]'), listBefore)
-    assert.equal(h.query('[data-role="assistant"]')?.textContent?.includes(ANSWER), true)
+    assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
     assert.equal(h.container.querySelectorAll('[data-testid="streaming-turn"]').length, 0)
+    assert.equal(h.button('Send').disabled, false)
+
+    await h.ask('Compare with AMD')
+    await secondTurn(h, FakeEventSource.instances[1])
+    assert.equal(server.gets(HISTORY_T1), 0)
+    assert.deepEqual(roles(h), [['user', 'Analyze NVDA'], ['assistant', SEALED_TEXT], ['user', 'Compare with AMD'], ['assistant', SECOND_SEALED_TEXT]])
+  } finally {
+    await h.cleanup()
+  }
+})
+
+const SECOND_ANSWER = 'AMD trails on margin'
+const SECOND_SEALED_TEXT = `Source-linked narrative${SECOND_ANSWER}`
+
+const secondAnswer = (threadId: string) => chatMessage(threadId, 'a2', 'assistant', SECOND_ANSWER, {
+  block_proofs: { 'a2-block': { evidence: 'linked', calculation: 'not_verified', public_by_cutoff: 'unknown' } },
+})
+
+async function secondTurn(h: Harness, source: FakeEventSource) {
+  const a2 = secondAnswer(source.threadId)
+  await act(async () => {
+    source.emit('turn.started', 1)
+    source.emit('block.began', 2, { block_id: 'b2', kind: 'rich_text' })
+    source.emit('block.delta', 3, { block_id: 'b2', delta: { segment: { type: 'text', text: SECOND_ANSWER } } })
+    source.emit('block.completed', 4, { block_id: 'b2', content_hash: 'h2' })
+    source.emit('turn.completed', 5, { message_id: 'a2', message: a2 })
+  })
+  await h.flush()
+}
+
+const roles = (h: Harness) =>
+  [...h.container.querySelectorAll('[data-role]')].map((node) => [node.getAttribute('data-role'), node.textContent])
+
+// The server runs a thread's turns in order: turn 1, still running after its
+// stream dropped, commits a1 before turn 2 completes.
+test('an answer that commits after its stream dropped appears once, loaded when the next turn hands off', async () => {
+  const server = new FakeServer()
+  let firstCommitted = false
+  server.history = (id) => {
+    const [u1, u2] = server.posted.values()
+    return { body: { messages: firstCommitted ? [u1, sealedAnswer(id), u2, secondAnswer(id)] : [u1, u2].filter(Boolean) } }
+  }
+  const h = await renderChat('/chat', server)
+  try {
+    await h.ask('Analyze NVDA')
+    await streamAnswer(h, FakeEventSource.instances[0])
+    await act(async () => FakeEventSource.instances[0].onerror?.())
+    await h.flush()
+    assert.match(h.text(), /The analyst stream disconnected\./)
+
+    await h.ask('Compare with AMD')
+    assert.equal(server.gets(HISTORY_T1), 0)
+    firstCommitted = true
+    await secondTurn(h, FakeEventSource.instances[1])
+
+    assert.equal(server.gets(HISTORY_T1), 1)
+    assert.deepEqual(roles(h), [['user', 'Analyze NVDA'], ['assistant', SEALED_TEXT], ['user', 'Compare with AMD'], ['assistant', SECOND_SEALED_TEXT]])
+    assert.equal(occurrences(h.text(), ANSWER), 1)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('on an open thread the completion adds no history GET to the one that opened it', async () => {
+  const server = new FakeServer()
+  server.threads = [{ thread_id: 'T1', title: 'Chips', updated_at: '2026-05-06T00:00:00.000Z' }]
+  const h = await renderChat('/chat/T1', server)
+  try {
+    assert.equal(server.gets(HISTORY_T1), 1)
+    await h.ask('Analyze NVDA')
+    await streamAnswer(h, FakeEventSource.instances[0])
+    await complete(h, FakeEventSource.instances[0])
+
+    assert.equal(server.gets(HISTORY_T1), 1)
+    assert.deepEqual(
+      [...h.container.querySelectorAll('[data-role]')].map((node) => [node.getAttribute('data-role'), node.textContent]),
+      [['user', 'Analyze NVDA'], ['assistant', SEALED_TEXT]],
+    )
   } finally {
     await h.cleanup()
   }
@@ -343,35 +423,105 @@ test('every commit from the first streamed text through the hand-off shows the a
 
 test('ask first keeps the answer on screen through the hand-off while the thread route has not committed', async () => {
   const server = new FakeServer()
-  const sealedLoad = deferred<{ body: unknown }>()
-  server.history = () => sealedLoad.promise
   const threadRoute = deferred<null>()
   const h = await renderChat('/chat', server, { threadRoute: threadRoute.promise })
   try {
     await h.ask('Analyze NVDA')
     await streamAnswer(h, FakeEventSource.instances[0])
-    await complete(h, FakeEventSource.instances[0])
     const list = h.query('[data-testid="virtualized-message-list"]')
-
-    await act(async () => sealedLoad.resolve({ body: { messages: [server.postedUser('T1'), sealedAnswer('T1')] } }))
-    await h.flush()
+    await complete(h, FakeEventSource.instances[0])
 
     assert.equal(h.path(), '/chat')
+    assert.equal(server.gets(HISTORY_T1), 0)
     const first = h.frames.findIndex((frame) => frame.includes(ANSWER))
     assert.notEqual(first, -1)
     assert.deepEqual(
       h.frames.slice(first).map((frame) => occurrences(frame, ANSWER)).filter((count) => count !== 1),
       [],
     )
-    assert.equal(h.query('[data-role="assistant"]')?.textContent?.includes(ANSWER), true)
+    assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
     assert.notEqual(list, null)
     assert.equal(h.query('[data-testid="virtualized-message-list"]'), list)
 
     await act(async () => threadRoute.resolve(null))
     await h.flush()
     assert.equal(h.path(), '/chat/T1')
+    assert.equal(server.gets(HISTORY_T1), 0)
     assert.equal(h.query('[data-testid="virtualized-message-list"]'), list)
     assert.equal(occurrences(h.text(), ANSWER), 1)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('a completion whose sealed message is malformed offers only Reload thread and never renders that message', async () => {
+  const server = new FakeServer()
+  const reloaded = deferred<{ body: unknown }>()
+  server.history = () => reloaded.promise
+  const h = await renderChat('/chat', server)
+  try {
+    await h.ask('Analyze NVDA')
+    await streamAnswer(h, FakeEventSource.instances[0])
+    const unproven = chatMessage('T1', 'a1', 'assistant', 'Unchecked copy')
+    await complete(h, FakeEventSource.instances[0], unproven)
+
+    assert.equal(server.gets(HISTORY_T1), 0)
+    assert.match(h.text(), /Couldn't show the saved copy of this answer\./)
+    assert.equal(h.button('Reload thread').disabled, false)
+    assert.equal([...h.container.querySelectorAll('button')].some((button) => button.textContent === 'Retry stream'), false)
+    assert.equal(occurrences(h.text(), ANSWER), 1)
+    assert.equal(h.query('[data-role="assistant"]'), null)
+    assert.deepEqual(h.frames.filter((frame) => frame.includes('Unchecked copy')), [])
+
+    await act(async () => h.button('Reload thread').click())
+    await h.flush()
+    assert.equal(server.gets(HISTORY_T1), 1)
+    assert.equal(h.query('[data-testid="streaming-turn"]')?.textContent?.includes(ANSWER), true)
+
+    await act(async () => reloaded.resolve({ body: { messages: [server.postedUser('T1'), sealedAnswer('T1')] } }))
+    await h.flush()
+
+    assert.equal(h.query('[data-testid="streaming-turn"]'), null)
+    assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
+    const first = h.frames.findIndex((frame) => frame.includes(ANSWER))
+    assert.deepEqual(
+      h.frames.slice(first).map((frame) => occurrences(frame, ANSWER)).filter((count) => count !== 1),
+      [],
+    )
+    assert.equal(FakeEventSource.instances.length, 1)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('a failed reload keeps the streamed answer and Reload thread, and a later reload hands off', async () => {
+  const server = new FakeServer()
+  let reloads = 0
+  server.history = (id) => (++reloads === 1 ? { status: 503, body: { error: 'unavailable' } } : { body: { messages: [server.postedUser(id), sealedAnswer(id)] } })
+  const h = await renderChat('/chat', server)
+  try {
+    await h.ask('Analyze NVDA')
+    await streamAnswer(h, FakeEventSource.instances[0])
+    await act(async () => FakeEventSource.instances[0].emit('turn.completed', 5, { message_id: 'a1' }))
+    await h.flush()
+
+    await act(async () => h.button('Reload thread').click())
+    await h.flush()
+    assert.equal(server.gets(HISTORY_T1), 1)
+    assert.match(h.text(), /Couldn't load the saved copy of this answer\./)
+    assert.equal(h.query('[data-testid="streaming-turn"]')?.textContent?.includes(ANSWER), true)
+    assert.equal(h.button('Reload thread').disabled, false)
+
+    await act(async () => h.button('Reload thread').click())
+    await h.flush()
+    assert.equal(server.gets(HISTORY_T1), 2)
+    assert.equal(h.query('[data-testid="streaming-turn"]'), null)
+    assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
+    const first = h.frames.findIndex((frame) => frame.includes(ANSWER))
+    assert.deepEqual(
+      h.frames.slice(first).map((frame) => occurrences(frame, ANSWER)).filter((count) => count !== 1),
+      [],
+    )
   } finally {
     await h.cleanup()
   }
@@ -492,59 +642,6 @@ test('switching threads mid-stream detaches the stream: it dispatches nothing an
     assert.equal(h.text(), before)
     assert.equal(source.closed, true)
     assert.equal(server.gets('/v1/chat/threads/T1/messages'), 1)
-  } finally {
-    await h.cleanup()
-  }
-})
-
-test('a failed reload keeps the streamed answer, and Reload hands it off', async () => {
-  const server = new FakeServer()
-  let failNext = false
-  server.history = (id) => (failNext
-    ? { status: 500, body: { error: 'history unavailable' } }
-    : { body: { messages: server.posted.size === 0 ? [] : [server.postedUser(id), sealedAnswer(id)] } })
-  const h = await renderChat('/chat/T1', server)
-  try {
-    await h.ask('Analyze NVDA')
-    await streamAnswer(h, FakeEventSource.instances[0])
-    failNext = true
-    await complete(h, FakeEventSource.instances[0])
-
-    assert.equal(occurrences(h.text(), ANSWER), 1)
-    assert.match(h.text(), /Couldn't load the saved copy of this answer\./)
-    assert.equal(h.query('[data-role="user"]')?.textContent, 'Analyze NVDA')
-    assert.equal(h.button('Send').disabled, false)
-
-    failNext = false
-    await act(async () => h.button('Reload').click())
-    await h.flush()
-
-    assert.equal(server.gets('/v1/chat/threads/T1/messages'), 3)
-    assert.equal(h.query('[data-testid="streaming-turn"]'), null)
-    assert.equal(h.query('[data-role="assistant"]')?.textContent?.includes(ANSWER), true)
-    assert.equal(occurrences(h.text(), ANSWER), 1)
-  } finally {
-    await h.cleanup()
-  }
-})
-
-test('asking again while the answer is kept leaves that answer on screen above the new question', async () => {
-  const server = new FakeServer()
-  server.history = () => (server.posted.size === 0 ? { body: { messages: [] } } : { status: 500, body: { error: 'history unavailable' } })
-  const h = await renderChat('/chat/T1', server)
-  try {
-    await h.ask('Analyze NVDA')
-    await streamAnswer(h, FakeEventSource.instances[0])
-    await complete(h, FakeEventSource.instances[0])
-    await h.ask('Analyze AMD')
-
-    assert.equal(occurrences(h.text(), ANSWER), 1)
-    assert.match(h.text(), /Couldn't load the saved copy of this answer\./)
-    assert.deepEqual(
-      [...h.container.querySelectorAll('[data-testid="streaming-turn"]')].map((turn) => turn.getAttribute('data-turn-status')),
-      ['kept', 'streaming'],
-    )
-    assert.equal(h.text().indexOf(ANSWER) < h.text().lastIndexOf('Analyze AMD'), true)
   } finally {
     await h.cleanup()
   }
@@ -784,6 +881,116 @@ test('a failed first thread-list load shows its error', async () => {
   const h = await renderChat('/chat', server)
   try {
     assert.match(h.query('nav[aria-label="Thread list"]')?.textContent ?? '', /HTTP 502/)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+const GOLDEN = JSON.parse(readFileSync(new URL('../../../services/app/fixtures/golden-conversation.replay.json', import.meta.url), 'utf-8')) as {
+  exchanges: Array<{ method: string; path: string; body: string }>
+}
+const GOLDEN_THREAD = '9f8a9795-80ff-408b-8d5a-066549cd5bce'
+const GOLDEN_RICH_TEXT = 'efb37f76-a669-4917-8fa7-a12bdb3ab840'
+
+function goldenCompletion(): { message_id: string; message: ChatMessage } {
+  const stream = GOLDEN.exchanges.find((exchange) => exchange.path.endsWith('/stream'))!
+  const frame = stream.body.split('\n\n').find((chunk) => chunk.includes('event: turn.completed'))!
+  return JSON.parse(frame.split('\n').find((line) => line.startsWith('data: '))!.slice('data: '.length))
+}
+
+function goldenHistory(): ChatMessage[] {
+  const read = GOLDEN.exchanges.find((exchange) => exchange.method === 'GET' && exchange.path === `/v1/chat/threads/${GOLDEN_THREAD}/messages`)!
+  return (JSON.parse(read.body) as { messages: ChatMessage[] }).messages
+}
+
+function withoutSegments<T extends { blocks: ChatMessage['blocks'] }>(message: T, blockId: string): T {
+  return {
+    ...message,
+    blocks: message.blocks.map((block) => block.id === blockId ? Object.fromEntries(Object.entries(block).filter(([key]) => key !== 'segments')) : block),
+  }
+}
+
+const notices = (h: Harness) =>
+  [...h.container.querySelectorAll('[data-testid="block-render-failed"]')]
+    .map((node) => [node.getAttribute('data-block-id'), node.getAttribute('data-block-kind'), node.textContent])
+
+const NOTICE = "This part of the answer couldn't be displayed."
+
+// console.error calls that name the block: the boundary's own log, not React's.
+function captureBlockErrors(blockId: string): { calls: () => number; restore: () => void } {
+  const original = console.error
+  let calls = 0
+  console.error = (...args: unknown[]) => {
+    if (args.some((arg) => typeof arg === 'string' && arg.includes(blockId))) calls += 1
+  }
+  return { calls: () => calls, restore: () => { console.error = original } }
+}
+
+async function completeGolden(h: Harness, message: ChatMessage) {
+  const source = FakeEventSource.instances[0]
+  await act(async () => {
+    source.emit('turn.started', 1)
+    source.emit('turn.completed', 2, { message_id: message.message_id, message })
+  })
+  await h.flush()
+}
+
+test('a golden completion whose rich_text lost its segments shows a notice in that block, and the rest of the answer renders', async () => {
+  const server = new FakeServer()
+  server.createdThreadId = GOLDEN_THREAD
+  const errors = captureBlockErrors(GOLDEN_RICH_TEXT)
+  const h = await renderChat('/chat', server)
+  try {
+    await h.ask('Analyze NVDA')
+    await completeGolden(h, withoutSegments(goldenCompletion().message, GOLDEN_RICH_TEXT))
+
+    assert.equal(server.gets(`/v1/chat/threads/${GOLDEN_THREAD}/messages`), 0)
+    assert.deepEqual(notices(h), [[GOLDEN_RICH_TEXT, 'rich_text', NOTICE]])
+    const answer = h.query('[data-role="assistant"]')?.textContent ?? ''
+    assert.deepEqual(
+      ['Latest quarter (Q4 2026)', 'Quarterly revenue', NOTICE].map((text) => answer.includes(text)),
+      [true, true, true],
+    )
+    assert.equal(errors.calls(), 1)
+    assert.equal(h.button('Send').disabled, false)
+  } finally {
+    errors.restore()
+    await h.cleanup()
+  }
+})
+
+test('the same malformed block read by the messages GET shows the notice, and the thread renders', async () => {
+  const server = new FakeServer()
+  const [user, answer, ...rest] = goldenHistory()
+  server.history = () => ({ body: { messages: [user, withoutSegments(answer, GOLDEN_RICH_TEXT), ...rest] } })
+  const errors = captureBlockErrors(GOLDEN_RICH_TEXT)
+  const h = await renderChat(`/chat/${GOLDEN_THREAD}`, server)
+  try {
+    assert.equal(server.gets(`/v1/chat/threads/${GOLDEN_THREAD}/messages`), 1)
+    assert.deepEqual(notices(h), [[GOLDEN_RICH_TEXT, 'rich_text', NOTICE]])
+    assert.deepEqual(roles(h).slice(0, 2).map(([role]) => role), ['user', 'assistant'])
+    assert.match(h.text(), /Latest quarter \(Q4 2026\)/)
+    assert.equal(errors.calls(), 1)
+  } finally {
+    errors.restore()
+    await h.cleanup()
+  }
+})
+
+test('a valid golden completion renders every block with no notice', async () => {
+  const server = new FakeServer()
+  server.createdThreadId = GOLDEN_THREAD
+  const h = await renderChat('/chat', server)
+  try {
+    await h.ask('Analyze NVDA')
+    await completeGolden(h, goldenCompletion().message)
+
+    assert.deepEqual(notices(h), [])
+    const answer = h.query('[data-role="assistant"]')?.textContent ?? ''
+    assert.deepEqual(
+      ["NVIDIA's reported revenue rose in every quarter shown", 'Latest quarter (Q4 2026)', 'Quarterly revenue'].map((text) => answer.includes(text)),
+      [true, true, true],
+    )
   } finally {
     await h.cleanup()
   }

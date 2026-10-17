@@ -6,8 +6,10 @@ import { createEvidenceFinancialPort } from "../../financial-engine/src/evidence
 import { IDS, ORIGINAL_REVENUE } from "../../financial-engine/test/db-fixtures.ts";
 import { createChatCoordinator } from "../src/coordinator.ts";
 import { createChatFinancialRuntime } from "../src/financial-runtime.ts";
+import { listChatMessagesForThread } from "../src/messages.ts";
 import { CHAT_SSE_EVENT_TYPES } from "../src/sse.ts";
 import { chatDatabase, forbiddenAnalyst, resolveMention, revenueModel } from "./financial-fixtures.ts";
+import { readMessage } from "./read-message-fixture.ts";
 import { parseSseEvents, startChatTestServer } from "./sse-helpers.ts";
 
 test("financial answers over SSE", { timeout: 300_000 }, async (t) => {
@@ -17,15 +19,15 @@ test("financial answers over SSE", { timeout: 300_000 }, async (t) => {
   }
   const { db, pool, threadId } = await chatDatabase(t, "chat-fin-sse");
   const model = revenueModel(["AAA"]);
-  const coordinator = createChatCoordinator({
+  const coordinator = () => createChatCoordinator({
     analystToolRuntime: forbiddenAnalyst,
-    persistAssistantMessage: async () => ({ snapshot_id: randomUUID(), message_id: randomUUID() }),
+    persistAssistantMessage: async ({ threadId }) => readMessage({ snapshot_id: randomUUID(), message_id: randomUUID(), thread_id: threadId }),
     financialRuntime: createChatFinancialRuntime({ mode: "enforce", pool, planningModel: model, resolveMention, evidence: createEvidenceFinancialPort }),
   });
-  const base = await startChatTestServer(t, { coordinator });
+  const base = await startChatTestServer(t, { coordinator: coordinator() });
   /** Reads the stream until the turn ends (the server keeps it open with heartbeats), keeping only turn events. */
-  const stream = async (turnId: string, headers: Record<string, string> = {}) => {
-    const url = `${base}/v1/chat/threads/${threadId}/stream?run_id=${turnId}&turn_id=${turnId}&user_intent=${encodeURIComponent("Revenue for AAA")}`;
+  const stream = async (turnId: string, headers: Record<string, string> = {}, server = base) => {
+    const url = `${server}/v1/chat/threads/${threadId}/stream?run_id=${turnId}&turn_id=${turnId}&user_intent=${encodeURIComponent("Revenue for AAA")}`;
     const response = await fetch(url, { headers: { "x-user-id": IDS.owner, ...headers } });
     if (response.status !== 200) {
       await response.body?.cancel();
@@ -64,14 +66,68 @@ test("financial answers over SSE", { timeout: 300_000 }, async (t) => {
     }
   });
 
-  await t.test("a committed answer streams only references, with the existing event vocabulary", async () => {
+  /** The thread's stored message, as the messages GET returns it. */
+  const listed = async (messageId: unknown) =>
+    (await listChatMessagesForThread(pool, { thread_id: threadId, user_id: IDS.owner }))?.messages.find((message) => message.message_id === messageId);
+
+  await t.test("a committed answer streams only references, then completes with the committed message", async () => {
     const { transcript, events } = await stream(randomUUID());
     assert.deepEqual(events.map((event) => event.event), ["turn.started", "snapshot.sealed", "block.began", "block.completed", "turn.completed"]);
     for (const event of events) assert.ok((CHAT_SSE_EVENT_TYPES as ReadonlyArray<string>).includes(event.event!), "older clients know every event type");
-    assert.ok(!transcript.includes("383,285"), "values arrive with the committed message, not the stream");
+    const completion = transcript.indexOf("event: turn.completed");
+    assert.ok(!transcript.slice(0, completion).includes("383,285"), "values arrive with the committed message, not before it");
     const done = events.at(-1)!.data;
-    const message = (await db.query(`select blocks from chat_messages where message_id = $1`, [done.message_id])).rows[0];
-    assert.equal(message.blocks[0].kind, "financial_answer");
+    const message = done.message as { message_id: string; snapshot_id: string; blocks: Array<{ id: string; kind: string }> };
+    assert.equal(message.message_id, done.message_id);
+    assert.equal(message.blocks[0]!.kind, "financial_answer");
+    assert.equal(events[1]!.data.snapshot_id, message.snapshot_id);
+    assert.equal(events[2]!.data.block_id, message.blocks[0]!.id);
+    assert.equal(JSON.stringify(message), JSON.stringify(await listed(done.message_id)));
+  });
+
+  await t.test("a retry in a fresh process completes with the message the first attempt stored", async () => {
+    const turnId = randomUUID();
+    const { events: first } = await stream(turnId);
+    const calls = model.calls;
+    const restarted = await startChatTestServer(t, { coordinator: coordinator() });
+    const { events: retried } = await stream(turnId, {}, restarted);
+    assert.equal(model.calls, calls, "the retry plans nothing");
+    const done = retried.at(-1)!.data;
+    assert.equal(done.message_id, first.at(-1)!.data.message_id);
+    assert.equal(JSON.stringify(done.message), JSON.stringify(await listed(done.message_id)));
+  });
+
+  await t.test("a committed answer whose read-back fails completes with its id and logs the read error", async (st) => {
+    // The publication commits on a checked-out client; only the read after it, on the pool, fails.
+    const failingReads = new Proxy(pool, {
+      get(target, key) {
+        if (key === "query") {
+          return (text: unknown, values?: unknown[]) =>
+            typeof text === "string" && text.includes("from chat_messages m")
+              ? Promise.reject(new Error("Connection terminated unexpectedly"))
+              : target.query(text as string, values);
+        }
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const logged = st.mock.method(console, "error", () => {});
+    const server = await startChatTestServer(t, {
+      coordinator: createChatCoordinator({
+        analystToolRuntime: forbiddenAnalyst,
+        financialRuntime: createChatFinancialRuntime({ mode: "enforce", pool: failingReads, planningModel: model, resolveMention, evidence: createEvidenceFinancialPort }),
+      }),
+    });
+    const { events } = await stream(randomUUID(), {}, server);
+    assert.deepEqual(events.map((event) => event.event), ["turn.started", "block.began", "block.completed", "turn.completed"]);
+    const done = events.at(-1)!.data;
+    assert.equal("message" in done, false);
+    const stored = await listed(done.message_id);
+    assert.equal((stored?.blocks as Array<{ kind: string }> | undefined)?.[0]?.kind, "financial_answer");
+    assert.equal(logged.mock.callCount(), 1);
+    const [note, cause] = logged.mock.calls[0]!.arguments as [string, Error];
+    assert.equal(note, `[chat] the committed message ${done.message_id} could not be read back; its turn completes without it`);
+    assert.equal(cause.message, "Connection terminated unexpectedly");
   });
 
   await t.test("a reconnect resumes after its last event without re-running or duplicating", async () => {

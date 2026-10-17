@@ -875,7 +875,8 @@ paths:
             maxLength: 16
       responses:
         '200':
-          description: text/event-stream
+          description: text/event-stream. When the turn saved its answer, `turn.completed` carries `message`, the
+            saved message exactly as the thread's messages GET returns it (a ChatReadMessage, with block_proofs).
           content:
             text/event-stream:
               schema:
@@ -917,7 +918,7 @@ paths:
 
                     id: 9
                     event: turn.completed
-                    data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"..."}
+                    data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"...","message":{"message_id":"...","role":"assistant","blocks":[...],"block_proofs":{...},...}}
                 resolved_subject:
                   value: |
                     id: 1
@@ -947,7 +948,7 @@ paths:
 
                     id: 9
                     event: turn.completed
-                    data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"...","clarification":true}
+                    data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"...","message":{"message_id":"...","role":"assistant","blocks":[...],"block_proofs":{...},...},"clarification":true}
                 not_found_subject:
                   value: |
                     id: 1
@@ -964,7 +965,7 @@ paths:
 
                     id: 9
                     event: turn.completed
-                    data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"...","clarification":true}
+                    data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"...","message":{"message_id":"...","role":"assistant","blocks":[...],"block_proofs":{...},...},"clarification":true}
         '400':
           description: Missing run_id, malformed path, or malformed Last-Event-ID
           content:

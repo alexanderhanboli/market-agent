@@ -37,6 +37,15 @@ test('golden conversation renders charts, metrics and inspectable sources, and s
     }).observe(document, { subtree: true, childList: true, characterData: true })
   }, NVDA_NARRATIVE)
 
+  // Each completion carries its sealed answer (#331), so no turn reads the thread back:
+  // from the first question until the reload, the page never GETs the thread's messages.
+  const historyReads: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'GET' && /\/v1\/chat\/threads\/[^/]+\/messages$/.test(new URL(request.url()).pathname)) {
+      historyReads.push(request.url())
+    }
+  })
+
   // Auto-login (VITE_MA_FLAG_DEV_AUTO_LOGIN) means no sign-in step.
   await page.goto('/chat')
   await ask(page, QUESTIONS[0])
@@ -70,6 +79,8 @@ test('golden conversation renders charts, metrics and inspectable sources, and s
   // The inspector opens a figure cited in the third answer and, through it, its filing.
   await inspectCitedFigure(page, answer(page, EXPLAIN_NARRATIVE))
 
+  expect(historyReads).toEqual([])
+
   // Reload: all three questions and answers come back from the persisted thread, with
   // their figures, chart points and sources.
   await page.reload()
@@ -84,6 +95,7 @@ test('golden conversation renders charts, metrics and inspectable sources, and s
   await expect(page.getByText(EXPLAIN_NARRATIVE)).toBeVisible()
   await expectComparison(answer(page, EXPLAIN_NARRATIVE))
   await inspectCitedFigure(page, answer(page, EXPLAIN_NARRATIVE))
+  expect(historyReads.length).toBeGreaterThanOrEqual(1)
 })
 
 // NVDA first, then AMD, each row with figures that open their evidence.

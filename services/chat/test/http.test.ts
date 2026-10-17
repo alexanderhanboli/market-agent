@@ -19,6 +19,7 @@ import type {
   ChatNotFoundSubjectPreResolution,
   ChatResolvedSubjectPreResolution,
 } from "../src/subjects.ts";
+import { readMessage } from "./read-message-fixture.ts";
 
 const USER_ID = "44444444-4444-4444-8444-444444444444";
 const USER_B = "55555555-5555-4555-8555-555555555555";
@@ -549,10 +550,7 @@ test("stream route uses server-level assistant persistence before snapshot.seale
   const base = await startServer(t, {
     persistAssistantMessage: async ({ threadId, runId, turnId }) => {
       persistCalls.push(`${threadId}:${runId}:${turnId}`);
-      return {
-        snapshot_id: "22222222-2222-4222-a222-222222222222",
-        message_id: "33333333-3333-4333-a333-333333333333",
-      };
+      return readMessage({ snapshot_id: "22222222-2222-4222-a222-222222222222", message_id: "33333333-3333-4333-a333-333333333333", thread_id: threadId });
     },
   });
 
