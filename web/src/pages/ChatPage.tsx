@@ -1,8 +1,8 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { Fragment, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useMatch, useNavigate } from 'react-router-dom'
 
 import { PRIMARY_BUTTON_CLASS } from '../shell/buttonStyles.ts'
-import { VirtualizedMessageList } from '../chat'
+import { MessageItem, VirtualizedMessageList } from '../chat'
 import { ChatComposer } from '../chat/ChatComposer.tsx'
 import { PendingTurnView } from '../chat/PendingTurnView.tsx'
 import { ThreadColumn } from '../chat/turnLayout.tsx'
@@ -11,6 +11,8 @@ import { deleteThread } from '../chat/threadActions.ts'
 import { threadDisplayName } from '../chat/threadName.ts'
 import { useChatSession, type ChatSession } from '../chat/useChatSession.ts'
 import { useThreadList, useTitleFollowUp, type ThreadListState } from '../chat/useThreadList.ts'
+
+const unmeasured = () => {}
 
 const STARTER_QUESTIONS = ['Analyze NVDA', 'Compare NVDA with AMD year to date', "What drives Apple's margins?"] as const
 
@@ -134,7 +136,17 @@ function ChatThreadView({ chat, threadName, collapsed, setCollapsed }: ChatThrea
             <VirtualizedMessageList
               key={view.listKey}
               messages={view.messages}
-              tail={<PendingTurnView turn={view.turn} backgroundRun={view.backgroundRun} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />}
+              tail={(
+                <>
+                  {view.retained.map(({ kept, after }) => (
+                    <Fragment key={kept.turn.runId}>
+                      <PendingTurnView turn={kept} backgroundRun={false} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />
+                      {after.map((message) => <MessageItem key={message.message_id} message={message} onMeasure={unmeasured} />)}
+                    </Fragment>
+                  ))}
+                  <PendingTurnView turn={view.turn} backgroundRun={view.backgroundRun} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />
+                </>
+              )}
             />
           </section>
         ) : null}

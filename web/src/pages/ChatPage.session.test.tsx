@@ -528,6 +528,28 @@ test('a failed reload keeps the streamed answer, and Reload hands it off', async
   }
 })
 
+test('asking again while the answer is kept leaves that answer on screen above the new question', async () => {
+  const server = new FakeServer()
+  server.history = () => (server.posted.size === 0 ? { body: { messages: [] } } : { status: 500, body: { error: 'history unavailable' } })
+  const h = await renderChat('/chat/T1', server)
+  try {
+    await h.ask('Analyze NVDA')
+    await streamAnswer(h, FakeEventSource.instances[0])
+    await complete(h, FakeEventSource.instances[0])
+    await h.ask('Analyze AMD')
+
+    assert.equal(occurrences(h.text(), ANSWER), 1)
+    assert.match(h.text(), /Couldn't load the saved copy of this answer\./)
+    assert.deepEqual(
+      [...h.container.querySelectorAll('[data-testid="streaming-turn"]')].map((turn) => turn.getAttribute('data-turn-status')),
+      ['kept', 'streaming'],
+    )
+    assert.equal(h.text().indexOf(ANSWER) < h.text().lastIndexOf('Analyze AMD'), true)
+  } finally {
+    await h.cleanup()
+  }
+})
+
 test('a dropped stream shows Retry, which reopens the same run, and leaving chat closes it', async () => {
   const server = new FakeServer()
   const h = await renderChat('/chat/T1', server)

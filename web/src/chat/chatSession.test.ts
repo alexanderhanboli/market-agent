@@ -129,6 +129,45 @@ test('a failed reload keeps the list and the answer, and Reload goes back to sea
   assert.deepEqual(handedOff.history.loaded, { kind: 'ready', messages: [U1, A1] })
 })
 
+const TURN2: TurnIds = { runId: 'run-2', messageId: 'u2', snapshotId: 'snap-2', text: 'Compare with AMD' }
+const U2 = message('u2', 'user', 'Compare with AMD')
+
+function askedFromKeptA1(): ChatSessionState {
+  const kept = reduceChatSession(sealingT1(), { type: 'history.failed', threadId: 'T1', gen: 2, message: 'HTTP 500' })
+  return reduceChatSession(kept, { type: 'ask.started', turn: TURN2 })
+}
+
+test('asking from a kept answer retains it beside the new pending turn', () => {
+  const view = selectThreadView(askedFromKeptA1())
+  assert.deepEqual(view.retained.map(({ kept }) => [kept.sealedId, kept.reason, streamedText(kept)]), [
+    ['a1', 'history_failed', "NVIDIA's revenue rose"],
+  ])
+  assert.equal(view.turn.phase, 'persisting')
+  assert.equal(view.turn.phase === 'persisting' ? view.turn.turn.messageId : null, 'u2')
+  assert.deepEqual(view.messages.map((m) => m.message_id), ['u1'])
+
+  const persisted = selectThreadView(reduceChatSession(askedFromKeptA1(), { type: 'message.persisted', threadId: 'T1', message: U2 }))
+  assert.deepEqual(persisted.messages.map((m) => m.message_id), ['u1'])
+  assert.deepEqual(persisted.retained.map(({ kept, after }) => [kept.sealedId, after.map((m) => m.message_id)]), [['a1', ['u2']]])
+})
+
+test('a load that contains a retained answer drops it in the same state that adds it to the messages', () => {
+  const reloading = reduceChatSession(askedFromKeptA1(), { type: 'history.requested' })
+  const loaded = reduceChatSession(reloading, { type: 'history.loaded', threadId: 'T1', gen: 3, messages: [U1, A1, U2] })
+  assert.deepEqual(ids(loaded), ['u1', 'a1', 'u2'])
+  assert.deepEqual(selectThreadView(loaded).retained, [])
+  assert.equal(loaded.turn.phase, 'persisting')
+})
+
+test('a load without a retained answer keeps it, and opening another thread clears it', () => {
+  const reloading = reduceChatSession(askedFromKeptA1(), { type: 'history.requested' })
+  const loaded = reduceChatSession(reloading, { type: 'history.loaded', threadId: 'T1', gen: 3, messages: [U1, U2] })
+  assert.deepEqual(selectThreadView(loaded).retained.map(({ kept, after }) => [kept.sealedId, kept.reason, after.map((m) => m.message_id)]), [['a1', 'not_in_history', ['u2']]])
+
+  const t2 = reduceChatSession(loaded, { type: 'thread.opened', threadId: 'T2' })
+  assert.deepEqual(selectThreadView(t2).retained, [])
+})
+
 test('canAsk is true only when no turn is in flight', () => {
   const opened = reduceChatSession(INITIAL_CHAT_SESSION, { type: 'thread.opened', threadId: 'T1' })
   const persisting = reduceChatSession(opened, { type: 'ask.started', turn: TURN })

@@ -16,6 +16,8 @@ export type TurnState =
   | { phase: 'failed'; turn: TurnIds; stream: StreamState; error: string }
   | { phase: 'unverified'; turn: TurnIds; stream: StreamState }
 
+export type KeptTurn = Extract<TurnState, { phase: 'kept' }>
+
 type LoadedHistory =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -35,6 +37,9 @@ export type ChatSessionState = {
   threadId: string | null
   history: HistoryState
   turn: TurnState
+  // Kept answers a later ask moved aside. Each is the only copy of its answer
+  // until a history load returns its sealed id.
+  retained: ReadonlyArray<KeptTurn>
   sealedTurns: number
   // A send on this thread that is not the session's turn is still going.
   backgroundRun: boolean
@@ -66,6 +71,7 @@ export const INITIAL_CHAT_SESSION: ChatSessionState = {
   threadId: null,
   history: { requested: 0, settled: 0, loaded: EMPTY_READY, unconfirmed: [] },
   turn: IDLE,
+  retained: [],
   sealedTurns: 0,
   backgroundRun: false,
   opens: 0,
@@ -77,6 +83,7 @@ function openedSession(threadId: string | null, opens: number): ChatSessionState
     threadId,
     history: { requested: 1, settled: 0, loaded: { kind: 'loading' }, unconfirmed: [] },
     turn: IDLE,
+    retained: [],
     sealedTurns: 0,
     backgroundRun: false,
     opens,
@@ -94,8 +101,11 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
     case 'thread.opened':
       return a.threadId === s.threadId ? s : openedSession(a.threadId, s.opens + 1)
 
-    case 'ask.started':
-      return askable(s) ? { ...s, turn: { phase: 'persisting', turn: a.turn } } : s
+    case 'ask.started': {
+      if (!askable(s)) return s
+      const retained = s.turn.phase === 'kept' ? [...s.retained, s.turn] : s.retained
+      return { ...s, retained, turn: { phase: 'persisting', turn: a.turn } }
+    }
 
     case 'thread.created':
       if (s.threadId !== null || s.turn.phase !== 'persisting') return s
@@ -156,13 +166,16 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
         loaded: { kind: 'ready', messages: a.messages },
         unconfirmed: s.history.unconfirmed.filter((m) => !loadedIds.has(m.message_id)),
       }
+      const retained = s.retained.length === 0 ? s.retained : s.retained
+        .filter((kept) => !loadedIds.has(kept.sealedId))
+        .map((kept): KeptTurn => ({ ...kept, reason: 'not_in_history' }))
       if (s.turn.phase === 'sealing' || s.turn.phase === 'kept') {
-        if (loadedIds.has(s.turn.sealedId)) return { ...s, history, turn: IDLE, sealedTurns: s.sealedTurns + 1 }
+        if (loadedIds.has(s.turn.sealedId)) return { ...s, history, retained, turn: IDLE, sealedTurns: s.sealedTurns + 1 }
         if (s.turn.phase === 'sealing') {
-          return { ...s, history, turn: { ...keptFrom(s.turn), reason: 'not_in_history' } }
+          return { ...s, history, retained, turn: { ...keptFrom(s.turn), reason: 'not_in_history' } }
         }
       }
-      return { ...s, history }
+      return { ...s, history, retained }
     }
 
     case 'history.failed': {
@@ -208,6 +221,10 @@ function reduceStreamEvent(s: ChatSessionState, threadId: string, event: ChatSse
   }
 }
 
+// A retained answer belongs right after its own question, so every message
+// that came after that question renders after it, in the list tail.
+export type RetainedView = { kept: KeptTurn; after: ReadonlyArray<ChatMessage> }
+
 export type ThreadView = {
   threadId: string | null
   history: 'loading' | 'error' | 'ready'
@@ -219,6 +236,7 @@ export type ThreadView = {
   listKey: number
   listMounted: boolean
   turn: TurnState
+  retained: ReadonlyArray<RetainedView>
   backgroundRun: boolean
   canAsk: boolean
   firstQuestion: string | null
@@ -240,10 +258,32 @@ function visibleMessages(history: HistoryState): ReadonlyArray<ChatMessage> {
   return messages
 }
 
+const NOTHING_RETAINED: ReadonlyArray<RetainedView> = []
+const placements = new WeakMap<object, { messages: ReadonlyArray<ChatMessage>; list: ReadonlyArray<ChatMessage>; retained: ReadonlyArray<RetainedView> }>()
+
+function placeRetained(messages: ReadonlyArray<ChatMessage>, retained: ReadonlyArray<KeptTurn>) {
+  if (retained.length === 0) return { list: messages, retained: NOTHING_RETAINED }
+  const cached = placements.get(retained)
+  if (cached?.messages === messages) return cached
+  const cuts: number[] = []
+  for (const kept of retained) {
+    const question = messages.findIndex((m) => m.message_id === kept.turn.messageId)
+    cuts.push(Math.max(question === -1 ? messages.length : question + 1, cuts.at(-1) ?? 0))
+  }
+  const placed = {
+    messages,
+    list: messages.slice(0, cuts[0]),
+    retained: retained.map((kept, i) => ({ kept, after: messages.slice(cuts[i], cuts[i + 1] ?? messages.length) })),
+  }
+  placements.set(retained, placed)
+  return placed
+}
+
 export function selectThreadView(s: ChatSessionState): ThreadView {
   const { history, turn } = s
-  const messages = visibleMessages(history)
-  const firstUser = messages.find((m) => m.role === 'user')
+  const all = visibleMessages(history)
+  const { list: messages, retained } = placeRetained(all, s.retained)
+  const firstUser = all.find((m) => m.role === 'user')
   const pendingText = turn.phase === 'persisting' ? turn.turn.text : turn.phase === 'not_sent' ? turn.text : null
   return {
     threadId: s.threadId,
@@ -254,6 +294,7 @@ export function selectThreadView(s: ChatSessionState): ThreadView {
     listKey: s.opens,
     listMounted: history.loaded.kind === 'ready' || turn.phase !== 'idle',
     turn,
+    retained,
     backgroundRun: s.backgroundRun,
     canAsk: askable(s),
     firstQuestion: (firstUser ? messageText(firstUser) : null) || pendingText,
