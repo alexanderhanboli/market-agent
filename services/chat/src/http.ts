@@ -50,6 +50,8 @@ type StreamRoute = {
   userIntent: string | null;
   userId: string | null;
   clarificationAnswer: ChatClarificationAnswer | null;
+  // attach=1: stream an existing turn found by its ids; never start one.
+  attach: boolean;
 };
 
 type SseWritable = {
@@ -102,7 +104,7 @@ export function createChatServer(options: ChatServerOptions = {}): Server {
   const threadsDb = options.threadsDb;
 
   return createServer(async (req, res) => {
-    if (threadsDb && (await tryHandleThreadsRequest(threadsDb, req, res, options.auth))) {
+    if (threadsDb && (await tryHandleThreadsRequest(threadsDb, req, res, coordinator, options.auth))) {
       return;
     }
 
@@ -166,7 +168,13 @@ export function createChatServer(options: ChatServerOptions = {}): Server {
       ...(route.clarificationAnswer ? { clarificationAnswer: route.clarificationAnswer } : {}),
     };
     // Every model call the turn makes (and work it starts) is one conversation: the thread.
-    const turn = withLlmConversation(route.threadId, () => getTurnForRoute(coordinator, turnInput, resumeAfterSeq > 0));
+    const turn = route.attach
+      ? coordinator.findTurn({ ...(userId ? { userId } : {}), threadId: route.threadId, runId, turnId })
+      : withLlmConversation(route.threadId, () => getTurnForRoute(coordinator, turnInput, resumeAfterSeq > 0));
+    if (route.attach && turn === null) {
+      respondJson(res, 404, { error: "turn not found" });
+      return;
+    }
     if (turn === INPUT_MISMATCH) {
       respondJson(res, 409, { error: "turn input does not match the existing turn" });
       return;
@@ -361,6 +369,7 @@ function matchStreamRoute(method: string, rawUrl: string): StreamRoute | typeof 
     userIntent,
     userId,
     clarificationAnswer: clarificationId && choiceId ? { clarification_id: clarificationId, choice_id: choiceId } : null,
+    attach: url.searchParams.get("attach") === "1",
   };
 }
 

@@ -218,9 +218,40 @@ export type ChatTurnHandle = {
   subscribe(listener: (event: ChatSseEvent) => void): () => void;
 };
 
+/** Names one turn the way the stream route keys it. */
+export type ChatTurnIds = { userId?: string; threadId: string; runId: string; turnId: string };
+
+/** The caller's turn on a thread that is still in flight. */
+export type ChatActiveRun = { runId: string; turnId: string };
+
+/**
+ * A retained turn of the caller's and where it stands: queued or running; ended
+ * with turn.completed (naming its saved answer when it has one); or ended with
+ * turn.error, or with no terminal event at all.
+ */
+export type ChatRunStatus =
+  | { runId: string; turnId: string; status: "in_flight" }
+  | { runId: string; turnId: string; status: "completed"; messageId?: string }
+  | { runId: string; turnId: string; status: "failed" };
+
 export type ChatCoordinator = {
   getOrCreateTurn(input: ChatTurnInput): ChatTurnHandle;
   getTurn(input: ChatTurnInput): ChatTurnHandle | null;
+  /** The turn with these ids, whatever input started it; never creates one. */
+  findTurn(ids: ChatTurnIds): ChatTurnHandle | null;
+  /**
+   * Runs `read` (the thread's messages, or null when the caller doesn't own the
+   * thread) and pairs it with the caller's turns on the thread that this process
+   * still retains (`runs`, oldest first, each one's status after the read), and
+   * with the oldest of them still in flight: queued or running, with no
+   * turn.completed or turn.error. A turn that ended during the read is reported
+   * in flight only when the read lacks its answer, since the read may predate
+   * the answer's commit; attaching replays its outcome.
+   */
+  readThread<M extends { message_id: string }>(
+    scope: { userId: string; threadId: string },
+    read: () => Promise<ReadonlyArray<M> | null>,
+  ): Promise<{ messages: ReadonlyArray<M>; activeRun: ChatActiveRun | null; runs: ReadonlyArray<ChatRunStatus> } | null>;
   stats(): ChatCoordinatorStats;
 };
 
@@ -433,6 +464,32 @@ export function createChatCoordinator(
       }
       return handle;
     },
+    findTurn(ids) {
+      pruneCompletedTurns();
+      return turns.get(turnKey(normalizeTurnInput(ids)))?.handle ?? null;
+    },
+    async readThread(scope, read) {
+      // Map order is creation order, which is the thread's queue order.
+      const retained = () => [...turns.values()].filter((record) =>
+        record.handle.input.userId === scope.userId && record.handle.input.threadId === scope.threadId
+      );
+      pruneCompletedTurns();
+      const before = retained().filter((record) => record.completedAt === null && record.handle.terminal === null);
+      const messages = await read();
+      if (messages === null) return null;
+      pruneCompletedTurns();
+      const after = retained();
+      const runs = after.map(runStatus);
+      const readIds = new Set(messages.map((message) => message.message_id));
+      for (const record of new Set([...before, ...after.filter((r) => r.completedAt === null && r.handle.terminal === null)])) {
+        const terminal = record.handle.terminal;
+        const answered = terminal?.type === "turn.completed" && readIds.has(terminal.message_id as string);
+        if (answered || (terminal === null && record.completedAt !== null)) continue;
+        const { runId, turnId } = record.handle.input as NormalizedChatTurnInput;
+        return { messages, activeRun: { runId, turnId }, runs };
+      }
+      return { messages, activeRun: null, runs };
+    },
     stats() {
       pruneCompletedTurns();
       let completedTurnCount = 0;
@@ -449,6 +506,18 @@ export function createChatCoordinator(
       };
     },
   };
+}
+
+function runStatus(record: TurnRecord): ChatRunStatus {
+  const { runId, turnId } = record.handle.input as NormalizedChatTurnInput;
+  const terminal = record.handle.terminal;
+  if (terminal?.type === "turn.completed") {
+    return typeof terminal.message_id === "string"
+      ? { runId, turnId, status: "completed", messageId: terminal.message_id }
+      : { runId, turnId, status: "completed" };
+  }
+  if (terminal !== null || record.completedAt !== null) return { runId, turnId, status: "failed" };
+  return { runId, turnId, status: "in_flight" };
 }
 
 function runActivityReportingRunner(
@@ -659,6 +728,7 @@ class MutableChatTurnHandle implements ChatTurnHandle {
   readonly completed: Promise<void>;
 
   #events: ChatSseEvent[] = [];
+  #terminal: ChatSseEvent | null = null;
   #listeners = new Set<(event: ChatSseEvent) => void>();
   #waiters: EventCountWaiter[] = [];
   #completedResolve!: () => void;
@@ -682,6 +752,11 @@ class MutableChatTurnHandle implements ChatTurnHandle {
 
   currentSeq(): number {
     return this.#events.at(-1)?.seq ?? 0;
+  }
+
+  /** The turn's first turn.completed or turn.error. */
+  get terminal(): ChatSseEvent | null {
+    return this.#terminal;
   }
 
   async run(): Promise<void> {
@@ -754,6 +829,9 @@ class MutableChatTurnHandle implements ChatTurnHandle {
   private append(event: ChatSseEvent): ChatSseEvent {
     const immutableEvent = deepFreeze(cloneEvent(event));
     this.#events.push(immutableEvent);
+    if (this.#terminal === null && (event.type === "turn.completed" || event.type === "turn.error")) {
+      this.#terminal = immutableEvent;
+    }
     for (const listener of [...this.#listeners]) {
       try {
         listener(immutableEvent);

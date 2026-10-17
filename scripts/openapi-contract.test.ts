@@ -181,6 +181,23 @@ test("OpenAPI documents the per-block proofs a chat message read returns (#193)"
   assert.equal(validate({ ...UNPROVEN, trust_score: 1 }), false);
 });
 
+test("OpenAPI documents the runs a chat messages read reports (#332)", async () => {
+  const spec = load(await readFile(OPENAPI_PATH, "utf8")) as {
+    paths: Record<string, Record<string, { responses: Record<string, { content: Record<string, { schema: { required: string[]; properties: Record<string, object> } }> }> }>>;
+  };
+  const schema = spec.paths["/v1/chat/threads/{threadId}/messages"].get.responses["200"].content["application/json"].schema;
+  assert.deepEqual(schema.required, ["messages", "active_run", "runs"]);
+  const validate = new Ajv2020({ strict: false }).compile(schema.properties.runs);
+  assert.ok(validate([
+    { run_id: "r0", turn_id: "u0", status: "completed", message_id: "a0" },
+    { run_id: "r1", turn_id: "u1", status: "completed" },
+    { run_id: "r2", turn_id: "u2", status: "failed" },
+    { run_id: "r3", turn_id: "u3", status: "in_flight" },
+  ]), JSON.stringify(validate.errors));
+  assert.equal(validate([{ run_id: "r1", turn_id: "u1", status: "queued" }]), false, "status is one of three");
+  assert.equal(validate([{ run_id: "r1", turn_id: "u1", status: "in_flight", message_id: "a1" }]), false, "only a completed run names a message");
+});
+
 test("OpenAPI gives every discovery operation browser-safe response and error schemas", async () => {
   const spec = await readFile(OPENAPI_PATH, "utf8");
   const operations = [

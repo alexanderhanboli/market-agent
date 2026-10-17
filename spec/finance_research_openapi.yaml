@@ -751,16 +751,65 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Persisted user, assistant, and tool messages in creation order
+          description: Persisted user, assistant, and tool messages in creation order; the
+            caller's turns on the thread that the serving process still retains, with their
+            status; and the caller's oldest turn on the thread still in flight (queued or
+            running, with no turn.completed or turn.error), or null. A turn whose turn.completed
+            names a message in `messages` is never reported in flight. Turns are held in the
+            serving process's memory, so a restart, another instance, or the end of retention
+            leaves a run out of `runs`.
           content:
             application/json:
               schema:
                 type: object
+                required: [messages, active_run, runs]
                 properties:
                   messages:
                     type: array
                     items:
                       $ref: '#/components/schemas/ChatReadMessage'
+                  active_run:
+                    description: Attach to it with the stream route's `attach=1`.
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        required: [run_id, turn_id]
+                        properties:
+                          run_id:
+                            type: string
+                          turn_id:
+                            type: string
+                  runs:
+                    description: Oldest first. `in_flight` is queued or running; `completed`
+                      ended with turn.completed and names the saved answer when it has one;
+                      `failed` ended with turn.error or without a terminal event.
+                    type: array
+                    items:
+                      oneOf:
+                        - type: object
+                          additionalProperties: false
+                          required: [run_id, turn_id, status]
+                          properties:
+                            run_id:
+                              type: string
+                            turn_id:
+                              type: string
+                            status:
+                              type: string
+                              enum: [in_flight, failed]
+                        - type: object
+                          additionalProperties: false
+                          required: [run_id, turn_id, status]
+                          properties:
+                            run_id:
+                              type: string
+                            turn_id:
+                              type: string
+                            status:
+                              type: string
+                              enum: [completed]
+                            message_id:
+                              type: string
         '401':
           description: Missing or malformed user credential
         '404':
@@ -862,6 +911,15 @@ paths:
             trigger subject pre-resolution.
           schema:
             type: string
+        - in: query
+          name: attach
+          required: false
+          description: '`1` streams an existing turn found by thread, run and turn id for the
+            caller (the messages GET reports it as `active_run`), replaying from seq 1. It never
+            starts a turn and ignores the other turn inputs. 404 when the turn is unknown.'
+          schema:
+            type: string
+            enum: ['1']
         - in: header
           name: Last-Event-ID
           required: false
@@ -968,6 +1026,15 @@ paths:
                     data: {"type":"turn.completed","seq":9,"thread_id":"...","run_id":"...","turn_id":"...","message_id":"...","message":{"message_id":"...","role":"assistant","blocks":[...],"block_proofs":{...},...},"clarification":true}
         '400':
           description: Missing run_id, malformed path, or malformed Last-Event-ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '404':
+          description: Thread not found for the calling user, or, with `attach=1`, no such turn
           content:
             application/json:
               schema:
