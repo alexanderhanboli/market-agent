@@ -255,6 +255,55 @@ test("a free cash flow answer always publishes the OCF and capex it subtracts, b
   assert.equal(result.outcome, "ready", JSON.stringify(result));
   assert.deepEqual(
     result.outcome === "ready" && result.plan.outputs.map((output) => [output.output_id, output.node_id, output.unit_id]),
-    [["ocf_input_", "ocf", "answer"], ["capex_input", "capex", "answer"], ["ocf_input", "fcf", "answer"]],
+    [["ocf_input_2", "ocf", "answer"], ["capex_input", "capex", "answer"], ["ocf_input", "fcf", "answer"]],
   );
+});
+
+function freeCashFlowDraft(ocfNode: string, outputs: Array<{ output_id: string; node_id: string }>, extra: Array<Record<string, unknown>> = []) {
+  const period = { kind: "fiscal_period", fiscal_year: 2023, fiscal_period: "FY" };
+  return {
+    subjects: [{ slot_id: "a", mention: "Apple" }],
+    operations: [
+      { node_id: ocfNode, operation: "reported_metric", subject_slot: "a", metric_key: "operating_cash_flow", period },
+      { node_id: "capex", operation: "reported_metric", subject_slot: "a", metric_key: "capex", period },
+      { node_id: "fcf", operation: "free_cash_flow", operating_cash_flow: ocfNode, capex: "capex" },
+      ...extra,
+    ],
+    outputs,
+    thresholds: [{ threshold_id: "ten_billion", value: "10000000000", unit: { kind: "currency", currency: "USD" } }],
+  };
+}
+
+function outputRows(result: ReturnType<typeof buildDeterministicPlan>) {
+  assert.equal(result.outcome, "ready", JSON.stringify(result));
+  return result.outcome === "ready" ? result.plan.outputs.map((output) => [output.output_id, output.node_id, output.unit_id]) : [];
+}
+
+test("an added input's output id stays a valid local id when the input node id is long (#335)", () => {
+  const ocfNode = `o${"x".repeat(62)}`;
+  const taken = `${ocfNode.slice(0, 58)}_input`;
+  const result = buildDeterministicPlan(context({ requested_subjects: [resolved(0)] }), freeCashFlowDraft(ocfNode, [{ output_id: taken, node_id: "fcf" }]));
+  assert.deepEqual(outputRows(result), [[`${ocfNode.slice(0, 56)}_input_2`, ocfNode, "answer"], ["capex_input", "capex", "answer"], [taken, "fcf", "answer"]]);
+});
+
+test("free cash flow that only feeds a threshold still publishes its OCF and capex (#335)", () => {
+  const draft = freeCashFlowDraft("ocf", [{ output_id: "above", node_id: "above" }], [
+    { node_id: "above", operation: "threshold", subject: "fcf", threshold_id: "ten_billion", comparison: "gt" },
+  ]);
+  assert.deepEqual(outputRows(buildDeterministicPlan(context({ requested_subjects: [resolved(0)] }), draft)), [
+    ["ocf_input", "ocf", "answer"],
+    ["capex_input", "capex", "answer"],
+    ["above", "above", "answer"],
+  ]);
+});
+
+test("OCF published in another unit is still published beside free cash flow in its own unit (#335)", () => {
+  const draft = freeCashFlowDraft("ocf", [{ output_id: "ocf_out", node_id: "ocf" }, { output_id: "fcf_out", node_id: "fcf" }]);
+  const units = [{ unit_id: "cash_section", output_ids: ["ocf_out"] }, { unit_id: "fcf_section", output_ids: ["fcf_out"] }];
+  assert.deepEqual(outputRows(buildDeterministicPlan(context({ requested_subjects: [resolved(0)] }), draft, units)), [
+    ["ocf_out", "ocf", "cash_section"],
+    ["ocf_input", "ocf", "fcf_section"],
+    ["capex_input", "capex", "fcf_section"],
+    ["fcf_out", "fcf", "fcf_section"],
+  ]);
 });
