@@ -337,7 +337,7 @@ test('Chat stream URL carries dev identity and refreshes history after completio
   assert.equal(eventSources[0].closed, true)
 })
 
-test('Chat stream reports server-signaled turn errors to retry callbacks', () => {
+test('Chat stream delivers a server-signaled turn error as an event, closes, and reports no connection error', () => {
   const eventSources: MockEventSource[] = []
   const events: ChatSseEvent[] = []
   let errors = 0
@@ -372,7 +372,7 @@ test('Chat stream reports server-signaled turn errors to retry callbacks', () =>
     error: 'upstream_500',
   })
 
-  assert.equal(errors, 1)
+  assert.equal(errors, 0)
   assert.equal(events.at(-1)?.type, 'turn.error')
   assert.equal(eventSources[0].closed, true)
 })

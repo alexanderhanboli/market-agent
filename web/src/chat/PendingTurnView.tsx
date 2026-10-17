@@ -2,15 +2,15 @@ import type { ReactElement, ReactNode } from 'react'
 
 import { BlockView } from '../blocks/BlockView.tsx'
 import { AgentPlanPanel } from './AgentPlanPanel.tsx'
-import type { TurnState } from './chatSession.ts'
+import type { StreamLink, TurnState } from './chatSession.ts'
 import { StreamingBlockView } from './StreamingBlockView.tsx'
 import type { StreamState, UnverifiedTurn } from './streamReducer.ts'
 import { AssistantTurn, BlockColumn, USER_BUBBLE_CLASS } from './turnLayout.tsx'
 
 type PendingTurnViewProps = {
   turn: TurnState
-  backgroundRun: boolean
   onRetry: () => void
+  onReconnect: () => void
   onReload: () => void
   onAsk: (text: string) => boolean
 }
@@ -20,14 +20,10 @@ const ACTION_BUTTON_CLASS = 'rounded-md border border-negative px-3 py-1.5 text-
 // The turn that is not yet in the thread's history. Streaming and failed
 // render through one tree, so React keeps the answer's DOM nodes until the
 // completion commit replaces them with the sealed MessageItem.
-export function PendingTurnView({ turn, backgroundRun, onRetry, onReload, onAsk }: PendingTurnViewProps): ReactElement | null {
+export function PendingTurnView({ turn, onRetry, onReconnect, onReload, onAsk }: PendingTurnViewProps): ReactElement | null {
   switch (turn.phase) {
     case 'idle':
-      return backgroundRun ? (
-        <p data-testid="background-run" aria-live="polite" className="py-2 text-sm text-muted">
-          The analyst is still answering this question.
-        </p>
-      ) : null
+      return null
     case 'persisting':
       return (
         <div data-testid="pending-turn" className="flex flex-col gap-2 py-2">
@@ -50,19 +46,41 @@ export function PendingTurnView({ turn, backgroundRun, onRetry, onReload, onAsk 
     case 'unverified':
       return turn.stream.unverified ? <UnverifiedTurnView state={turn.stream} unverified={turn.stream.unverified} /> : null
     case 'streaming':
-      return <StreamedTurn phase={turn.phase} stream={turn.stream} />
+      return (
+        <StreamedTurn phase={turn.phase} stream={turn.stream} blocks={turn.origin.kind === 'own'}>
+          <LinkNotice link={turn.link} onReconnect={onReconnect} />
+        </StreamedTurn>
+      )
     case 'failed':
       return (
-        <StreamedTurn phase={turn.phase} stream={turn.stream}>
-          {turn.recovery === 'retry_stream'
-            ? <TurnNotice message={turn.error} action="Retry stream" onAction={onRetry} />
-            : <TurnNotice message={turn.error} action="Reload thread" onAction={onReload} />}
+        <StreamedTurn phase={turn.phase} stream={turn.stream} blocks={turn.origin.kind === 'own'}>
+          {turn.recovery === 'none'
+            ? <p className="text-sm text-negative">{turn.error}</p>
+            : (
+              <TurnNotice
+                message={turn.error}
+                action={turn.recovery === 'reload_thread' ? 'Reload thread' : 'Retry'}
+                onAction={turn.recovery === 'reload_thread' ? onReload : onRetry}
+              />
+            )}
         </StreamedTurn>
       )
   }
 }
 
-function StreamedTurn({ phase, stream, children }: { phase: TurnState['phase']; stream: StreamState; children?: ReactNode }): ReactElement {
+function LinkNotice({ link, onReconnect }: { link: StreamLink; onReconnect: () => void }): ReactElement | null {
+  switch (link.kind) {
+    case 'open':
+      if (link.attach) return <p className="text-sm text-muted">The analyst is still answering this question.</p>
+      return link.drops > 0 ? <p className="text-sm text-muted">Reconnecting to the analyst…</p> : null
+    case 'reconnecting':
+      return <p className="text-sm text-muted">Reconnecting to the analyst…</p>
+    case 'offline':
+      return <TurnNotice message="Lost the connection to the analyst." action="Reconnect" onAction={onReconnect} />
+  }
+}
+
+function StreamedTurn({ phase, stream, blocks, children }: { phase: TurnState['phase']; stream: StreamState; blocks: boolean; children?: ReactNode }): ReactElement {
   return (
     <div
       data-testid="streaming-turn"
@@ -72,7 +90,7 @@ function StreamedTurn({ phase, stream, children }: { phase: TurnState['phase']; 
     >
       <AgentPlanPanel steps={stream.plan_steps} />
       <AssistantTurn className="w-full">
-        {stream.block_order.map((block_id) => {
+        {blocks && stream.block_order.map((block_id) => {
           const block = stream.blocks_by_id.get(block_id)
           if (block === undefined) return null
           return (

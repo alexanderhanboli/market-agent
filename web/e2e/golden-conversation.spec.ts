@@ -83,6 +83,10 @@ test('golden conversation renders charts, metrics and inspectable sources, and s
 
   // Reload: all three questions and answers come back from the persisted thread, with
   // their figures, chart points and sources.
+  const streamsAfterReload: string[] = []
+  page.on('request', (request) => {
+    if (/\/v1\/chat\/threads\/[^/]+\/stream$/.test(new URL(request.url()).pathname)) streamsAfterReload.push(request.url())
+  })
   await page.reload()
   for (const question of QUESTIONS) {
     await expect(page.locator('[data-role="user"]', { hasText: question })).toBeVisible()
@@ -96,6 +100,8 @@ test('golden conversation renders charts, metrics and inspectable sources, and s
   await expectComparison(answer(page, EXPLAIN_NARRATIVE))
   await inspectCitedFigure(page, answer(page, EXPLAIN_NARRATIVE))
   expect(historyReads.length).toBeGreaterThanOrEqual(1)
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled()
+  expect(streamsAfterReload).toEqual([])
 })
 
 // NVDA first, then AMD, each row with figures that open their evidence.
