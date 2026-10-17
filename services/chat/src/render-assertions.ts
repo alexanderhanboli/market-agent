@@ -304,13 +304,17 @@ function periodText(period: string): string {
 }
 
 // The end month is said, since fiscal calendars differ (#180), and a period
-// only partly covered (#302).
+// not fully covered (#302). A quote has no period: its date says how current it is.
 function periodPhrase(figure: PacketFigure): string {
+  const coverage = periodCoverage(figure);
   const notes = [
     ...(figure.period_end ? [`ended ${monthYear(figure.period_end)}`] : []),
-    ...(periodCoverage(figure) ? ["partial period"] : []),
+    ...(coverage ? [coverage === "partial" ? "partial period" : `${coverage} coverage`] : []),
   ];
-  return `${figure.period ? ` in ${periodText(figure.period)}` : ""}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
+  const quoted = !figure.period && figure.displayed === false && figure.as_of
+    ? ` as of ${new Date(figure.as_of).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`
+    : "";
+  return `${figure.period ? ` in ${periodText(figure.period)}` : quoted}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
 }
 
 function capitalize(text: string): string {

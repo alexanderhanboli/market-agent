@@ -621,7 +621,8 @@ function availableFigures(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCal
     if (!isRecord(fact) || typeof fact.fact_id !== "string" || facts.has(fact.fact_id)) continue;
     const value = factValue(fact);
     const metric = fact.display_name ?? fact.metric_key;
-    if (value === undefined || typeof metric !== "string") continue;
+    // A fact whose period has no coverage is no value for it.
+    if (value === undefined || typeof metric !== "string" || fact.coverage_level === "unavailable") continue;
     const fiscal = typeof fact.fiscal_year === "number" ? { period: `${typeof fact.fiscal_period === "string" ? fact.fiscal_period : ""}${fact.fiscal_year}` } : {};
     facts.set(fact.fact_id, {
       metric,

@@ -665,6 +665,7 @@ const AVAILABLE_TOOL_CALL = {
       facts: [
         { fact_id: AVAILABLE_FACT(1), metric_key: "revenue", display_name: "Revenue", value_num: 416.161, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_y", fiscal_year: 2025, fiscal_period: "FY", as_of: "2025-10-31T00:00:00.000Z", source_id: "s-facts", coverage_level: "full" },
         { fact_id: AVAILABLE_FACT(2), metric_key: "net_income", display_name: "Net income", value_num: 25, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_q", fiscal_year: 2026, fiscal_period: "Q1", as_of: "2026-01-30T00:00:00.000Z", source_id: "s-facts", coverage_level: "partial" },
+        { fact_id: AVAILABLE_FACT(4), metric_key: "operating_income", display_name: "Operating income", value_num: 0, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_q", fiscal_year: 2026, fiscal_period: "Q1", as_of: "2026-01-30T00:00:00.000Z", source_id: "s-facts", coverage_level: "unavailable" },
         { fact_id: AVAILABLE_FACT(3), value_num: 1, unit: "pure", period_kind: "fiscal_y", fiscal_year: 2025, fiscal_period: "FY", source_id: "s-facts" },
       ],
     },
