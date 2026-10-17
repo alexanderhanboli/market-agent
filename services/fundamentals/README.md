@@ -110,7 +110,9 @@ npm test         # contract + AAPL FY2024 income statement verification
   certified only from `PaymentsToAcquirePropertyPlantAndEquipment`;
   capex mapped from `PaymentsToAcquireProductiveAssets` still appears in
   statements but gets no context, since that concept adds purchased
-  intangibles.
+  intangibles. Operating cash flow is certified only from the total
+  `NetCashProvidedByUsedInOperatingActivities`, the scope capex covers;
+  the continuing-operations line gets no context.
 - A 10-K's comparative for an earlier year that differs from the
   previous filing's value for it, in filing-date order, is stored as a
   restatement: `method = 'restated'`, on the later filing's source,
