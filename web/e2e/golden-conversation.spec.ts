@@ -15,6 +15,8 @@ const YTD_TITLE = 'Price return YTD 2026 (split-adjusted, excluding dividends)'
 const YTD_RANGE = 'YTD 2026: 2025-12-31 close to 2026-08-31 close'
 
 async function ask(page: Page, question: string) {
+  // One turn at a time: Send stays disabled until the previous answer is sealed.
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled()
   const composer = page.getByRole('textbox', { name: 'Ask the analyst' })
   await composer.fill(question)
   await composer.press('Enter')
@@ -24,13 +26,28 @@ const answer = (page: Page, narrative: string) =>
   page.locator('[data-role="assistant"]', { hasText: narrative })
 
 test('golden conversation renders charts, metrics and inspectable sources, and survives a reload', async ({ page }) => {
+  // From its first appearance, the first answer is on the page exactly once in every
+  // mutation batch: the streamed copy hands off to the sealed one with no gap or duplicate.
+  await page.addInitScript((narrative) => {
+    const counts: number[] = []
+    Object.assign(window, { __narrativeCounts: counts })
+    new MutationObserver(() => {
+      const occurrences = (document.body?.textContent ?? '').split(narrative).length - 1
+      if (occurrences > 0 || counts.length > 0) counts.push(occurrences)
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  }, NVDA_NARRATIVE)
+
   // Auto-login (VITE_MA_FLAG_DEV_AUTO_LOGIN) means no sign-in step.
   await page.goto('/chat')
-  await page.getByRole('button', { name: 'Start research' }).click()
-  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/)
-
   await ask(page, QUESTIONS[0])
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]{36}$/)
+  await expect(page.getByTestId('thread-name')).not.toHaveText(/[0-9a-f]{8}-[0-9a-f]{4}-/)
   await expect(page.getByText(NVDA_NARRATIVE)).toBeVisible()
+  await expect(answer(page, NVDA_NARRATIVE)).toBeVisible()
+  const narrativeCounts = await page.evaluate(() => (window as unknown as { __narrativeCounts: number[] }).__narrativeCounts)
+  expect(narrativeCounts.length).toBeGreaterThan(0)
+  expect(narrativeCounts.filter((count) => count !== 1)).toEqual([])
+  await expect(page.getByText('Loading message history.')).toHaveCount(0)
   // Fact-built blocks: the metric row's figures and the revenue chart.
   await expect(page.getByText('Revenue', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Quarterly revenue')).toBeVisible()

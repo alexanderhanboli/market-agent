@@ -3,24 +3,19 @@
 
 import { authenticatedFetch, authenticatedJson } from '../http/authFetch.ts'
 
-type ChatThread = {
+export type ChatThread = {
   thread_id: string
   title: string | null
   updated_at: string
 }
 
-export async function createThreadAndOpen(
-  userId: string,
-  navigate: (to: string) => void,
-  title: string | null = null,
-): Promise<void> {
-  const thread = await authenticatedJson<ChatThread>('/v1/chat/threads', {
+export async function createThread(userId: string): Promise<ChatThread> {
+  return authenticatedJson<ChatThread>('/v1/chat/threads', {
     userId,
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title: null }),
   })
-  navigate(`/chat/${thread.thread_id}`)
 }
 
 export async function deleteThread(userId: string, threadId: string): Promise<void> {

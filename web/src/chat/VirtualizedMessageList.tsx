@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactElement,
+  type ReactNode,
 } from 'react'
 
 import { JumpToLatestButton } from './JumpToLatestButton.tsx'
@@ -22,14 +23,19 @@ export type VirtualizedMessageListProps = {
   messages: ReadonlyArray<ChatMessage>
   estimatedItemHeight?: number
   overscan?: number
+  // Rendered after the messages in the same scroller and column, so a pending
+  // turn sits exactly where its sealed message will appear.
+  tail?: ReactNode
 }
 
 export function VirtualizedMessageList({
   messages,
   estimatedItemHeight = DEFAULT_ESTIMATED_ITEM_HEIGHT,
   overscan = DEFAULT_OVERSCAN,
+  tail,
 }: VirtualizedMessageListProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null)
+  const tailRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   // Captured at the last observed scroll position — read pre-update by the
   // auto-tail effect because by effect-time el.scrollHeight already includes
@@ -112,6 +118,16 @@ export function VirtualizedMessageList({
     scrollToBottom()
   }, [messages, scrollToBottom])
 
+  useLayoutEffect(() => {
+    const el = tailRef.current
+    if (el === null) return
+    const observer = new ResizeObserver(() => {
+      if (wasAtBottomRef.current) scrollToBottom()
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [scrollToBottom])
+
   const visibleMessages = messages.slice(view.startIndex, view.endIndex + 1)
 
   return (
@@ -134,6 +150,9 @@ export function VirtualizedMessageList({
               onMeasure={handleItemMeasure}
             />
           ))}
+        </div>
+        <div ref={tailRef} data-testid="virtualized-message-list-tail" className={THREAD_COLUMN_CLASS}>
+          {tail}
         </div>
       </div>
       {showJumpButton ? <JumpToLatestButton onClick={scrollToBottom} /> : null}

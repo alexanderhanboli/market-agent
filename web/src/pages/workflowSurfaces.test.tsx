@@ -5,13 +5,13 @@ import { JSDOM } from 'jsdom'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
-import { createMemoryRouter, MemoryRouter, Outlet, Route, RouterProvider, Routes } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom'
 
 import { AgentPayloadValidationError, buildAgentPayload } from '../agents/agentPayload.ts'
 import { persistUserChatTurn } from '../chat/persistUserChatTurn.ts'
 import { AgentsPage } from './AgentsPage.tsx'
 import { AnalyzePage } from './AnalyzePage.tsx'
-import { ChatEmptyState, ChatLayout, ChatThreadView } from './ChatPage.tsx'
+import { ChatLayout } from './ChatPage.tsx'
 import { shareAnalyzeRunToChat } from '../analyze/shareToChat.ts'
 import { BlockRegistryProvider, createDefaultBlockRegistry, type Block } from '../blocks'
 import { openChatTurnStream } from '../chat/openChatTurnStream.ts'
@@ -25,12 +25,6 @@ afterEach(resetResourcesForTests)
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
 const SNAPSHOT_ID = '11111111-1111-4111-8111-111111111111'
-
-function OutletCtx({ value }: { value: { collapsed: boolean; setCollapsed: () => void } }) {
-  return <Outlet context={value} />
-}
-
-const DEFAULT_LAYOUT_CTX = { collapsed: false, setCollapsed: () => {} }
 
 const IMPORTED_MEMO_BLOCK: Block = {
   id: 'memo-block',
@@ -83,9 +77,7 @@ test('Chat surface renders thread list and composer workflow copy without phase 
   const html = renderWithAuth(
     <MemoryRouter initialEntries={['/chat']}>
       <Routes>
-        <Route path="/chat" element={<ChatLayout />}>
-          <Route index element={<ChatEmptyState />} />
-        </Route>
+        <Route path="/chat" element={<ChatLayout />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -100,7 +92,7 @@ test('Chat thread route renders message stream and composer workflow copy', () =
     <MemoryRouter initialEntries={['/chat/thread-123']}>
       <Routes>
         <Route path="/chat" element={<ChatLayout />}>
-          <Route path=":threadId" element={<ChatThreadView />} />
+          <Route path=":threadId" />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -129,8 +121,8 @@ test('Chat thread route does not render imported Analyze memo from Router state'
         ]}
       >
         <Routes>
-          <Route element={<OutletCtx value={DEFAULT_LAYOUT_CTX} />}>
-            <Route path="/chat/:threadId" element={<ChatThreadView />} />
+          <Route path="/chat" element={<ChatLayout />}>
+            <Route path=":threadId" />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -156,6 +148,7 @@ test('Chat thread route loads persisted user and assistant messages on direct na
   }
   try {
     globalThis.fetch = async (input, init) => {
+      if (String(input) === '/v1/chat/threads') return new Response(JSON.stringify({ threads: [] }), { status: 200 })
       assert.equal(String(input), '/v1/chat/threads/thread-123/messages')
       assert.equal((init?.headers as Record<string, string>)['x-user-id'], USER_ID)
       return new Response(JSON.stringify({
@@ -197,8 +190,8 @@ test('Chat thread route loads persisted user and assistant messages on direct na
         <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
           <MemoryRouter initialEntries={['/chat/thread-123']}>
             <Routes>
-              <Route element={<OutletCtx value={DEFAULT_LAYOUT_CTX} />}>
-                <Route path="/chat/:threadId" element={<ChatThreadView />} />
+              <Route path="/chat" element={<ChatLayout />}>
+                <Route path=":threadId" />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -222,6 +215,7 @@ test('Chat thread route virtualizes long persisted histories while preserving re
   const originalFetch = globalThis.fetch
   try {
     globalThis.fetch = async (input, init) => {
+      if (String(input) === '/v1/chat/threads') return new Response(JSON.stringify({ threads: [] }), { status: 200 })
       assert.equal(String(input), '/v1/chat/threads/thread-123/messages')
       assert.equal((init?.headers as Record<string, string>)['x-user-id'], USER_ID)
       return new Response(JSON.stringify({
@@ -234,8 +228,8 @@ test('Chat thread route virtualizes long persisted histories while preserving re
         <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
           <MemoryRouter initialEntries={['/chat/thread-123']}>
             <Routes>
-              <Route element={<OutletCtx value={DEFAULT_LAYOUT_CTX} />}>
-                <Route path="/chat/:threadId" element={<ChatThreadView />} />
+              <Route path="/chat" element={<ChatLayout />}>
+                <Route path=":threadId" />
               </Route>
             </Routes>
           </MemoryRouter>
