@@ -231,7 +231,7 @@ export function SettingsView({
                 <input className={INPUT_CLASS} value={channel.models.join(',')} onChange={(event) => updateChannel(index, { ...channel, models: splitCsv(event.target.value) })} />
               </label>
               <div className="flex items-end gap-2">
-                <button className={SECONDARY_BUTTON} disabled={busyAction !== null} onClick={() => onDiscover(channel)} type="button">
+                <button className={SECONDARY_BUTTON} disabled={busyAction !== null || channel.protocol === 'anthropic'} onClick={() => onDiscover(channel)} type="button">
                   {busyAction === 'discover' ? 'Discovering...' : 'Discover'}
                 </button>
                 <button className={DANGER_BUTTON} disabled={busyAction !== null} onClick={() => onChange({ ...settings, channels: settings.channels.filter((_, candidateIndex) => candidateIndex !== index) })} type="button">Remove</button>

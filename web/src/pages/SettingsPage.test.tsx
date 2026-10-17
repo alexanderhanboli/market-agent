@@ -34,6 +34,20 @@ test('SettingsView renders AI model channels and model selectors', () => {
   assert.match(html, /Fallback models/)
 })
 
+test('SettingsView offers Discover only for channels that speak the OpenAI API', () => {
+  const base = settings()
+  const anthropic = { ...base.channels[0]!, name: 'anthropic', protocol: 'anthropic', baseUrl: null }
+  const { document, cleanup } = renderIntoDom(
+    <SettingsView state={{ kind: 'ready', version: 'sha256:test', settings: { ...base, channels: [base.channels[0]!, anthropic] } }} />,
+  )
+  try {
+    const discover = [...document.querySelectorAll('button')].filter((button) => button.textContent === 'Discover')
+    assert.deepEqual(discover.map((button) => button.disabled), [false, true])
+  } finally {
+    cleanup()
+  }
+})
+
 test('SettingsView preserves masked keys when saving', async () => {
   const saved: { current: LlmEditableSettings | null } = { current: null }
   const { document, cleanup } = renderIntoDom(
