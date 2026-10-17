@@ -199,7 +199,7 @@ function switchedAwayServer() {
   return { server, state }
 }
 
-test('a released stream that fails before the server answers starts its run again, then asks the server what runs there', async () => {
+test('a released stream that has not reached the server is sent again by the thread it was sent from, once its load lacks the run', async () => {
   const { server, state } = switchedAwayServer()
   const h = await renderChat('/chat/T1', server)
   try {
@@ -207,40 +207,39 @@ test('a released stream that fails before the server answers starts its run agai
     const own = FakeEventSource.instances[0]
     await openThread(h, 'T2')
     await openThread(h, 'T1')
-    assert.equal(own.closed, false)
     assert.equal(server.gets(HISTORY_T1), 2)
-
-    await dropStream(h, own)
     assert.equal(FakeEventSource.instances.length, 2)
-    const restarted = FakeEventSource.instances[1]
-    assert.deepEqual(streamParams(restarted), streamParams(own))
+    const resent = FakeEventSource.instances[1]
+    assert.deepEqual(streamParams(resent), streamParams(own))
+    assert.equal(h.button('Send').disabled, true)
 
     state.started = true
-    await act(async () => restarted.open())
+    await act(async () => own.open())
     await h.flush()
-    assert.equal(restarted.closed, true)
-    assert.equal(server.gets(HISTORY_T1), 3)
-    assert.equal(FakeEventSource.instances.length, 3)
-    assert.equal(FakeEventSource.instances[2].params.get('attach'), '1')
-    assert.equal(h.button('Send').disabled, true)
-    assert.match(h.text(), STILL_ANSWERING)
+    assert.equal(own.closed, true)
+    assert.equal(FakeEventSource.instances.length, 2)
+    await streamAnswer(h, resent)
+    await complete(h, resent)
+    assert.equal(occurrences(h.text(), ANSWER), 1)
+    assert.equal(h.button('Send').disabled, false)
   } finally {
     await h.cleanup()
   }
 })
 
-test('a released stream whose every start fails asks the server what runs on the thread on screen', async () => {
+test('a released run whose every start fails, on the thread on screen, ends offline with Reconnect', async () => {
   const { server } = switchedAwayServer()
   const h = await renderChat('/chat/T1', server)
   try {
     await h.ask('Analyze NVDA')
     await openThread(h, 'T2')
     await openThread(h, 'T1')
-    for (let i = 0; i < 4; i++) await dropStream(h, FakeEventSource.instances.at(-1)!)
+    const resent = () => FakeEventSource.instances.filter((source) => !source.closed && source.params.get('attach') === null)
+    for (let i = 0; i < 8 && resent().length > 0; i++) await dropStream(h, resent().at(-1)!)
 
-    assert.equal(FakeEventSource.instances.length, 4)
-    assert.equal(FakeEventSource.instances.every((source) => source.closed && source.params.get('attach') === null), true)
-    assert.equal(server.gets(HISTORY_T1), 3)
+    assert.equal(FakeEventSource.instances.every((source) => source.params.get('attach') === null), true)
+    assert.equal(h.button('Reconnect').disabled, false)
+    assert.equal(h.button('Send').disabled, true)
   } finally {
     await h.cleanup()
   }
