@@ -18,10 +18,10 @@ import { normalizeUniverseToIssuers } from "./subject-normalization.ts";
 import { resolvePeriodContext } from "./period-context.ts";
 import { getColumn, type ColumnCatalogEntry, type PeriodContext, type ReaderColumnDeps } from "./column-catalog.ts";
 import { computeAndPersistCell } from "./cell-runner.ts";
-import { GridValidationError, type ColumnInstance, type QueryExecutor } from "./types.ts";
+import { GridValidationError, MAX_GRID_ROWS, type ColumnInstance, type QueryExecutor } from "./types.ts";
 import type { JsonValue } from "../../observability/src/types.ts";
 
-export const MAX_GRID_ROWS = 25;
+export { MAX_GRID_ROWS };
 const ROW_CONCURRENCY = 4;
 
 export type RunEngineDeps = {

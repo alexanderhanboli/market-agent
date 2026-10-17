@@ -72,6 +72,9 @@ export type CellWrite = {
 // modules import EMPTY_DISPLAY while column-catalog.ts imports those producers.
 export const EMPTY_DISPLAY: CellDisplay = { value: "—", tone: null };
 
+// A run computes at most this many rows; the universe is capped to it.
+export const MAX_GRID_ROWS = 25;
+
 export class GridNotFoundError extends Error {
   constructor(message = "grid not found") {
     super(message);
