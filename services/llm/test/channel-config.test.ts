@@ -102,6 +102,30 @@ test("parseLlmEnv reports enabled channels that cannot build deployments", () =>
   assert.deepEqual(buildLlmDeploymentOrder(settings), []);
 });
 
+test("a channel without a base URL deploys to its protocol's endpoint; an unknown protocol doesn't deploy", () => {
+  const settings = parseLlmEnv({
+    LLM_CHANNELS: "claude,openai,mystery",
+    LLM_CLAUDE_PROTOCOL: "anthropic",
+    LLM_CLAUDE_API_KEY: "sk-ant",
+    LLM_CLAUDE_MODELS: "claude-opus-5-5",
+    LLM_OPENAI_PROTOCOL: "openai",
+    LLM_OPENAI_MODELS: "gpt-4.1",
+    LLM_MYSTERY_PROTOCOL: "gemini",
+    LLM_MYSTERY_BASE_URL: "https://example.test/v1",
+    LLM_MYSTERY_MODELS: "m1",
+    LITELLM_MODEL: "claude/claude-opus-5-5",
+    LITELLM_FALLBACK_MODELS: "mystery/m1,openai/gpt-4.1",
+  });
+
+  assert.deepEqual(settings.issues, [
+    "LLM_MYSTERY_PROTOCOL: unknown protocol 'gemini' for channel 'mystery' (expected one of openai-compatible, openai, anthropic)",
+  ]);
+  assert.deepEqual(buildLlmDeploymentOrder(settings), [
+    { channel: "claude", model: "claude-opus-5-5", protocol: "anthropic", baseUrl: "https://api.anthropic.com", apiKeys: ["sk-ant"] },
+    { channel: "openai", model: "gpt-4.1", protocol: "openai", baseUrl: "https://api.openai.com/v1", apiKeys: [] },
+  ]);
+});
+
 test("buildLlmDeploymentOrder emits primary then unique fallbacks", () => {
   const settings = parseLlmEnv({
     LLM_CHANNELS: "openai,deepseek",

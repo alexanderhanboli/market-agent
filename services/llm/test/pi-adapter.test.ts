@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 
+import type { LlmDeployment } from "../src/channel-config.ts";
 import { LlmProviderError } from "../src/router.ts";
 import {
   createCatalogLookup,
@@ -144,6 +145,19 @@ test("pi adapter passes the provider's token usage through", async () => {
   assert.deepEqual(result.usage, { inputTokens: 120, outputTokens: 40, totalTokens: 160 });
 });
 
+test("pi adapter counts cached prompt tokens as input", async () => {
+  const client = createPiLlmChatClient({
+    complete: async () => ({
+      content: [{ type: "text", text: "ok" }],
+      usage: { input: 10, output: 40, cacheRead: 90, cacheWrite: 20, totalTokens: 160 },
+    }),
+  });
+
+  const result = await client(deployment(), { messages: [{ role: "user", content: "hello" }] });
+
+  assert.deepEqual(result.usage, { inputTokens: 120, outputTokens: 40, totalTokens: 160 });
+});
+
 test("pi adapter leaves usage out when the provider reports none", async () => {
   const client = createPiLlmChatClient({ complete: async () => ({ content: [{ type: "text", text: "ok" }] }) });
   const result = await client(deployment(), { messages: [{ role: "user", content: "hello" }] });
@@ -225,21 +239,26 @@ test("a model the catalog knows gets its reasoning metadata, and the nearest lev
   assert.equal(calls[0]!.options.reasoning, "low");
 });
 
-test("the catalog lookup finds models by endpoint, under any API, and on a protocol's implicit endpoint", async () => {
+test("the catalog lookup finds models by endpoint, under any API, keeping compat flags only for the deployment's API", async () => {
   const builtins = await import("@earendil-works/pi-ai/providers/all");
   const lookup = createCatalogLookup(
     builtins.getBuiltinProviders().flatMap((provider) => builtins.getBuiltinModels(provider) as PiCatalogEntry[]),
   );
-  const opencode = { channel: "my-gateway", model: "qwen3.8-max", protocol: "openai-compatible", baseUrl: "https://opencode.ai/zen/go/v1/", apiKeys: [] };
-  // OpenAI's o3 is catalogued under openai-responses; a protocol=openai channel may omit its base URL.
-  const o3 = { channel: "openai", model: "o3", protocol: "openai", baseUrl: null, apiKeys: [] };
+  const opencode: LlmDeployment = { channel: "my-gateway", model: "qwen3.8-max", protocol: "openai-compatible", baseUrl: "https://opencode.ai/zen/go/v1/", apiKeys: [] };
+  // OpenAI's o3 is catalogued under openai-responses.
+  const o3: LlmDeployment = { channel: "openai", model: "o3", protocol: "openai", baseUrl: "https://api.openai.com/v1", apiKeys: [] };
+  const opus: LlmDeployment = { channel: "claude", model: "claude-opus-5-5", protocol: "anthropic", baseUrl: "https://api.anthropic.com", apiKeys: [] };
 
   assert.equal(lookup(opencode)?.reasoning, true, "any channel name, trailing slash ignored");
   assert.ok(lookup(opencode)?.compat, "an openai-completions entry keeps its compat flags");
   assert.equal(lookup(o3)?.reasoning, true);
   assert.equal(lookup(o3)?.thinkingLevelMap?.low, "low");
   assert.equal(lookup(o3)?.compat, undefined, "another API's compat flags don't apply");
-  assert.equal(lookup({ ...o3, protocol: "openai-compatible" }), undefined, "no endpoint, no guess");
+  assert.deepEqual(
+    [lookup(opus)?.compat?.supportsTemperature, lookup(opus)?.compat?.forceAdaptiveThinking],
+    [false, true],
+    "an anthropic deployment keeps an anthropic-messages entry's compat flags",
+  );
   assert.equal(lookup({ ...opencode, model: "not-a-model" }), undefined);
 });
 
@@ -373,12 +392,138 @@ test("the default client completes through pi-ai's OpenAI-compatible API, reason
   );
 });
 
-function deployment() {
+type CapturedRequest = { url: string; body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
+
+// A local stand-in for POST /v1/messages that records each request and streams `reply`.
+async function messagesApiStub(t: { after(fn: () => void): void }, reply: (body: Record<string, unknown>) => { status: number; events?: object[]; error?: object }) {
+  const requests: CapturedRequest[] = [];
+  const server = createServer(async (req, res) => {
+    let raw = "";
+    for await (const chunk of req) raw += chunk;
+    const body = JSON.parse(raw) as Record<string, unknown>;
+    requests.push({ url: req.url ?? "", body, headers: req.headers });
+    const { status, events = [], error } = reply(body);
+    if (status !== 200) {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify({ type: "error", error }));
+      return;
+    }
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    for (const event of events) res.write(`event: ${(event as { type: string }).type}\ndata: ${JSON.stringify(event)}\n\n`);
+    res.end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  return { requests, baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
+}
+
+function claudeReply(model: string, text: string, stopReason = "end_turn", stopDetails: object | null = null): object[] {
+  return [
+    { type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", model, content: [], stop_reason: null, usage: { input_tokens: 12, output_tokens: 1 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    { type: "content_block_stop", index: 0 },
+    { type: "message_delta", delta: { stop_reason: stopReason, stop_details: stopDetails }, usage: { output_tokens: 7 } },
+    { type: "message_stop" },
+  ];
+}
+
+const askLow = { messages: [{ role: "system" as const, content: "Be brief." }, { role: "user" as const, content: "hi" }], temperature: 0, maxTokens: 256, reasoning: "low" as const };
+
+test("an anthropic channel calls the Messages API with adaptive thinking at the requested effort, no temperature, and prompt caching", async (t) => {
+  const stub = await messagesApiStub(t, (body) => ({ status: 200, events: claudeReply(body.model as string, "OK") }));
+  // Calls keep api.anthropic.com as their endpoint, so the catalog still finds claude-opus-5-5.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (input, init) => realFetch(String(input instanceof Request ? input.url : input).replace("https://api.anthropic.com", stub.baseUrl), init);
+  t.after(() => { globalThis.fetch = realFetch; });
+  const client = await createDefaultPiLlmChatClient();
+  const claude = (model: string, reasoning?: boolean): LlmDeployment =>
+    ({ channel: "claude", model, protocol: "anthropic", baseUrl: "https://api.anthropic.com", apiKeys: ["sk-ant-api-test"], ...(reasoning ? { reasoning } : {}) });
+
+  const opus = await withLlmConversation("thread-1", () => client(claude("claude-opus-5-5"), askLow));
+  await client(claude("claude-opus-5-5"), { ...askLow, reasoning: "off" });
+  // claude-haiku-5-5 isn't in pi-ai's catalog; the channel lists it in LLM_<NAME>_REASONING_MODELS, or doesn't.
+  const haiku = await client(claude("claude-haiku-5-5", true), askLow);
+  await client(claude("claude-haiku-5-5", true), { ...askLow, reasoning: "off" });
+  await client(claude("claude-haiku-5-5"), askLow);
+
+  assert.equal(opus.text, "OK");
+  assert.deepEqual(haiku.usage, { inputTokens: 12, outputTokens: 7, totalTokens: 19 });
+  const [opusLow, , haikuLow] = stub.requests;
+  assert.equal(haikuLow!.url, "/v1/messages?beta=true");
+  assert.equal(haikuLow!.headers["x-api-key"], "sk-ant-api-test");
+  assert.equal(haikuLow!.headers["user-agent"], "market-agent/0.1");
+  assert.equal(opusLow!.headers["x-opencode-session"], undefined, "the OpenCode session header stays on OpenAI-protocol channels");
+  assert.deepEqual(
+    stub.requests.map(({ body }) => ({ temperature: body.temperature, thinking: body.thinking, output_config: body.output_config })),
+    [
+      { temperature: undefined, thinking: { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } }, output_config: { effort: "high" } },
+      { temperature: undefined, thinking: { type: "adaptive", display: "summarized", block_binding: { prefix_mismatch_behavior: "drop_block" } }, output_config: { effort: "high" } },
+      { temperature: undefined, thinking: { type: "adaptive", display: "summarized" }, output_config: { effort: "low" } },
+      { temperature: undefined, thinking: { type: "adaptive", display: "summarized" }, output_config: { effort: "low" } },
+      { temperature: undefined, thinking: undefined, output_config: undefined },
+    ],
+  );
+  // Opus 5.5's effort rides in a mid-conversation system message (pi-ai's managed effort); "off" clamps to low.
+  const effortMessages = stub.requests.slice(0, 2).map(({ body }) =>
+    (body.messages as Array<{ role: string; output_config?: unknown }>).filter((message) => message.role === "system"));
+  assert.deepEqual(effortMessages, [
+    [{ role: "system", content: [], output_config: { effort: "low" } }],
+    [{ role: "system", content: [], output_config: { effort: "low" } }],
+  ]);
+  assert.deepEqual(haikuLow!.body.system, [{ type: "text", text: "Be brief.", cache_control: { type: "ephemeral" } }]);
+  assert.deepEqual(haikuLow!.body.messages, [{ role: "user", content: [{ type: "text", text: "hi", cache_control: { type: "ephemeral" } }] }]);
+});
+
+test("a Claude refusal and an exhausted credit balance are provider failures the router falls back from", async (t) => {
+  const stub = await messagesApiStub(t, (body) => body.model === "claude-sonnet-5-5"
+    ? { status: 200, events: claudeReply("claude-sonnet-5-5", "", "refusal", { type: "refusal", category: "cyber", explanation: "This request may enable unauthorized access to computer systems." }) }
+    : { status: 400, error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits." } });
+  const client = await createDefaultPiLlmChatClient();
+  const claude = (model: string): LlmDeployment => ({ channel: "claude", model, protocol: "anthropic", baseUrl: stub.baseUrl, apiKeys: ["k"] });
+
+  const failure = async (model: string) => {
+    try {
+      await client(claude(model), askLow);
+    } catch (error) {
+      return error instanceof LlmProviderError ? { code: error.code, message: error.message } : error;
+    }
+    return "resolved";
+  };
+
+  assert.deepEqual(await failure("claude-sonnet-5-5"), {
+    code: "provider_failed",
+    message: "This request may enable unauthorized access to computer systems.",
+  });
+  const credit = await failure("claude-opus-5-5") as { code: string; message: string };
+  assert.equal(credit.code, "provider_failed");
+  assert.match(credit.message, /^400 .*credit balance is too low/u);
+});
+
+test("an Anthropic permission error or unknown model stops the router instead of falling back", async (t) => {
+  const stub = await messagesApiStub(t, (body) => body.model === "claude-opus-5-5"
+    ? { status: 403, error: { type: "permission_error", message: "You do not have permission to access the requested resource." } }
+    : { status: 404, error: { type: "not_found_error", message: `model: ${body.model as string}` } });
+  const client = await createDefaultPiLlmChatClient();
+  const code = async (model: string) => {
+    try {
+      await client({ channel: "claude", model, protocol: "anthropic", baseUrl: stub.baseUrl, apiKeys: ["k"] }, askLow);
+    } catch (error) {
+      return error instanceof LlmProviderError ? error.code : error;
+    }
+    return "resolved";
+  };
+
+  assert.equal(await code("claude-opus-5-5"), "auth_failed");
+  assert.equal(await code("claude-opus-5-5-typo"), "model_not_found");
+});
+
+function deployment(): LlmDeployment {
   return {
     channel: "openai",
     model: "gpt-4.1",
     protocol: "openai",
-    baseUrl: null,
+    baseUrl: "https://api.openai.com/v1",
     apiKeys: ["sk-openai"],
   };
 }

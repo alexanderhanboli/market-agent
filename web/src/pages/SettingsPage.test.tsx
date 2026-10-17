@@ -34,6 +34,20 @@ test('SettingsView renders AI model channels and model selectors', () => {
   assert.match(html, /Fallback models/)
 })
 
+test('SettingsView offers Discover only for channels that speak the OpenAI API', () => {
+  const base = settings()
+  const anthropic = { ...base.channels[0]!, name: 'anthropic', protocol: 'anthropic', baseUrl: null }
+  const { document, cleanup } = renderIntoDom(
+    <SettingsView state={{ kind: 'ready', version: 'sha256:test', settings: { ...base, channels: [base.channels[0]!, anthropic] } }} />,
+  )
+  try {
+    const discover = [...document.querySelectorAll('button')].filter((button) => button.textContent === 'Discover')
+    assert.deepEqual(discover.map((button) => button.disabled), [false, true])
+  } finally {
+    cleanup()
+  }
+})
+
 test('SettingsView preserves masked keys when saving', async () => {
   const saved: { current: LlmEditableSettings | null } = { current: null }
   const { document, cleanup } = renderIntoDom(
@@ -69,6 +83,29 @@ test('SettingsView can add a channel and select primary/fallback models', async 
   assert.equal(changes[1]?.primaryModel, 'openai/o3')
   assert.deepEqual(changes[2]?.fallbackModels, ['openai/gpt-4.1', 'openai/o3'])
   cleanup()
+})
+
+test('switching protocol drops another provider\'s stock base URL but keeps a custom one', async () => {
+  const switchToAnthropic = async (baseUrl: string) => {
+    const changes: LlmEditableSettings[] = []
+    const base = settings()
+    const { document, cleanup } = renderIntoDom(
+      <SettingsView
+        state={{ kind: 'ready', version: 'sha256:test', settings: { ...base, channels: [{ ...base.channels[0]!, baseUrl }] } }}
+        onChange={(next) => changes.push(next)}
+      />,
+    )
+    try {
+      await change(selectByLabel(document, 'Protocol'), 'anthropic')
+      return changes[0]?.channels[0]?.baseUrl
+    } finally {
+      cleanup()
+    }
+  }
+
+  assert.equal(await switchToAnthropic('https://api.deepseek.com/v1'), null)
+  assert.equal(await switchToAnthropic('https://api.openai.com/v1'), null)
+  assert.equal(await switchToAnthropic('https://llm-proxy.internal/v1'), 'https://llm-proxy.internal/v1')
 })
 
 test('SettingsView displays pending and failed diagnostics states', () => {

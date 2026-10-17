@@ -10,7 +10,7 @@ import {
   LlmProviderError,
   type LlmReasoningLevel,
 } from "./router.ts";
-import type { LlmDeployment } from "./channel-config.ts";
+import { type LlmApi, type LlmDeployment, LLM_PROTOCOLS } from "./channel-config.ts";
 
 type PiTextContent = {
   type: "text";
@@ -22,8 +22,10 @@ type PiContentBlock = PiTextContent | Record<string, unknown>;
 type PiAssistantMessage = {
   content?: ReadonlyArray<PiContentBlock>;
   stopReason?: string;
+  /** The provider's own stop reason, set only when the model ended the turn. */
+  rawStopReason?: string;
   errorMessage?: string;
-  usage?: { input?: number; output?: number; totalTokens?: number; reasoning?: number };
+  usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; totalTokens?: number; reasoning?: number };
 };
 
 type PiContext = {
@@ -51,9 +53,9 @@ export type PiCatalogModel = {
 export type PiModel = {
   id: string;
   name: string;
-  api: "openai-completions";
+  api: LlmApi;
   provider: string;
-  baseUrl?: string;
+  baseUrl: string;
   reasoning: boolean;
   thinkingLevelMap?: PiCatalogModel["thinkingLevelMap"];
   input: Array<"text">;
@@ -108,15 +110,20 @@ export type CreatePiLlmChatClientInput = {
 };
 
 export async function createDefaultPiLlmChatClient(): Promise<LlmChatClient> {
-  const [pi, completions, builtins] = await Promise.all([
+  const [pi, completions, anthropic, builtins] = await Promise.all([
     import("@earendil-works/pi-ai"),
     import("@earendil-works/pi-ai/api/openai-completions"),
+    import("@earendil-works/pi-ai/api/anthropic-messages"),
     import("@earendil-works/pi-ai/providers/all"),
   ]);
   type StreamSimple = (model: unknown, context: unknown, options: unknown) => { result(): Promise<PiAssistantMessage> };
+  const streams: Record<LlmApi, StreamSimple> = {
+    "openai-completions": completions.streamSimple as unknown as StreamSimple,
+    "anthropic-messages": anthropic.streamSimple as unknown as StreamSimple,
+  };
   return createPiLlmChatClient({
     complete: (model, context, options) =>
-      (completions.streamSimple as unknown as StreamSimple)(model, pi.normalizeContext(context as never), options).result(),
+      streams[model.api](model, pi.normalizeContext(context as never), options).result(),
     catalogModel: createCatalogLookup(
       builtins.getBuiltinProviders().flatMap((provider) => builtins.getBuiltinModels(provider) as PiCatalogEntry[]),
     ),
@@ -126,28 +133,55 @@ export async function createDefaultPiLlmChatClient(): Promise<LlmChatClient> {
 
 export type PiCatalogEntry = PiCatalogModel & { id: string; baseUrl: string; api: string };
 
-// The endpoint a protocol uses when its channel sets no base URL.
-const IMPLICIT_BASE_URLS: Readonly<Record<string, string>> = { openai: "https://api.openai.com/v1" };
-
 /**
  * Finds a deployment's model in pi-ai's catalog by endpoint and model id, so a channel
  * named anything still finds it. The catalog may list a model under another API (OpenAI's
  * o3 is openai-responses); whether it reasons, its levels and limits still hold, but its
- * compat flags describe that API, so they're kept only for openai-completions entries,
- * the API every channel speaks here.
+ * compat flags describe that API, so they're kept only when the entry's API is the one
+ * the deployment speaks.
  */
 export function createCatalogLookup(entries: Iterable<PiCatalogEntry>): (deployment: LlmDeployment) => PiCatalogModel | undefined {
-  const catalog = new Map<string, PiCatalogModel>();
+  const catalog = new Map<string, PiCatalogEntry[]>();
   for (const entry of entries) {
     const key = catalogKey(entry.baseUrl, entry.id);
-    if (entry.api === "openai-completions") catalog.set(key, entry);
-    else if (!catalog.has(key)) catalog.set(key, { ...entry, compat: undefined });
+    catalog.set(key, [...catalog.get(key) ?? [], entry]);
   }
   return (deployment) => {
-    const baseUrl = deployment.baseUrl ?? IMPLICIT_BASE_URLS[deployment.protocol];
-    return baseUrl === undefined ? undefined : catalog.get(catalogKey(baseUrl, deployment.model));
+    const listed = catalog.get(catalogKey(deployment.baseUrl, deployment.model)) ?? [];
+    const api = LLM_PROTOCOLS[deployment.protocol].api;
+    const sameApi = listed.find((entry) => entry.api === api);
+    return sameApi ?? (listed[0] && { ...listed[0], compat: undefined });
   };
 }
+
+type PiApiProfile = {
+  /** Compat flags every model on this API gets. */
+  compat: Readonly<Record<string, unknown>>;
+  /** For a model the catalog doesn't list: the flags and levels a reasoning (or any) model gets. */
+  uncatalogued: (reasoning: boolean) => Pick<PiCatalogModel, "compat" | "thinkingLevelMap">;
+  /** OpenCode Go routes and caches a conversation by its x-opencode-session id. */
+  sendsSessionHeader: boolean;
+};
+
+const API_PROFILES: Record<LlmApi, PiApiProfile> = {
+  "openai-completions": {
+    compat: { supportsStore: false },
+    // pi-ai's default for an unknown reasoning model: OpenAI-style reasoning_effort.
+    uncatalogued: (reasoning) => (reasoning ? { compat: { supportsReasoningEffort: true } } : {}),
+    sendsSessionHeader: true,
+  },
+  "anthropic-messages": {
+    compat: {},
+    // Current Claude models reject temperature (Haiku 5.5 any non-default value) and budget
+    // thinking, and have no "minimal" effort. pi-ai's anthropic module reads "off" as an
+    // effort (high), and Opus 5.5 can't disable thinking, so both clamp to the lowest effort.
+    uncatalogued: (reasoning) => ({
+      compat: { supportsTemperature: false, ...(reasoning ? { forceAdaptiveThinking: true } : {}) },
+      ...(reasoning ? { thinkingLevelMap: { off: null, minimal: null } } : {}),
+    }),
+    sendsSessionHeader: false,
+  },
+};
 
 const catalogKey = (baseUrl: string, modelId: string) => `${baseUrl.replace(/\/+$/u, "")}\u0000${modelId}`;
 
@@ -178,21 +212,23 @@ export function createPiLlmChatClient(input: CreatePiLlmChatClientInput): LlmCha
 }
 
 // The catalog describes the model when it lists it; otherwise a model the channel
-// config names as reasoning (LLM_<NAME>_REASONING_MODELS) gets pi-ai's default,
-// OpenAI-style reasoning_effort, and any other model is treated as non-reasoning.
+// config names as reasoning (LLM_<NAME>_REASONING_MODELS) gets its API's guess, and
+// any other model is treated as non-reasoning.
 function modelFromDeployment(deployment: LlmDeployment, request: LlmChatRequest, known: PiCatalogModel | undefined): PiModel {
   // With no level requested the model is declared non-reasoning, so pi-ai sends nothing
   // and the provider default applies; for a reasoning model pi-ai would read a missing
   // level as "off" (e.g. DeepSeek's thinking: disabled), changing callers that never asked.
   const reasoning = request.reasoning !== undefined && (known?.reasoning ?? deployment.reasoning === true);
+  const api = LLM_PROTOCOLS[deployment.protocol].api;
+  const described = known ?? API_PROFILES[api].uncatalogued(reasoning);
   return {
     id: deployment.model,
     name: `${deployment.channel}/${deployment.model}`,
-    api: "openai-completions",
+    api,
     provider: known?.provider ?? deployment.channel,
-    ...(deployment.baseUrl === null ? {} : { baseUrl: deployment.baseUrl }),
+    baseUrl: deployment.baseUrl,
     reasoning,
-    ...(known?.thinkingLevelMap ? { thinkingLevelMap: known.thinkingLevelMap } : {}),
+    ...(described.thinkingLevelMap ? { thinkingLevelMap: described.thinkingLevelMap } : {}),
     input: ["text"],
     cost: {
       input: 0,
@@ -202,11 +238,7 @@ function modelFromDeployment(deployment: LlmDeployment, request: LlmChatRequest,
     },
     contextWindow: known?.contextWindow ?? 128000,
     maxTokens: request.maxTokens ?? 16384,
-    compat: {
-      supportsStore: false,
-      ...(known === undefined && reasoning ? { supportsReasoningEffort: true } : {}),
-      ...known?.compat,
-    },
+    compat: { ...API_PROFILES[api].compat, ...described.compat },
   };
 }
 
@@ -254,11 +286,13 @@ function optionsFromDeployment(
   return Object.freeze({
     ...(reasoning === undefined ? {} : { reasoning }),
     ...(deployment.apiKeys[0] ? { apiKey: deployment.apiKeys[0] } : {}),
-    // ponytail: sent to every provider (others ignore x-opencode-session; it's an opaque
-    // thread id). A call outside any conversation (a title, a channel test) is its own.
+    // ponytail: every OpenAI-protocol provider gets x-opencode-session (others ignore an
+    // opaque thread id). A call outside any conversation (a title, a channel test) is its own.
     headers: {
       "User-Agent": LLM_USER_AGENT,
-      "x-opencode-session": conversation.getStore() ?? randomUUID(),
+      ...(API_PROFILES[LLM_PROTOCOLS[deployment.protocol].api].sendsSessionHeader
+        ? { "x-opencode-session": conversation.getStore() ?? randomUUID() }
+        : {}),
     },
     ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
     ...(request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens }),
@@ -278,29 +312,36 @@ function resultFromMessage(message: PiAssistantMessage): LlmChatResult {
   if (usage === undefined || typeof usage.input !== "number" || typeof usage.output !== "number") {
     return Object.freeze({ text, ...truncated });
   }
+  // pi-ai reports cached prompt tokens apart from `input`; they're still input.
+  const inputTokens = usage.input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
   return Object.freeze({
     text,
     ...truncated,
     usage: Object.freeze({
-      inputTokens: usage.input,
+      inputTokens,
       outputTokens: usage.output,
-      totalTokens: usage.totalTokens ?? usage.input + usage.output,
+      totalTokens: usage.totalTokens ?? inputTokens + usage.output,
       ...(typeof usage.reasoning === "number" ? { reasoningTokens: usage.reasoning } : {}),
     }),
   });
 }
 
 function providerErrorFromMessage(message: PiAssistantMessage): LlmProviderError {
-  return providerErrorFromText(message.errorMessage ?? "LLM provider returned an error response");
+  const text = message.errorMessage ?? "LLM provider returned an error response";
+  // The model itself declined (a Claude refusal, a content filter): another model may
+  // answer, whatever the explanation says ("unauthorized access" is not an auth failure).
+  if (message.rawStopReason !== undefined) return new LlmProviderError("provider_failed", text);
+  return providerErrorFromText(text);
 }
 
 function providerErrorFromUnknown(error: unknown): LlmProviderError {
   const status = statusFromError(error);
   const message = error instanceof Error ? error.message : "LLM provider request failed";
-  if (status === 401 || status === 403 || /auth|api key|unauthori[sz]ed|forbidden/iu.test(message)) {
+  // pi-ai passes an Anthropic error on as text, so its error type is all that carries the status.
+  if (status === 401 || status === 403 || /auth|api key|unauthori[sz]ed|forbidden|permission_error/iu.test(message)) {
     return new LlmProviderError("auth_failed", message);
   }
-  if (status === 404 || /model.*(not found|missing|does not exist)|unknown model/iu.test(message)) {
+  if (status === 404 || /model.*(not found|missing|does not exist)|unknown model|not_found_error/iu.test(message)) {
     return new LlmProviderError("model_not_found", message);
   }
   if (status === 429 || /rate limit|too many requests/iu.test(message)) {
