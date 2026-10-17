@@ -335,10 +335,11 @@ function providerErrorFromMessage(message: PiAssistantMessage): LlmProviderError
 function providerErrorFromUnknown(error: unknown): LlmProviderError {
   const status = statusFromError(error);
   const message = error instanceof Error ? error.message : "LLM provider request failed";
-  if (status === 401 || status === 403 || /auth|api key|unauthori[sz]ed|forbidden/iu.test(message)) {
+  // pi-ai passes an Anthropic error on as text, so its error type is all that carries the status.
+  if (status === 401 || status === 403 || /auth|api key|unauthori[sz]ed|forbidden|permission_error/iu.test(message)) {
     return new LlmProviderError("auth_failed", message);
   }
-  if (status === 404 || /model.*(not found|missing|does not exist)|unknown model/iu.test(message)) {
+  if (status === 404 || /model.*(not found|missing|does not exist)|unknown model|not_found_error/iu.test(message)) {
     return new LlmProviderError("model_not_found", message);
   }
   if (status === 429 || /rate limit|too many requests/iu.test(message)) {

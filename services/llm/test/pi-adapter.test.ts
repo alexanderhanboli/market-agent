@@ -487,6 +487,24 @@ test("a Claude refusal and an exhausted credit balance are provider failures the
   assert.match(credit.message, /^400 .*credit balance is too low/u);
 });
 
+test("an Anthropic permission error or unknown model stops the router instead of falling back", async (t) => {
+  const stub = await messagesApiStub(t, (body) => body.model === "claude-opus-5-5"
+    ? { status: 403, error: { type: "permission_error", message: "You do not have permission to access the requested resource." } }
+    : { status: 404, error: { type: "not_found_error", message: `model: ${body.model as string}` } });
+  const client = await createDefaultPiLlmChatClient();
+  const code = async (model: string) => {
+    try {
+      await client({ channel: "claude", model, protocol: "anthropic", baseUrl: stub.baseUrl, apiKeys: ["k"] }, askLow);
+    } catch (error) {
+      return error instanceof LlmProviderError ? error.code : error;
+    }
+    return "resolved";
+  };
+
+  assert.equal(await code("claude-opus-5-5"), "auth_failed");
+  assert.equal(await code("claude-opus-5-5-typo"), "model_not_found");
+});
+
 function deployment(): LlmDeployment {
   return {
     channel: "openai",
