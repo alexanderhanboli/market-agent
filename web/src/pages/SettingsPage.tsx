@@ -211,6 +211,7 @@ export function SettingsView({
                 <select className={INPUT_CLASS} value={channel.protocol} onChange={(event) => updateChannel(index, { ...channel, protocol: event.target.value })}>
                   <option value="openai-compatible">OpenAI compatible</option>
                   <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
                 </select>
               </label>
               <label className={FIELD_LABEL}>
