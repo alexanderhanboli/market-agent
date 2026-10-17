@@ -136,7 +136,7 @@ test('leaving chat while the thread is being created stays away, and the questio
   }
 })
 
-test('returning to a thread whose question is still being saved attaches to its run once the run has started', async () => {
+test('returning to a thread whose question is still being saved follows its run as soon as the save lands', async () => {
   const server = new FakeServer()
   server.threads = TWO_THREADS
   const saved = deferred<void>()
@@ -154,32 +154,23 @@ test('returning to a thread whose question is still being saved attaches to its 
     await openThread(h, 'T1')
     assert.equal(server.gets(HISTORY_T1), 2)
 
+    started = true
     await act(async () => saved.resolve())
     await h.flush()
-    assert.equal(FakeEventSource.instances.length, 1)
-    const starter = FakeEventSource.instances[0]
-    assert.equal(starter.params.get('user_intent'), 'Analyze NVDA')
-    assert.equal(starter.params.get('attach'), null)
-    assert.equal(server.gets(HISTORY_T1), 2)
-
-    started = true
-    await act(async () => starter.open())
-    await h.flush()
-    assert.equal(starter.closed, true)
-    assert.equal(server.gets(HISTORY_T1), 3)
     assert.equal(FakeEventSource.instances.length, 2)
-    const attached = FakeEventSource.instances[1]
-    assert.deepEqual(streamParams(attached), { run_id: starter.params.get('run_id'), turn_id: starter.params.get('turn_id'), user_id: USER_ID, attach: '1' })
+    const [followed, starter] = FakeEventSource.instances
+    assert.deepEqual(streamParams(followed), streamParams(starter))
+    assert.equal(starter.params.get('user_intent'), 'Analyze NVDA')
+    assert.equal(server.gets(HISTORY_T1), 3)
     assert.equal(h.button('Send').disabled, true)
-    assert.match(h.text(), STILL_ANSWERING)
 
-    await streamAnswer(h, attached)
-    assert.equal(occurrences(h.text(), ANSWER), 1)
-    await complete(h, attached)
-
+    await act(async () => starter.open())
+    assert.equal(starter.closed, true)
+    await streamAnswer(h, followed)
+    await complete(h, followed)
     assert.equal(occurrences(h.text(), ANSWER), 1)
     assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
-    assert.doesNotMatch(h.text(), STILL_ANSWERING)
+    assert.equal(h.query('[data-role="user"]')?.textContent, 'Analyze NVDA')
     assert.equal(h.button('Send').disabled, false)
     assert.equal(server.writes().length, 1)
   } finally {

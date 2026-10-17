@@ -618,3 +618,17 @@ test('a load that holds the answer of the run the session streams hands off at o
   const handedOff = reduceChatSession(reloading, read(2, [U1, A1_SEALED], [{ run: R1, status: 'completed', messageId: 'a1' }]))
   assert.deepEqual([handedOff.turn.phase, ids(handedOff), handedOff.sealedTurns, wantedStream(handedOff)], ['idle', ['u1', 'a1'], 1, null])
 })
+
+test('a run released on the thread on screen, its question saved after the user came back, is followed at once with Send held', () => {
+  const back = run(INITIAL_CHAT_SESSION, [
+    { type: 'thread.opened', threadId: 'T1' },
+    loaded(1, []),
+    { type: 'ask.started', turn: TURN },
+    toT2,
+    toT1,
+    read(1, [], []),
+  ])
+  assert.equal(selectThreadView(back).canAsk, true)
+  const released = reduceChatSession(back, { type: 'run.released', threadId: 'T1', run: R1, input: { userIntent: 'Analyze NVDA' } })
+  assert.deepEqual([wantedStream(released)?.key, released.released, selectThreadView(released).canAsk, selectThreadView(released).needsLoad], ['T1|run-1|start|0', [], false, { threadId: 'T1', gen: 2 }])
+})

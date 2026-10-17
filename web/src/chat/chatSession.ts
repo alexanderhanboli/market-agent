@@ -217,7 +217,7 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
 
     case 'run.released':
       if (s.released.some((r) => r.run.runId === a.run.runId)) return s
-      return { ...s, released: [...s.released, { threadId: a.threadId, run: a.run, input: a.input, reached: false }] }
+      return followUp({ ...s, released: [...s.released, { threadId: a.threadId, run: a.run, input: a.input, reached: false }] })
 
     case 'released.reached': {
       const index = s.released.findIndex((r) => r.threadId === a.threadId && r.run.runId === a.runId && !r.reached)
