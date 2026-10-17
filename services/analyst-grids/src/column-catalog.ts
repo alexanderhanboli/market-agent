@@ -11,7 +11,7 @@ import { EMPTY_DISPLAY, GridValidationError } from "./types.ts";
 import type { JsonValue } from "../../observability/src/types.ts";
 import { parseReaderQuestionParams, readerQuestionProducer } from "./reader-question-column.ts";
 import { latestEpsDilutedProducer, latestRevenueProducer } from "./fiscal-fact-column.ts";
-import { CERTIFIED_ONLY_COLUMNS, isFinancialColumn, parseFinancialColumnParams } from "./financial-column.ts";
+import { CERTIFIED_ONLY_COLUMNS, isFinancialColumn, parseFinancialColumnParams, validateFinancialPlanFit } from "./financial-column.ts";
 
 export const READER_QUESTION_COLUMN_KEY = "reader_question";
 export const MAX_READER_COLUMNS_PER_GRID = 3;
@@ -237,4 +237,5 @@ export function validateColumnSpecs(specs: ReadonlyArray<unknown>): void {
   if (readerCount > MAX_READER_COLUMNS_PER_GRID) {
     throw new GridValidationError(`at most ${MAX_READER_COLUMNS_PER_GRID} question columns per grid`);
   }
+  validateFinancialPlanFit(specs as ReadonlyArray<{ column_key: string; params?: unknown }>);
 }

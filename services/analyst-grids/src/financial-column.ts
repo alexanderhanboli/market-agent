@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   createRuntimeAuthority,
+  DEFAULT_EXECUTION_LIMITS,
   type FinancialRuntimeAuthority,
   type FinancialSubjectRef,
 } from "../../financial-core/src/index.ts";
@@ -29,7 +30,7 @@ import type { RunRecord } from "../../financial-engine/src/run-record.ts";
 import type { FinancialAnswerBlock } from "../../snapshot/src/financial-verifier.ts";
 import type { SubjectRef } from "../../shared/src/subject-ref.ts";
 import { writePendingCellOnce } from "./queries.ts";
-import { EMPTY_DISPLAY, GridValidationError, type CellWrite, type ColumnInstance } from "./types.ts";
+import { EMPTY_DISPLAY, GridValidationError, MAX_GRID_ROWS, type CellWrite, type ColumnInstance } from "./types.ts";
 
 export type GridFinancialMode = FinancialMode;
 
@@ -96,6 +97,24 @@ export function parseFinancialColumnParams(columnKey: string, params: unknown): 
     throw new GridValidationError(`${columnKey} offset must be an integer from 0 to ${MAX_PERIOD_OFFSET}`);
   }
   return { period_type: periodType, offset };
+}
+
+/**
+ * A run plans all its numerical cells as one financial plan, so a grid whose
+ * columns could not fit that plan at the row cap is rejected when it is
+ * created, rather than gapping every numerical cell of each run (#346).
+ */
+export function validateFinancialPlanFit(specs: ReadonlyArray<Readonly<{ column_key: string; params?: unknown }>>): void {
+  // A metric cell is one node; a ratio cell plans its two inputs and the ratio (cellOperations).
+  const perRow = specs.reduce((total, spec) => {
+    const column = FINANCIAL_COLUMNS[spec.column_key];
+    if (column === undefined || "unsupported" in column) return total;
+    return total + ("metric_key" in column ? 1 : 3);
+  }, 0);
+  const operations = perRow * MAX_GRID_ROWS;
+  if (operations > DEFAULT_EXECUTION_LIMITS.max_operations) {
+    throw new GridValidationError(`numerical columns need ${operations} operations for ${MAX_GRID_ROWS} rows; a grid run allows ${DEFAULT_EXECUTION_LIMITS.max_operations}`);
+  }
 }
 
 export type GridFinancialRun = Readonly<{
