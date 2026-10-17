@@ -1,7 +1,7 @@
 /**
  * Task 6 & 7 — Sidebar tests: New-chat button + per-thread delete
  *
- * Strategy: We test the exported helper functions `createThreadAndOpen` and
+ * Strategy: We test the exported helper functions `createThread` and
  * `deleteThread` directly (unit tests) to avoid React/jsdom synthetic-event
  * delegation issues.  We also render the component to assert the buttons are
  * present in the DOM.
@@ -15,8 +15,8 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 import { AuthContext } from '../shell/authTypes.ts'
-import { createThreadAndOpen, deleteThread } from '../chat/threadActions.ts'
-import { ChatLayout } from './ChatPage.tsx'
+import { createThread, deleteThread } from '../chat/threadActions.ts'
+import { ChatEmptyState, ChatLayout, ChatThreadView } from './ChatPage.tsx'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,13 @@ function installDomGlobals(domWindow: Window): () => void {
     IS_REACT_ACT_ENVIRONMENT?: boolean
     document?: Document
     window?: Window
+    ResizeObserver?: typeof ResizeObserver
   }
+  const previousResizeObserver = globals.ResizeObserver
+  globals.ResizeObserver = class {
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
   const hadActEnv = Object.prototype.hasOwnProperty.call(globals, 'IS_REACT_ACT_ENVIRONMENT')
   const hadDocument = Object.prototype.hasOwnProperty.call(globals, 'document')
   const hadWindow = Object.prototype.hasOwnProperty.call(globals, 'window')
@@ -38,6 +44,7 @@ function installDomGlobals(domWindow: Window): () => void {
   globals.window = domWindow
 
   return () => {
+    globals.ResizeObserver = previousResizeObserver
     if (hadActEnv) globals.IS_REACT_ACT_ENVIRONMENT = previousActEnv
     else delete globals.IS_REACT_ACT_ENVIRONMENT
     if (hadDocument) globals.document = previousDocument
@@ -61,37 +68,64 @@ const THREAD_1 = { thread_id: 'thread-001', title: 'Alpha research', updated_at:
 const THREAD_2 = { thread_id: 'thread-002', title: null, updated_at: '2026-01-02T00:00:00Z' }
 const NEW_THREAD = { thread_id: 'thread-new', title: null, updated_at: '2026-01-03T00:00:00Z' }
 
-// ── Task 6: createThreadAndOpen unit test ─────────────────────────────────────
-
-test('createThreadAndOpen: calls POST /v1/chat/threads and navigates', async () => {
-  let postedTo: string | undefined
-  let postedBody: unknown
-
-  // Stub authenticatedJson by stubbing global fetch (authenticatedJson uses fetch internally)
+test('createThread: POSTs {"title":null} to /v1/chat/threads and returns the thread', async () => {
+  const posts: Array<[string, string]> = []
   const savedFetch = globalThis.fetch
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url
-    if (url.includes('/v1/chat/threads') && init?.method === 'POST') {
-      postedTo = url
-      postedBody = init.body ? JSON.parse(init.body as string) : undefined
-      return new Response(JSON.stringify(NEW_THREAD), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
-    }
-    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    posts.push([String(input), String(init?.body)])
+    return new Response(JSON.stringify(NEW_THREAD), { status: 201, headers: { 'content-type': 'application/json' } })
   }
 
   try {
-    const navigatedTo: string[] = []
-    await createThreadAndOpen(USER_ID, (to) => { navigatedTo.push(to) })
-
-    assert.ok(postedTo?.includes('/v1/chat/threads'), 'should POST to /v1/chat/threads')
-    assert.deepEqual(postedBody, { title: null }, 'POST body should include title: null')
-    assert.equal(navigatedTo.length, 1, 'navigate should be called once')
-    assert.equal(navigatedTo[0], `/chat/${NEW_THREAD.thread_id}`, 'should navigate to new thread')
+    const thread = await createThread(USER_ID)
+    assert.deepEqual(posts, [['/v1/chat/threads', '{"title":null}']])
+    assert.equal(thread.thread_id, 'thread-new')
   } finally {
     globalThis.fetch = savedFetch
+  }
+})
+
+test('ChatLayout: "+ New chat" goes to the ask-first page without creating a thread', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  const savedFetch = globalThis.fetch
+  const requests: string[] = []
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    requests.push(`${init?.method ?? 'GET'} ${url}`)
+    const body = url === '/v1/chat/threads' ? { threads: [THREAD_1] } : { messages: [] }
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+
+  try {
+    const container = dom.window.document.getElementById('root')!
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <AuthContext.Provider value={makeAuthContextValue()}>
+          <MemoryRouter initialEntries={['/chat/thread-001']}>
+            <Routes>
+              <Route path="/chat" element={<ChatLayout />}>
+                <Route index element={<ChatEmptyState />} />
+                <Route path=":threadId" element={<ChatThreadView />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      )
+    })
+    assert.equal(container.querySelector('[aria-current="page"]')?.textContent?.startsWith('Alpha research'), true)
+
+    const newChat = [...container.querySelectorAll('button')].find((button) => button.textContent === '+ New chat')!
+    await act(async () => newChat.click())
+
+    assert.notEqual(container.querySelector('[data-testid="chat-empty"]'), null)
+    assert.equal(container.querySelector('[aria-current="page"]'), null)
+    assert.deepEqual(requests.filter((request) => !request.startsWith('GET ')), [])
+    await act(async () => root.unmount())
+  } finally {
+    globalThis.fetch = savedFetch
+    restoreGlobals()
   }
 })
 

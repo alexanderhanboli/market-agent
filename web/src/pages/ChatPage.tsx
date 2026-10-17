@@ -1,50 +1,39 @@
-import { useEffect, useMemo, useReducer, useState, type FormEvent } from 'react'
-import { PRIMARY_BUTTON_CLASS } from '../shell/buttonStyles.ts'
-import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, Outlet, useMatch, useNavigate } from 'react-router-dom'
 
+import { PRIMARY_BUTTON_CLASS } from '../shell/buttonStyles.ts'
 import { VirtualizedMessageList } from '../chat'
-import type { ChatMessage as PersistedChatMessage } from '../chat/messageTypes.ts'
-import { openChatTurnStream } from '../chat/openChatTurnStream.ts'
-import { persistUserChatTurn } from '../chat/persistUserChatTurn.ts'
-import { INITIAL_STREAM_STATE, applyChatStreamEvent } from '../chat/streamReducer.ts'
-import { StreamingTurnView } from '../chat/StreamingTurnView.tsx'
+import { ChatComposer } from '../chat/ChatComposer.tsx'
+import { PendingTurnView } from '../chat/PendingTurnView.tsx'
 import { ThreadColumn } from '../chat/turnLayout.tsx'
-import { authenticatedFetch, authenticatedJson } from '../http/authFetch.ts'
 import { useAuth } from '../shell/useAuth.ts'
-import { createThreadAndOpen, deleteThread } from '../chat/threadActions.ts'
-import { handleComposerKeyDownEvent } from '../chat/composer.ts'
+import { deleteThread } from '../chat/threadActions.ts'
+import { threadDisplayName } from '../chat/threadName.ts'
+import { useChatSession } from '../chat/useChatSession.ts'
+import { useThreadList, useTitleFollowUp, type ThreadListState } from '../chat/useThreadList.ts'
 import { useChatLayoutContext, type ChatLayoutContext } from '../chat/chatLayoutContext.ts'
 
-type ChatThread = {
-  thread_id: string
-  title: string | null
-  updated_at: string
-}
-
-type ThreadListState =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; threads: ReadonlyArray<ChatThread> }
-
-type PendingChatTurn = {
-  runId: string
-  messageId: string
-  snapshotId: string
-  text: string
-}
-
-type MessageHistoryState =
-  | { kind: 'idle' }
-  | { kind: 'error'; requestKey: string; message: string }
-  | { kind: 'ready'; requestKey: string; messages: ReadonlyArray<PersistedChatMessage> }
+const STARTER_QUESTIONS = ['Analyze NVDA', 'Compare NVDA with AMD year to date', "What drives Apple's margins?"] as const
 
 export function ChatLayout() {
   const { session } = useAuth()
   const userId = session?.userId ?? ''
-  const [refreshKey, setRefreshKey] = useState(0)
-  const bumpRefreshKey = () => setRefreshKey((k) => k + 1)
+  const navigate = useNavigate()
+  const activeThreadId = useMatch('/chat/:threadId')?.params.threadId ?? null
+  const threads = useThreadList(userId)
+  const chat = useChatSession({ userId, threadId: activeThreadId, navigate, onThreadCreated: threads.refresh })
+  const activeThread = threads.state.kind === 'ready'
+    ? threads.state.threads.find((thread) => thread.thread_id === activeThreadId)
+    : undefined
+  const threadName = threadDisplayName(activeThread, chat.view.firstQuestion)
+  useTitleFollowUp({
+    threadId: activeThreadId,
+    sealedTurns: chat.view.sealedTurns,
+    titled: Boolean(activeThread?.title?.trim()),
+    refresh: threads.refresh,
+  })
   const [collapsed, setCollapsed] = useState(false)
-  const outletContext: ChatLayoutContext = { collapsed, setCollapsed }
+  const outletContext: ChatLayoutContext = { collapsed, setCollapsed, chat, threadName }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -53,11 +42,19 @@ export function ChatLayout() {
       >
         {collapsed ? null : (
           <aside className="min-h-0 border-r border-line bg-surface-2/70 p-4">
-            <ThreadList userId={userId} refreshKey={refreshKey} onChanged={bumpRefreshKey} />
+            <ThreadList
+              userId={userId}
+              state={threads.state}
+              activeThreadId={activeThreadId}
+              activeName={threadName}
+              onChanged={threads.refresh}
+            />
           </aside>
         )}
-        <div className="min-h-0 overflow-auto">
+        {/* One composer across the outlet, so a draft survives /chat -> /chat/:id. */}
+        <div className="flex min-h-0 flex-col overflow-auto">
           <Outlet context={outletContext} />
+          <ChatComposer canAsk={chat.view.canAsk} onAsk={chat.ask} />
         </div>
       </div>
     </div>
@@ -65,154 +62,43 @@ export function ChatLayout() {
 }
 
 export function ChatEmptyState() {
-  const { session } = useAuth()
-  const navigate = useNavigate()
-  const [title, setTitle] = useState('')
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const startThread = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!session || pending) return
-    setPending(true)
-    setError(null)
-    try {
-      await createThreadAndOpen(session.userId, navigate, title.trim() || null)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
-    } finally {
-      setPending(false)
-    }
-  }
+  const { chat } = useChatLayoutContext()
 
   return (
-    <div data-testid="chat-empty" className="flex min-h-full flex-col gap-6 p-8">
+    <div data-testid="chat-empty" className="flex flex-1 flex-col gap-6 p-8">
       <section className="rounded-md border border-line bg-surface p-6">
         <h2 className="text-lg font-semibold text-fg">Start research</h2>
         <p className="mt-2 text-sm text-fg-soft">
-          Create a thread, ask the analyst, and keep each answer pinned to its sealed
-          snapshot.
+          Ask the analyst about a company, theme, or screen. Each answer stays pinned to its
+          sealed snapshot.
         </p>
-        <form onSubmit={startThread} className="mt-5 flex max-w-2xl gap-3">
-          <input
-            aria-label="Thread title"
-            value={title}
-            onChange={(event) => setTitle(event.currentTarget.value)}
-            placeholder="Optional thread title"
-            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className={`${PRIMARY_BUTTON_CLASS} disabled:opacity-60`}
-          >
-            Start research
-          </button>
-        </form>
-        {error ? <p className="mt-3 text-sm text-negative">{error}</p> : null}
+        <div className="mt-5 flex flex-wrap gap-2">
+          {STARTER_QUESTIONS.map((question) => (
+            <button
+              key={question}
+              type="button"
+              disabled={!chat.view.canAsk}
+              onClick={() => chat.ask(question)}
+              className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-sm text-fg hover:border-accent disabled:opacity-60"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
       </section>
+      <ThreadColumn>
+        <PendingTurnView turn={chat.view.turn} backgroundRun={chat.view.backgroundRun} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />
+      </ThreadColumn>
     </div>
   )
 }
 
 export function ChatThreadView() {
-  const { session } = useAuth()
-  const { threadId = '' } = useParams<{ threadId: string }>()
-  const { collapsed, setCollapsed } = useChatLayoutContext()
-  const [prompt, setPrompt] = useState('')
-  const [history, setHistory] = useState<MessageHistoryState>({ kind: 'idle' })
-  const [historyReloadKey, setHistoryReloadKey] = useState(0)
-  const [state, dispatch] = useReducer(applyChatStreamEvent, INITIAL_STREAM_STATE)
-  const [streamError, setStreamError] = useState<string | null>(null)
-  const [failedTurn, setFailedTurn] = useState<PendingChatTurn | null>(null)
-  const historyRequestKey = session && threadId ? `${session.userId}:${threadId}:${historyReloadKey}` : ''
-  const visibleHistory: MessageHistoryState | { kind: 'loading' } =
-    !session || !threadId
-      ? { kind: 'idle' }
-      : history.kind !== 'idle' && history.requestKey === historyRequestKey
-        ? history
-        : { kind: 'loading' }
-
-  useEffect(() => {
-    if (!session || !threadId) return
-    const controller = new AbortController()
-    authenticatedJson<{ messages?: PersistedChatMessage[] }>(`/v1/chat/threads/${encodeURIComponent(threadId)}/messages`, {
-      userId: session.userId,
-      signal: controller.signal,
-    })
-      .then((body) => {
-        setHistory({ kind: 'ready', requestKey: historyRequestKey, messages: body.messages ?? [] })
-      })
-      .catch((caught) => {
-        if (controller.signal.aborted) return
-        setHistory({
-          kind: 'error',
-          requestKey: historyRequestKey,
-          message: caught instanceof Error ? caught.message : String(caught),
-        })
-      })
-    return () => controller.abort()
-  }, [session, threadId, historyRequestKey])
-
-  const startPersistedTurn = (turn: PendingChatTurn) => {
-    if (!session) return
-    setStreamError(null)
-    setFailedTurn(null)
-    openChatTurnStream({
-      threadId,
-      runId: turn.runId,
-      turnId: turn.messageId,
-      userIntent: turn.text,
-      userId: session.userId,
-    }, {
-      onEvent: dispatch,
-      onCompleted: () => {
-        setFailedTurn(null)
-        setHistoryReloadKey((current) => current + 1)
-      },
-      onError: () => {
-        setFailedTurn(turn)
-        setStreamError('The analyst stream disconnected.')
-      },
-    })
-  }
-
-  const submitPrompt = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const text = prompt.trim()
-    if (!session || text.length === 0) return
-
-    const turn: PendingChatTurn = {
-      runId: makeRunId(),
-      messageId: makeRunId(),
-      snapshotId: makeRunId(),
-      text,
-    }
-    try {
-      const message = await persistUserChatTurn({
-        threadId,
-        userId: session.userId,
-        messageId: turn.messageId,
-        snapshotId: turn.snapshotId,
-        content: turn.text,
-      })
-      setHistory((current) => {
-        if (current.kind !== 'ready' || current.requestKey !== historyRequestKey) {
-          return { kind: 'ready', requestKey: historyRequestKey, messages: [message] }
-        }
-        if (current.messages.some((existing) => existing.message_id === message.message_id)) return current
-        return { kind: 'ready', requestKey: historyRequestKey, messages: [...current.messages, message] }
-      })
-      setPrompt('')
-    } catch (caught) {
-      setStreamError(`Message save failed: ${caught instanceof Error ? caught.message : String(caught)}`)
-      return
-    }
-    startPersistedTurn(turn)
-  }
+  const { collapsed, setCollapsed, chat, threadName } = useChatLayoutContext()
+  const { view } = chat
 
   return (
-    <div data-testid="chat-thread" className="flex min-h-full flex-col">
+    <div data-testid="chat-thread" className="flex flex-1 flex-col">
       <div className="flex items-center gap-3 border-b border-line px-4 py-2">
         <button
           type="button"
@@ -222,120 +108,62 @@ export function ChatThreadView() {
         >
           {collapsed ? '☰' : '⟨'}
         </button>
-        <span className="text-xs text-faint">{threadId}</span>
+        <h1 data-testid="thread-name" className="truncate text-sm font-medium text-fg">{threadName}</h1>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-        {visibleHistory.kind === 'ready' ? (
-          <PersistedMessageHistory messages={visibleHistory.messages} />
-        ) : null}
-        {/* Transient thread content shares one reading column; the persisted
-            list above owns its own column so its scrollbar stays edge-aligned. */}
-        <ThreadColumn className="flex flex-col gap-4">
-          {visibleHistory.kind === 'loading' ? (
+        {view.history === 'loading' ? (
+          <ThreadColumn>
             <p className="text-sm text-muted">Loading message history.</p>
-          ) : null}
-          {visibleHistory.kind === 'error' ? (
-            <p className="text-sm text-negative">
-              Message history unavailable: {visibleHistory.message}
-            </p>
-          ) : null}
-          <StreamingTurnView state={state} />
-          {streamError ? (
-            <div className="flex items-center gap-3 text-sm">
-              <p className="text-negative">{streamError}</p>
-              {failedTurn ? (
-                <button
-                  type="button"
-                  onClick={() => startPersistedTurn(failedTurn)}
-                  className="rounded-md border border-negative px-3 py-1.5 text-xs font-medium text-negative"
-                >
-                  Retry stream
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </ThreadColumn>
-      </div>
-      <form
-        onSubmit={submitPrompt}
-        className="sticky bottom-0 border-t border-line bg-surface/70 p-4 backdrop-blur"
-      >
-        <ThreadColumn>
-          <label className="sr-only" htmlFor="chat-composer">
-            Ask the analyst
-          </label>
-          <div className="flex items-end gap-2 rounded-2xl border border-line-strong bg-surface px-3 py-2.5 shadow-md">
-            <textarea
-              id="chat-composer"
-              value={prompt}
-              onChange={(event) => setPrompt(event.currentTarget.value)}
-              onKeyDown={handleComposerKeyDownEvent}
-              rows={2}
-              className="min-w-0 flex-1 resize-none border-none bg-transparent text-sm text-fg outline-none placeholder:text-faint"
-              placeholder="Ask about a company, theme, screen, or prior artifact"
-            />
+          </ThreadColumn>
+        ) : null}
+        {view.history === 'error' ? (
+          <ThreadColumn className="flex items-center gap-3 text-sm">
+            <p className="text-negative">Message history unavailable: {view.historyError}</p>
             <button
-              type="submit"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-linear-to-br from-accent to-accent-strong text-base font-bold text-on-accent"
-              aria-label="Send"
+              type="button"
+              onClick={chat.reload}
+              className="rounded-md border border-negative px-3 py-1.5 text-xs font-medium text-negative"
             >
-              ↑
+              Retry
             </button>
-          </div>
-          <p className="mt-1.5 text-[11px] text-faint">Press <span className="font-medium text-muted">Enter</span> to send · <span className="font-medium text-muted">Shift+Enter</span> for a newline</p>
-        </ThreadColumn>
-      </form>
+          </ThreadColumn>
+        ) : null}
+        {view.listMounted ? (
+          <section className="flex min-h-[24rem] flex-1 flex-col" aria-label="Persisted message history">
+            <VirtualizedMessageList
+              key={view.threadId ?? ''}
+              messages={view.messages}
+              tail={<PendingTurnView turn={view.turn} backgroundRun={view.backgroundRun} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />}
+            />
+          </section>
+        ) : null}
+      </div>
     </div>
   )
 }
 
-function PersistedMessageHistory({ messages }: { messages: ReadonlyArray<PersistedChatMessage> }) {
-  if (messages.length === 0) return null
-  return (
-    <section className="flex min-h-[24rem] flex-1 flex-col" aria-label="Persisted message history">
-      <VirtualizedMessageList messages={messages} />
-    </section>
-  )
-}
-
-function ThreadList({ userId, refreshKey, onChanged }: { userId: string; refreshKey: number; onChanged: () => void }) {
+function ThreadList({
+  userId,
+  state,
+  activeThreadId,
+  activeName,
+  onChanged,
+}: {
+  userId: string
+  state: ThreadListState
+  activeThreadId: string | null
+  activeName: string
+  onChanged: () => void
+}) {
   const navigate = useNavigate()
-  const location = useLocation()
-  const [state, setState] = useState<ThreadListState>({ kind: 'loading' })
   const [actionError, setActionError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!userId) return
-    const controller = new AbortController()
-    authenticatedFetch('/v1/chat/threads', {
-      userId,
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        return (await response.json()) as { threads: ChatThread[] }
-      })
-      .then((body) => setState({ kind: 'ready', threads: body.threads }))
-      .catch((error: unknown) => {
-        if ((error as { name?: string }).name !== 'AbortError') {
-          setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
-        }
-      })
-    return () => controller.abort()
-  }, [userId, refreshKey])
-
-  const rows = useMemo(() => (state.kind === 'ready' ? state.threads : []), [state])
+  const rows = state.kind === 'ready' ? state.threads : []
 
   return (
     <nav aria-label="Thread list" className="flex min-h-0 flex-col gap-3">
       <button
         type="button"
-        onClick={() => {
-          setActionError(null)
-          void createThreadAndOpen(userId, navigate)
-            .then(onChanged)
-            .catch((e) => setActionError(e instanceof Error ? e.message : String(e)))
-        }}
+        onClick={() => navigate('/chat')}
         className={`${PRIMARY_BUTTON_CLASS} w-full justify-center`}
       >
         + New chat
@@ -357,46 +185,44 @@ function ThreadList({ userId, refreshKey, onChanged }: { userId: string; refresh
         </p>
       ) : (
         <ul className="flex min-h-0 flex-col gap-2 overflow-auto">
-          {rows.map((thread) => (
-            <li key={thread.thread_id} className="group relative">
-              <Link
-                to={`/chat/${thread.thread_id}`}
-                className="block rounded-md border border-line bg-surface p-3 text-sm hover:border-line-strong"
-              >
-                <span className="block font-medium text-fg">
-                  {thread.title ?? 'Untitled thread'}
-                </span>
-                <span className="mt-1 block text-xs text-muted">
-                  {new Date(thread.updated_at).toLocaleString()}
-                </span>
-              </Link>
-              <button
-                type="button"
-                aria-label={`Delete ${thread.title ?? 'thread'}`}
-                className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 text-muted hover:text-negative"
-                onClick={(e) => {
-                  e.preventDefault()
-                  if (!window.confirm('Delete this chat? This cannot be undone.')) return
-                  setActionError(null)
-                  void deleteThread(userId, thread.thread_id)
-                    .then(() => {
-                      onChanged()
-                      if (location.pathname === `/chat/${thread.thread_id}`) navigate('/chat')
-                    })
-                    .catch((e) => setActionError(e instanceof Error ? e.message : String(e)))
-                }}
-              >
-                🗑
-              </button>
-            </li>
-          ))}
+          {rows.map((thread) => {
+            const active = thread.thread_id === activeThreadId
+            const name = active ? activeName : threadDisplayName(thread, null)
+            return (
+              <li key={thread.thread_id} className="group relative">
+                <Link
+                  to={`/chat/${thread.thread_id}`}
+                  aria-current={active ? 'page' : undefined}
+                  className={`block rounded-md border bg-surface p-3 text-sm ${active ? 'border-accent' : 'border-line hover:border-line-strong'}`}
+                >
+                  <span className="block truncate font-medium text-fg">{name}</span>
+                  <span className="mt-1 block text-xs text-muted">
+                    {new Date(thread.updated_at).toLocaleString()}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  aria-label={`Delete ${name}`}
+                  className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 text-muted hover:text-negative"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if (!window.confirm('Delete this chat? This cannot be undone.')) return
+                    setActionError(null)
+                    void deleteThread(userId, thread.thread_id)
+                      .then(() => {
+                        onChanged()
+                        if (active) navigate('/chat')
+                      })
+                      .catch((e) => setActionError(e instanceof Error ? e.message : String(e)))
+                  }}
+                >
+                  🗑
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
     </nav>
   )
-}
-
-function makeRunId(): string {
-  if ('randomUUID' in crypto) return crypto.randomUUID()
-  return `00000000-0000-4000-8000-${Math.floor(Math.random() * 1e12).toString().padStart(12, '0')}`
 }

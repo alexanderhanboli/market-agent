@@ -4,9 +4,13 @@
 import React from 'react'
 import { useOutletContext } from 'react-router-dom'
 
+import type { ChatSession } from './useChatSession.ts'
+
 export type ChatLayoutContext = {
   collapsed: boolean
   setCollapsed: React.Dispatch<React.SetStateAction<boolean>>
+  chat: ChatSession
+  threadName: string
 }
 
 export function useChatLayoutContext(): ChatLayoutContext {

@@ -4,10 +4,15 @@ import test from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
-import { StreamingTurnView } from './StreamingTurnView.tsx'
+import type { TurnIds } from './chatSession.ts'
+import { PendingTurnView } from './PendingTurnView.tsx'
 import type { StreamState } from './streamReducer.ts'
 
-test('StreamingTurnView renders the agent plan panel above streamed blocks', () => {
+const TURN: TurnIds = { runId: 'run-1', messageId: 'u1', snapshotId: 'snap-1', text: 'Analyze NVDA' }
+const noop = () => undefined
+const handlers = { backgroundRun: false, onRetry: noop, onReload: noop, onAsk: () => true }
+
+test('PendingTurnView renders the agent plan panel above streamed blocks', () => {
   const state: StreamState = {
     turn_status: 'started',
     blocks_by_id: new Map([
@@ -46,7 +51,7 @@ test('StreamingTurnView renders the agent plan panel above streamed blocks', () 
     error: null,
   }
 
-  const html = renderToStaticMarkup(<StreamingTurnView state={state} />)
+  const html = renderToStaticMarkup(<PendingTurnView turn={{ phase: 'streaming', turn: TURN, stream: state }} {...handlers} />)
 
   assert.match(html, /data-testid="agent-plan-panel"/)
   assert.match(html, /aria-live="polite"/)
@@ -57,7 +62,7 @@ test('StreamingTurnView renders the agent plan panel above streamed blocks', () 
   assert.ok(html.indexOf('Agent plan') < html.indexOf('Partial answer.'))
 })
 
-test('StreamingTurnView shows an unverified turn with a per-block label and collapsible reasons', () => {
+test('PendingTurnView shows an unverified turn with a per-block label and collapsible reasons', () => {
   const block = {
     id: 'b-unverified',
     kind: 'rich_text',
@@ -82,7 +87,7 @@ test('StreamingTurnView shows an unverified turn with a per-block label and coll
 
   const html = renderToStaticMarkup(
     <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
-      <StreamingTurnView state={state} />
+      <PendingTurnView turn={{ phase: 'unverified', turn: TURN, stream: state }} {...handlers} />
     </BlockRegistryProvider>,
   )
 
@@ -93,4 +98,42 @@ test('StreamingTurnView shows an unverified turn with a per-block label and coll
   assert.match(html, /<details[^>]*data-testid="unverified-reasons"/)
   assert.match(html, /Why unverified/)
   assert.match(html, /missing_fact_ref/)
+})
+
+const COMPLETED_STREAM: StreamState = {
+  turn_status: 'completed',
+  blocks_by_id: new Map([
+    ['b1', { block_id: 'b1', kind: 'rich_text', status: 'completed', segments: [{ type: 'text', text: "NVIDIA's revenue rose" }] }],
+  ]),
+  block_order: ['b1'],
+  plan_steps: [],
+  completed_message_id: 'a1',
+  error: null,
+}
+
+test('PendingTurnView keeps rendering the streamed blocks while the turn is sealing', () => {
+  const html = renderToStaticMarkup(
+    <PendingTurnView turn={{ phase: 'sealing', turn: TURN, stream: COMPLETED_STREAM, sealedId: 'a1' }} {...handlers} />,
+  )
+  assert.match(html, /data-turn-status="sealing"/)
+  assert.match(html, /NVIDIA&#x27;s revenue rose/)
+})
+
+test('PendingTurnView offers Reload when the sealed copy could not be loaded', () => {
+  const html = renderToStaticMarkup(
+    <PendingTurnView
+      turn={{ phase: 'kept', turn: TURN, stream: COMPLETED_STREAM, sealedId: 'a1', reason: 'history_failed' }}
+      {...handlers}
+    />,
+  )
+  assert.match(html, /NVIDIA&#x27;s revenue rose/)
+  assert.match(html, /Couldn&#x27;t load the saved copy of this answer\./)
+  assert.match(html, />Reload<\/button>/)
+})
+
+test('PendingTurnView shows the optimistic question while it is being saved', () => {
+  const html = renderToStaticMarkup(<PendingTurnView turn={{ phase: 'persisting', turn: TURN }} {...handlers} />)
+  assert.match(html, /Analyze NVDA/)
+  assert.match(html, /Starting…/)
+  assert.doesNotMatch(html, /data-testid="streaming-turn"/)
 })

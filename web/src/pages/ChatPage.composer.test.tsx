@@ -14,14 +14,9 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import { Outlet } from 'react-router-dom'
 import { AuthContext } from '../shell/authTypes.ts'
 import { handleComposerKeyDownEvent } from '../chat/composer.ts'
-import { ChatThreadView } from './ChatPage.tsx'
-
-function OutletCtx({ value }: { value: { collapsed: boolean; setCollapsed: () => void } }) {
-  return <Outlet context={value} />
-}
+import { ChatLayout, ChatThreadView } from './ChatPage.tsx'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,7 +25,13 @@ function installDomGlobals(domWindow: Window): () => void {
     IS_REACT_ACT_ENVIRONMENT?: boolean
     document?: Document
     window?: Window
+    ResizeObserver?: typeof ResizeObserver
   }
+  const previousResizeObserver = globals.ResizeObserver
+  globals.ResizeObserver = class {
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
   const hadActEnv = Object.prototype.hasOwnProperty.call(globals, 'IS_REACT_ACT_ENVIRONMENT')
   const hadDocument = Object.prototype.hasOwnProperty.call(globals, 'document')
   const hadWindow = Object.prototype.hasOwnProperty.call(globals, 'window')
@@ -43,6 +44,7 @@ function installDomGlobals(domWindow: Window): () => void {
   globals.window = domWindow
 
   return () => {
+    globals.ResizeObserver = previousResizeObserver
     if (hadActEnv) globals.IS_REACT_ACT_ENVIRONMENT = previousActEnv
     else delete globals.IS_REACT_ACT_ENVIRONMENT
     if (hadDocument) globals.document = previousDocument
@@ -167,7 +169,7 @@ test('ChatThreadView: renders hint text below the composer', async () => {
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
   const savedFetch = globalThis.fetch
   globalThis.fetch = async () =>
-    new Response(JSON.stringify({ messages: [] }), {
+    new Response(JSON.stringify({ messages: [], threads: [] }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     })
@@ -179,8 +181,8 @@ test('ChatThreadView: renders hint text below the composer', async () => {
         <AuthContext.Provider value={makeAuthContextValue()}>
           <MemoryRouter initialEntries={['/chat/THREAD-1']}>
             <Routes>
-              <Route element={<OutletCtx value={{ collapsed: false, setCollapsed: () => {} }} />}>
-                <Route path="/chat/:threadId" element={<ChatThreadView />} />
+              <Route path="/chat" element={<ChatLayout />}>
+                <Route path=":threadId" element={<ChatThreadView />} />
               </Route>
             </Routes>
           </MemoryRouter>

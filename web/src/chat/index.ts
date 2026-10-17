@@ -35,7 +35,7 @@ export type { ChatStreamSubscribe } from './useChatStream.ts'
 
 export { BlockSkeleton } from './BlockSkeleton.tsx'
 export { StreamingBlockView } from './StreamingBlockView.tsx'
-export { StreamingTurnView } from './StreamingTurnView.tsx'
+export { PendingTurnView } from './PendingTurnView.tsx'
 
 export {
   SNAPSHOT_REFRESH_REQUIRED_REASONS,
