@@ -1039,6 +1039,13 @@ async function recordSecRestatements(
           filed,
         ],
       );
+      // The restating filing need not be the one this ingest is for; this
+      // download listing it proves it was public by the download's completion,
+      // and an earlier download may be the tighter proof of a row already stored.
+      if (!published.has(accessionNumber)) {
+        await recordSecFetchPublication(db, { sourceId, accessionNumber, evidence: input.evidence });
+        published.add(accessionNumber);
+      }
       const factId = inserted.rows[0]?.fact_id;
       if (!factId) continue;
       const locator = `sec_edgar:companyfacts:CIK${String(input.cik).padStart(10, "0")}#${token.concept}|${token.unit}|${token.accn}|${token.start ?? ""}..${token.end}`;
@@ -1063,12 +1070,6 @@ async function recordSecRestatements(
         disclosure_relation: "economic_restatement",
         source_context_ref: locator,
       });
-      // The restating filing need not be the one this ingest is for; this
-      // download listing it proves it was public by the download's completion.
-      if (!published.has(accessionNumber)) {
-        await recordSecFetchPublication(db, { sourceId, accessionNumber, evidence: input.evidence });
-        published.add(accessionNumber);
-      }
     }
   }
 }

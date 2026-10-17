@@ -169,6 +169,14 @@ test("SEC restatements", { timeout: 300_000 }, async (t) => {
     assert.deepEqual(await issuer.storedRows(), before);
   });
 
+  await t.test("a download that finished earlier still proves a restatement another ingest stored first (#338)", async () => {
+    const issuer = await restatingIssuer(["100", "95", "93"]);
+    await issuer.ingestYear(2023, 1, "2024-02-01T15:00:00.000Z");
+    await issuer.ingestYear(2025, 3, "2026-06-01T15:00:00.000Z");
+    await issuer.ingestYear(2024, 3, "2026-02-01T15:00:00.000Z");
+    assert.equal(await issuer.asRestated("2026-03-01T00:00:00Z"), "93");
+  });
+
   for (const order of [[2023, 2025, 2024], [2025, 2023, 2024]] as const) {
     await t.test(`a year restated twice resolves to the later-filed restatement, ingesting ${order.join(", ")}`, async () => {
       const issuer = await restatingIssuer(["100", "95", "93"]);
