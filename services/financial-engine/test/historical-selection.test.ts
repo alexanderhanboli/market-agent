@@ -210,6 +210,31 @@ test("a plan's latest nodes name one period per subject: the newest any of them 
   assert.equal(periods.get("a_gp"), periods.get("a_rev"));
 });
 
+test("an incomplete page leaves its subject's latest period unresolved (#349 review)", () => {
+  const latest = (nodeId: string, metric: string, slot = "a"): ReportedMetricNode => ({ ...FY2023, node_id: nodeId, subject_slot: slot, metric_key: metric, period: { kind: "latest", period_type: "annual", offset: 0 } });
+  const as = (metric: string, spec: CandidateSpec) => ({ ...candidate(spec), metric_key: metric });
+  const assets = latest("a_assets", "total_assets");
+  const liabilities = latest("a_liab", "total_liabilities");
+  const equity = latest("a_equity", "total_equity");
+  const quarterly = { ...latest("a_rev_q", "revenue"), period: { kind: "latest", period_type: "quarterly", offset: 0 } } as ReportedMetricNode;
+  const peer = latest("b_assets", "total_assets", "b");
+  const slots = [
+    { node: assets, candidates: [as("total_assets", { year: 2022 })] },
+    { node: liabilities, candidates: [as("total_liabilities", { year: 2022 })], incomplete: "scope_limit_exceeded" as const },
+    { node: equity, candidates: [], incomplete: "database_error" as const },
+    { node: quarterly, candidates: [as("revenue", { year: 2022, period: "Q3", start: "2022-07-01", end: "2022-09-30" })] },
+    { node: peer, candidates: [as("total_assets", { year: 2022, value: "7" })] },
+  ];
+  const periods = sharedLatestPeriods(slots, policy());
+  const select = (index: number) => selectInput(slots[index]!.node, slots[index]!.candidates, policy(), { truncated: false }, periods.get(slots[index]!.node.node_id)!);
+
+  assert.equal(gapReason(select(0)), "scope_limit_exceeded", "a truncated page may hold a newer year, so FY2022 assets are not called latest");
+  assert.equal(gapReason(select(1)), "scope_limit_exceeded");
+  assert.equal(gapReason(select(2)), "scope_limit_exceeded", "the first incomplete slot's reason names the group's gap");
+  assert.equal(selectedId(select(3)), slots[3]!.candidates[0]!.fact_id, "a quarterly latest is its own group");
+  assert.equal(selectedId(select(4)), slots[4]!.candidates[0]!.fact_id, "another subject's latest is unaffected");
+});
+
 test("freshness is evaluated at the cutoff", () => {
   const fy2023 = candidate({ publishedLocalDate: "2024-01-10" });
   assert.equal(selectedId(selectInput(FY2023, [fy2023], policy({ max_age_days: 30 }))), fy2023.fact_id);

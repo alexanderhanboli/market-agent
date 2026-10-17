@@ -89,29 +89,42 @@ const EXCLUSION_PRIORITY: ReadonlyArray<ReasonCode> = ["precision_unverified", "
 /** One reported period, as `end|fiscal_period|fiscal_year`; a descending sort is newest first. */
 export type PeriodKey = string & { readonly __brand: "PeriodKey" };
 
-type LatestSlot = Readonly<{ node: ReportedMetricNode; candidates: ReadonlyArray<InputCandidate> }>;
+/** A shared latest period, null when there is none, or the gap of a group whose period cannot be known. */
+export type LatestPeriod = PeriodKey | null | Readonly<{ unresolved: ReasonCode }>;
+
+// `incomplete` marks a slot whose page was truncated or not read: it may hold a
+// newer period than the others, so its group's latest period cannot be known.
+type LatestSlot = Readonly<{ node: ReportedMetricNode; candidates: ReadonlyArray<InputCandidate>; incomplete?: ReasonCode }>;
 
 /**
  * The period each latest node resolves to, shared per subject and period type:
  * the offset-th newest period with an eligible candidate in any of the slots.
- * Null when there is no such period. Pass only slots whose page was read in full.
+ * Null when there is no such period; unresolved when any slot of the group is incomplete.
  */
-export function sharedLatestPeriods(slots: ReadonlyArray<LatestSlot>, policy: SelectionPolicy): ReadonlyMap<LocalId, PeriodKey | null> {
+export function sharedLatestPeriods(slots: ReadonlyArray<LatestSlot>, policy: SelectionPolicy): ReadonlyMap<LocalId, LatestPeriod> {
   const groupOf = (node: ReportedMetricNode, periodType: string) => JSON.stringify([node.subject_slot, periodType]);
   const keysByGroup = new Map<string, Set<PeriodKey>>();
-  for (const { node, candidates } of slots) {
+  const incompleteGroups = new Map<string, ReasonCode>();
+  for (const { node, candidates, incomplete } of slots) {
     if (node.period.kind !== "latest") continue;
     const group = groupOf(node, node.period.period_type);
+    if (incomplete !== undefined && !incompleteGroups.has(group)) incompleteGroups.set(group, incomplete);
     const keys = keysByGroup.get(group) ?? new Set();
     for (const candidate of requestedCandidates(node, candidates)) {
       if ("eligible" in eligibility(candidate, policy.knowledge_cutoff)) keys.add(periodKey(candidate));
     }
     keysByGroup.set(group, keys);
   }
-  const resolved = new Map<LocalId, PeriodKey | null>();
+  const resolved = new Map<LocalId, LatestPeriod>();
   for (const { node } of slots) {
     if (node.period.kind !== "latest") continue;
-    const newestFirst = [...keysByGroup.get(groupOf(node, node.period.period_type))!].sort((left, right) => right.localeCompare(left));
+    const group = groupOf(node, node.period.period_type);
+    const incomplete = incompleteGroups.get(group);
+    if (incomplete !== undefined) {
+      resolved.set(node.node_id, { unresolved: incomplete });
+      continue;
+    }
+    const newestFirst = [...keysByGroup.get(group)!].sort((left, right) => right.localeCompare(left));
     resolved.set(node.node_id, newestFirst[node.period.offset] ?? null);
   }
   return resolved;
@@ -127,13 +140,15 @@ export function selectInput(
   candidates: ReadonlyArray<InputCandidate>,
   policy: SelectionPolicy,
   page: { truncated: boolean } = { truncated: false },
-  latestPeriod?: PeriodKey | null,
+  latestPeriod?: LatestPeriod,
 ): SlotSelection {
   if (page.truncated) return gap("scope_limit_exceeded");
   const requested = requestedCandidates(node, candidates);
-  const period = node.period.kind !== "latest" ? null
+  const shared = node.period.kind !== "latest" ? null
     : latestPeriod !== undefined ? latestPeriod
     : sharedLatestPeriods([{ node, candidates }], policy).get(node.node_id)!;
+  if (shared !== null && typeof shared === "object") return gap(shared.unresolved);
+  const period = shared;
   const inPeriod = period === null ? requested : requested.filter((candidate) => periodKey(candidate) === period);
 
   const eligible: Eligible[] = [];

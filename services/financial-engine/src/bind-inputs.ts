@@ -21,7 +21,7 @@ import {
 import { appendRunEvent } from "./events-repo.ts";
 import { fencedTransaction, type FencedTx, type RunLease } from "./lease.ts";
 import type { FinancialEvidencePort, InputCandidate, SqlExecutor } from "./ports.ts";
-import { SELECTION_POLICY_VERSION, selectInput, sharedLatestPeriods, type PeriodKey, type SelectedInput, type SelectionPolicy } from "./select-inputs.ts";
+import { SELECTION_POLICY_VERSION, selectInput, sharedLatestPeriods, type LatestPeriod, type SelectedInput, type SelectionPolicy } from "./select-inputs.ts";
 
 export type InputBinding =
   | {
@@ -77,7 +77,9 @@ export async function bindPlanInputs(input: {
       reporting_basis: plan.policies.reporting_basis,
       max_age_days: plan.policies.freshness.max_age_days,
     };
-    const latest = sharedLatestPeriods(reads.flatMap((read) => (read.status === "read" && !read.truncated ? [read] : [])), policy);
+    const latest = sharedLatestPeriods(reads.map((read) => read.status === "gap"
+      ? { node: read.node, candidates: [], incomplete: read.reason_code }
+      : { node: read.node, candidates: read.candidates, ...(read.truncated ? { incomplete: "scope_limit_exceeded" as const } : {}) }), policy);
     const bindings = new Map<LocalId, InputBinding>();
     for (const read of reads) {
       const outcome = selectSlot(read, plan, policy, latest.get(read.node.node_id) ?? null);
@@ -120,7 +122,7 @@ async function readSlot(
   return { node, status: "read", candidates: page.candidates, truncated: page.truncated };
 }
 
-function selectSlot(read: SlotRead, plan: FinancialPlanV1, policy: SelectionPolicy, latestPeriod: PeriodKey | null): SlotOutcome {
+function selectSlot(read: SlotRead, plan: FinancialPlanV1, policy: SelectionPolicy, latestPeriod: LatestPeriod): SlotOutcome {
   const { node } = read;
   if (read.status === "gap") {
     return {

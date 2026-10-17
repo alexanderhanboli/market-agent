@@ -145,6 +145,27 @@ test("historical input binding", { timeout: 240_000 }, async (t) => {
       ["b_assets", "gap", "missing_input"],
       ["b_liab", "gap", "missing_input"],
     ], "offset 1 is the year before the company's latest, FY2022, for every input");
+
+    // A failed read may hide a newer year, so none of A's latest inputs is called latest (#349 review).
+    const plan = latestBalancePlan(["a", "b"], 0);
+    const { runId, lease } = await leasedRun(db, plan, authority);
+    const failingLiabilities = (client: Parameters<typeof createEvidenceFinancialPort>[0]) => {
+      const port = createEvidenceFinancialPort(client);
+      return {
+        listInputCandidates: (request: Parameters<typeof port.listInputCandidates>[0]) =>
+          request.metric_key === "total_liabilities" && request.subject.id === IDS.issuerA
+            ? Promise.resolve({ status: "error" as const, reason_code: "database_error" as const })
+            : port.listInputCandidates(request),
+      };
+    };
+    await bindPlanInputs({ client: db, lease, plan, authority, evidence: failingLiabilities });
+    const rows = (await db.query(`select input_slot, binding_status, fact_id::text, gap_reason from financial_run_inputs where run_id = $1 order by input_slot`, [runId])).rows;
+    assert.deepEqual(rows.map((row) => [row.input_slot, row.binding_status, row.fact_id ?? row.gap_reason]), [
+      ["a_assets", "gap", "database_error"],
+      ["a_liab", "gap", "database_error"],
+      ["b_assets", "bound", facts.assetsB2022],
+      ["b_liab", "bound", facts.liabilitiesB2022],
+    ]);
   });
 
   await t.test("stale leases, other owners, and foreign plans cannot bind; failures roll back cleanly", async () => {
