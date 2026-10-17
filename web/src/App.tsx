@@ -61,7 +61,7 @@ const router = createBrowserRouter(
       <Route path="review" handle={protReview} element={<ReviewPage />} />
       <Route path="settings" handle={protSettings} element={<SettingsPage />} />
       <Route path="chat" handle={protChat} element={<ChatLayout />}>
-        <Route path=":threadId" />
+        <Route path=":threadId" element={null} />
       </Route>
       <Route path="screener" handle={publicHandle} element={<ScreenerPage />} />
       <Route path="analyze" handle={publicHandle} element={<AnalyzePage />} />
