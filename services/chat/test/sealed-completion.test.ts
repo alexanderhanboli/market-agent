@@ -97,6 +97,50 @@ for (const [path, options] of PERSISTED_PATHS) {
   });
 }
 
+// #332 relies on this: until a turn's answer is saved, its stream carries no
+// answer block, so a client attached from a messages read that already holds the
+// answer never shows it twice.
+const ANSWER_EVENTS = new Set(["block.began", "block.delta", "block.completed", "turn.completed"]);
+
+// The turn's event types when `commit` ran, and its answer events at the end.
+async function eventsAtCommit(build: (commit: () => void) => ChatCoordinatorOptions) {
+  let atCommit: string[] | null = null;
+  const coordinator = createChatCoordinator(build(() => {
+    atCommit = turn.events.map((event) => event.type);
+  }));
+  const turn = coordinator.getOrCreateTurn({ threadId: "thread-1", runId: "run-1", userIntent: "Analyze GOOG" });
+  await turn.completed;
+  return { atCommit: atCommit as string[] | null, after: turn.events.map((event) => event.type).filter((type) => ANSWER_EVENTS.has(type)) };
+}
+
+for (const [path, options] of PERSISTED_PATHS) {
+  test(`${path} saves its answer before it emits any answer block`, async () => {
+    const { atCommit, after } = await eventsAtCommit((commit) => ({
+      ...options,
+      persistAssistantMessage: async () => (commit(), SEALED),
+    }));
+    assert.ok(atCommit, "the answer was saved");
+    assert.deepEqual(atCommit.filter((type) => ANSWER_EVENTS.has(type)), []);
+    assert.equal(after.at(-1), "turn.completed");
+    assert.ok(after.includes("block.began"));
+  });
+}
+
+test("a published financial answer is committed before it emits any answer block", async () => {
+  const published = readMessage({ message_id: "44444444-4444-4444-a444-444444444444", snapshot_id: "55555555-5555-4555-a555-555555555555", blocks: [{ id: "financial-block-1", kind: "financial_answer" }] });
+  const { atCommit, after } = await eventsAtCommit((commit) => ({
+    analystToolRuntime: verifiedRuntime,
+    financialRuntime: {
+      mode: "enforce",
+      answers: () => true,
+      assertReady: async () => {},
+      run: async () => (commit(), { kind: "published", run_id: "run-9", message_id: "44444444-4444-4444-a444-444444444444", message: published }),
+    },
+  }));
+  assert.deepEqual(atCommit, ["turn.started"]);
+  assert.deepEqual(after, ["block.began", "block.completed", "turn.completed"]);
+});
+
 test("a financial answer published in its own transaction completes with that message", async () => {
   const published = readMessage({
     message_id: "44444444-4444-4444-a444-444444444444",

@@ -3,14 +3,17 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExte
 import { authenticatedJson } from '../http/authFetch.ts'
 import {
   INITIAL_CHAT_SESSION,
+  MAX_REOPENS,
   reduceChatSession,
   selectThreadView,
+  wantedStream,
   type ChatSessionAction,
   type ChatSessionState,
   type ThreadView,
   type TurnIds,
+  type StreamTarget,
 } from './chatSession.ts'
-import type { ChatMessage } from './messageTypes.ts'
+import { parseThreadMessages, type ChatMessage, type RunRef } from './messageTypes.ts'
 import { openChatTurnStream } from './openChatTurnStream.ts'
 import { persistUserChatTurn } from './persistUserChatTurn.ts'
 import { createThread } from './threadActions.ts'
@@ -23,6 +26,7 @@ export type ChatSession = {
   // (a turn is in flight), and the caller keeps its draft.
   ask(text: string): boolean
   retry(): void
+  reconnect(): void
   reload(): void
 }
 
@@ -50,82 +54,87 @@ function createSessionStore(initial: ChatSessionState): SessionStore {
   }
 }
 
-// A send from the moment ask claims it until its POST fails or its stream
-// settles. An attached run feeds the session's turn. A detached run dispatches
-// nothing and is left to close itself on its first terminal event or error:
-// closing it at once could cancel the request before the server starts the run.
-type PendingRun = { runId: string; threadId: string | null; source: EventSource | null; detached: boolean }
+// A stream handle. A released one dispatches stream events no more. reached:
+// the server answered or sent an event, so the run exists or existed.
+type RunStream = { source: EventSource; live: boolean; reached: boolean }
 
-function createSessionStreams(store: SessionStore) {
-  const runs = new Set<PendingRun>()
-  let disposed = false
-  const sync = () => {
-    const state = store.getState()
-    if (state.threadId === null) return
-    const own = 'turn' in state.turn ? state.turn.turn.runId : null
-    const running = [...runs].some((run) => run.threadId === state.threadId && run.runId !== own)
-    store.dispatch({ type: 'background.changed', threadId: state.threadId, running })
+const CONNECTING = 0
+
+// Holds the one stream the state wants (wantedStream) and follows the store:
+// a new key releases the held stream and opens the wanted one. A stream that
+// hasn't reached the server may not have started its run, so a released one
+// without attach stays open until the server answers, and one that fails first
+// is opened again (up to MAX_REOPENS times) so its run starts. Either way the
+// session then hears released.reached, and its loads decide the rest.
+function createRunStreams(store: SessionStore) {
+  let held: { key: string; stream: RunStream } | null = null
+  let unsubscribe: (() => void) | null = null
+  let disposed = true
+  let userId = ''
+
+  const open = (target: StreamTarget, live: boolean, starts = 0): RunStream => {
+    const { threadId, run } = target
+    const mode = target.attach ? { attach: true as const } : { userIntent: target.userIntent }
+    const stream: RunStream = { source: null as unknown as EventSource, live, reached: false }
+    const reached = () => {
+      if (!disposed) store.dispatch({ type: 'released.reached', threadId, runId: run.runId })
+    }
+    stream.source = openChatTurnStream({ threadId, runId: run.runId, turnId: run.turnId, userId, ...mode }, {
+      onOpen: () => {
+        stream.reached = true
+        if (stream.live) {
+          store.dispatch({ type: 'stream.opened', threadId, runId: run.runId })
+          return
+        }
+        stream.source.close()
+        if (!target.attach) reached()
+      },
+      onEvent: (event) => {
+        stream.reached = true
+        if (stream.live) store.dispatch({ type: 'stream.event', threadId, event })
+      },
+      onError: () => {
+        if (stream.live) {
+          store.dispatch({ type: 'stream.dropped', threadId, runId: run.runId })
+          return
+        }
+        if (target.attach || stream.reached) return
+        if (starts < MAX_REOPENS) open(target, false, starts + 1)
+        else reached()
+      },
+    })
+    return stream
   }
-  // A detached run's answer reaches the thread through a history load, never
-  // through a replay of its stream.
-  const settle = (run: PendingRun, reload: boolean) => {
-    if (!runs.delete(run)) return
-    sync()
-    if (reload && run.detached && run.threadId === store.getState().threadId) store.dispatch({ type: 'history.requested' })
+  const release = (stream: RunStream) => {
+    stream.live = false
+    if (stream.source.readyState !== CONNECTING) stream.source.close()
+  }
+  const sync = () => {
+    const wanted = disposed ? null : wantedStream(store.getState())
+    if (wanted?.key === held?.key) return
+    if (held) release(held.stream)
+    held = wanted && { key: wanted.key, stream: open(wanted, true) }
   }
   return {
-    claim(threadId: string | null, runId: string): PendingRun {
-      const run: PendingRun = { runId, threadId, source: null, detached: false }
-      runs.add(run)
-      return run
-    },
-    place(run: PendingRun, threadId: string) {
-      run.threadId = threadId
-      sync()
-    },
-    drop(run: PendingRun) {
-      settle(run, false)
-    },
-    open(run: PendingRun, input: { threadId: string; turn: TurnIds; userId: string; attached: boolean }) {
-      const { threadId, turn } = input
-      run.threadId = threadId
-      run.detached = !input.attached
-      run.source = openChatTurnStream({
-        threadId,
-        runId: turn.runId,
-        turnId: turn.messageId,
-        userIntent: turn.text,
-        userId: input.userId,
-      }, {
-        onEvent: (event) => {
-          if (!run.detached) store.dispatch({ type: 'stream.event', threadId, event })
-        },
-        onCompleted: () => settle(run, true),
-        onError: () => {
-          if (!run.detached) store.dispatch({ type: 'stream.disconnected', threadId, runId: turn.runId })
-          settle(run, true)
-        },
-      })
-    },
-    // Runs on every thread switch, before paint, so Send is never enabled on
-    // a thread that still has a run going.
-    activate() {
-      const active = store.getState().threadId
-      for (const run of runs) {
-        if (run.threadId !== active) run.detached = true
-      }
-      sync()
+    // A send whose user left its thread mid-POST: opened only to start the run.
+    start(threadId: string, run: RunRef, userIntent: string) {
+      if (!disposed) store.dispatch({ type: 'run.released', threadId, run, input: { userIntent } })
+      open({ threadId, run, attach: false, userIntent }, false)
     },
     get disposed() {
       return disposed
     },
-    mount() {
+    mount(user: string) {
+      userId = user
       disposed = false
+      unsubscribe = store.subscribe(sync)
+      sync()
     },
     dispose() {
       disposed = true
-      for (const run of runs) run.source?.close()
-      runs.clear()
+      unsubscribe?.()
+      unsubscribe = null
+      sync()
     },
   }
 }
@@ -140,19 +149,18 @@ type ChatSessionDeps = {
 export function useChatSession({ userId, threadId, navigate, onThreadCreated }: ChatSessionDeps): ChatSession {
   const [store] = useState(() =>
     createSessionStore(reduceChatSession(INITIAL_CHAT_SESSION, { type: 'thread.opened', threadId })))
-  const [streams] = useState(() => createSessionStreams(store))
+  const [streams] = useState(() => createRunStreams(store))
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState)
   const view = useMemo(() => selectThreadView(state), [state])
 
   useLayoutEffect(() => {
     store.dispatch({ type: 'thread.opened', threadId })
-    streams.activate()
-  }, [store, streams, threadId])
+  }, [store, threadId])
 
   useEffect(() => {
-    streams.mount()
+    streams.mount(userId)
     return () => streams.dispose()
-  }, [streams])
+  }, [streams, userId])
 
   const ask = useCallback((raw: string): boolean => {
     const text = raw.trim()
@@ -160,7 +168,6 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
     if (text === '' || !userId || !selectThreadView(before).canAsk) return false
     const turn: TurnIds = { runId: makeId(), messageId: makeId(), snapshotId: makeId(), text }
     store.dispatch({ type: 'ask.started', turn })
-    const run = streams.claim(before.threadId, turn.runId)
 
     // A disposed session has no UI left to update or navigate from.
     const owns = () => {
@@ -169,7 +176,6 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
     }
     const fail = (caught: unknown) => {
       if (owns()) store.dispatch({ type: 'ask.failed', error: errorText(caught) })
-      streams.drop(run)
     }
     const send = async () => {
       let sendThreadId = before.threadId
@@ -182,7 +188,6 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
           return
         }
         sendThreadId = created.thread_id
-        streams.place(run, sendThreadId)
         onThreadCreated()
         if (owns()) {
           store.dispatch({ type: 'thread.created', threadId: sendThreadId })
@@ -202,22 +207,17 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
         fail(caught)
         return
       }
-      // A user who left mid-send still gets the run started; its stream is detached.
-      const attached = owns() && store.getState().threadId === sendThreadId
-      if (attached) store.dispatch({ type: 'message.persisted', threadId: sendThreadId, message })
-      streams.open(run, { threadId: sendThreadId, turn, userId, attached })
+      // The store wants the turn's stream from here on. A user who left
+      // mid-send still gets the run started.
+      if (owns() && store.getState().threadId === sendThreadId) store.dispatch({ type: 'message.persisted', threadId: sendThreadId, message })
+      else streams.start(sendThreadId, { runId: turn.runId, turnId: turn.messageId }, turn.text)
     }
     void send()
     return true
   }, [store, streams, userId, navigate, onThreadCreated])
 
-  const retry = useCallback(() => {
-    const current = store.getState()
-    if (current.turn.phase !== 'failed' || current.turn.recovery !== 'retry_stream' || current.threadId === null) return
-    const { turn } = current.turn
-    store.dispatch({ type: 'stream.reopened' })
-    streams.open(streams.claim(current.threadId, turn.runId), { threadId: current.threadId, turn, userId, attached: true })
-  }, [store, streams, userId])
+  const retry = useCallback(() => store.dispatch({ type: 'turn.retried', runId: makeId() }), [store])
+  const reconnect = useCallback(() => store.dispatch({ type: 'link.reconnected' }), [store])
 
   const reload = useCallback(() => store.dispatch({ type: 'history.requested' }), [store])
 
@@ -226,11 +226,11 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
   useEffect(() => {
     if (loadThreadId === null || !userId) return
     const controller = new AbortController()
-    authenticatedJson<{ messages?: ChatMessage[] }>(`/v1/chat/threads/${encodeURIComponent(loadThreadId)}/messages`, {
+    authenticatedJson<unknown>(`/v1/chat/threads/${encodeURIComponent(loadThreadId)}/messages`, {
       userId,
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(HISTORY_TIMEOUT_MS)]),
     }).then(
-      (body) => store.dispatch({ type: 'history.loaded', threadId: loadThreadId, gen: loadGen, messages: body.messages ?? [] }),
+      (body) => store.dispatch({ type: 'history.loaded', threadId: loadThreadId, gen: loadGen, ...parseThreadMessages(body) }),
       (caught: unknown) => {
         if (controller.signal.aborted) return
         store.dispatch({ type: 'history.failed', threadId: loadThreadId, gen: loadGen, message: errorText(caught) })
@@ -239,7 +239,7 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
     return () => controller.abort()
   }, [store, userId, loadThreadId, loadGen])
 
-  return useMemo(() => ({ view, ask, retry, reload }), [view, ask, retry, reload])
+  return useMemo(() => ({ view, ask, retry, reconnect, reload }), [view, ask, retry, reconnect, reload])
 }
 
 function errorText(caught: unknown): string {

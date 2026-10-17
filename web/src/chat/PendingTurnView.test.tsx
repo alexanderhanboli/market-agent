@@ -4,13 +4,17 @@ import test from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
-import type { TurnIds } from './chatSession.ts'
+import type { RunOrigin, StreamLink, TurnIds } from './chatSession.ts'
 import { PendingTurnView } from './PendingTurnView.tsx'
 import type { StreamState } from './streamReducer.ts'
 
 const TURN: TurnIds = { runId: 'run-1', messageId: 'u1', snapshotId: 'snap-1', text: 'Analyze NVDA' }
+const RUN = { runId: 'run-1', turnId: 'u1' }
 const noop = () => undefined
-const handlers = { backgroundRun: false, onRetry: noop, onReload: noop, onAsk: () => true }
+const handlers = { onRetry: noop, onReconnect: noop, onReload: noop, onAsk: () => true }
+const OWN: RunOrigin = { kind: 'own', input: { userIntent: 'Analyze NVDA' } }
+const LINK: StreamLink = { kind: 'open', attach: false, attempt: 0, reached: true, drops: 0, seenSeq: 0 }
+const ADOPTED: RunOrigin = { kind: 'adopted' }
 
 test('PendingTurnView renders the agent plan panel above streamed blocks', () => {
   const state: StreamState = {
@@ -50,7 +54,7 @@ test('PendingTurnView renders the agent plan panel above streamed blocks', () =>
     error: null,
   }
 
-  const html = renderToStaticMarkup(<PendingTurnView turn={{ phase: 'streaming', turn: TURN, stream: state }} {...handlers} />)
+  const html = renderToStaticMarkup(<PendingTurnView turn={{ phase: 'streaming', run: RUN, origin: OWN, stream: state, link: LINK }} {...handlers} />)
 
   assert.match(html, /data-testid="agent-plan-panel"/)
   assert.match(html, /aria-live="polite"/)
@@ -85,7 +89,7 @@ test('PendingTurnView shows an unverified turn with a per-block label and collap
 
   const html = renderToStaticMarkup(
     <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
-      <PendingTurnView turn={{ phase: 'unverified', turn: TURN, stream: state }} {...handlers} />
+      <PendingTurnView turn={{ phase: 'unverified', run: RUN, stream: state }} {...handlers} />
     </BlockRegistryProvider>,
   )
 
@@ -109,22 +113,29 @@ const STREAMED: StreamState = {
   error: 'turn.completed carried no valid sealed message',
 }
 
-test('a failed stream offers Retry stream; a turn whose sealed copy never arrived offers only Reload thread', () => {
+test('a failed own run offers Retry; a turn whose sealed copy never arrived offers only Reload thread; a run nobody here sent offers nothing', () => {
   const retry = renderToStaticMarkup(
-    <PendingTurnView turn={{ phase: 'failed', turn: TURN, stream: STREAMED, error: 'The analyst stream disconnected.', recovery: 'retry_stream' }} {...handlers} />,
+    <PendingTurnView turn={{ phase: 'failed', run: RUN, origin: OWN, stream: STREAMED, error: 'Stream error: upstream_500', recovery: 'retry_run' }} {...handlers} />,
   )
   assert.match(retry, /NVIDIA&#x27;s revenue rose/)
-  assert.match(retry, /The analyst stream disconnected\./)
-  assert.match(retry, />Retry stream<\/button>/)
+  assert.match(retry, /Stream error: upstream_500/)
+  assert.match(retry, />Retry<\/button>/)
   assert.doesNotMatch(retry, /Reload thread/)
 
   const reload = renderToStaticMarkup(
-    <PendingTurnView turn={{ phase: 'failed', turn: TURN, stream: STREAMED, error: "Couldn't show the saved copy of this answer.", recovery: 'reload_thread', messageId: 'a1' }} {...handlers} />,
+    <PendingTurnView turn={{ phase: 'failed', run: RUN, origin: OWN, stream: STREAMED, error: "Couldn't show the saved copy of this answer.", recovery: 'reload_thread', messageId: 'a1' }} {...handlers} />,
   )
   assert.match(reload, /NVIDIA&#x27;s revenue rose/)
   assert.match(reload, /Couldn&#x27;t show the saved copy of this answer\./)
   assert.match(reload, />Reload thread<\/button>/)
-  assert.doesNotMatch(reload, /Retry stream/)
+  assert.doesNotMatch(reload, />Retry<\/button>/)
+
+  const adopted = renderToStaticMarkup(
+    <PendingTurnView turn={{ phase: 'failed', run: RUN, origin: ADOPTED, stream: STREAMED, error: 'Stream error: upstream_500', recovery: 'none' }} {...handlers} />,
+  )
+  assert.match(adopted, /Stream error: upstream_500/)
+  assert.doesNotMatch(adopted, /<button/)
+  assert.doesNotMatch(adopted, /NVIDIA&#x27;s revenue rose/)
 })
 
 test('PendingTurnView shows the optimistic question while it is being saved', () => {
@@ -132,4 +143,23 @@ test('PendingTurnView shows the optimistic question while it is being saved', ()
   assert.match(html, /Analyze NVDA/)
   assert.match(html, /Starting…/)
   assert.doesNotMatch(html, /data-testid="streaming-turn"/)
+})
+
+test('an adopted run shows its plan and its link state, never streamed blocks; an own run shows its blocks attached or not', () => {
+  const stream: StreamState = { ...STREAMED, turn_status: 'started', plan_steps: [{ step_id: 'planner', label: 'Planner', detail: 'Planning.', status: 'running' }] }
+  const render = (link: StreamLink, origin: RunOrigin = ADOPTED) => renderToStaticMarkup(<PendingTurnView turn={{ phase: 'streaming', run: RUN, origin, stream, link }} {...handlers} />)
+
+  const notices = ([
+    { ...LINK, attach: true },
+    { ...LINK, kind: 'reconnecting', attach: true, drops: 1 },
+    { ...LINK, kind: 'offline', attach: true },
+  ] as const).map((link) => {
+    const html = render(link)
+    assert.match(html, /Planner/)
+    assert.doesNotMatch(html, /NVIDIA&#x27;s revenue rose/)
+    return [/still answering/.test(html), /Reconnecting to the analyst/.test(html), />Reconnect<\/button>/.test(html)]
+  })
+  assert.deepEqual(notices, [[true, false, false], [false, true, false], [false, false, true]])
+  assert.match(render(LINK, OWN), /NVIDIA&#x27;s revenue rose/)
+  assert.match(render({ ...LINK, attach: true }, OWN), /NVIDIA&#x27;s revenue rose/)
 })

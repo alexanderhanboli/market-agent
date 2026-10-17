@@ -1,9 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+import type { ChatActiveRun, ChatCoordinator, ChatRunStatus } from "./coordinator.ts";
+
 import {
   ChatMessageIdempotencyConflictError,
   listChatMessagesForThread,
   persistUserChatMessage,
+  type ChatReadMessage,
 } from "./messages.ts";
 import {
   archiveThread,
@@ -33,6 +36,25 @@ class RequestBodyTooLargeError extends Error {
 
 export type ListThreadsResponse = { threads: ChatThread[] };
 
+// active_run is always present: null when no turn of the caller's is in flight.
+export type ThreadMessagesResponse = {
+  messages: ReadonlyArray<ChatReadMessage>;
+  active_run: { run_id: string; turn_id: string } | null;
+  runs: ReadonlyArray<RunStatusJson>;
+};
+
+type RunStatusJson = { run_id: string; turn_id: string; status: ChatRunStatus["status"]; message_id?: string };
+
+function activeRunJson(run: ChatActiveRun | null): ThreadMessagesResponse["active_run"] {
+  return run && { run_id: run.runId, turn_id: run.turnId };
+}
+
+function runStatusJson(run: ChatRunStatus): RunStatusJson {
+  const json: RunStatusJson = { run_id: run.runId, turn_id: run.turnId, status: run.status };
+  if (run.status === "completed" && run.messageId !== undefined) json.message_id = run.messageId;
+  return json;
+}
+
 // Returns true when the request matched a /v1/chat/threads CRUD route and a
 // response has been sent. Returns false to let the caller fall through to
 // other handlers (e.g., the SSE stream route).
@@ -40,6 +62,7 @@ export async function tryHandleThreadsRequest(
   db: ChatThreadsDb,
   req: IncomingMessage,
   res: ServerResponse,
+  runs: Pick<ChatCoordinator, "readThread">,
   auth?: RequestAuthConfig,
 ): Promise<boolean> {
   const rawUrl = req.url ?? "/";
@@ -116,15 +139,17 @@ export async function tryHandleThreadsRequest(
         respond(res, 201, { message });
         return true;
       }
-      const result = await listChatMessagesForThread(db, {
-        thread_id: route.threadId,
-        user_id: userId,
-      });
+      const result = await runs.readThread({ userId, threadId: route.threadId }, async () =>
+        (await listChatMessagesForThread(db, { thread_id: route.threadId, user_id: userId }))?.messages ?? null);
       if (result === null) {
         respond(res, 404, { error: "chat thread not found" });
         return true;
       }
-      respond(res, 200, result);
+      respond(res, 200, {
+        messages: result.messages,
+        active_run: activeRunJson(result.activeRun),
+        runs: result.runs.map(runStatusJson),
+      } satisfies ThreadMessagesResponse);
       return true;
     }
 

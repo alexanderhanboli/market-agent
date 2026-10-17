@@ -41,6 +41,24 @@ Endpoints (all require an `x-user-id` UUID header; threads are user-scoped):
   `archived_at = now()` on first call; idempotent on repeat (the original
   archive timestamp is preserved). The thread row stays in the table for
   conversation history; the `chat_messages` foreign key is unaffected.
+- `GET    /v1/chat/threads/{threadId}/messages` — the thread's messages in
+  creation order, the caller's turns on the thread that this process still
+  retains, and the oldest of them still in flight:
+  `{ "messages": ChatReadMessage[], "active_run": { "run_id", "turn_id" } | null, "runs": RunStatus[] }`.
+  Each `runs` entry is `{ "run_id", "turn_id", "status" }`, oldest first, with
+  `status` `in_flight` (queued or running), `completed` (with the saved
+  answer's `message_id` when the turn.completed named one) or `failed`
+  (turn.error, or no terminal event). A run that ended more than
+  `completedTurnRetentionMs` ago (5 minutes by default) is not listed.
+  A turn counts while it is queued or running, until it emits `turn.completed`
+  or `turn.error`. A turn whose `turn.completed` names a message in
+  `messages` is never reported. One that ended during the read is reported
+  only when `messages` lack its answer, so the client attaches and the replay
+  shows the outcome. Turns live in this process's memory (see Resume
+  Retention), so a restart reports none. Attach with
+  `GET /v1/chat/threads/{threadId}/stream?run_id=…&turn_id=…&attach=1`: the
+  route finds the turn by its ids and the caller, never starts one, and
+  answers `404 turn not found` when this process doesn't have it.
 
 Cross-user access always returns 404 (never 403) so existence of another
 user's thread is not leaked. Wire the DB by passing `threadsDb` to

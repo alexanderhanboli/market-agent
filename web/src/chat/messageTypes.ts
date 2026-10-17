@@ -44,6 +44,51 @@ export function parseSealedMessage(value: unknown, expected: { threadId: string;
   return value as SealedChatMessage
 }
 
+// A turn on the server, named the way its stream route keys it.
+export type RunRef = Readonly<{ runId: string; turnId: string }>
+
+// Where a run the server still retains stands. messageId is the saved answer
+// its turn.completed named, when it named one.
+export type RunStatus =
+  | Readonly<{ run: RunRef; status: 'in_flight' }>
+  | Readonly<{ run: RunRef; status: 'completed'; messageId: string | null }>
+  | Readonly<{ run: RunRef; status: 'failed' }>
+
+export type ThreadRead = { messages: ReadonlyArray<ChatMessage>; activeRun: RunRef | null; runs: ReadonlyArray<RunStatus> }
+
+// The messages GET body. A body without active_run or runs, or with malformed
+// ones, reports no run, so this client works against a chat service that
+// predates them. A malformed runs entry is dropped alone.
+export function parseThreadMessages(body: unknown): ThreadRead {
+  const record = isRecord(body) ? body : {}
+  const messages = Array.isArray(record.messages) ? (record.messages as ChatMessage[]) : []
+  const runs = Array.isArray(record.runs) ? record.runs.flatMap((entry) => {
+    const status = parseRunStatus(entry)
+    return status ? [status] : []
+  }) : []
+  return { messages, activeRun: parseRunRef(record.active_run), runs }
+}
+
+function parseRunRef(value: unknown): RunRef | null {
+  return isRecord(value) && typeof value.run_id === 'string' && value.run_id !== '' && typeof value.turn_id === 'string' && value.turn_id !== ''
+    ? { runId: value.run_id, turnId: value.turn_id }
+    : null
+}
+
+function parseRunStatus(value: unknown): RunStatus | null {
+  const run = parseRunRef(value)
+  if (run === null || !isRecord(value)) return null
+  switch (value.status) {
+    case 'in_flight':
+    case 'failed':
+      return { run, status: value.status }
+    case 'completed':
+      return { run, status: 'completed', messageId: typeof value.message_id === 'string' && value.message_id !== '' ? value.message_id : null }
+    default:
+      return null
+  }
+}
+
 function isBlockProof(value: unknown): value is BlockProof {
   return isRecord(value) && (Object.keys(PROOF_VALUES) as Array<keyof BlockProof>)
     .every((claim) => (PROOF_VALUES[claim] as ReadonlyArray<unknown>).includes(value[claim]))

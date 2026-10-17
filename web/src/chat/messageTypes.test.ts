@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CHAT_ROLES, parseSealedMessage } from './messageTypes.ts'
+import { CHAT_ROLES, parseSealedMessage, parseThreadMessages } from './messageTypes.ts'
 import type { ChatSseEvent } from './sseEventTypes.ts'
 
 const CHAT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -54,4 +54,39 @@ test('every recorded golden completion carries a sealed message the client accep
     completions.map((event) => parseSealedMessage(event.message, { threadId: event.thread_id, messageId: event.message_id })?.message_id),
     completions.map((event) => event.message_id),
   )
+})
+
+test('parseThreadMessages reads active_run and runs, and treats a missing or malformed one as no run', () => {
+  const messages = [{ message_id: 'm1' }]
+  const parse = (body: unknown) => parseThreadMessages(body)
+  assert.deepEqual(parse({
+    messages,
+    active_run: { run_id: 'r2', turn_id: 'u2' },
+    runs: [
+      { run_id: 'r0', turn_id: 'u0', status: 'completed', message_id: 'a0' },
+      { run_id: 'r1', turn_id: 'u1', status: 'failed' },
+      { run_id: 'r2', turn_id: 'u2', status: 'in_flight' },
+      { run_id: 'r3', turn_id: 'u3', status: 'completed' },
+    ],
+  }), {
+    messages,
+    activeRun: { runId: 'r2', turnId: 'u2' },
+    runs: [
+      { run: { runId: 'r0', turnId: 'u0' }, status: 'completed', messageId: 'a0' },
+      { run: { runId: 'r1', turnId: 'u1' }, status: 'failed' },
+      { run: { runId: 'r2', turnId: 'u2' }, status: 'in_flight' },
+      { run: { runId: 'r3', turnId: 'u3' }, status: 'completed', messageId: null },
+    ],
+  })
+  assert.deepEqual(
+    [
+      { messages },
+      { messages, active_run: null, runs: null },
+      { messages, active_run: { run_id: 'r1' }, runs: 'r1' },
+      { messages, active_run: { run_id: '', turn_id: 'u1' }, runs: [{ run_id: 'r1', turn_id: 'u1', status: 'queued' }] },
+      { messages, active_run: 'r1', runs: [{ run_id: 'r1', status: 'in_flight' }, null] },
+    ].map(parse),
+    Array(5).fill({ messages, activeRun: null, runs: [] }),
+  )
+  assert.deepEqual(parse({}), { messages: [], activeRun: null, runs: [] })
 })
