@@ -665,6 +665,7 @@ const AVAILABLE_TOOL_CALL = {
       facts: [
         { fact_id: AVAILABLE_FACT(1), metric_key: "revenue", display_name: "Revenue", value_num: 416.161, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_y", fiscal_year: 2025, fiscal_period: "FY", as_of: "2025-10-31T00:00:00.000Z", source_id: "s-facts", coverage_level: "full" },
         { fact_id: AVAILABLE_FACT(2), metric_key: "net_income", display_name: "Net income", value_num: 25, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_q", fiscal_year: 2026, fiscal_period: "Q1", as_of: "2026-01-30T00:00:00.000Z", source_id: "s-facts", coverage_level: "partial" },
+        { fact_id: AVAILABLE_FACT(3), value_num: 1, unit: "pure", period_kind: "fiscal_y", fiscal_year: 2025, fiscal_period: "FY", source_id: "s-facts" },
       ],
     },
   },
@@ -765,7 +766,7 @@ test("with no figures shown, an assertion about an available value is checked ag
     rejected: [{ index: 1, text: "Revenue was [[F4]].", reason: "[[F4]] is not in its evidence" }],
     rendered: true,
   }]);
-  assert.equal((composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "AAPL's net income was $25.0B in Q1 2026.");
+  assert.equal((composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "AAPL's net income was $25.0B in Q1 2026 (partial period).");
 });
 
 test("beside blocks that show no figures (a gap note), the quote is referenced, never typed (#181, #302)", async () => {
@@ -1302,6 +1303,29 @@ test("a rendered answer says which compared companies it shows no figures for (#
   });
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).\n\nNo figures are shown for AMD.");
+});
+
+test("a cited claim about a compared company does not drop the note that no figures are shown for it (#302 review)", async () => {
+  const nvdaOnly = [{ ...RENDER_BLOCKS[0]!, cells: [RENDER_BLOCKS[0]!.cells[0]!, [null, null]] }];
+  const amdClaim = {
+    tool_call_id: "tc-amd",
+    tool_name: "research_lookup",
+    status: "ok",
+    result: { evidence: { claims: [{ claim_id: "c3020000-0000-4000-8000-000000000002", source_id: "s-amd-claim", text_canonical: "AMD expects data center growth.", predicate: "guidance.change", polarity: "positive", published_at: "2026-02-25T00:00:00.000Z", subject_id: "issuer-amd" }] } },
+  } as never;
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [amdClaim],
+    factBlocks: nvdaOnly,
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] },
+      { kind: "management_attribution", text: "AMD expects data center growth.", evidence: ["C1"] },
+    ]) }),
+  });
+  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
+  assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).\n\nAccording to a source dated Feb 2026 on AMD: AMD expects data center growth.\n\nNo figures are shown for AMD.");
 });
 
 test("a rendered answer keeps the other side of a stored disagreement (#208)", async () => {

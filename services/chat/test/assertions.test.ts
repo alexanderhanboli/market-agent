@@ -643,3 +643,20 @@ test("what the data cannot show is a data gap: words only, citing nothing; acros
   const claimsOnly = checkAssertions([{ kind: "data_gap", text: "No segment revenue is shown." }], { ...PACKET, figures: [] });
   assert.deepEqual([claimsOnly.accepted.map((entry) => entry.index), claimsOnly.rejected], [[0], []]);
 });
+
+test("an unknown cause's change is between periods of one kind, both fully covered (#302 review)", () => {
+  const packet: EvidencePacket = {
+    ...PACKET,
+    companies: ["AAPL"],
+    figures: [
+      { id: "F1", metric: "Revenue", period: "FY2025", value: "$416.2B", source_ids: [], displayed: false },
+      { id: "F2", metric: "Revenue", period: "Q12026", value: "$124.3B", source_ids: [], displayed: false },
+      { id: "F3", metric: "Net income", period: "Q42025", value: "$20.0B", source_ids: [], displayed: false },
+      { id: "F4", metric: "Net income", period: "Q12026", value: "$25.0B", source_ids: [], displayed: false, period_coverage: "partial" },
+    ],
+  };
+  const reasons = (evidence: string[]) =>
+    checkAssertions([{ kind: "unknown_cause", text: "The figures do not show why.", evidence }], packet).rejected.map((entry) => entry.reason);
+  const reason = "an unknown cause cites a change: one company's metric, two periods, two values";
+  assert.deepEqual([reasons(["F1"]), reasons(["F2"]), reasons(["F3"]), reasons(["F4"])], [[reason], [reason], [reason], [reason]]);
+});

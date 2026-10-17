@@ -358,8 +358,10 @@ export async function composeAnalystBlocksWithLlm(input: {
       return { ...side, segments: [{ type: "text" as const, text: "A source disagrees. " }, ...side.segments] };
     });
     // What the rendered assertions cannot say themselves: a company with no
-    // figures shown, unless the answer states one of its values, and stale data.
-    const notShown = packet.coverage.filter((entry) => entry.status === "not_shown" && !covered.has(entry.company)).map((entry) => entry.company);
+    // figures shown, unless the answer states one of its values (a claim is
+    // no value), and stale data.
+    const stated = new Set(keptFigures.map((figure) => figure.company ?? packet.companies[0]));
+    const notShown = packet.coverage.filter((entry) => entry.status === "not_shown" && !stated.has(entry.company)).map((entry) => entry.company);
     // The data gaps kept read as one paragraph, where the first stood.
     const gaps = report.accepted.filter((assertion) => assertion.kind === "data_gap" && kept.some((entry) => entry.index === assertion.index));
     const shownEntries = kept
@@ -618,10 +620,11 @@ function availableFigures(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCal
   for (const fact of structured.flatMap((context) => (Array.isArray(context.facts) ? context.facts : []))) {
     if (!isRecord(fact) || typeof fact.fact_id !== "string" || facts.has(fact.fact_id)) continue;
     const value = factValue(fact);
-    if (value === undefined) continue;
+    const metric = fact.display_name ?? fact.metric_key;
+    if (value === undefined || typeof metric !== "string") continue;
     const fiscal = typeof fact.fiscal_year === "number" ? { period: `${typeof fact.fiscal_period === "string" ? fact.fiscal_period : ""}${fact.fiscal_year}` } : {};
     facts.set(fact.fact_id, {
-      metric: String(fact.display_name ?? fact.metric_key),
+      metric,
       ...fiscal,
       value,
       fact_id: fact.fact_id,

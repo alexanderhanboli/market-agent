@@ -37,6 +37,11 @@ type AvailableFigureFields = {
 
 export type AvailableFigure = Omit<PacketFigure, "id" | "shown_in"> & AvailableFigureFields;
 
+// How completely a figure's period is covered, when it is not fully.
+export function periodCoverage(figure: PacketFigure): string | undefined {
+  return figure.displayed === false ? figure.period_coverage : undefined;
+}
+
 // A claim as the evidence loader returns it (local-runtime-evidence.ts).
 export type ClaimRecord = {
   claim_id: string;
@@ -247,9 +252,6 @@ export function buildEvidencePacket(input: {
     ...(fact_id ? { fact_id } : {}),
     source_ids: (block_id && blockSources.get(block_id)) || [],
   }));
-  const figures: PacketFigure[] = displayed.length > 0
-    ? displayed
-    : (input.available ?? []).map((figure, index) => ({ id: `F${index + 1}`, ...figure }));
   // Every company the scope covers, whether or not a block shows it. An
   // auto-selected peer carries no label in the scope: the comparison names it,
   // and without one it is still covered, by issuer.
@@ -268,6 +270,16 @@ export function buildEvidencePacket(input: {
     ...scopeLabels.values(),
     ...input.factBlocks.flatMap((block) => Array.isArray(block.subject_labels) ? block.subject_labels.filter(isString) : []),
   ]);
+  // The turn's other values are its primary company's (the structured
+  // context loader reads only that one), named once there are others.
+  const primary = input.scope?.companies[0] && scopeLabels.get(input.scope.companies[0].issuer_id);
+  const figures: PacketFigure[] = displayed.length > 0
+    ? displayed
+    : (input.available ?? []).map((figure, index) => ({
+      id: `F${index + 1}`,
+      ...figure,
+      ...(companies.length > 1 && primary ? { company: primary } : {}),
+    }));
   // A single company's figures name no company: they are all its own.
   const shown = (company: string) =>
     displayed.some((figure) => figure.company === company) ||

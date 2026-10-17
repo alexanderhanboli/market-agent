@@ -256,3 +256,16 @@ test("an inference's label states each supporting comparison's checked result; o
   assert.equal(plainText(renderAssertion({ index: 9, kind: "analyst_inference", subject: "AMD", text: "Its margin held.", evidence: [], supports: [] }, AMD_QUARTERS, [], []).segments),
     "> **Analyst inference:** Its margin held.");
 });
+
+test("an observation of a partially covered period says so (#302 review)", () => {
+  const packet: EvidencePacket = {
+    ...PACKET,
+    companies: ["AAPL"],
+    figures: [
+      { id: "F1", metric: "Net income", period: "Q12026", value: "$25.0B", source_ids: [], displayed: false, period_coverage: "partial" },
+      { id: "F2", metric: "Revenue", period: "Q12026", value: "$124.3B", source_ids: [], displayed: false },
+    ],
+  };
+  const rendered = renderAssertion({ index: 0, kind: "observation", text: "ignored", evidence: ["F1", "F2"] }, packet, []);
+  assert.equal(plainText(rendered.segments), "AAPL's net income was $25.0B in Q1 2026 (partial period); AAPL's revenue was $124.3B in Q1 2026.");
+});

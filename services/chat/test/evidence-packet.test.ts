@@ -57,6 +57,12 @@ test("with no figure shown, the turn's other values are its figures, while its c
   assert.deepEqual([shown.figures.map((figure) => figure.fact_id), shown.coverage], [["f-rev", "f-gm"], [{ company: "NVDA", status: "shown" }]]);
 });
 
+test("with no figure shown in a comparison, the turn's other values are its primary company's (#302 review)", () => {
+  const price = { metric: "Price", value: "$180.00", source_ids: [], displayed: false as const };
+  const packet = buildEvidencePacket({ scope: scope("Compare NVDA with AMD", [NVDA, AMD]), factBlocks: [], available: [price], cutoff: CUTOFF });
+  assert.deepEqual(packet.figures, [{ id: "F1", ...price, company: "NVDA" }]);
+});
+
 test("a comparison packet binds each figure to its company and period; a company with none is a named gap (#207)", () => {
   const comparison = {
     id: "b-cmp",

@@ -14,7 +14,7 @@
 // assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
 // when it is checked in shadow and the guarded prose is shown.
 
-import { checkComparison, type ComparisonOp } from "./comparisons.ts";
+import { checkComparison, comparablePeriods, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
@@ -265,7 +265,7 @@ const AMOUNT_WORD = new RegExp(String.raw`\b(?:${NUMBER_WORD}(?:[- ]${NUMBER_WOR
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>, shown: EvidencePacket["figures"]): boolean {
   return cited.length > 0 && cited.every((a) => shown.some((b) =>
     a.company === b.company && a.metric === b.metric && a.segment === b.segment && a.period !== undefined && b.period !== undefined &&
-    a.period.replace(/\s+/g, "") !== b.period.replace(/\s+/g, "") && a.value !== b.value
+    a.period.replace(/\s+/g, "") !== b.period.replace(/\s+/g, "") && a.value !== b.value && comparablePeriods(a, b)
   ));
 }
 

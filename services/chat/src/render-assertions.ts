@@ -13,7 +13,7 @@
 
 import type { Assertion } from "./assertions.ts";
 import { checkComparison, periodText as quarterText, type CheckedComparison, type TrendResult } from "./comparisons.ts";
-import type { EvidencePacket, PacketFigure } from "./evidence-packet.ts";
+import { periodCoverage, type EvidencePacket, type PacketFigure } from "./evidence-packet.ts";
 import { createSealer, type Sealer, type Segment } from "./prose-refs.ts";
 
 type Block = Record<string, unknown>;
@@ -77,7 +77,7 @@ function templateSegments(
       // gross margin was 74.4%, operating margin 64.9% and ... in Q4 2026".
       const groups = new Map<string, PacketFigure[]>();
       for (const figure of figures) {
-        const key = `${owner(figure)}|${figure.period ?? ""}|${figure.period_end ?? ""}`;
+        const key = `${owner(figure)}|${figure.period ?? ""}|${figure.period_end ?? ""}|${periodCoverage(figure) ?? ""}`;
         groups.set(key, [...(groups.get(key) ?? []), figure]);
       }
       [...groups.values()].forEach((group, g) => {
@@ -303,9 +303,14 @@ function periodText(period: string): string {
   return quarterText(period).replace(/\d{4}-\d{2}-\d{2}/g, (date) => monthYear(date));
 }
 
-// The end month is said, since fiscal calendars differ (#180).
+// The end month is said, since fiscal calendars differ (#180), and a period
+// only partly covered (#302).
 function periodPhrase(figure: PacketFigure): string {
-  return `${figure.period ? ` in ${periodText(figure.period)}` : ""}${figure.period_end ? ` (ended ${monthYear(figure.period_end)})` : ""}`;
+  const notes = [
+    ...(figure.period_end ? [`ended ${monthYear(figure.period_end)}`] : []),
+    ...(periodCoverage(figure) ? ["partial period"] : []),
+  ];
+  return `${figure.period ? ` in ${periodText(figure.period)}` : ""}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
 }
 
 function capitalize(text: string): string {
