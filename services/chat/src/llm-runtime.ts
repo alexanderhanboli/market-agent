@@ -10,13 +10,14 @@ import type {
   ChatAnalystToolRuntimeToolCall,
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
-import { buildEvidencePacket, packetForModel, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
+import { buildEvidencePacket, packetForModel, type AvailableFigure, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, companiesOf, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
 import { calendarNote, gapText, plainText, renderAssertion } from "./render-assertions.ts";
-import { proseSegments, referenceTable, type ProseSegments } from "./prose-refs.ts";
+import { proseSegments, referenceTable, type ProseSegments, type ReferenceTable } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
-import { keepKnownReferences, keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
+import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
 
 // Shown when the guard strips every sentence of the model's prose, or the model gave
 // no usable answer (empty, or cut off at the token limit).
@@ -167,8 +168,10 @@ export async function composeAnalystBlocksWithLlm(input: {
           "a list of candidate causes inside a sentence about what the data cannot tell):",
           "> **Unverified hypothesis (low|medium|high confidence):** <one explanation>, given <a figure or metric shown in this answer>.",
           "Use only the context provided; do not invent citations or data.",
-          "The figures shown to the user are listed in evidence_packet.figures, each with the metric",
-          "and, in a comparison, the company it belongs to. Write a figure only as its packet reference,",
+          "The figures you may use are listed in evidence_packet.figures, each with the metric",
+          "and, in a comparison, the company it belongs to; one marked displayed false is in no chart or table",
+          "the user sees, and one with a period_coverage covers only part of its period, so say so.",
+          "Write a figure only as its packet reference,",
           // The reference renders as the packet's value, sealed to its fact (prose-refs.ts).
           "[[F3]] for the figure with id F3, in place of the value itself (\"revenue of [[F3]]\"): it renders as",
           "the displayed value, linked to its source, with its unit, so do not add $, %, B or x around it.",
@@ -188,8 +191,6 @@ export async function composeAnalystBlocksWithLlm(input: {
           "Name the fiscal period each figure is for (its period, and the month its period_end",
           "falls in; never the day), and a chart's window by month and year. When a comparison's title says the fiscal years end months",
           "apart, say so: the same fiscal year covers different months for each company.",
-          "When evidence_packet.figures is empty, evidence_packet.available_data lists the reported values you may use instead;",
-          "a value with a coverage other than full covers only part of its period, so say so.",
           "Claims in evidence_packet.claims are sourced statements you may draw on, dated by effective_time",
           "and published_at: say when a claim dates from, by month and year, if it is not recent. A claim's stance is from its",
           "stored direction; evidence_packet.disagreements names claims that may conflict: present both sides, never pick one.",
@@ -322,8 +323,7 @@ export async function composeAnalystBlocksWithLlm(input: {
       reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
     // An answer must state something the packet holds: data gaps and
-    // inferences alone are no answer, so the prose (from available_data,
-    // say) stands instead.
+    // inferences alone are no answer, so the prose stands instead.
     if (!kept.some((entry) => entry.kind !== "data_gap" && entry.kind !== "analyst_inference")) return null;
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
@@ -357,9 +357,9 @@ export async function composeAnalystBlocksWithLlm(input: {
       const side = renderAssertion({ index: -1 - i, kind: "management_attribution", text: "", evidence: [id] }, packet, factBlocks);
       return { ...side, segments: [{ type: "text" as const, text: "A source disagrees. " }, ...side.segments] };
     });
-    // What the rendered assertions cannot say themselves: a compared company
-    // with no figures shown, and stale data.
-    const notShown = packet.coverage.filter((entry) => entry.status === "not_shown").map((entry) => entry.company);
+    // What the rendered assertions cannot say themselves: a company with no
+    // figures shown, unless the answer states one of its values, and stale data.
+    const notShown = packet.coverage.filter((entry) => entry.status === "not_shown" && !covered.has(entry.company)).map((entry) => entry.company);
     // The data gaps kept read as one paragraph, where the first stood.
     const gaps = report.accepted.filter((assertion) => assertion.kind === "data_gap" && kept.some((entry) => entry.index === assertion.index));
     const shownEntries = kept
@@ -375,68 +375,39 @@ export async function composeAnalystBlocksWithLlm(input: {
     ]);
   };
   const text = prose.trim();
+  // Pointing to "the reported figures below" needs figures shown: not a gap
+  // note, nor values only the prose references (#302).
+  const shown = displayedFigures(factBlocks);
+  const fallback = shown.length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT;
   // Never show a sentence cut off mid-way, or the placeholder the turn started with.
   // Cut off inside the assertion list, the prose before it is whole.
   if ((result.truncated && !open) || text.length === 0) {
     reportAssertions();
     console.warn(`[chat] model answer was ${result.truncated ? "cut off at the token limit" : "empty"}; showing the fallback sentence`);
-    // Pointing to "the reported figures below" needs figures shown, not a gap note.
-    return rewriteFirstRichTextBlock(
-      input.blocks,
-      displayedFigures(factBlocks).length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT,
-    );
+    return rewriteFirstRichTextBlock(input.blocks, fallback);
   }
   const claimTexts = claimTextsFromToolCalls(input.toolCalls);
-  // The guard limits prose to the figures shown; with none shown (no fact blocks,
-  // or only a gap note or chart), the model answers from available_data
-  // instead, so no figure is guarded (#181), but no cause may be stated outside
-  // a labelled hypothesis either (#263). One condition decides both.
-  const shown = displayedFigures(factBlocks);
-  if (shown.length === 0) {
-    // A claim-only answer renders; one also standing on available_data (its
-    // figure assertions unchecked, with no fact to render) keeps its prose.
-    // An attribution quotes its sourced claim word for word, so a cause the
-    // claim states is the claim's, not the model's.
-    const claimOnly = report.unchecked ? null : renderAccepted((text, kind) =>
-      kind === "management_attribution" ? [] : keepUncausedSentences(text).removed
-    );
-    if (claimOnly) return claimOnly;
-    reportAssertions();
-    const uncaused = keepUncausedSentences(text);
-    if (uncaused.removed.length > 0) {
-      console.warn(`[chat] removed ${uncaused.removed.length} narrative sentence(s) stating a cause with no figures shown`);
-    }
-    // A named gap's turn gives the model no data (availableData false): any
-    // digit it types is invented, a year included (#221). A claim's number
-    // appears only by citing the claim, which renders it whole (#294 review).
-    const unnumbered = input.availableData === false
-      ? withoutWordedAmounts(keepSupportedSentences(uncaused.text, { ...table, years: new Set() }, claimTexts, input.subjectLabels ?? []))
-      : keepKnownReferences(uncaused.text, table);
-    if (unnumbered.removed.length > 0) {
-      console.warn(`[chat] removed ${unnumbered.removed.length} narrative sentence(s) stating a figure on a turn with no data`);
-    }
-    // Both batches in one report: the consumer keeps the last it receives (#294 review).
-    const removedHere = [...uncaused.removed, ...unnumbered.removed];
-    if (removedHere.length > 0) input.onNarrativeRemoved?.(removedHere);
-    if (unnumbered.text) answered();
-    // No figures are shown here, so the fallback points to none.
-    return unnumbered.text ? asProse(unnumbered.text) : rewriteFirstRichTextBlock(input.blocks, NO_ANSWER_FALLBACK_TEXT);
-  }
-
   // The words a stated cause or a hypothesis's basis may use: what the blocks
   // display, the cited claims, and each figure's period end as a rendered
-  // observation names it ("ended Jan 2026", #208).
-  const guard = (text: string) => keepSupportedSentences(
-    text,
-    table,
-    [
-      ...displayTextsForBlocks(factBlocks),
-      ...claimTexts,
-      ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
-    ],
-    input.subjectLabels ?? [],
-  );
-  const rendered = renderAccepted((text) => guard(text).removed);
+  // observation names it ("ended Jan 2026", #208). With no figure shown, no
+  // cause may be stated outside a labelled hypothesis (#263); an attribution
+  // quotes its sourced claim word for word, so a cause the claim states is the
+  // claim's, not the model's.
+  const guard = (text: string, kind?: AssertionKind, references: ReferenceTable = table) => {
+    const uncaused = shown.length === 0 && kind !== "management_attribution" ? keepUncausedSentences(text) : { text, removed: [] };
+    const supported = keepSupportedSentences(
+      uncaused.text,
+      references,
+      [
+        ...displayTextsForBlocks(factBlocks),
+        ...claimTexts,
+        ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
+      ],
+      input.subjectLabels ?? [],
+    );
+    return { text: supported.text, removed: [...uncaused.removed, ...supported.removed] };
+  };
+  const rendered = renderAccepted((text, kind) => guard(text, kind).removed);
   if (rendered) return rendered;
   // With rendering on, a comparison the check rejected may be what the prose
   // says ("AMD has the highest margin"), and the guard checks figures, not
@@ -448,16 +419,21 @@ export async function composeAnalystBlocksWithLlm(input: {
   });
   if (assertionRenderingEnabled(input.env ?? process.env) && rejectedComparison) {
     reportAssertions();
-    return rewriteFirstRichTextBlock(input.blocks, FACT_BLOCKS_FALLBACK_TEXT);
+    return rewriteFirstRichTextBlock(input.blocks, fallback);
   }
   reportAssertions();
-  const guarded = guard(text);
+  // A named gap's turn gives the model no data (availableData false): any
+  // digit it types is invented, a year included (#221). A claim's number
+  // appears only by citing the claim, which renders it whole (#294 review).
+  const guarded = shown.length === 0 && input.availableData === false
+    ? withoutWordedAmounts(guard(text, undefined, { ...table, years: new Set() }))
+    : guard(text);
   if (guarded.removed.length > 0) {
-    console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) quoting figures not shown to the user`);
+    console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) quoting figures not in the evidence packet`);
     input.onNarrativeRemoved?.(guarded.removed);
   }
   if (guarded.text) answered();
-  return guarded.text ? asProse(guarded.text) : rewriteFirstRichTextBlock(input.blocks, FACT_BLOCKS_FALLBACK_TEXT);
+  return guarded.text ? asProse(guarded.text) : rewriteFirstRichTextBlock(input.blocks, fallback);
 }
 
 // An amount in words: any magnitude or unit word ("three billion dollars",
@@ -514,14 +490,13 @@ function monthYear(iso: string): string {
 export type AnswerUsage = { input_tokens: number; output_tokens: number; reasoning_tokens?: number };
 
 // What the answer model sees (#181): only what it can use, as an evidence
-// packet (#207, evidence-packet.ts) plus the question and conversation. The figures shown to
-// the user (the only ones it may quote, with company, period and period end),
-// cited claim text, what could not be shown, and staleness flags. Raw tool JSON,
-// the placeholder block, and the routing bundle are left out: the narrative
-// guard drops any figure not shown, so the raw facts behind them only added
-// tokens and reasoning. When no figures are shown (no fact blocks: a quote-only
-// subject, or the fact loader came back empty), nothing is guarded either, and
-// the evidence is then summarized compactly as available_data instead.
+// packet (#207, evidence-packet.ts) plus the question and conversation. The figures
+// it may reference (with company, period and period end), cited claim text, what
+// could not be shown, and staleness flags. Raw tool JSON, the placeholder block,
+// and the routing bundle are left out: the narrative guard drops any figure not
+// in the packet, so the raw facts behind them only added tokens and reasoning.
+// When no figures are shown (a quote-only subject, or the fact loader came back
+// empty), the turn's quote and reported facts are the packet's figures (#302).
 export function answerContext(input: {
   context: LlmRuntimeContext;
   toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
@@ -535,9 +510,14 @@ export function answerContext(input: {
 }): Record<string, unknown> {
   const results = input.toolCalls.map((toolCall) => (isRecord(toolCall.result) ? toolCall.result : {}));
   const structured = results.map((result) => (isRecord(result.structured_context) ? result.structured_context : {}));
-  const quotes = structured.flatMap((context) =>
-    isRecord(context.quote) ? [{ ticker: context.quote.ticker, as_of: context.quote.as_of, stale: context.quote.stale }] : []
-  );
+  const quotes = structured.flatMap((context) => isRecord(context.quote) ? [{
+    ticker: context.quote.ticker,
+    as_of: context.quote.as_of,
+    stale: context.quote.stale,
+    // Fresh is not live: an end-of-day or delayed quote says so.
+    ...(typeof context.quote.session_state === "string" ? { session_state: context.quote.session_state } : {}),
+    ...(typeof context.quote.delay_class === "string" ? { delay_class: context.quote.delay_class } : {}),
+  }] : []);
   const factRecency = structured.flatMap((context) => (isRecord(context.fact_recency) ? [context.fact_recency] : []));
   const claims = claimEvidence(input.toolCalls);
   const packet = packetForModel(input.packet ?? turnPacket(input));
@@ -551,15 +531,12 @@ export function answerContext(input: {
         : "No research claims, reported facts, or quote are on file for this subject."]
       : []),
   ];
-  const shown = (packet.figures as unknown[]).length > 0;
-  const available = !shown && input.availableData !== false ? availableData(structured) : null;
   return {
     question: input.context.userIntent ?? "Start a research thread",
     conversation: input.conversation ?? [],
     evidence_packet: {
       ...packet,
       ...(gaps.length > 0 ? { gaps } : {}),
-      ...(available ? { available_data: available } : {}),
       ...(quotes.length > 0 || factRecency.length > 0
         ? { staleness: { ...(quotes.length > 0 ? { quote: quotes } : {}), ...(factRecency.length > 0 ? { fact_recency: factRecency } : {}) } }
         : {}),
@@ -567,10 +544,12 @@ export function answerContext(input: {
   };
 }
 
-// The turn's evidence packet: its figures, claims and bounds (#207).
+// The turn's evidence packet: its figures, claims and bounds (#207). A named
+// gap's turn offers no other values in the metric's place (#206).
 function turnPacket(input: {
   toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
   factBlocks?: ReadonlyArray<Record<string, unknown>>;
+  availableData?: boolean;
   scope?: ResearchScope;
   cutoff?: string;
 }): EvidencePacket {
@@ -579,6 +558,7 @@ function turnPacket(input: {
     factBlocks: input.factBlocks ?? [],
     cutoff: input.cutoff ?? new Date().toISOString(),
     claims: claimEvidence(input.toolCalls),
+    ...(input.availableData === false ? {} : { available: availableFigures(input.toolCalls) }),
   });
 }
 
@@ -616,37 +596,66 @@ function claimEvidence(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>)
   };
 }
 
-// The quote and reported facts, compactly: what an answer with no displayed
-// figures can stand on. Null when there is neither.
-function availableData(structured: ReadonlyArray<Record<string, unknown>>): Record<string, unknown> | null {
-  const quotes = structured.flatMap((context) => isRecord(context.quote) ? [{
-    ticker: context.quote.ticker,
-    price: context.quote.price,
-    // change_pct is a fraction (0.0078 = 0.78%); sent as the percentage it means.
-    ...(typeof context.quote.change_pct === "number"
-      ? { change: `${context.quote.change_pct >= 0 ? "+" : ""}${(context.quote.change_pct * 100).toFixed(2)}%` }
-      : {}),
-    currency: context.quote.currency,
-    as_of: context.quote.as_of,
-    // Fresh is not live: an end-of-day or delayed quote says so.
-    ...(typeof context.quote.session_state === "string" ? { session_state: context.quote.session_state } : {}),
-    ...(typeof context.quote.delay_class === "string" ? { delay_class: context.quote.delay_class } : {}),
-  }] : []);
-  const facts = structured.flatMap((context) => (Array.isArray(context.facts) ? context.facts : []).flatMap((fact) =>
-    isRecord(fact) && (typeof fact.value_num === "number" || typeof fact.value_text === "string") ? [{
-      metric: fact.display_name ?? fact.metric_key,
-      value: typeof fact.value_num === "number" ? fact.value_num * (typeof fact.scale === "number" ? fact.scale : 1) : fact.value_text,
-      ...(fact.unit ? { unit: fact.unit } : {}),
-      ...(fact.currency ? { currency: fact.currency } : {}),
-      ...(fact.fiscal_year !== null && fact.fiscal_year !== undefined ? { period: `${fact.fiscal_period ?? ""} ${fact.fiscal_year}`.trim() } : {}),
-      // Each value's own date: fact_recency only dates the newest one.
+// The quote and reported facts as figures: what an answer with no displayed
+// figures stands on (#302), each fact once across tool calls.
+function availableFigures(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>): AvailableFigure[] {
+  const structured = toolCalls.flatMap((toolCall) => {
+    const context = isRecord(toolCall.result) ? toolCall.result.structured_context : undefined;
+    return isRecord(context) ? [context] : [];
+  });
+  const quotes = structured.flatMap(({ quote }): AvailableFigure[] => {
+    if (!isRecord(quote) || typeof quote.price !== "number" || typeof quote.currency !== "string") return [];
+    const dated = typeof quote.as_of === "string" ? { as_of: quote.as_of } : {};
+    return [
+      { metric: "Price", value: formatCurrency(quote.price, quote.currency), ...dated, source_ids: [], displayed: false },
+      // change_pct is a fraction (0.0078 = 0.78%).
+      ...(typeof quote.change_pct === "number"
+        ? [{ metric: "Day change", value: `${quote.change_pct >= 0 ? "+" : ""}${(quote.change_pct * 100).toFixed(2)}%`, ...dated, source_ids: [], displayed: false as const }]
+        : []),
+    ];
+  });
+  const facts = new Map<string, AvailableFigure>();
+  for (const fact of structured.flatMap((context) => (Array.isArray(context.facts) ? context.facts : []))) {
+    if (!isRecord(fact) || typeof fact.fact_id !== "string" || facts.has(fact.fact_id)) continue;
+    const value = factValue(fact);
+    if (value === undefined) continue;
+    const fiscal = typeof fact.fiscal_year === "number" ? { period: `${typeof fact.fiscal_period === "string" ? fact.fiscal_period : ""}${fact.fiscal_year}` } : {};
+    facts.set(fact.fact_id, {
+      metric: String(fact.display_name ?? fact.metric_key),
+      ...fiscal,
+      value,
+      fact_id: fact.fact_id,
+      source_ids: typeof fact.source_id === "string" ? [fact.source_id] : [],
+      displayed: false,
       ...(typeof fact.as_of === "string" ? { as_of: fact.as_of } : {}),
-      // How completely the period is covered, when it is not fully.
-      ...(typeof fact.coverage_level === "string" && fact.coverage_level !== "full" ? { coverage: fact.coverage_level } : {}),
-    }] : []
-  ));
-  if (quotes.length === 0 && facts.length === 0) return null;
-  return { ...(quotes.length > 0 ? { quotes } : {}), ...(facts.length > 0 ? { facts } : {}) };
+      ...(typeof fact.coverage_level === "string" && fact.coverage_level !== "full" ? { period_coverage: fact.coverage_level } : {}),
+      ...factBinding(fact),
+    });
+  }
+  return [...quotes, ...facts.values()];
+}
+
+// A fact's value as a block would display it.
+function factValue(fact: Record<string, unknown>): string | undefined {
+  if (typeof fact.value_num !== "number") return typeof fact.value_text === "string" ? fact.value_text : undefined;
+  const value = fact.value_num * (typeof fact.scale === "number" ? fact.scale : 1);
+  const currency = typeof fact.currency === "string" ? fact.currency : undefined;
+  if (currency && fact.unit === "currency") return formatCompactCurrency(value, currency);
+  if (currency && fact.unit === "currency_per_share") return formatCurrency(value, currency);
+  const amount = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return typeof fact.unit === "string" && fact.unit !== "pure" ? `${amount} ${fact.unit}` : amount;
+}
+
+// The binding a seal checks a fiscal fact by (snapshot-verifier.ts): its unit,
+// period kind, and fiscal year and period. Another kind is bound by dates the
+// fact summary does not carry, so its value renders unsealed.
+function factBinding(fact: Record<string, unknown>): { binding?: Record<string, unknown> } {
+  if (typeof fact.unit !== "string" || typeof fact.fiscal_year !== "number") return {};
+  if (fact.period_kind === "fiscal_y") return { binding: { fact_id: fact.fact_id, unit: fact.unit, period_kind: "fiscal_y", fiscal_year: fact.fiscal_year } };
+  if (fact.period_kind === "fiscal_q" && typeof fact.fiscal_period === "string") {
+    return { binding: { fact_id: fact.fact_id, unit: fact.unit, period_kind: "fiscal_q", fiscal_year: fact.fiscal_year, fiscal_period: fact.fiscal_period } };
+  }
+  return {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { EvidencePacket, PacketFigure } from "../src/evidence-packet.ts";
-import { keepKnownReferences, keepSupportedSentences, keepUncausedSentences } from "../src/narrative-guard.ts";
+import { keepSupportedSentences, keepUncausedSentences } from "../src/narrative-guard.ts";
 import { referenceTable, type ReferenceTable } from "../src/prose-refs.ts";
 
 type Figure = Partial<PacketFigure> & Pick<PacketFigure, "value" | "metric">;
@@ -62,13 +62,6 @@ test("a sentence after an initialism still ends when the next one starts with a 
   const result = keepSupportedSentences("Revenue is concentrated in the U.S. Revenue grew 38%.", TABLE, DISPLAYED);
   assert.equal(result.text, "Revenue is concentrated in the U.S.");
   assert.deepEqual(result.removed, ["Revenue grew 38%."]);
-});
-
-test("with no figures shown, only a sentence citing an unknown reference goes; typed available_data values stay", () => {
-  const claims = tableOf([], ["Management expects growth."]);
-  const result = keepKnownReferences("- Revenue was $7.4B in Q1 2025.\n- Management said [[C1]]. They also said [[C9]].", claims);
-  assert.equal(result.text, "- Revenue was $7.4B in Q1 2025.\n- Management said [[C1]].");
-  assert.deepEqual(result.removed, ["They also said [[C9]]."]);
 });
 
 test("a digit the model typed itself goes unless it is a period label: an allowed year, or a quarter or half after Q or H", () => {

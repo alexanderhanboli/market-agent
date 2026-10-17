@@ -259,6 +259,7 @@ function factAt(as_of: string, fiscal_year: number | null, fiscal_period: string
     value_text: null,
     unit: "currency",
     currency: "USD",
+    period_kind: fiscal_period === "FY" ? "fiscal_y" : "fiscal_q",
     fiscal_year,
     fiscal_period,
     as_of,

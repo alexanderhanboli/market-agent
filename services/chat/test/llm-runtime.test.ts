@@ -13,6 +13,7 @@ import {
   TITLE_DEADLINES,
   createLlmThreadTitleModel,
 } from "../src/llm-runtime.ts";
+import { resolveResearchScope } from "../src/research-scope.ts";
 
 const BASE_ENV = {
   LLM_CHANNELS: "openai",
@@ -508,15 +509,19 @@ test("a thread title cut off at the token limit falls back instead of being save
   await assert.rejects(async () => model({ userIntent: "Why did Apple sell off?", assistantText: "Margins compressed." }), /cut off/);
 });
 
-test("without fact blocks the narrative is passed through unguarded, as before", async () => {
-  const blocks = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
-    context: { userIntent: "Summarize demand", bundleId: "single_subject_analysis" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
-    createClient: () => async () => ({ text: "Demand rose 12% per the cited note." }),
-  });
-  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "Demand rose 12% per the cited note.");
+test("with nothing on file, a figure the model types is its own, so it goes as on any turn (#302)", async () => {
+  const shown = async (text: string) => {
+    const blocks = await composeAnalystBlocksWithLlm({
+      env: BASE_ENV,
+      context: { userIntent: "Summarize demand", bundleId: "single_subject_analysis" },
+      blocks: [NARRATIVE_BLOCK],
+      toolCalls: [],
+      createClient: () => async () => ({ text }),
+    });
+    return (blocks[0].segments as Array<{ text: string }>)[0].text;
+  };
+  assert.equal(await shown("Demand rose per the cited note."), "Demand rose per the cited note.");
+  assert.equal(await shown("Demand rose 12% per the cited note."), "No written answer is available for this question; try asking again.");
 });
 
 const COMPARISON_BLOCKS = [{
@@ -646,70 +651,138 @@ test("the answer model sees a compact context, not raw tool JSON (#181)", async 
   assert.deepEqual(usage, [{ input_tokens: 900, output_tokens: 120, reasoning_tokens: 80 }]);
 });
 
-test("with no figures shown, the model still gets the evidence, compactly, as available_data (#181)", async () => {
-  let prompt = "";
-  const toolCall = {
-    tool_call_id: "tc-1",
-    tool_name: "research_lookup",
-    bundle_id: "single_subject_analysis",
-    status: "ok",
-    result: {
-      evidence_status: "available",
-      structured_context: {
-        quote: { ticker: "AAPL", price: 231.6, change_pct: 0.0078, currency: "USD", as_of: "2026-09-01T00:00:00.000Z", stale: false, session_state: "closed", delay_class: "eod", source_id: "s" },
-        facts: [
-          { fact_id: "f1", metric_key: "revenue", display_name: "Revenue", value_num: 416.161, scale: 1e9, unit: "currency", currency: "USD", fiscal_year: 2025, fiscal_period: "FY", as_of: "2025-10-31T00:00:00.000Z", source_id: "s", coverage_level: "full" },
-          { fact_id: "f2", metric_key: "net_income", display_name: "Net income", value_num: 25, scale: 1e9, unit: "currency", currency: "USD", fiscal_year: 2026, fiscal_period: "Q1", as_of: "2026-01-30T00:00:00.000Z", source_id: "s", coverage_level: "partial" },
-        ],
-      },
+const AVAILABLE_FACT = (n: number) => `f3020000-0000-4000-8000-00000000000${n}`;
+// A turn whose fact blocks show nothing, with a quote and two reported facts on file.
+const AVAILABLE_TOOL_CALL = {
+  tool_call_id: "tc-1",
+  tool_name: "research_lookup",
+  bundle_id: "single_subject_analysis",
+  status: "ok",
+  result: {
+    evidence_status: "available",
+    structured_context: {
+      quote: { ticker: "AAPL", price: 231.6, change_pct: 0.0078, currency: "USD", as_of: "2026-09-01T00:00:00.000Z", stale: false, session_state: "closed", delay_class: "eod", source_id: "s-quote" },
+      facts: [
+        { fact_id: AVAILABLE_FACT(1), metric_key: "revenue", display_name: "Revenue", value_num: 416.161, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_y", fiscal_year: 2025, fiscal_period: "FY", as_of: "2025-10-31T00:00:00.000Z", source_id: "s-facts", coverage_level: "full" },
+        { fact_id: AVAILABLE_FACT(2), metric_key: "net_income", display_name: "Net income", value_num: 25, scale: 1e9, unit: "currency", currency: "USD", period_kind: "fiscal_q", fiscal_year: 2026, fiscal_period: "Q1", as_of: "2026-01-30T00:00:00.000Z", source_id: "s-facts", coverage_level: "partial" },
+      ],
     },
-  } as never;
+  },
+} as never;
+const CHARGES_CLAIM_TOOL_CALL = {
+  tool_call_id: "tc-claim",
+  tool_name: "research_lookup",
+  status: "ok",
+  result: { evidence: { claims: [{ claim_id: "c3020000-0000-4000-8000-000000000001", source_id: "s-claim", text_canonical: "The restrictions led to approximately $800 million in charges.", predicate: "kpi.commentary", polarity: "negative", published_at: "2025-08-05T00:00:00.000Z" }] } },
+} as never;
+
+test("with no figures shown, the turn's other values are packet figures with ids, none counted as displayed (#181, #302)", async () => {
+  let prompt = "";
   const run = async (factBlocks?: ReadonlyArray<Record<string, unknown>>, availableData?: boolean) => {
     await composeAnalystBlocksWithLlm({
       env: BASE_ENV,
       context: { userIntent: "Analyze AAPL", bundleId: "single_subject_analysis" },
       blocks: [NARRATIVE_BLOCK],
-      toolCalls: [toolCall],
+      toolCalls: [AVAILABLE_TOOL_CALL],
       factBlocks,
       ...(availableData === undefined ? {} : { availableData }),
       createClient: () => async (_deployment, request) => {
         prompt = request.messages.at(-1)!.content;
-        return { text: "AAPL trades at $231.6." };
+        return { text: "AAPL trades at [[F1]]." };
       },
     });
     return JSON.parse(prompt) as Record<string, unknown>;
   };
   const packetOf = (context: Record<string, unknown>) => context.evidence_packet as Record<string, unknown>;
-  assert.deepEqual(packetOf(await run()).available_data, {
-    quotes: [{ ticker: "AAPL", price: 231.6, change: "+0.78%", currency: "USD", as_of: "2026-09-01T00:00:00.000Z", session_state: "closed", delay_class: "eod" }],
-    facts: [
-      { metric: "Revenue", value: 416161000000, unit: "currency", currency: "USD", period: "FY 2025", as_of: "2025-10-31T00:00:00.000Z" },
-      // A partially covered period says so.
-      { metric: "Net income", value: 25000000000, unit: "currency", currency: "USD", period: "Q1 2026", as_of: "2026-01-30T00:00:00.000Z", coverage: "partial" },
-    ],
+  const packet = packetOf(await run());
+  assert.deepEqual(packet.figures, [
+    { id: "F1", metric: "Price", value: "$231.60", as_of: "2026-09-01T00:00:00.000Z", displayed: false },
+    { id: "F2", metric: "Day change", value: "+0.78%", as_of: "2026-09-01T00:00:00.000Z", displayed: false },
+    { id: "F3", metric: "Revenue", period: "FY2025", value: "$416.2B", as_of: "2025-10-31T00:00:00.000Z", displayed: false },
+    // A partially covered period says so.
+    { id: "F4", metric: "Net income", period: "Q12026", value: "$25.0B", as_of: "2026-01-30T00:00:00.000Z", period_coverage: "partial", displayed: false },
+  ]);
+  assert.equal("available_data" in packet, false);
+  // Fresh is not live: an end-of-day or delayed quote says so.
+  assert.deepEqual(packet.staleness, {
+    quote: [{ ticker: "AAPL", as_of: "2026-09-01T00:00:00.000Z", stale: false, session_state: "closed", delay_class: "eod" }],
   });
-  assert.ok(!prompt.includes("fact_id") && !prompt.includes('"source_id"'), "still compact: no ids");
-  // With figures shown, only those may be quoted: no available_data.
-  assert.equal("available_data" in packetOf(await run(COMPARISON_BLOCKS)), false);
+  assert.ok(!prompt.includes("fact_id") && !prompt.includes('"source_id"') && !prompt.includes("binding"), "still compact: no ids");
+  // With figures shown, only those may be referenced.
+  assert.deepEqual((packetOf(await run(COMPARISON_BLOCKS)).figures as Array<{ id: string; value: string }>).map((figure) => `${figure.id} ${figure.value}`), ["F1 $130.5B", "F2 74.6%", "F3 $25.8B", "F4 49.2%"]);
   // A turn asking only for a metric no reader serves gets the named gap, not
   // other facts it could offer in that metric's place (#206).
   const gap = { kind: "rich_text", segments: [{ type: "text", text: "Free cash flow is not available for AAPL in this data, so no other figure is shown in its place." }] };
-  const withheld = await run([gap], false);
-  assert.equal("available_data" in packetOf(withheld), false);
-  assert.deepEqual(packetOf(withheld).gaps, [gap.segments[0]!.text]);
+  const withheld = packetOf(await run([gap], false));
+  assert.deepEqual([withheld.figures, withheld.gaps], [[], [gap.segments[0]!.text]]);
 });
 
-test("blocks that show no figures (a gap note) leave the answer unguarded, like no blocks (#181)", async () => {
-  const gap = { kind: "rich_text", segments: [{ type: "text", text: "Year-to-date price performance is not shown." }] };
-  const blocks = await composeAnalystBlocksWithLlm({
+test("with no figures shown, a typed figure goes; an available value's reference renders from the packet, sealed to its fact (#302)", async () => {
+  const removed: string[][] = [];
+  const composed = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
-    context: { userIntent: "How is AAPL doing YTD?", bundleId: "single_subject_analysis" },
+    context: { userIntent: "How did AAPL do?", bundleId: "single_subject_analysis" },
     blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
-    factBlocks: [gap],
-    createClient: () => async () => ({ text: "AAPL trades at $231.6 per the latest quote." }),
+    toolCalls: [AVAILABLE_TOOL_CALL, CHARGES_CLAIM_TOOL_CALL],
+    factBlocks: [],
+    createClient: () => async () => ({ text: "Charges were $800M [[C1]]. Net income was [[F4]] in Q1 2026. AAPL trades at [[F1]]." }),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
   });
-  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "AAPL trades at $231.6 per the latest quote.");
+  const block = composed[0] as Record<string, unknown>;
+  // A quote is no stored fact, so its value is the packet's in plain text.
+  assert.deepEqual(block.segments, [
+    { type: "text", text: "Net income was " },
+    { type: "ref", ref_kind: "fact", ref_id: AVAILABLE_FACT(2), format: "$25.0B" },
+    { type: "text", text: " in Q1 2026. AAPL trades at $231.60." },
+  ]);
+  assert.deepEqual(block.data_ref, { params: { fact_bindings: [
+    { fact_id: AVAILABLE_FACT(2), unit: "currency", period_kind: "fiscal_q", fiscal_year: 2026, fiscal_period: "Q1" },
+  ] } });
+  assert.deepEqual(block.source_refs, ["s-facts"]);
+  assert.deepEqual(removed, [["Charges were $800M [[C1]]."]]);
+});
+
+test("with no figures shown, an assertion about an available value is checked against the packet, never left unchecked (#302)", async () => {
+  const reports: unknown[] = [];
+  const asOf = "2026-09-01T00:00:00.000Z";
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "How did AAPL do?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [AVAILABLE_TOOL_CALL],
+    factBlocks: [],
+    scope: resolveResearchScope({ question: "How did AAPL do?", companies: [{ issuer_id: "60000000-0000-4000-8000-000000000003", label: "AAPL" }], prior: null, asOf }),
+    cutoff: asOf,
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "Net income was [[F4]].", evidence: ["F4"] },
+      { kind: "observation", text: "Revenue was [[F4]].", evidence: ["F3"] },
+    ]) }),
+    onAssertions: (report) => reports.push(report),
+  });
+  assert.deepEqual(reports, [{
+    status: "checked",
+    accepted: [{ index: 0, kind: "observation", text: "Net income was [[F4]].", evidence: ["F4"] }],
+    rejected: [{ index: 1, text: "Revenue was [[F4]].", reason: "[[F4]] is not in its evidence" }],
+    rendered: true,
+  }]);
+  assert.equal((composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "AAPL's net income was $25.0B in Q1 2026.");
+});
+
+test("beside blocks that show no figures (a gap note), the quote is referenced, never typed (#181, #302)", async () => {
+  const gap = { kind: "rich_text", segments: [{ type: "text", text: "Year-to-date price performance is not shown." }] };
+  const shown = async (text: string) => {
+    const blocks = await composeAnalystBlocksWithLlm({
+      env: BASE_ENV,
+      context: { userIntent: "How is AAPL doing YTD?", bundleId: "single_subject_analysis" },
+      blocks: [NARRATIVE_BLOCK],
+      toolCalls: [AVAILABLE_TOOL_CALL],
+      factBlocks: [gap],
+      createClient: () => async () => ({ text }),
+    });
+    return (blocks[0].segments as Array<{ text: string }>)[0].text;
+  };
+  assert.equal(await shown("AAPL trades at [[F1]] per the latest quote."), "AAPL trades at $231.60 per the latest quote.");
+  assert.equal(await shown("AAPL trades at $231.6 per the latest quote."), "No written answer is available for this question; try asking again.");
 });
 
 test("with no figures shown, a stated cause still goes; figures and gaps stay (#263)", async () => {
@@ -718,15 +791,15 @@ test("with no figures shown, a stated cause still goes; figures and gaps stay (#
     env: BASE_ENV,
     context: { userIntent: "How is AAPL doing?", bundleId: "single_subject_analysis" },
     blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
+    toolCalls: [AVAILABLE_TOOL_CALL],
     createClient: () => async () => ({
-      text: "AAPL trades at $231.6. The move could reflect a one-time charge. The data does not show why.",
+      text: "AAPL trades at [[F1]]. The move could reflect a one-time charge. The data does not show why.",
     }),
     onNarrativeRemoved: (sentences) => {
       removed = sentences;
     },
   });
-  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "AAPL trades at $231.6. The data does not show why.");
+  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "AAPL trades at $231.60. The data does not show why.");
   assert.deepEqual(removed, ["The move could reflect a one-time charge."]);
 });
 
@@ -897,10 +970,10 @@ test("with no figures shown there is nothing to bind, so the check is skipped (#
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
     factBlocks: [],
-    createClient: () => async () => ({ text: "ACME trades at $12.\n```assertions\n[{\"kind\":\"observation\",\"text\":\"ACME trades at $12.\",\"evidence\":[]}]\n```" }),
+    createClient: () => async () => ({ text: "ACME has nothing on file.\n```assertions\n[{\"kind\":\"observation\",\"text\":\"ACME trades at $12.\",\"evidence\":[]}]\n```" }),
     onAssertions: (report) => reports.push(report),
   });
-  assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "ACME trades at $12.");
+  assert.equal((composed[0].segments as Array<{ text: string }>)[0].text, "ACME has nothing on file.");
   assert.deepEqual(reports.map((report) => report.status), ["skipped"]);
 });
 
@@ -1061,7 +1134,7 @@ test("with rendering on, what the data cannot show renders under one label, with
   );
 });
 
-test("an answer of data gaps alone is not rendered: the prose answering from available_data stands (#301 B2 review)", async () => {
+test("an answer of data gaps alone is not rendered: the prose stands (#301 B2 review)", async () => {
   const composed = await composeAnalystBlocksWithLlm({
     env: RENDERING_ENV,
     context: { userIntent: "What is A's price?", bundleId: "single_name" },

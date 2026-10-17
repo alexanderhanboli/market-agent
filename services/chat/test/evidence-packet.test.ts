@@ -43,6 +43,20 @@ test("a quarterly packet holds only its figures, each with a packet id, its fact
   assert.deepEqual(packet.query_bounds, { periods: "latest quarter, with revenue for the last 8 quarters" });
 });
 
+test("with no figure shown, the turn's other values are its figures, while its company stays not shown (#302)", () => {
+  const revenue = {
+    metric: "Revenue", period: "FY2025", value: "$416.2B", fact_id: "f-aapl", source_ids: ["s-facts"], displayed: false as const,
+    binding: { fact_id: "f-aapl", unit: "currency", period_kind: "fiscal_y", fiscal_year: 2025 },
+  };
+  const packet = buildEvidencePacket({ scope: scope("Analyze AAPL", [AAPL]), factBlocks: [], available: [revenue], cutoff: CUTOFF });
+  assert.deepEqual([packet.figures, packet.coverage], [[{ id: "F1", ...revenue }], [{ company: "AAPL", status: "not_shown" }]]);
+  // The model sees it marked as in no block, without its fact, source or binding.
+  assert.deepEqual(packetForModel(packet).figures, [{ id: "F1", metric: "Revenue", period: "FY2025", value: "$416.2B", displayed: false }]);
+  // A turn whose blocks show a figure references only those.
+  const shown = buildEvidencePacket({ scope: scope("Analyze NVDA's latest quarter"), factBlocks: [LATEST], available: [revenue], cutoff: CUTOFF });
+  assert.deepEqual([shown.figures.map((figure) => figure.fact_id), shown.coverage], [["f-rev", "f-gm"], [{ company: "NVDA", status: "shown" }]]);
+});
+
 test("a comparison packet binds each figure to its company and period; a company with none is a named gap (#207)", () => {
   const comparison = {
     id: "b-cmp",

@@ -21,7 +21,21 @@ export type PacketFigure = Omit<DisplayedFigure, "fact_id" | "block_id"> & {
   id: string;
   fact_id?: string;
   source_ids: ReadonlyArray<string>;
+} & ({ displayed?: undefined } | AvailableFigureFields);
+
+// A reported value no block shows (#302): what a turn with no figure displayed
+// answers from, referenced as a displayed figure is and never counted as one.
+type AvailableFigureFields = {
+  displayed: false;
+  // The value's own date: fact_recency only dates the newest one.
+  as_of?: string;
+  // How completely the period is covered, when it is not fully.
+  period_coverage?: string;
+  // The seal binding of its fact, which no block's bindings carry; never sent to the model.
+  binding?: Readonly<Record<string, unknown>>;
 };
+
+export type AvailableFigure = Omit<PacketFigure, "id" | "shown_in"> & AvailableFigureFields;
 
 // A claim as the evidence loader returns it (local-runtime-evidence.ts).
 export type ClaimRecord = {
@@ -221,16 +235,21 @@ export function buildEvidencePacket(input: {
   factBlocks: ReadonlyArray<Block>;
   cutoff: string;
   claims?: ClaimEvidence;
+  // The turn's other reported values, which become its figures when no block shows one.
+  available?: ReadonlyArray<AvailableFigure>;
 }): EvidencePacket {
   const blockSources = new Map(input.factBlocks.flatMap((block) =>
     typeof block.id === "string" ? [[block.id, sourceIds(block)] as const] : []
   ));
-  const figures = displayedFigures(input.factBlocks).map(({ fact_id, block_id, ...figure }, index) => ({
+  const displayed: PacketFigure[] = displayedFigures(input.factBlocks).map(({ fact_id, block_id, ...figure }, index) => ({
     id: `F${index + 1}`,
     ...figure,
     ...(fact_id ? { fact_id } : {}),
     source_ids: (block_id && blockSources.get(block_id)) || [],
   }));
+  const figures: PacketFigure[] = displayed.length > 0
+    ? displayed
+    : (input.available ?? []).map((figure, index) => ({ id: `F${index + 1}`, ...figure }));
   // Every company the scope covers, whether or not a block shows it. An
   // auto-selected peer carries no label in the scope: the comparison names it,
   // and without one it is still covered, by issuer.
@@ -251,8 +270,8 @@ export function buildEvidencePacket(input: {
   ]);
   // A single company's figures name no company: they are all its own.
   const shown = (company: string) =>
-    figures.some((figure) => figure.company === company) ||
-    (companies.length === 1 && figures.length > 0);
+    displayed.some((figure) => figure.company === company) ||
+    (companies.length === 1 && displayed.length > 0);
   return {
     route: input.scope?.route ?? "unknown",
     cutoff: input.cutoff,
@@ -337,7 +356,12 @@ export function packetForModel(packet: EvidencePacket): Record<string, unknown> 
   return {
     route: packet.route,
     cutoff: packet.cutoff,
-    figures: packet.figures.map(({ fact_id: _factId, series_ref: _seriesRef, source_ids: _sourceIds, ...figure }) => figure),
+    figures: packet.figures.map((figure) => {
+      const { fact_id: _factId, series_ref: _seriesRef, source_ids: _sourceIds, ...shown } = figure;
+      if (shown.displayed === undefined) return shown;
+      const { binding: _binding, ...available } = shown;
+      return available;
+    }),
     ...(packet.coverage.length > 0 ? { coverage: packet.coverage } : {}),
     ...(packet.gaps.length > 0 ? { gaps: packet.gaps } : {}),
     ...(Object.keys(packet.query_bounds).length > 0 ? { query_bounds: packet.query_bounds } : {}),
