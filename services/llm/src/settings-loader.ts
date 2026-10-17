@@ -34,11 +34,21 @@ export async function loadLlmSettingsFromEnv(
   }
 
   const fileEnv = parseLlmEnvFileText(await readFile(envFile, "utf8"));
+  // The dev shell exports the same file at startup; a key the Settings page has since
+  // removed must not come back from that stale copy, so the file alone configures models.
+  const shellEnv = Object.fromEntries(Object.entries(env).filter(([key]) => !isModelConfigKey(key)));
   return parseLlmEnv({
-    ...env,
+    ...shellEnv,
     ...fileEnv,
   });
 }
+
+function isModelConfigKey(key: string): boolean {
+  return (key.startsWith("LLM_") && !LOADER_CONTROL_KEYS.has(key)) || key.endsWith("LITELLM_MODEL") ||
+    key === "LITELLM_FALLBACK_MODELS";
+}
+
+const LOADER_CONTROL_KEYS = new Set(["LLM_SETTINGS_ENV_FILE", "LLM_REPLAY_FILE", "LLM_USAGE_LOG"]);
 
 export async function hasConfiguredLlmDeployments(
   env: LlmSettingsLoaderEnv = process.env,
