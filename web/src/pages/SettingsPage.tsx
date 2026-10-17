@@ -208,7 +208,7 @@ export function SettingsView({
               </label>
               <label className={FIELD_LABEL}>
                 Protocol
-                <select className={INPUT_CLASS} value={channel.protocol} onChange={(event) => updateChannel(index, { ...channel, protocol: event.target.value })}>
+                <select className={INPUT_CLASS} value={channel.protocol} onChange={(event) => updateChannel(index, withProtocol(channel, event.target.value))}>
                   <option value="openai-compatible">OpenAI compatible</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
@@ -276,6 +276,15 @@ export function SettingsView({
       </div>
     </div>
   )
+}
+
+// A provider's own endpoint, filled in by default, must not carry over to another
+// protocol: an Anthropic key would go to DeepSeek. A custom URL (a proxy) is kept.
+const STOCK_BASE_URLS = new Set(['https://api.deepseek.com/v1', 'https://api.openai.com/v1', 'https://api.anthropic.com'])
+
+function withProtocol(channel: LlmChannelSettings, protocol: string): LlmChannelSettings {
+  const stock = channel.baseUrl !== null && STOCK_BASE_URLS.has(channel.baseUrl.replace(/\/+$/, ''))
+  return { ...channel, protocol, ...(stock ? { baseUrl: null } : {}) }
 }
 
 function defaultChannel(): LlmChannelSettings {

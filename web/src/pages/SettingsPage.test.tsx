@@ -85,6 +85,29 @@ test('SettingsView can add a channel and select primary/fallback models', async 
   cleanup()
 })
 
+test('switching protocol drops another provider\'s stock base URL but keeps a custom one', async () => {
+  const switchToAnthropic = async (baseUrl: string) => {
+    const changes: LlmEditableSettings[] = []
+    const base = settings()
+    const { document, cleanup } = renderIntoDom(
+      <SettingsView
+        state={{ kind: 'ready', version: 'sha256:test', settings: { ...base, channels: [{ ...base.channels[0]!, baseUrl }] } }}
+        onChange={(next) => changes.push(next)}
+      />,
+    )
+    try {
+      await change(selectByLabel(document, 'Protocol'), 'anthropic')
+      return changes[0]?.channels[0]?.baseUrl
+    } finally {
+      cleanup()
+    }
+  }
+
+  assert.equal(await switchToAnthropic('https://api.deepseek.com/v1'), null)
+  assert.equal(await switchToAnthropic('https://api.openai.com/v1'), null)
+  assert.equal(await switchToAnthropic('https://llm-proxy.internal/v1'), 'https://llm-proxy.internal/v1')
+})
+
 test('SettingsView displays pending and failed diagnostics states', () => {
   const pending = renderToString(
     <SettingsView
