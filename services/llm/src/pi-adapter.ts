@@ -25,7 +25,7 @@ type PiAssistantMessage = {
   /** The provider's own stop reason, set only when the model ended the turn. */
   rawStopReason?: string;
   errorMessage?: string;
-  usage?: { input?: number; output?: number; totalTokens?: number; reasoning?: number };
+  usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; totalTokens?: number; reasoning?: number };
 };
 
 type PiContext = {
@@ -312,13 +312,15 @@ function resultFromMessage(message: PiAssistantMessage): LlmChatResult {
   if (usage === undefined || typeof usage.input !== "number" || typeof usage.output !== "number") {
     return Object.freeze({ text, ...truncated });
   }
+  // pi-ai reports cached prompt tokens apart from `input`; they're still input.
+  const inputTokens = usage.input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
   return Object.freeze({
     text,
     ...truncated,
     usage: Object.freeze({
-      inputTokens: usage.input,
+      inputTokens,
       outputTokens: usage.output,
-      totalTokens: usage.totalTokens ?? usage.input + usage.output,
+      totalTokens: usage.totalTokens ?? inputTokens + usage.output,
       ...(typeof usage.reasoning === "number" ? { reasoningTokens: usage.reasoning } : {}),
     }),
   });
