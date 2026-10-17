@@ -12,6 +12,7 @@
 
 import {
   DEFAULT_EXECUTION_LIMITS,
+  dependencyClosure,
   hashCanonical,
   METRIC_CATALOG_V1,
   OPERATION_REGISTRY,
@@ -24,6 +25,7 @@ import {
   type PlanOrigin,
   type PublicationUnitKind,
   type ReportingBasis,
+  type RequestedOutput,
   type ThresholdAttribution,
   type ValidationIssue,
 } from "../../financial-core/src/index.ts";
@@ -282,12 +284,7 @@ function assemblePlan(context: PlanningContext, draft: Draft, planner: Financial
       unitOf.set(outputId, unit.unit_id);
     }
   }
-  const outputs = withFreeCashFlowInputs(draft);
-  for (const output of outputs) {
-    const unit = output.serves === undefined ? undefined : unitOf.get(output.serves);
-    if (unit !== undefined) unitOf.set(output.output_id, unit);
-  }
-  for (const output of outputs) {
+  for (const output of draft.outputs) {
     if (!unitOf.has(output.output_id)) issues.push({ path: "$.outputs", code: "unassigned_output", message: `${output.output_id} belongs to no publication unit` });
   }
   if (issues.length > 0) return { ok: false, kind: "invalid", issues };
@@ -315,45 +312,56 @@ function assemblePlan(context: PlanningContext, draft: Draft, planner: Financial
     },
     metric_definitions: metricKeys.map((key) => ({ metric_key: key, definition_version: METRIC_CATALOG_V1.get(key)!.definition_version })),
     operations: draft.operations.map((operation) => ({ ...operation, operation_version: OPERATION_REGISTRY[operation.operation as OperationKind].operation_version })),
-    outputs: outputs.map((output) => ({ output_id: output.output_id, node_id: output.node_id, unit_id: unitOf.get(output.output_id)! })),
+    outputs: draft.outputs.map((output) => ({ output_id: output.output_id, node_id: output.node_id, unit_id: unitOf.get(output.output_id)! })),
     publication_units: units.map((unit) => ({ unit_id: unit.unit_id, kind: context.publication_unit_kind })),
     thresholds: draft.thresholds.map((threshold) => ({ ...threshold, attribution: context.threshold_attribution ?? { kind: "user_request", ref: context.origin.ref } })),
     limits: { ...DEFAULT_EXECUTION_LIMITS },
     presentation_template_version: "financial-answer.v1",
   };
-  const validated = validateFinancialPlan(plan);
+  const drafted = validateFinancialPlan(plan);
+  if (!drafted.ok) return { ok: false, kind: "invalid", issues: drafted.issues };
+  const validated = validateFinancialPlan({ ...plan, outputs: withFreeCashFlowInputs(drafted.value) });
   if (!validated.ok) return { ok: false, kind: "invalid", issues: validated.issues };
   const authorized = authorizePlan(validated.value, context.authority, context.parent_limits);
   if (!authorized.ok) {
     return { ok: false, kind: "unsupported", reason: authorized.issues.map((issue) => issue.code).join(", "), issues: authorized.issues };
   }
   const labels = new Map(members.map((member) => [member.slot_id, resolved.find((entry) => entry.ref.id === member.subject_ref.id)!.label]));
-  const withInterpretation = validateFinancialPlan({ ...plan, interpretation: interpretPlan(validated.value, labels) });
+  const withInterpretation = validateFinancialPlan({ ...validated.value, interpretation: interpretPlan(validated.value, labels) });
   return withInterpretation.ok ? withInterpretation : { ok: false, kind: "invalid", issues: withInterpretation.issues };
 }
 
 /**
- * The draft's outputs, with each free cash flow preceded by the two reported
- * values it subtracts when the draft did not publish them: the answer always
- * shows OCF and capex beside the result. An added output (`serves`) joins the
- * unit of the free cash flow it explains.
+ * The plan's outputs, each preceded by the OCF and capex of every free cash
+ * flow it depends on that its unit does not already publish: an answer that
+ * rests on free cash flow always shows the two values it subtracts.
  */
-function withFreeCashFlowInputs(draft: Draft): Array<{ output_id: string; node_id: string; serves?: string }> {
-  const published = new Set(draft.outputs.map((output) => output.node_id));
-  const ids = new Set(draft.outputs.map((output) => output.output_id));
-  return draft.outputs.flatMap((output) => {
-    const node = draft.operations.find((operation) => operation.node_id === output.node_id);
-    if (node?.operation !== "free_cash_flow") return [output];
-    const inputs = [node.operating_cash_flow, node.capex].flatMap((input) => {
-      if (typeof input !== "string" || published.has(input)) return [];
-      published.add(input);
-      let id = `${input}_input`;
-      while (ids.has(id)) id = `${id}_`;
-      ids.add(id);
-      return [{ output_id: id, node_id: input, serves: output.output_id }];
+function withFreeCashFlowInputs(plan: FinancialPlanV1): RequestedOutput[] {
+  const nodes = new Map(plan.operations.map((node) => [node.node_id, node]));
+  const published = new Set(plan.outputs.map((output) => `${output.unit_id}/${output.node_id}`));
+  const ids = new Set(plan.outputs.map((output) => output.output_id));
+  return plan.outputs.flatMap((output) => {
+    const inputs = [...dependencyClosure(plan, [output.node_id])].flatMap((nodeId) => {
+      const node = nodes.get(nodeId);
+      return node?.operation === "free_cash_flow" ? [node.operating_cash_flow, node.capex] : [];
     });
-    return [...inputs, output];
+    const added = inputs.flatMap((input) => {
+      if (published.has(`${output.unit_id}/${input}`)) return [];
+      published.add(`${output.unit_id}/${input}`);
+      const id = inputOutputId(input, ids);
+      ids.add(id);
+      return [{ output_id: id, node_id: input, unit_id: output.unit_id }];
+    });
+    return [...added, output];
   });
+}
+
+function inputOutputId(input: string, taken: ReadonlySet<string>): string {
+  for (let attempt = 1; ; attempt++) {
+    const suffix = attempt === 1 ? "_input" : `_input_${attempt}`;
+    const id = `${input.slice(0, 64 - suffix.length)}${suffix}`;
+    if (!taken.has(id)) return id;
+  }
 }
 
 function finish(plan: FinancialPlanV1, calls: number): PlanningResult {

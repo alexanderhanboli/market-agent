@@ -1,8 +1,10 @@
 // Certified annual free cash flow end to end (#211): reported operating cash
 // flow less PP&E cash capex, from facts SEC ingestion wrote, planned from a chat
 // turn and sealed by the independent verifier. Capex v1 is only
-// PaymentsToAcquirePropertyPlantAndEquipment; a filer tagging only
-// PaymentsToAcquireProductiveAssets gets a named gap, never a substitute.
+// PaymentsToAcquirePropertyPlantAndEquipment and OCF only the total
+// NetCashProvidedByUsedInOperatingActivities; a filer tagging only
+// PaymentsToAcquireProductiveAssets or the continuing-operations OCF gets a
+// named gap, never a substitute.
 
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -13,11 +15,11 @@ import { IDS } from "../../financial-engine/test/db-fixtures.ts";
 import { createSecBackedStatementRepository } from "../../fundamentals/src/sec-facts-repository.ts";
 import { secCompanyFetcher } from "../../fundamentals/test/fakes.ts";
 import { listChatMessagesForThread } from "../src/messages.ts";
-import { chatDatabase, chatHarness, completed, SEC_ISSUER, SEC_ISSUER_B } from "./financial-fixtures.ts";
+import { chatDatabase, chatHarness, completed, SEC_ISSUER, SEC_ISSUER_B, SEC_ISSUER_C } from "./financial-fixtures.ts";
 
 const FETCHED_AT = "2024-02-01T15:05:00.000Z";
 
-function companyFacts(cik: number, accession: string, capexConcept: string) {
+function companyFacts(cik: number, accession: string, capexConcept: string, ocfConcept: string) {
   const annual = (val: string) => ({ start: "2023-01-01", end: "2023-12-31", val: Number(val), val_token: val, accn: accession, fy: 2023, fp: "FY", form: "10-K", filed: "2024-01-10" });
   const q2YearToDate = (val: string) => ({ start: "2023-01-01", end: "2023-06-30", val: Number(val), val_token: val, accn: `${accession.slice(0, -1)}9`, fy: 2023, fp: "Q2", form: "10-Q", filed: "2023-08-01" });
   return {
@@ -26,7 +28,7 @@ function companyFacts(cik: number, accession: string, capexConcept: string) {
     facts: {
       "us-gaap": {
         Revenues: { label: "", description: "", units: { USD: [annual("500000000000")] } },
-        NetCashProvidedByUsedInOperatingActivities: { label: "", description: "", units: { USD: [annual("120000000000"), q2YearToDate("50000000000")] } },
+        [ocfConcept]: { label: "", description: "", units: { USD: [annual("120000000000"), q2YearToDate("50000000000")] } },
         [capexConcept]: { label: "", description: "", units: { USD: [annual("30000000000"), q2YearToDate("12000000000")] } },
       },
     },
@@ -65,10 +67,10 @@ test("certified annual free cash flow from SEC-ingested facts", { timeout: 300_0
       [randomUUID(), metricKey, name],
     );
   }
-  const ingest = async (issuerId: string, cik: number, accession: string, capexConcept: string) => {
+  const ingest = async (issuerId: string, cik: number, accession: string, capexConcept: string, ocfConcept = "NetCashProvidedByUsedInOperatingActivities") => {
     await db.query(`insert into issuers (issuer_id, legal_name, cik) values ($1, 'Example', $2)`, [issuerId, String(cik)]);
     const statements = createSecBackedStatementRepository(pool, {
-      fetcher: secCompanyFetcher(() => companyFacts(cik, accession, capexConcept), { completed_at: FETCHED_AT }),
+      fetcher: secCompanyFetcher(() => companyFacts(cik, accession, capexConcept, ocfConcept), { completed_at: FETCHED_AT }),
       sourceId: randomUUID(),
       logger: { warn: () => {} },
     });
@@ -76,6 +78,7 @@ test("certified annual free cash flow from SEC-ingested facts", { timeout: 300_0
   };
   await ingest(SEC_ISSUER, 320190, "0000320190-24-000010", "PaymentsToAcquirePropertyPlantAndEquipment");
   await ingest(SEC_ISSUER_B, 320191, "0000320191-24-000010", "PaymentsToAcquireProductiveAssets");
+  await ingest(SEC_ISSUER_C, 320192, "0000320192-24-000010", "PaymentsToAcquirePropertyPlantAndEquipment", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations");
 
   const ask = async (mention: string, fiscalYear = 2023) => {
     const done = completed((await chatHarness(pool, { model: freeCashFlowModel(mention, fiscalYear) })
@@ -118,6 +121,15 @@ test("certified annual free cash flow from SEC-ingested facts", { timeout: 300_0
       ["Free cash flow (OCF less PP&E cash capex)", "blocked_dependency", null],
     ]);
     assert.deepEqual(await bindings(), [{ input_slot: "capex", gap_reason: "context_unverified" }, { input_slot: "ocf", gap_reason: null }]);
+  });
+
+  await t.test("OCF tagged only for continuing operations is a named gap, and free cash flow is not computed (#335)", async () => {
+    assert.deepEqual((await ask("COX")).rows, [
+      ["Operating cash flow", "missing", null],
+      ["Capital expenditures (PP&E cash payments)", "verified", "USD 30000000000"],
+      ["Free cash flow (OCF less PP&E cash capex)", "blocked_dependency", null],
+    ]);
+    assert.deepEqual(await bindings(), [{ input_slot: "capex", gap_reason: null }, { input_slot: "ocf", gap_reason: "context_unverified" }]);
   });
 
   await t.test("a year with no filing is a named gap, never narrative arithmetic", async () => {

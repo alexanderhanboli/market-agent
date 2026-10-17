@@ -44,7 +44,7 @@ export function createThesisAdapter(db: QueryExecutor, getModel: () => Promise<T
           const result = await db.query<ThesisMetricOption>(`select distinct m.metric_key,m.display_name as label,f.unit,f.period_kind
       from facts f join metrics m on m.metric_id=f.metric_id join sources s on s.source_id=f.source_id
       where f.subject_kind='issuer' and f.subject_id=$1::uuid and f.value_num is not null
-       and f.invalidated_at is null and f.superseded_by is null and f.verification_status='authoritative'
+       and f.invalidated_at is null and f.superseded_by is null and f.method<>'restated' and f.verification_status='authoritative'
        and f.entitlement_channels ? 'app' and (s.user_id is null or s.user_id=$2::uuid)
        and f.period_kind in ('point','fiscal_q','fiscal_y','ttm')
       order by m.display_name,f.unit,f.period_kind limit 200`, [subject.id, userId]);

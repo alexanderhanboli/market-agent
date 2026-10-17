@@ -110,7 +110,9 @@ npm test         # contract + AAPL FY2024 income statement verification
   certified only from `PaymentsToAcquirePropertyPlantAndEquipment`;
   capex mapped from `PaymentsToAcquireProductiveAssets` still appears in
   statements but gets no context, since that concept adds purchased
-  intangibles.
+  intangibles. Operating cash flow is certified only from the total
+  `NetCashProvidedByUsedInOperatingActivities`, the scope capex covers;
+  the continuing-operations line gets no context.
 - A 10-K's comparative for an earlier year that differs from the
   previous filing's value for it, in filing-date order, is stored as a
   restatement: `method = 'restated'`, on the later filing's source,
@@ -121,7 +123,9 @@ npm test         # contract + AAPL FY2024 income statement verification
   not depend on which year was ingested first. An unchanged comparative,
   two different values in one filing, or an original without a recorded
   concept adds nothing. Readers of as-reported facts filter `method =
-  'reported'`, so they never see a restatement; only certified selection
+  'reported'`, or `method <> 'restated'` where they also read vendor and
+  derived facts (analyst grids, thesis evidence), so they never see a
+  restatement; only certified selection
   with `as_restated` picks it, taking the restatement filed last among
   those public at the cutoff.
 - Period selection, fiscal labels, scale, and unit are part of the

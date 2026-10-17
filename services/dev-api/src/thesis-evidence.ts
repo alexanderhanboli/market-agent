@@ -46,7 +46,7 @@ export async function loadThesisPacket(db: QueryExecutor, input: {
    from facts f join metrics m on m.metric_id=f.metric_id join sources s on s.source_id=f.source_id
    where f.subject_kind='issuer' and f.subject_id=$1::uuid and m.metric_key=requested.metric_key
     and f.unit=requested.unit and f.period_kind=requested.period_kind
-    and f.invalidated_at is null and f.superseded_by is null and f.value_num is not null
+    and f.invalidated_at is null and f.superseded_by is null and f.method<>'restated' and f.value_num is not null
     and f.value_num not in ('NaN'::numeric,'Infinity'::numeric,'-Infinity'::numeric)
     and f.verification_status='authoritative' and f.entitlement_channels ? 'app'
     and (f.period_kind='point' or (f.period_end is not null and f.period_end <= $3::timestamptz::date))

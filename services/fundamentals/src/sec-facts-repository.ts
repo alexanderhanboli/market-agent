@@ -863,10 +863,13 @@ const SEC_CONTEXT_VERSION = "sec_companyfacts_context.v1";
 
 // A metric mapped from several concepts is certified only from the reviewed
 // one: capex v1 is cash paid for PP&E, and PaymentsToAcquireProductiveAssets
-// (which some filers tag instead) adds purchased intangibles. Facts from the
-// other concepts stay readable in statements but get no context.
+// (which some filers tag instead) adds purchased intangibles. OCF is the total,
+// matching capex's scope; the continuing-operations line leaves out
+// discontinued operations. Facts from the other concepts stay readable in
+// statements but get no context.
 const SEC_CERTIFIED_CONCEPTS: Readonly<Record<string, string>> = {
   capex: "PaymentsToAcquirePropertyPlantAndEquipment",
+  operating_cash_flow: "NetCashProvidedByUsedInOperatingActivities",
 };
 
 // Selection takes every token from the filing whose own period it is, never

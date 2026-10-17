@@ -22,7 +22,7 @@ export const FACT_SUBJECT_KINDS = Object.freeze([
 ] as const);
 
 export const FACT_PERIOD_KINDS = Object.freeze(["point", "fiscal_q", "fiscal_y", "ttm", "range"] as const);
-export const FACT_METHODS = Object.freeze(["reported", "derived", "estimated", "vendor", "extracted"] as const);
+export const FACT_METHODS = Object.freeze(["reported", "derived", "estimated", "vendor", "extracted", "restated"] as const);
 export const FRESHNESS_CLASSES = Object.freeze(["real_time", "delayed_15m", "eod", "filing_time", "stale"] as const);
 export const COVERAGE_LEVELS = Object.freeze(["full", "partial", "sparse", "unavailable"] as const);
 export const FACT_REVIEW_STATUSES = Object.freeze(["queued", "reviewed", "dismissed"] as const);

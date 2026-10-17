@@ -48,6 +48,8 @@ export const METRIC_CATALOG_V1: ReadonlyMap<MetricKey, MetricDefinition> = new M
     metric("gross_profit", "Gross profit", "flow", "currency"),
     metric("operating_income", "Operating income", "flow", "currency"),
     metric("net_income", "Net income", "flow", "currency"),
+    // Including discontinued operations, like capex (SEC ingestion certifies
+    // only NetCashProvidedByUsedInOperatingActivities).
     metric("operating_cash_flow", "Operating cash flow", "flow", "currency"),
     // Cash paid for PP&E, reported as a nonnegative outflow (SEC ingestion
     // certifies only PaymentsToAcquirePropertyPlantAndEquipment).
