@@ -77,6 +77,9 @@ export type ChatSessionState = {
   // Runs on this thread the session saw end. A load read before one ended
   // still reports it as active_run, and must not bring it back.
   endedRuns: ReadonlyArray<string>
+  // Runs the last read listed in flight. The session follows one at a time,
+  // so when it ends the others still need a load to be seen.
+  inFlight: ReadonlyArray<string>
   // Across threads: survives thread.opened.
   released: ReadonlyArray<ReleasedRun>
   // Bumped by every thread.opened that changes the thread, but not by
@@ -122,6 +125,7 @@ export const INITIAL_CHAT_SESSION: ChatSessionState = {
   turn: IDLE,
   sealedTurns: 0,
   endedRuns: [],
+  inFlight: [],
   released: [],
   opens: 0,
 }
@@ -134,6 +138,7 @@ function openedSession(threadId: string | null, opens: number, released: Readonl
     turn: IDLE,
     sealedTurns: 0,
     endedRuns: [],
+  inFlight: [],
     released,
     opens,
   }
@@ -150,17 +155,18 @@ function releasedOnLeave(s: ChatSessionState): ReadonlyArray<ReleasedRun> {
 const ASKABLE_PHASES: ReadonlySet<TurnState['phase']> = new Set(['idle', 'not_sent', 'failed', 'unverified'])
 
 const reachedHere = (s: ChatSessionState) => s.released.some((r) => r.threadId === s.threadId && r.reached)
+const waiting = (s: ChatSessionState) => reachedHere(s) || s.inFlight.some((id) => !s.endedRuns.includes(id))
 const loadPending = (s: ChatSessionState) => s.history.requested > s.history.settled
 
 // Until the thread's first load lands, the server may have a run going on it;
 // while a load is due to reconcile a released run, that run may be in flight.
 function askable(s: ChatSessionState): boolean {
-  return ASKABLE_PHASES.has(s.turn.phase) && s.history.loaded.kind !== 'loading' && !(reachedHere(s) && loadPending(s))
+  return ASKABLE_PHASES.has(s.turn.phase) && s.history.loaded.kind !== 'loading' && !(waiting(s) && loadPending(s))
 }
 
 // Nothing follows a stream on this thread: a load reconciles the released runs that reached the server.
 function followUp(s: ChatSessionState): ChatSessionState {
-  if (s.threadId === null || !ASKABLE_PHASES.has(s.turn.phase) || !reachedHere(s) || loadPending(s)) return s
+  if (s.threadId === null || !ASKABLE_PHASES.has(s.turn.phase) || !waiting(s) || loadPending(s)) return s
   return { ...s, history: requestHistory(s.history) }
 }
 
@@ -268,7 +274,8 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
         local: s.history.local.filter((m) => !loadedIds.has(m.message_id)),
       }
       const read: Read = { ids: loadedIds, runs: a.runs }
-      return adopt(reconcileReleased(settled({ ...s, history }, read), read), a.activeRun)
+      const inFlight = a.runs.flatMap((entry) => (entry.status === 'in_flight' ? [entry.run.runId] : []))
+      return adopt(reconcileReleased(settled({ ...s, history, inFlight }, read), read), a.activeRun)
     }
 
     case 'history.failed': {

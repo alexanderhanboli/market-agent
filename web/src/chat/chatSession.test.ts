@@ -596,3 +596,28 @@ test('a released run that reached the server while the next question was saving 
   const notSent = reduceChatSession(reached, { type: 'ask.failed', error: 'HTTP 500' })
   assert.deepEqual([notSent.turn.phase, selectThreadView(notSent).needsLoad, selectThreadView(notSent).canAsk], ['not_sent', { threadId: 'T1', gen: 2 }, false])
 })
+
+test('after a followed run hands off, a load reconciles the next run the last read listed in flight', () => {
+  const U2 = message('u2', 'user', 'Compare with AMD')
+  const R2 = { runId: 'run-2', turnId: 'u2' }
+  const adopted = reduceChatSession(opened(), read(1, [U1, U2], [
+    { run: R1, status: 'in_flight' },
+    { run: R2, status: 'in_flight' },
+  ]))
+  assert.deepEqual(adopted.turn.phase === 'streaming' ? adopted.turn.run : null, R1)
+
+  const handedOff = run(adopted, [
+    streamEvent(sse('turn.started', 1)),
+    streamEvent(sse('turn.completed', 2, { message_id: 'a1', message: A1_SEALED })),
+  ])
+  assert.equal(handedOff.turn.phase, 'idle')
+  assert.deepEqual(selectThreadView(handedOff).needsLoad, { threadId: 'T1', gen: 2 })
+  assert.equal(selectThreadView(handedOff).canAsk, false)
+
+  const next = reduceChatSession(handedOff, read(2, [U1, A1_SEALED, U2], [
+    { run: R1, status: 'completed', messageId: 'a1' },
+    { run: R2, status: 'in_flight' },
+  ]))
+  assert.deepEqual(next.turn.phase === 'streaming' ? next.turn.run : null, R2)
+  assert.equal(selectThreadView(next).canAsk, false)
+})
