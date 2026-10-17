@@ -17,9 +17,9 @@ type PendingTurnViewProps = {
 
 const ACTION_BUTTON_CLASS = 'rounded-md border border-negative px-3 py-1.5 text-xs font-medium text-negative'
 
-// The turn that is not yet in the thread's history. Streaming, sealing, kept
-// and failed render through one tree, so React keeps the answer's DOM nodes
-// until the sealed MessageItem replaces it in the same commit.
+// The turn that is not yet in the thread's history. Streaming and failed
+// render through one tree, so React keeps the answer's DOM nodes until the
+// completion commit replaces them with the sealed MessageItem.
 export function PendingTurnView({ turn, backgroundRun, onRetry, onReload, onAsk }: PendingTurnViewProps): ReactElement | null {
   switch (turn.phase) {
     case 'idle':
@@ -50,24 +50,13 @@ export function PendingTurnView({ turn, backgroundRun, onRetry, onReload, onAsk 
     case 'unverified':
       return turn.stream.unverified ? <UnverifiedTurnView state={turn.stream} unverified={turn.stream.unverified} /> : null
     case 'streaming':
-    case 'sealing':
       return <StreamedTurn phase={turn.phase} stream={turn.stream} />
-    case 'kept':
-      return (
-        <StreamedTurn phase={turn.phase} stream={turn.stream}>
-          <TurnNotice
-            message={turn.reason === 'history_failed'
-              ? "Couldn't load the saved copy of this answer."
-              : "The saved copy of this answer isn't in the thread yet."}
-            action="Reload"
-            onAction={onReload}
-          />
-        </StreamedTurn>
-      )
     case 'failed':
       return (
         <StreamedTurn phase={turn.phase} stream={turn.stream}>
-          <TurnNotice message={turn.error} action="Retry stream" onAction={onRetry} />
+          {turn.recovery === 'retry_stream'
+            ? <TurnNotice message={turn.error} action="Retry stream" onAction={onRetry} />
+            : <TurnNotice message={turn.error} action="Reload thread" onAction={onReload} />}
         </StreamedTurn>
       )
   }

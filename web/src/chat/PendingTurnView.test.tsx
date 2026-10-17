@@ -47,7 +47,6 @@ test('PendingTurnView renders the agent plan panel above streamed blocks', () =>
         status: 'waiting',
       },
     ],
-    completed_message_id: null,
     error: null,
   }
 
@@ -77,7 +76,6 @@ test('PendingTurnView shows an unverified turn with a per-block label and collap
     blocks_by_id: new Map(),
     block_order: [],
     plan_steps: [],
-    completed_message_id: null,
     error: null,
     unverified: {
       failures: [{ reason_code: 'missing_fact_ref', details: { fact_id: 'f-1' } }],
@@ -100,35 +98,33 @@ test('PendingTurnView shows an unverified turn with a per-block label and collap
   assert.match(html, /missing_fact_ref/)
 })
 
-const COMPLETED_STREAM: StreamState = {
-  turn_status: 'completed',
+const STREAMED: StreamState = {
+  turn_status: 'unsealed',
   blocks_by_id: new Map([
     ['b1', { block_id: 'b1', kind: 'rich_text', status: 'completed', segments: [{ type: 'text', text: "NVIDIA's revenue rose" }] }],
   ]),
   block_order: ['b1'],
   plan_steps: [],
-  completed_message_id: 'a1',
-  error: null,
+  message_id: 'a1',
+  error: 'turn.completed carried no valid sealed message',
 }
 
-test('PendingTurnView keeps rendering the streamed blocks while the turn is sealing', () => {
-  const html = renderToStaticMarkup(
-    <PendingTurnView turn={{ phase: 'sealing', turn: TURN, stream: COMPLETED_STREAM, sealedId: 'a1' }} {...handlers} />,
+test('a failed stream offers Retry stream; a turn whose sealed copy never arrived offers only Reload thread', () => {
+  const retry = renderToStaticMarkup(
+    <PendingTurnView turn={{ phase: 'failed', turn: TURN, stream: STREAMED, error: 'The analyst stream disconnected.', recovery: 'retry_stream' }} {...handlers} />,
   )
-  assert.match(html, /data-turn-status="sealing"/)
-  assert.match(html, /NVIDIA&#x27;s revenue rose/)
-})
+  assert.match(retry, /NVIDIA&#x27;s revenue rose/)
+  assert.match(retry, /The analyst stream disconnected\./)
+  assert.match(retry, />Retry stream<\/button>/)
+  assert.doesNotMatch(retry, /Reload thread/)
 
-test('PendingTurnView offers Reload when the sealed copy could not be loaded', () => {
-  const html = renderToStaticMarkup(
-    <PendingTurnView
-      turn={{ phase: 'kept', turn: TURN, stream: COMPLETED_STREAM, sealedId: 'a1', reason: 'history_failed' }}
-      {...handlers}
-    />,
+  const reload = renderToStaticMarkup(
+    <PendingTurnView turn={{ phase: 'failed', turn: TURN, stream: STREAMED, error: "Couldn't show the saved copy of this answer.", recovery: 'reload_thread', messageId: 'a1' }} {...handlers} />,
   )
-  assert.match(html, /NVIDIA&#x27;s revenue rose/)
-  assert.match(html, /Couldn&#x27;t load the saved copy of this answer\./)
-  assert.match(html, />Reload<\/button>/)
+  assert.match(reload, /NVIDIA&#x27;s revenue rose/)
+  assert.match(reload, /Couldn&#x27;t show the saved copy of this answer\./)
+  assert.match(reload, />Reload thread<\/button>/)
+  assert.doesNotMatch(reload, /Retry stream/)
 })
 
 test('PendingTurnView shows the optimistic question while it is being saved', () => {

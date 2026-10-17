@@ -213,7 +213,7 @@ export function useChatSession({ userId, threadId, navigate, onThreadCreated }: 
 
   const retry = useCallback(() => {
     const current = store.getState()
-    if (current.turn.phase !== 'failed' || current.threadId === null) return
+    if (current.turn.phase !== 'failed' || current.turn.recovery !== 'retry_stream' || current.threadId === null) return
     const { turn } = current.turn
     store.dispatch({ type: 'stream.reopened' })
     streams.open(streams.claim(current.threadId, turn.runId), { threadId: current.threadId, turn, userId, attached: true })

@@ -19,6 +19,22 @@ function event(type: ChatSseEvent['type'], seq: number, payload: Record<string, 
   return { type, seq, ...BASE_FIELDS, ...payload }
 }
 
+const SEALED = {
+  message_id: 'msg-1',
+  thread_id: 'thread-1',
+  role: 'assistant',
+  snapshot_id: 'snap-1',
+  blocks: [{ id: 'b1', kind: 'rich_text', segments: [{ type: 'text', text: 'hello' }] }],
+  content_hash: 'sha256:msg-1',
+  created_at: '2026-05-06T00:00:00.000Z',
+  answered_by: 'fixture/recorded',
+  block_proofs: { b1: { evidence: 'unknown', calculation: 'not_verified', public_by_cutoff: 'unknown' } },
+}
+
+function completed(seq: number, payload: Record<string, unknown> = {}): ChatSseEvent {
+  return event('turn.completed', seq, { message_id: 'msg-1', message: SEALED, ...payload })
+}
+
 test('INITIAL_STREAM_STATE is idle with no blocks', () => {
   assert.equal(INITIAL_STREAM_STATE.turn_status, 'idle')
   assert.equal(INITIAL_STREAM_STATE.blocks_by_id.size, 0)
@@ -30,8 +46,8 @@ test('turn.started resets the state to a fresh started turn', () => {
   // Carry-over from a previous turn's state must not leak.
   let state: StreamState = INITIAL_STREAM_STATE
   state = applyChatStreamEvent(state, event('block.began', 1, { block_id: 'b1', kind: 'rich_text' }))
-  state = applyChatStreamEvent(state, event('turn.completed', 2, { message_id: 'm1' }))
-  assert.equal(state.completed_message_id, 'm1')
+  state = applyChatStreamEvent(state, completed(2))
+  assert.equal(state.turn_status === 'completed' ? state.sealed.message_id : null, 'msg-1')
 
   state = applyChatStreamEvent(state, event('turn.started', 3))
   assert.equal(state.turn_status, 'started')
@@ -41,7 +57,7 @@ test('turn.started resets the state to a fresh started turn', () => {
     ['Planner', 'running'],
     ['Composer', 'waiting'],
   ])
-  assert.equal(state.completed_message_id, null)
+  assert.equal('sealed' in state, false)
   assert.equal(state.error, null)
 })
 
@@ -211,52 +227,80 @@ test('block.completed for an unknown block_id is a no-op', () => {
   assert.equal(state, INITIAL_STREAM_STATE)
 })
 
-test('turn.completed captures message_id; turn.error captures error', () => {
+test('turn.completed captures the sealed message; turn.error captures error', () => {
   let state: StreamState = INITIAL_STREAM_STATE
-  state = applyChatStreamEvent(state, event('turn.completed', 1, { message_id: 'msg-1' }))
+  state = applyChatStreamEvent(state, completed(1))
   assert.equal(state.turn_status, 'completed')
-  assert.equal(state.completed_message_id, 'msg-1')
+  assert.deepEqual(state.sealed, {
+    message_id: 'msg-1',
+    thread_id: 'thread-1',
+    role: 'assistant',
+    snapshot_id: 'snap-1',
+    blocks: [{ id: 'b1', kind: 'rich_text', segments: [{ type: 'text', text: 'hello' }] }],
+    content_hash: 'sha256:msg-1',
+    created_at: '2026-05-06T00:00:00.000Z',
+    answered_by: 'fixture/recorded',
+    block_proofs: { b1: { evidence: 'unknown', calculation: 'not_verified', public_by_cutoff: 'unknown' } },
+  })
 
   state = applyChatStreamEvent(INITIAL_STREAM_STATE, event('turn.error', 2, { error: 'rate_limited' }))
   assert.equal(state.turn_status, 'error')
   assert.equal(state.error, 'rate_limited')
 })
 
-test('turn.completed keeps block_order ["b1"] and sets completed_message_id "msg-1"', () => {
+test('turn.completed keeps block_order ["b1"] and holds the sealed message "msg-1"', () => {
   let state: StreamState = INITIAL_STREAM_STATE
   state = applyChatStreamEvent(state, event('block.began', 1, { block_id: 'b1', kind: 'rich_text' }))
   state = applyChatStreamEvent(state, event('block.delta', 2, {
     block_id: 'b1',
     delta: { segment: { type: 'text', text: 'hello' } },
   }))
-  state = applyChatStreamEvent(state, event('turn.completed', 3, { message_id: 'msg-1' }))
+  state = applyChatStreamEvent(state, completed(3))
 
   assert.equal(state.turn_status, 'completed')
   assert.deepEqual(state.block_order, ['b1'])
   assert.deepEqual((state.blocks_by_id.get('b1') as StreamingRichTextBlock).segments, [{ type: 'text', text: 'hello' }])
-  assert.equal(state.completed_message_id, 'msg-1')
+  assert.equal(state.turn_status === 'completed' ? state.sealed.message_id : null, 'msg-1')
 })
 
-test('turn.completed without a message_id flips to error and preserves the streaming graph (does not silently delete the assistant response)', () => {
-  // Without a real message_id, the parent has nothing to fetch. Clearing
-  // blocks_by_id would unmount StreamingTurnView and the user would see the
-  // assistant response disappear with no recovery path. Instead, treat the
-  // missing-id case as a stream error and keep the in-flight blocks visible.
+test('a completion without a valid sealed message is unsealed and keeps the streamed graph', () => {
   let state: StreamState = INITIAL_STREAM_STATE
   state = applyChatStreamEvent(state, event('block.began', 1, { block_id: 'b1', kind: 'rich_text' }))
   state = applyChatStreamEvent(state, event('block.delta', 2, {
     block_id: 'b1',
     delta: { segment: { type: 'text', text: 'partial' } },
   }))
-  for (const malformed of [{}, { message_id: '' }, { message_id: '   ' }, { message_id: 42 }]) {
-    const after = applyChatStreamEvent(state, event('turn.completed', 3, malformed))
-    assert.equal(after.turn_status, 'error', `${JSON.stringify(malformed)}: expected error status`)
-    assert.equal(after.completed_message_id, null)
-    assert.equal(after.blocks_by_id.size, 1, `${JSON.stringify(malformed)}: streaming graph must stay visible`)
-    assert.deepEqual(after.block_order, ['b1'])
-    assert.equal(after.plan_steps.find((step) => step.step_id === 'composer')?.status, 'error')
-    assert.match(after.error ?? '', /message_id/)
+  const malformed: Record<string, Record<string, unknown>> = {
+    'no message': { message: undefined },
+    'no message_id': { message_id: undefined },
+    'another message id': { message_id: 'msg-2' },
+    'another thread': { message: { ...SEALED, thread_id: 'thread-2' } },
+    'a user message': { message: { ...SEALED, role: 'user' } },
+    'no block_proofs': { message: { ...SEALED, block_proofs: undefined } },
+    'block_proofs an array': { message: { ...SEALED, block_proofs: [] } },
+    'a proof value outside its enum': { message: { ...SEALED, block_proofs: { b1: { ...SEALED.block_proofs.b1, evidence: 'maybe' } } } },
+    'a block without an id': { message: { ...SEALED, blocks: [{ kind: 'rich_text' }] } },
+    'blocks not an array': { message: { ...SEALED, blocks: {} } },
+    'no created_at': { message: { ...SEALED, created_at: 7 } },
   }
+  for (const [name, payload] of Object.entries(malformed)) {
+    const after = applyChatStreamEvent(state, completed(3, payload))
+    assert.equal(after.turn_status, 'unsealed', name)
+    assert.equal('sealed' in after, false, name)
+    assert.equal(after.error, 'turn.completed carried no valid sealed message', name)
+    assert.deepEqual(after.block_order, ['b1'], `${name}: the streamed graph stays`)
+    assert.equal(after.plan_steps.find((step) => step.step_id === 'composer')?.status, 'error', name)
+  }
+  const unsealedIds = Object.fromEntries(Object.entries(malformed).slice(0, 4).map(([name, payload]) => {
+    const after = applyChatStreamEvent(state, completed(3, payload))
+    return [name, after.turn_status === 'unsealed' ? after.message_id : 'not unsealed']
+  }))
+  assert.deepEqual(unsealedIds, {
+    'no message': 'msg-1',
+    'no message_id': null,
+    'another message id': 'msg-2',
+    'another thread': 'msg-1',
+  })
 })
 
 test('turn.error mid-stream preserves partial blocks for the inline error notice', () => {
@@ -334,7 +378,7 @@ test('turn.completed followed by turn.error flips status to error (terminal-afte
   // Both are terminal events on the wire. The reducer takes the last word so
   // an error that arrives after a completed signal isn't lost.
   let state: StreamState = INITIAL_STREAM_STATE
-  state = applyChatStreamEvent(state, event('turn.completed', 1, { message_id: 'msg-1' }))
+  state = applyChatStreamEvent(state, completed(1))
   assert.equal(state.turn_status, 'completed')
   state = applyChatStreamEvent(state, event('turn.error', 2, { error: 'late_failure' }))
   assert.equal(state.turn_status, 'error')
@@ -415,9 +459,9 @@ test('multi-block sequence preserves block_order and per-block segments through 
   assert.equal(b2?.status, 'completed')
   assert.equal(state.turn_status, 'started')
 
-  state = applyChatStreamEvent(state, event('turn.completed', 8, { message_id: 'msg-1' }))
+  state = applyChatStreamEvent(state, completed(8))
   assert.equal(state.turn_status, 'completed')
-  assert.equal(state.completed_message_id, 'msg-1')
+  assert.equal(state.turn_status === 'completed' ? state.sealed.message_id : null, 'msg-1')
 })
 
 const UNVERIFIED_BLOCK = {
@@ -436,7 +480,7 @@ test('turn.completed with unverified keeps the blocks and reasons instead of wai
   }))
 
   assert.equal(next.turn_status, 'unverified')
-  assert.equal(next.completed_message_id, null)
+  assert.equal('sealed' in next, false)
   assert.equal(next.error, null)
   assert.deepEqual(next.unverified, { failures: [{ reason_code: 'missing_fact_ref' }], blocks: [UNVERIFIED_BLOCK] })
 })

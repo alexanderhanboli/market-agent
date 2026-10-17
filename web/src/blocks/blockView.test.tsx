@@ -69,6 +69,76 @@ test("BlockView opens local block metadata in the evidence inspector", async () 
   }
 });
 
+function richText(segments?: RichTextBlock["segments"]): RichTextBlock {
+  const block = {
+    id: "rich-text-1",
+    kind: "rich_text",
+    snapshot_id: SNAPSHOT_ID,
+    data_ref: { kind: "rich_text", id: "rich-text-1" },
+    source_refs: [],
+    as_of: "2026-05-29T00:00:00.000Z",
+    ...(segments === undefined ? {} : { segments }),
+  };
+  return block as RichTextBlock;
+}
+
+async function renderBlocks() {
+  const dom = new JSDOM("<!doctype html><html><body><div id=\"root\"></div></body></html>");
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window);
+  const container = dom.window.document.getElementById("root")!;
+  const root = createRoot(container);
+  const render = (block: RichTextBlock) =>
+    act(async () => {
+      root.render(
+        <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
+          <BlockView block={block} />
+        </BlockRegistryProvider>,
+      );
+    });
+  const notice = () => container.querySelector('[data-testid="block-render-failed"]')?.textContent ?? null;
+  const cleanup = async () => {
+    await act(async () => root.unmount());
+    restoreGlobals();
+  };
+  return { container, render, notice, cleanup };
+}
+
+test("a block that failed to render shows its corrected copy under the same id, and the notice goes", async () => {
+  const originalError = console.error;
+  console.error = () => undefined;
+  const view = await renderBlocks();
+  try {
+    await view.render(richText());
+    assert.equal(view.notice(), "This part of the answer couldn't be displayed.");
+
+    await view.render(richText([{ type: "text", text: "Revenue improved." }]));
+    assert.equal(view.notice(), null);
+    assert.equal(view.container.textContent, "Revenue improved.");
+  } finally {
+    console.error = originalError;
+    await view.cleanup();
+  }
+});
+
+test("a rendered block keeps its DOM across re-renders with the same block or an updated one", async () => {
+  const view = await renderBlocks();
+  try {
+    const block = richText([{ type: "text", text: "Revenue" }]);
+    await view.render(block);
+    const node = view.container.firstElementChild;
+    assert.notEqual(node, null);
+
+    await view.render(block);
+    assert.equal(view.container.firstElementChild, node);
+
+    await view.render(richText([{ type: "text", text: "Revenue improved." }]));
+    assert.equal(view.container.firstElementChild, node);
+    assert.equal(view.container.textContent, "Revenue improved.");
+  } finally {
+    await view.cleanup();
+  }
+});
+
 function installDomGlobals(domWindow: Window): () => void {
   const globals = globalThis as unknown as {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
