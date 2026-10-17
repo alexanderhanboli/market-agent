@@ -21,7 +21,7 @@ import {
 import { appendRunEvent } from "./events-repo.ts";
 import { fencedTransaction, type FencedTx, type RunLease } from "./lease.ts";
 import type { FinancialEvidencePort, InputCandidate, SqlExecutor } from "./ports.ts";
-import { SELECTION_POLICY_VERSION, selectInput, type SelectedInput } from "./select-inputs.ts";
+import { SELECTION_POLICY_VERSION, selectInput, sharedLatestPeriods, type PeriodKey, type SelectedInput, type SelectionPolicy } from "./select-inputs.ts";
 
 export type InputBinding =
   | {
@@ -37,6 +37,11 @@ export type InputBinding =
 export type BindingResult = { run_id: string; reused: boolean; bindings: ReadonlyMap<LocalId, InputBinding> };
 
 type SlotOutcome = { binding: InputBinding; candidate_count: number; truncated: boolean };
+
+/** One slot's candidate page, or the gap its read already is. */
+type SlotRead =
+  | { node: ReportedMetricNode; status: "read"; candidates: ReadonlyArray<InputCandidate>; truncated: boolean }
+  | { node: ReportedMetricNode; status: "gap"; reason_code: ReasonCode };
 
 export async function bindPlanInputs(input: {
   client: SqlExecutor;
@@ -57,14 +62,27 @@ export async function bindPlanInputs(input: {
     if (existing.size > 0) return { run_id: runId, reused: true, bindings: existing };
 
     const evidence = input.evidence(tx.client);
-    const bindings = new Map<LocalId, InputBinding>();
+    // Every page is read before any slot is selected: "latest" is one period per
+    // subject across the plan's latest nodes, so no node can resolve alone.
+    const reads: SlotRead[] = [];
     let candidateBudget = plan.limits.max_input_candidates;
     for (const node of plan.operations) {
       if (node.operation !== "reported_metric") continue;
-      const outcome = await bindSlot(tx, node, { plan, authority, evidence, candidate_budget: candidateBudget });
-      candidateBudget -= outcome.candidate_count;
+      const read = await readSlot(tx, node, { authority, evidence, plan, candidate_budget: candidateBudget });
+      if (read.status === "read") candidateBudget -= read.candidates.length;
+      reads.push(read);
+    }
+    const policy: SelectionPolicy = {
+      knowledge_cutoff: plan.time.knowledge_cutoff,
+      reporting_basis: plan.policies.reporting_basis,
+      max_age_days: plan.policies.freshness.max_age_days,
+    };
+    const latest = sharedLatestPeriods(reads.flatMap((read) => (read.status === "read" && !read.truncated ? [read] : [])), policy);
+    const bindings = new Map<LocalId, InputBinding>();
+    for (const read of reads) {
+      const outcome = selectSlot(read, plan, policy, latest.get(read.node.node_id) ?? null);
       await persistBinding(tx.client, runId, outcome);
-      bindings.set(node.node_id, outcome.binding);
+      bindings.set(read.node.node_id, outcome.binding);
     }
     await tx.client.query(`update financial_runs set bound_at = now(), updated_at = now() where run_id = $1`, [runId]);
     const boundCount = [...bindings.values()].filter((binding) => binding.status === "bound").length;
@@ -74,24 +92,17 @@ export async function bindPlanInputs(input: {
 }
 
 /**
- * Reads and selects one slot's evidence. A failed read is an execution-error
- * gap for this slot, never absent evidence; the savepoint keeps the binding
- * transaction usable after a database error.
+ * Reads one slot's evidence. A failed read is an execution-error gap for this
+ * slot, never absent evidence; the savepoint keeps the binding transaction
+ * usable after a database error.
  */
-async function bindSlot(
+async function readSlot(
   { client }: FencedTx,
   node: ReportedMetricNode,
   context: { plan: FinancialPlanV1; authority: FinancialRuntimeAuthority; evidence: FinancialEvidencePort; candidate_budget: number },
-): Promise<SlotOutcome> {
-  const { plan } = context;
-  const gapOutcome = (reason: ReasonCode): SlotOutcome => ({
-    binding: { slot: node.node_id, status: "gap", reason_code: reason, candidate_set_digest: candidateSetDigest(node.node_id, [], false) },
-    candidate_count: 0,
-    truncated: false,
-  });
-  if (context.candidate_budget <= 0) return gapOutcome("scope_limit_exceeded");
-
-  const slot = plan.subjects.members.find((member) => member.slot_id === node.subject_slot)!;
+): Promise<SlotRead> {
+  if (context.candidate_budget <= 0) return { node, status: "gap", reason_code: "scope_limit_exceeded" };
+  const slot = subjectSlot(context.plan, node);
   await client.query("savepoint evidence_read");
   const page = await context.evidence.listInputCandidates({
     authority: context.authority,
@@ -103,23 +114,34 @@ async function bindSlot(
   });
   if (page.status === "error") {
     await client.query("rollback to savepoint evidence_read");
-    return gapOutcome(page.reason_code);
+    return { node, status: "gap", reason_code: page.reason_code };
   }
   await client.query("release savepoint evidence_read");
+  return { node, status: "read", candidates: page.candidates, truncated: page.truncated };
+}
 
-  const selection = selectInput(node, page.candidates, {
-    knowledge_cutoff: plan.time.knowledge_cutoff,
-    reporting_basis: plan.policies.reporting_basis,
-    max_age_days: plan.policies.freshness.max_age_days,
-  }, { truncated: page.truncated });
-  const digest = candidateSetDigest(node.node_id, page.candidates, page.truncated);
+function selectSlot(read: SlotRead, plan: FinancialPlanV1, policy: SelectionPolicy, latestPeriod: PeriodKey | null): SlotOutcome {
+  const { node } = read;
+  if (read.status === "gap") {
+    return {
+      binding: { slot: node.node_id, status: "gap", reason_code: read.reason_code, candidate_set_digest: candidateSetDigest(node.node_id, [], false) },
+      candidate_count: 0,
+      truncated: false,
+    };
+  }
+  const selection = selectInput(node, read.candidates, policy, { truncated: read.truncated }, latestPeriod);
+  const digest = candidateSetDigest(node.node_id, read.candidates, read.truncated);
   return {
     binding: selection.status === "selected"
-      ? boundBinding(node, slot, plan, selection.input, digest)
+      ? boundBinding(node, subjectSlot(plan, node), plan, selection.input, digest)
       : { slot: node.node_id, status: "gap", reason_code: selection.reason_code, candidate_set_digest: digest },
-    candidate_count: page.candidates.length,
-    truncated: page.truncated,
+    candidate_count: read.candidates.length,
+    truncated: read.truncated,
   };
+}
+
+function subjectSlot(plan: FinancialPlanV1, node: ReportedMetricNode): SubjectSlot {
+  return plan.subjects.members.find((member) => member.slot_id === node.subject_slot)!;
 }
 
 /** Digest of the authorized candidates seen for a slot: facts and the proofs attached to them. */

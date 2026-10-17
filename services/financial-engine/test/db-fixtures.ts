@@ -331,34 +331,49 @@ export async function completedRun(
 /** Issuer A's FY2023 cash-resilience inputs (#210), certified like the seeded revenue: flows over the year, balances at its end. */
 export const CASH_RESILIENCE_VALUES = { operating_cash_flow: "120", net_income: "100", total_liabilities: "300", total_assets: "600", total_equity: "200" } as const;
 
-export async function seedCashResilience(db: Client, values: Partial<Record<keyof typeof CASH_RESILIENCE_VALUES, string>> = {}): Promise<void> {
-  const balances = new Set(["total_liabilities", "total_assets", "total_equity"]);
+export type CashResilienceMetric = keyof typeof CASH_RESILIENCE_VALUES;
+
+/** Seeds issuer A's cash-resilience inputs; `years` moves an input to another fiscal year, `subject` to another issuer. */
+export async function seedCashResilience(
+  db: Client,
+  values: Partial<Record<CashResilienceMetric, string>> = {},
+  options: { subject?: string; years?: Partial<Record<CashResilienceMetric, number>> } = {},
+): Promise<void> {
   for (const [metricKey, fallback] of Object.entries(CASH_RESILIENCE_VALUES)) {
-    const value = values[metricKey as keyof typeof CASH_RESILIENCE_VALUES] ?? fallback;
-    const instant = balances.has(metricKey);
-    const metricId = (await db.query<{ metric_id: string }>(
-      `insert into metrics (metric_id, metric_key, display_name, unit_class, aggregation, interpretation, canonical_source_class)
-       values (gen_random_uuid(), $1, $1, 'currency', $2, 'neutral', 'gaap')
-       on conflict (metric_key) do update set metric_key = excluded.metric_key
-       returning metric_id::text`,
-      [metricKey, instant ? "point_in_time" : "sum"],
-    )).rows[0]!.metric_id;
-    const factId = (await db.query<{ fact_id: string }>(
-      `insert into facts (subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
-                          value_num, unit, currency, scale, as_of, reported_at, observed_at, source_id, method, verification_status,
-                          freshness_class, coverage_level, confidence)
-       values ('issuer', $1, $2, 'fiscal_y', $3, '2023-12-31', 2023, 'FY', $4, 'currency', 'USD', 1,
-               '2024-02-01T00:00:00Z', '2024-01-10T00:00:00Z', '2024-02-01T00:00:00Z', $5, 'reported', 'authoritative', 'filing_time', 'full', 1)
-       returning fact_id::text`,
-      [IDS.issuerA, metricId, instant ? null : "2023-01-01", value, IDS.sourceV1],
-    )).rows[0]!.fact_id;
-    await recordFactPrecisionAttestation(db, {
-      fact_id: factId, precision_class: "source_token_preserved", raw_token: value, token_proof_hash: HASH.proof, source_locator: `locator:${factId}`, validation_method: "fixture",
-    });
-    await recordFactFinancialContext(db, {
-      fact_id: factId, context_version: "context.v1", period_type: instant ? "instant" : "duration", dimension_scope: "consolidated", dimension_members: [],
-      reporting_basis: "as_reported", adjustment_basis: "unadjusted", share_basis: "not_applicable", fiscal_calendar_version: "fiscal-calendar.v1",
-      disclosure_relation: "original", source_context_ref: null,
-    });
+    const metric = metricKey as CashResilienceMetric;
+    await seedReportedFact(db, { metric_key: metric, value: values[metric] ?? fallback, fiscal_year: options.years?.[metric] ?? 2023, subject: options.subject });
   }
+}
+
+const BALANCES = new Set(["total_liabilities", "total_assets", "total_equity"]);
+
+/** One certified FY fact from the public v1 filing: a balance at year end, any other metric over the year. */
+export async function seedReportedFact(db: Client, fact: { metric_key: string; value: string; fiscal_year: number; subject?: string }): Promise<string> {
+  const { metric_key: metricKey, value, fiscal_year: year } = fact;
+  const instant = BALANCES.has(metricKey);
+  const metricId = (await db.query<{ metric_id: string }>(
+    `insert into metrics (metric_id, metric_key, display_name, unit_class, aggregation, interpretation, canonical_source_class)
+     values (gen_random_uuid(), $1, $1, 'currency', $2, 'neutral', 'gaap')
+     on conflict (metric_key) do update set metric_key = excluded.metric_key
+     returning metric_id::text`,
+    [metricKey, instant ? "point_in_time" : "sum"],
+  )).rows[0]!.metric_id;
+  const factId = (await db.query<{ fact_id: string }>(
+    `insert into facts (subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+                        value_num, unit, currency, scale, as_of, reported_at, observed_at, source_id, method, verification_status,
+                        freshness_class, coverage_level, confidence)
+     values ('issuer', $1, $2, 'fiscal_y', $3, $4, $5, 'FY', $6, 'currency', 'USD', 1,
+             '2024-02-01T00:00:00Z', '2024-01-10T00:00:00Z', '2024-02-01T00:00:00Z', $7, 'reported', 'authoritative', 'filing_time', 'full', 1)
+     returning fact_id::text`,
+    [fact.subject ?? IDS.issuerA, metricId, instant ? null : `${year}-01-01`, `${year}-12-31`, year, value, IDS.sourceV1],
+  )).rows[0]!.fact_id;
+  await recordFactPrecisionAttestation(db, {
+    fact_id: factId, precision_class: "source_token_preserved", raw_token: value, token_proof_hash: HASH.proof, source_locator: `locator:${factId}`, validation_method: "fixture",
+  });
+  await recordFactFinancialContext(db, {
+    fact_id: factId, context_version: "context.v1", period_type: instant ? "instant" : "duration", dimension_scope: "consolidated", dimension_members: [],
+    reporting_basis: "as_reported", adjustment_basis: "unadjusted", share_basis: "not_applicable", fiscal_calendar_version: "fiscal-calendar.v1",
+    disclosure_relation: "original", source_context_ref: null,
+  });
+  return factId;
 }

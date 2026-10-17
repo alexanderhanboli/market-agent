@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ReportedMetricNode } from "../../financial-core/src/index.ts";
 import type { InputCandidate } from "../src/ports.ts";
-import { selectInput, type SelectionPolicy } from "../src/select-inputs.ts";
+import { selectInput, sharedLatestPeriods, type SelectionPolicy } from "../src/select-inputs.ts";
 
 let counter = 0;
 const HASH = "a".repeat(64);
@@ -185,6 +185,29 @@ test("latest resolves at the cutoff, with offsets for prior periods", () => {
   assert.equal(selectedId(selectInput({ ...latest, period: { kind: "latest", period_type: "annual", offset: 1 } }, [fy2022, fy2023, fy2024], policy())), fy2022.fact_id);
   assert.equal(gapReason(selectInput({ ...latest, period: { kind: "latest", period_type: "annual", offset: 2 } }, [fy2022, fy2023, fy2024], policy())), "missing_input");
   assert.equal(gapReason(selectInput({ ...latest, period: { kind: "latest", period_type: "quarterly", offset: 0 } }, [fy2023], policy())), "missing_input");
+});
+
+test("a plan's latest nodes name one period per subject: the newest any of them has eligible (#344)", () => {
+  const latest = (nodeId: string, metric: string, slot = "a"): ReportedMetricNode => ({ ...FY2023, node_id: nodeId, subject_slot: slot, metric_key: metric, period: { kind: "latest", period_type: "annual", offset: 0 } });
+  const as = (metric: string, spec: CandidateSpec) => ({ ...candidate(spec), metric_key: metric });
+  const revenue = latest("a_rev", "revenue");
+  const grossProfit = latest("a_gp", "gross_profit");
+  const unproven = latest("a_oi", "operating_income");
+  const peer = latest("b_rev", "revenue", "b");
+  const slots = [
+    { node: revenue, candidates: [as("revenue", { year: 2023 }), as("revenue", { year: 2024, publishedLocalDate: "2025-01-10" })] },
+    { node: grossProfit, candidates: [as("gross_profit", { year: 2022, value: "40" })] },
+    { node: unproven, candidates: [as("operating_income", { year: 2022 }), as("operating_income", { year: 2023, precision: null })] },
+    { node: peer, candidates: [as("revenue", { year: 2022, value: "7" })] },
+  ];
+  const periods = sharedLatestPeriods(slots, policy());
+  const select = (index: number) => selectInput(slots[index]!.node, slots[index]!.candidates, policy(), { truncated: false }, periods.get(slots[index]!.node.node_id)!);
+
+  assert.equal(selectedId(select(0)), slots[0]!.candidates[0]!.fact_id, "FY2024 was not public at the cutoff, so FY2023 is the latest");
+  assert.equal(gapReason(select(1)), "missing_input", "FY2022 gross profit is not the latest fiscal year");
+  assert.equal(gapReason(select(2)), "precision_unverified", "the latest year's candidate exists but is unproven; the FY2022 one is not substituted");
+  assert.equal(selectedId(select(3)), slots[3]!.candidates[0]!.fact_id, "another subject keeps its own latest year");
+  assert.equal(periods.get("a_gp"), periods.get("a_rev"));
 });
 
 test("freshness is evaluated at the cutoff", () => {
