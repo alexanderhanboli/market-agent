@@ -193,12 +193,19 @@ function disclosureLevel(candidate: InputCandidate, all: ReadonlyArray<InputCand
   return target ? disclosureLevel(target, all, new Set([...seen, candidate.fact_id])) : "original";
 }
 
+/** An extraction correction is filed when the disclosure it corrects was, as its level is that disclosure's. */
+function filedAt(candidate: InputCandidate, all: ReadonlyArray<InputCandidate>, seen = new Set<string>()): string | null {
+  if (candidate.context?.disclosure_relation !== "extraction_correction" || candidate.supersedes === null || seen.has(candidate.fact_id)) return candidate.reported_at;
+  const target = all.find((other) => other.fact_id === candidate.supersedes);
+  return target ? filedAt(target, all, new Set([...seen, candidate.fact_id])) : candidate.reported_at;
+}
+
 function chooseDisclosure(entries: ReadonlyArray<Eligible>, all: ReadonlyArray<InputCandidate>, basis: ReportingBasis): Eligible[] {
   const originals = entries.filter((entry) => disclosureLevel(entry.candidate, all) === "original");
   if (basis === "as_reported") return originals;
   const restated = entries.filter((entry) => disclosureLevel(entry.candidate, all) === "restated");
   if (restated.length === 0) return originals;
-  const filed = (entry: Eligible) => Date.parse(entry.candidate.reported_at ?? entry.publication.available_no_later_than);
+  const filed = (entry: Eligible) => Date.parse(filedAt(entry.candidate, all) ?? entry.publication.available_no_later_than);
   const latestFiled = Math.max(...restated.map(filed));
   return restated.filter((entry) => filed(entry) === latestFiled);
 }

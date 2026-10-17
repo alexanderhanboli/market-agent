@@ -125,6 +125,15 @@ test("as_restated takes the restatement filed last, not the one proven public la
   );
 });
 
+test("a corrected restatement ranks by the filing it corrects, not by when the correction was recorded (#337 review)", () => {
+  const original = candidate({ value: "100", publishedLocalDate: "2024-01-10" });
+  const older = candidate({ value: "95", filed: "2025-01-10T00:00:00.000Z", publishedLocalDate: "2025-01-10", relation: "economic_restatement", supersedes: original.fact_id });
+  const correction = candidate({ value: "96", filed: "2026-03-01T00:00:00.000Z", publishedLocalDate: "2026-03-01", relation: "extraction_correction", supersedes: older.fact_id });
+  const newer = candidate({ value: "93", filed: "2026-01-10T00:00:00.000Z", publishedLocalDate: "2026-01-10", relation: "economic_restatement", supersedes: original.fact_id });
+  const restated = policy({ knowledge_cutoff: "2026-04-01T00:00:00Z", reporting_basis: "as_restated" });
+  assert.equal(selectedId(selectInput(FY2023, [original, older, correction, newer], restated)), newer.fact_id);
+});
+
 test("a date-only publication is not assumed available earlier on the same day", () => {
   const onJan10 = candidate({ publishedLocalDate: "2024-01-10" });
   assert.equal(gapReason(selectInput(FY2023, [onJan10], policy({ knowledge_cutoff: "2024-01-10T12:00:00-05:00" }))), "missing_input");
