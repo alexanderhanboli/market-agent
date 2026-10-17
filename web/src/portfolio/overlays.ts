@@ -5,6 +5,7 @@
 
 import type { SubjectKind, SubjectRef } from '../symbol/search.ts'
 import { authenticatedFetch, readJsonBody, type FetchImpl } from '../http/authFetch.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export const PORTFOLIO_API_BASE = '/v1/portfolios'
 
@@ -90,3 +91,21 @@ export function hasOpenPosition(overlay: SubjectOverlay | undefined): boolean {
   if (!overlay) return false
   return overlay.contributions.some((c) => c.held_state === 'open')
 }
+
+export const subjectHeld = defineResource({
+  scope: 'user',
+  freshness: 'live',
+  // `signal` is annotated so P is inferred from `load` before `scope` is checked against it.
+  load: async (
+    { userId, subjectRef }: { userId: string; subjectRef: HeldSubjectRef },
+    signal: AbortSignal,
+  ) => {
+    const overlays = await fetchOverlays({ userId, subjectRefs: [subjectRef], signal })
+    const overlay = overlays.find(
+      (o) => o.subject_ref.kind === subjectRef.kind && o.subject_ref.id === subjectRef.id,
+    )
+    return overlay === undefined
+      ? { kind: 'unavailable', reason: 'overlays response did not include this subject' }
+      : { kind: 'ready', data: hasOpenPosition(overlay) }
+  },
+})

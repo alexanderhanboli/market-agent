@@ -1,4 +1,5 @@
 import type { SubjectRef } from './search.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type KeyStatKey =
   | 'gross_margin'
@@ -114,3 +115,13 @@ export function formatStatValue(stat: Pick<KeyStat, 'value_num' | 'format_hint'>
   }
   return `${stat.value_num.toFixed(2)}×`
 }
+
+export const keyStats = defineResource({
+  freshness: 'intraday',
+  load: async (issuerId: string, signal) => {
+    const data = await fetchKeyStats(issuerId, { signal })
+    return statsBelongToIssuer(data, issuerId)
+      ? { kind: 'ready', data }
+      : { kind: 'unavailable', reason: 'stats response did not match requested issuer' }
+  },
+})

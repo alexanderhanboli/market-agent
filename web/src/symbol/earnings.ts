@@ -1,4 +1,5 @@
 import type { SubjectRef } from './search.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type EarningsSurpriseDirection = 'beat' | 'miss' | 'inline'
 
@@ -60,3 +61,13 @@ export function earningsBelongToIssuer(
 ): boolean {
   return issuerId !== null && envelope.subject.kind === 'issuer' && envelope.subject.id === issuerId
 }
+
+export const earningsEvents = defineResource({
+  freshness: 'filed',
+  load: async (issuerId: string, signal) => {
+    const data = await fetchEarnings(issuerId, { signal })
+    return earningsBelongToIssuer(data, issuerId)
+      ? { kind: 'ready', data }
+      : { kind: 'unavailable', reason: 'earnings response did not match requested issuer' }
+  },
+})

@@ -1,4 +1,5 @@
 import type { SubjectRef } from './search.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type StatementFamily = 'income' | 'balance' | 'cashflow'
 
@@ -138,3 +139,11 @@ export function findLineValue(
   if (!line || line.value_num === null) return null
   return line.value_num * line.scale
 }
+
+export const financialStatements = defineResource({
+  freshness: 'filed',
+  load: async (query: GetStatementsRequest, signal) => ({
+    kind: 'ready',
+    data: await fetchStatements(query, { signal }),
+  }),
+})

@@ -1,15 +1,11 @@
 import { useState, type ReactElement } from 'react'
-import { fetchSeries } from '../symbol/series.ts'
+import { useResource } from '../fetch/resource.ts'
+import { RefreshFailedNote } from '../symbol/FetchStateView.tsx'
 import { SegmentedToggle } from '../symbol/SegmentedToggle.tsx'
-import { useFetched } from '../symbol/useFetched.ts'
 import { ChartCard } from './ChartCard.tsx'
 import { LabelValueCell } from './LabelValueCell.tsx'
 import { perfNormalizationLabel } from './perfComparison.ts'
-import {
-  perfRangeOptions,
-  perfSeriesQuery,
-  seriesFromPerfResponse,
-} from './perfComparisonSeries.ts'
+import { perfComparisonSeries, perfRangeOptions, perfSeriesQuery } from './perfComparisonSeries.ts'
 import { SeriesChart } from './SeriesChart.tsx'
 import { SubjectChipList } from './SubjectChipList.tsx'
 import type { PerfComparisonBlock, Series } from './types.ts'
@@ -78,17 +74,7 @@ function LivePerfComparison({ block }: PerfComparisonProps): ReactElement {
   const [range, setRange] = useState<string>(
     ranges.includes(block.default_range) ? block.default_range : ranges[0],
   )
-  const state = useFetched<ReadonlyArray<Series>>(
-    `${block.id}|${range}`,
-    async (_key, signal) => {
-      const query = perfSeriesQuery(block, range)
-      if (query === null) return { kind: 'unavailable', reason: 'no listing subjects in block' }
-      const response = await fetchSeries(query, { signal })
-      const series = seriesFromPerfResponse(response)
-      if (series.length === 0) return { kind: 'unavailable', reason: 'no series available' }
-      return { kind: 'ready', data: series }
-    },
-  )
+  const state = useResource(perfComparisonSeries, perfSeriesQuery(block, range))
 
   return (
     <ChartCard
@@ -119,11 +105,14 @@ function LivePerfComparison({ block }: PerfComparisonProps): ReactElement {
         />
       </div>
       {state.status === 'ready' ? (
-        <SeriesChart
-          testId={`block-perf-comparison-${block.id}-chart`}
-          ariaLabel={`${range} performance comparison`}
-          series={state.data}
-        />
+        <>
+          <SeriesChart
+            testId={`block-perf-comparison-${block.id}-chart`}
+            ariaLabel={`${range} performance comparison`}
+            series={state.data}
+          />
+          {state.refreshError !== null && <RefreshFailedNote noun="series" error={state.refreshError} />}
+        </>
       ) : (
         <dl className="grid grid-cols-3 gap-2 text-xs text-muted">
           <LabelValueCell label="Range">{range}</LabelValueCell>

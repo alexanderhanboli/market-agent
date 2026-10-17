@@ -6,9 +6,9 @@
 // list of N subjects with held badges) should batch through `fetchOverlays`
 // directly and pass the array — don't loop this hook.
 
-import { displaySubjectRef, type SubjectRef } from '../symbol/search.ts'
-import { useFetched, type FetchedResult, type VisibleFetchState } from '../symbol/useFetched.ts'
-import { fetchOverlays, hasOpenPosition, isHeldSubjectRef } from './overlays.ts'
+import { useResource, type VisibleFetchState } from '../fetch/resource.ts'
+import type { SubjectRef } from '../symbol/search.ts'
+import { isHeldSubjectRef, subjectHeld } from './overlays.ts'
 
 export type SubjectHeldState = VisibleFetchState<boolean>
 
@@ -16,15 +16,8 @@ export type SubjectHeldState = VisibleFetchState<boolean>
 // macro_topic, portfolio, screen) — those never reach the network.
 export function useSubjectHeld(subjectRef: SubjectRef, userId: string | null): SubjectHeldState {
   const heldKindRef = isHeldSubjectRef(subjectRef) ? subjectRef : null
-  const key = userId && heldKindRef ? `${userId} ${displaySubjectRef(heldKindRef)}` : null
-
-  return useFetched(key, async (_key, signal): Promise<FetchedResult<boolean>> => {
-    if (!userId || !heldKindRef) return { kind: 'unavailable', reason: 'no key' }
-    const overlays = await fetchOverlays({
-      userId,
-      subjectRefs: [heldKindRef],
-      signal,
-    })
-    return { kind: 'ready', data: hasOpenPosition(overlays[0]) }
-  })
+  return useResource(
+    subjectHeld,
+    userId && heldKindRef ? { userId, subjectRef: heldKindRef } : null,
+  )
 }

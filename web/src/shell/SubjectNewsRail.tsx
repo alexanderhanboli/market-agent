@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 
-import { useFetched } from '../symbol/useFetched.ts'
+import { useResource } from '../fetch/resource.ts'
+import { RefreshFailedNote } from '../symbol/FetchStateView.tsx'
 import {
-  fetchIssuerNews,
   formatRelativeTime,
   isFilingKind,
+  recentIssuerNews,
   type IssuerNewsItem,
 } from '../symbol/issuerNews.ts'
 
@@ -17,10 +18,7 @@ type SubjectNewsRailProps = {
 // consensus rail that duplicated the Overview body — this column now carries
 // information that changes per subject.
 export function SubjectNewsRail({ issuerId }: SubjectNewsRailProps) {
-  const news = useFetched<IssuerNewsItem[]>(issuerId, async (id, signal) => {
-    const items = await fetchIssuerNews(id, { signal, limit: 8 })
-    return { kind: 'ready', data: items }
-  })
+  const news = useResource(recentIssuerNews, issuerId)
 
   return (
     <div className="flex flex-col gap-3 p-4" data-testid="subject-news-rail">
@@ -42,6 +40,9 @@ export function SubjectNewsRail({ issuerId }: SubjectNewsRailProps) {
             <NewsRow key={item.document_id} item={item} />
           ))}
         </ul>
+      )}
+      {news.status === 'ready' && news.refreshError !== null && (
+        <RefreshFailedNote noun="news" error={news.refreshError} />
       )}
     </div>
   )

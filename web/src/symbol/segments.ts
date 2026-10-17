@@ -1,5 +1,6 @@
 import type { SubjectRef } from './search.ts'
 import type { FiscalPeriod, StatementBasis } from './statements.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type SegmentAxis = 'business' | 'geography'
 
@@ -108,3 +109,11 @@ const AXIS_LABELS: Readonly<Record<SegmentAxis, string>> = {
 export function axisLabel(axis: SegmentAxis): string {
   return AXIS_LABELS[axis]
 }
+
+export const segmentFacts = defineResource({
+  freshness: 'filed',
+  load: async (query: GetSegmentsRequest, signal) => ({
+    kind: 'ready',
+    data: await fetchSegments(query, { signal }),
+  }),
+})

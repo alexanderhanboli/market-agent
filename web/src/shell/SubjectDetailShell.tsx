@@ -3,8 +3,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'reac
 import { analyzeEntryFromSubject } from '../analyze/analyzeEntry'
 import { issuerIdFromSubject } from '../symbol/profile.ts'
 import { QuoteSnapshot } from '../symbol/QuoteSnapshot'
-import { listingIdForQuote, subjectDisplayName } from '../symbol/quote'
-import { useSubjectQuote } from '../symbol/useSubjectQuote'
+import { useResource } from '../fetch/resource.ts'
+import { listingIdForQuote, listingQuote, subjectDisplayName } from '../symbol/quote'
 import { PANEL_CLASS } from '../symbol/surfaceStyles.ts'
 import {
   fetchSubjectHydration,
@@ -102,9 +102,7 @@ export function SubjectDetailShell() {
   const subject = needsHydration && hydratedSubjectMatchesBase ? hydratedSubject : baseSubject
   const canonicalSubject = isCanonicalResolvedSubject(subject) ? subject : null
   const issuerId = issuerIdFromSubject(subject)
-  // One quote fetch for the entered subject, shared by the header and the
-  // Overview key-stats grid (via outlet context).
-  const quoteState = useSubjectQuote(listingIdForQuote(subject))
+  const quoteState = useResource(listingQuote, listingIdForQuote(subject))
   const quote = quoteState.status === 'ready' ? quoteState.data : null
   const shouldBlockForHydration = needsHydration && !hydratedSubjectMatchesBase
   const hydrationError =

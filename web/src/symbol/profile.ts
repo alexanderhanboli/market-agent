@@ -1,4 +1,5 @@
 import { isCanonicalResolvedSubject, type ResolvedSubject, type RouteResolvedSubject, type SubjectRef } from './search.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type IssuerProfileExchange = {
   listing: SubjectRef & { kind: 'listing' }
@@ -68,3 +69,13 @@ export function profileBelongsToIssuer(
 ): boolean {
   return issuerId !== null && profile.subject.kind === 'issuer' && profile.subject.id === issuerId
 }
+
+export const issuerProfile = defineResource({
+  freshness: 'filed',
+  load: async (issuerId: string, signal) => {
+    const data = await fetchIssuerProfile(issuerId, { signal })
+    return profileBelongsToIssuer(data, issuerId)
+      ? { kind: 'ready', data }
+      : { kind: 'unavailable', reason: 'profile response did not match requested issuer' }
+  },
+})

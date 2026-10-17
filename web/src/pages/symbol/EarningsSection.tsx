@@ -1,11 +1,11 @@
 import { useSubjectDetailContext } from '../../shell/subjectDetailOutletContext.ts'
 import { Card } from '../../symbol/Card.tsx'
 import { FetchStateView } from '../../symbol/FetchStateView.tsx'
-import { useConsensus } from '../../symbol/useConsensus.ts'
+import { useResource } from '../../fetch/resource.ts'
+import { analystConsensus } from '../../symbol/consensus.ts'
 import { ConsensusBody, PriceTargetBody } from '../../symbol/consensusViews.tsx'
 import {
-  earningsBelongToIssuer,
-  fetchEarnings,
+  earningsEvents,
   type EarningsEvent,
   type EarningsEventsEnvelope,
   type EarningsSurpriseDirection,
@@ -16,7 +16,6 @@ import { formatSignedPercent } from '../../symbol/quote.ts'
 import { pluralize } from '../../format/pluralize.ts'
 import { issuerIdFromSubject } from '../../symbol/profile.ts'
 import { Th } from '../../symbol/Th.tsx'
-import { useFetched } from '../../symbol/useFetched.ts'
 import { SECTION_STACK_CLASS } from '../../symbol/surfaceStyles.ts'
 
 const BEAT_MISS_COUNT = 4
@@ -25,15 +24,8 @@ export function EarningsSection() {
   const { subject } = useSubjectDetailContext()
   const issuerId = issuerIdFromSubject(subject)
 
-  const earnings = useFetched<EarningsEventsEnvelope>(issuerId, async (id, signal) => {
-    const data = await fetchEarnings(id, { signal })
-    if (!earningsBelongToIssuer(data, id)) {
-      return { kind: 'unavailable', reason: 'earnings response did not match requested issuer' }
-    }
-    return { kind: 'ready', data }
-  })
-
-  const consensus = useConsensus(issuerId)
+  const earnings = useResource(earningsEvents, issuerId)
+  const consensus = useResource(analystConsensus, issuerId)
 
   return (
     <div data-testid="section-earnings" className={SECTION_STACK_CLASS}>

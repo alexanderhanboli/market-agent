@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { afterEach } from 'node:test'
 
 import { JSDOM } from 'jsdom'
 import { act } from 'react'
@@ -19,6 +19,9 @@ import type { ChatSseEvent } from '../chat/sseEventTypes.ts'
 import { AuthContext } from '../shell/authTypes.ts'
 import { ThemeProvider } from '../shell/ThemeProvider.tsx'
 import { WorkspaceShell } from '../shell/WorkspaceShell.tsx'
+import { resetResourcesForTests } from '../fetch/resource.ts'
+
+afterEach(resetResourcesForTests)
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
 const SNAPSHOT_ID = '11111111-1111-4111-8111-111111111111'

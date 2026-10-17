@@ -1,16 +1,15 @@
 // Shared quote-row skeleton. Both watchlist members and portfolio holdings
 // route through this component so the same subject renders identically on
-// either surface. Hydration goes through `useFetched`; presentation comes
-// from the pure `quoteRowView` projection in quoteRowView.ts.
+// either surface.
 
 import { type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChangePill } from './ChangePill.tsx'
-import { fetchQuoteSnapshot, quoteBelongsToListing, SIGNED_BY_QUOTE_DIRECTION } from './quote.ts'
+import { useResource } from '../fetch/resource.ts'
+import { listingQuote, SIGNED_BY_QUOTE_DIRECTION } from './quote.ts'
 import { quoteRowView } from './quoteRowView.ts'
 import type { SubjectRef } from './search.ts'
 import { Sparkline } from './Sparkline.tsx'
-import { useFetched, type FetchedResult } from './useFetched.ts'
 
 type QuoteRowProps = {
   subjectRef: SubjectRef
@@ -22,7 +21,7 @@ type QuoteRowProps = {
 
 export function QuoteRow({ subjectRef, trailing, sparkline }: QuoteRowProps) {
   const listingId = subjectRef.kind === 'listing' ? subjectRef.id : null
-  const state = useFetched(listingId, fetchQuoteForListing)
+  const state = useResource(listingQuote, listingId)
   const view = quoteRowView(state, subjectRef)
 
   return (
@@ -67,15 +66,4 @@ export function QuoteRow({ subjectRef, trailing, sparkline }: QuoteRowProps) {
       {trailing}
     </li>
   )
-}
-
-async function fetchQuoteForListing(
-  listingId: string,
-  signal: AbortSignal,
-): Promise<FetchedResult<Awaited<ReturnType<typeof fetchQuoteSnapshot>>>> {
-  const quote = await fetchQuoteSnapshot(listingId, { signal })
-  if (!quoteBelongsToListing(quote, listingId)) {
-    return { kind: 'unavailable', reason: 'listing mismatch' }
-  }
-  return { kind: 'ready', data: quote }
 }

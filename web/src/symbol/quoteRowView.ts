@@ -12,7 +12,7 @@ import {
   type QuoteSnapshot,
 } from './quote.ts'
 import { symbolDetailPathForSubject, type SubjectRef } from './search.ts'
-import type { VisibleFetchState } from './useFetched.ts'
+import type { VisibleFetchState } from '../fetch/resource.ts'
 
 export type QuoteRowState = VisibleFetchState<QuoteSnapshot>
 

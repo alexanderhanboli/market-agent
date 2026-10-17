@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { afterEach } from 'node:test'
 
 import { JSDOM } from 'jsdom'
 import { act, type ReactElement } from 'react'
@@ -10,6 +10,9 @@ import type { SubjectDetailOutletContext } from '../../shell/subjectDetailOutlet
 import type { ResolvedSubject } from '../../symbol/search.ts'
 import type { GetSeriesResponse, NormalizedSeriesQuery } from '../../symbol/series.ts'
 import { OverviewSection } from './OverviewSection.tsx'
+import { resetResourcesForTests } from '../../fetch/resource.ts'
+
+afterEach(resetResourcesForTests)
 
 const LISTING_ID = '11111111-1111-4111-a111-111111111111'
 const SOURCE_ID = '00000000-0000-4000-a000-000000000001'
@@ -100,7 +103,7 @@ function spanDays(query: NormalizedSeriesQuery): number {
   return Math.round((Date.parse(query.range.end) - Date.parse(query.range.start)) / DAY_MS)
 }
 
-test('Overview price card toggles the series window from 1M to 6M', async () => {
+test('Overview price card toggles 1M to 6M and back, rendering the cached 1M chart at once', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
   const originalFetch = globalThis.fetch
@@ -149,13 +152,23 @@ test('Overview price card toggles the series window from 1M to 6M', async () => 
       sixMonth.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
     })
 
-    // Toggling re-keys useFetched once and re-requests the wider window.
     await waitFor(() => {
-      assert.ok(
-        seriesQueries.some((q) => spanDays(q) === 180),
-        'expected a 6M (≈180d) series request after toggling',
-      )
+      assert.deepEqual(seriesQueries.map(spanDays), [30, 180])
     })
+
+    const oneMonth = dom.window.document.querySelector('[data-testid="price-window-1M"]')
+    assert.ok(oneMonth, 'expected a 1M toggle option')
+    await act(async () => {
+      oneMonth.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))
+    })
+    const doc = dom.window.document
+    assert.ok(doc.querySelector('[data-testid="overview-hero-chart"]'), 'cached 1M chart renders on return')
+    assert.equal(doc.body.textContent?.includes('Loading series…'), false)
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    assert.deepEqual(seriesQueries.map(spanDays), [30, 180])
   } finally {
     if (root !== null) {
       await act(async () => root?.unmount())

@@ -1,4 +1,5 @@
 import type { SubjectRef } from './search.ts'
+import { defineResource } from '../fetch/resource.ts'
 
 export type AnalystRating = 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell'
 
@@ -120,3 +121,13 @@ const RATING_LABELS: Readonly<Record<AnalystRating, string>> = {
 export function ratingLabel(rating: AnalystRating): string {
   return RATING_LABELS[rating]
 }
+
+export const analystConsensus = defineResource({
+  freshness: 'filed',
+  load: async (issuerId: string, signal) => {
+    const data = await fetchConsensus(issuerId, { signal })
+    return consensusBelongsToIssuer(data, issuerId)
+      ? { kind: 'ready', data }
+      : { kind: 'unavailable', reason: 'consensus response did not match requested issuer' }
+  },
+})

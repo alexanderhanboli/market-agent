@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { afterEach } from 'node:test'
 
 import { JSDOM } from 'jsdom'
 import { act } from 'react'
@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import { issuerIdFromSubject } from '../symbol/profile.ts'
+import { QuoteRow } from '../symbol/QuoteRow.tsx'
 import type { ResolvedSubject } from '../symbol/search.ts'
 import { AuthInterruptContext } from './authInterruptTypes.ts'
 import { AuthContext } from './authTypes.ts'
@@ -14,6 +15,9 @@ import { RightRailProvider } from './RightRailProvider.tsx'
 import { RightRailSlot } from './RightRailSlot.tsx'
 import { SubjectDetailShell } from './SubjectDetailShell.tsx'
 import { useSubjectDetailContext } from './subjectDetailOutletContext.ts'
+import { resetResourcesForTests } from '../fetch/resource.ts'
+
+afterEach(resetResourcesForTests)
 
 const LISTING_ID = '11111111-1111-4111-a111-111111111111'
 const ALT_LISTING_ID = '44444444-4444-4444-a444-444444444444'
@@ -441,6 +445,80 @@ test('SubjectDetailShell renders an explicit choice state for ambiguous legacy t
     assert.match(dom.window.document.body.innerHTML, /AAPL/)
     assert.match(dom.window.document.body.innerHTML, /APC/)
     assert.doesNotMatch(dom.window.document.body.innerHTML, /child-mounted/)
+    await act(async () => root.unmount())
+  } finally {
+    globalThis.fetch = originalFetch
+    restoreGlobals()
+  }
+})
+
+test('the subject header and a QuoteRow on the same listing share one quote request', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  const originalFetch = globalThis.fetch
+  const quoteCalls: string[] = []
+
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input)
+      if (url === '/v1/subjects/hydrate') {
+        return new Response(JSON.stringify({ subject: HYDRATED_LISTING }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (url.startsWith('/v1/market/quote')) {
+        quoteCalls.push(url)
+        return new Response(
+          JSON.stringify({
+            quote: {
+              listing: { kind: 'listing', id: LISTING_ID },
+              price: 196.58,
+              prev_close: 195.34,
+              change_abs: 1.24,
+              change_pct: 0.006348,
+              session_state: 'regular',
+              as_of: '2026-04-22T15:30:00.000Z',
+              delay_class: 'delayed_15m',
+              currency: 'USD',
+              source_id: '00000000-0000-4000-a000-000000000001',
+            },
+            provenance: { provider: 'polygon_market', source_id: '00000000-0000-4000-a000-000000000001' },
+            listing_context: { ticker: 'AAPL', mic: 'XNAS', timezone: 'America/New_York' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } })
+    }
+
+    const root = createRoot(dom.window.document.getElementById('root')!)
+    await act(async () => {
+      root.render(
+        wrapShell(
+          <MemoryRouter initialEntries={[`/symbol/listing%3A${LISTING_ID}/overview`]}>
+            <ul>
+              <QuoteRow subjectRef={{ kind: 'listing', id: LISTING_ID }} />
+            </ul>
+            <Routes>
+              <Route path="/symbol/:subjectRef" element={<SubjectDetailShell />}>
+                <Route path="overview" element={<ChildMountedProbe />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>,
+        ),
+      )
+    })
+
+    const prices = () => dom.window.document.body.textContent?.match(/\$196\.58/g)?.length ?? 0
+    for (let attempt = 0; attempt < 10 && prices() < 2; attempt += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    assert.equal(prices(), 2)
+    assert.deepEqual(quoteCalls, [`/v1/market/quote?subject_kind=listing&subject_id=${LISTING_ID}`])
     await act(async () => root.unmount())
   } finally {
     globalThis.fetch = originalFetch
