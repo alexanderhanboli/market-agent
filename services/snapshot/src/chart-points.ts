@@ -4,7 +4,8 @@
 // through its database client, in one statement, recomputes every line with the
 // function chat draws with (perf-points.ts), and requires the digests and the
 // points to match exactly. The cache replaces a range's bars in place when it
-// refreshes, so this holds at seal time only; read-back trusts the seal.
+// refreshes, so this holds at seal time only; read-back trusts the seal. Each
+// line is shown under its listing's ticker, in percent (#316).
 
 import { isDeepStrictEqual } from "node:util";
 
@@ -12,16 +13,18 @@ import { PERF_POINTS, perfLines, type PerfLine } from "../../market/src/perf-poi
 import { sessionDate, windowClosedAt, type DailyClose } from "../../market/src/ytd-window.ts";
 import type { JsonValue, QueryExecutor } from "./manifest-staging.ts";
 
-export type ChartPointsReason = "count" | "duplicate" | "subject" | "unverifiable" | "range" | "window" | "hash" | "points";
+export type ChartPointsReason = "count" | "duplicate" | "subject" | "unverifiable" | "range" | "label" | "window" | "hash" | "points";
 
 export type ChartPointsFailure = { block_id: string; series_ref: string | null; reason: ChartPointsReason };
 
 export type DrawnChart = {
   block_id: string;
   series_refs: ReadonlyArray<string>;
-  series: ReadonlyArray<{ points: unknown }>;
+  series: ReadonlyArray<{ name?: unknown; unit?: unknown; points: unknown }>;
   // Line i's company: the listing its series' bars must belong to.
   subject_refs: ReadonlyArray<unknown>;
+  // Line i's subject chip, its listing's ticker like series[i].name.
+  subject_labels: ReadonlyArray<unknown>;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,6 +47,8 @@ type StoredRange = { listing_id: string; source_id: string; interval: string; ad
 
 // One drawn line and the sealed series it claims to be.
 type ChartLine = { series_ref: string; spec: SealedSeries; points: unknown };
+
+type StoredListing = { timezone: string; ticker: string };
 
 export async function verifyChartPoints(
   charts: ReadonlyArray<DrawnChart>,
@@ -99,7 +104,17 @@ export async function verifyChartPoints(
       fail("range", unbound.series_ref);
       continue;
     }
-    const outcome = await recompute(db, lines);
+    const listings = await loadListings(db, lines.map((line) => line.spec.listing_id));
+    const mislabeled = lines.find((line, index) => {
+      const ticker = listings.get(line.spec.listing_id)?.ticker;
+      const { name, unit } = chart.series[index];
+      return ticker === undefined || name !== ticker || chart.subject_labels[index] !== ticker || unit !== "%";
+    });
+    if (mislabeled !== undefined || chart.subject_labels.length !== lines.length) {
+      fail("label", mislabeled?.series_ref ?? null);
+      continue;
+    }
+    const outcome = await recompute(db, lines, listings);
     if (typeof outcome === "string") {
       fail(outcome);
       continue;
@@ -116,7 +131,8 @@ export async function verifyChartPoints(
 async function recompute(
   db: QueryExecutor,
   lines: ReadonlyArray<ChartLine>,
-): Promise<ReadonlyArray<PerfLine> | "window" | "unverifiable"> {
+  listings: ReadonlyMap<string, StoredListing>,
+): Promise<ReadonlyArray<PerfLine> | "window"> {
   const [{ spec: { window } }] = lines;
   if (lines.some((line) => !isDeepStrictEqual(line.spec.window, window))) return "window";
   const bars = await loadBars(db, lines.map((line) => line.spec.bar_range_id));
@@ -125,9 +141,7 @@ async function recompute(
     const drawn = perfLines({ kind: "latest", bars: lines.map(barsOf) });
     return drawn.ok ? drawn.lines : "window";
   }
-  const zones = await loadTimeZones(db, lines.map((line) => line.spec.listing_id));
-  if (lines.some((line) => !zones.has(line.spec.listing_id))) return "unverifiable";
-  const zoneOf = (line: ChartLine) => zones.get(line.spec.listing_id)!;
+  const zoneOf = (line: ChartLine) => listings.get(line.spec.listing_id)!.timezone;
   // Sessions stored since the window ended are not part of it.
   const drawn = perfLines({
     kind: "ytd",
@@ -201,12 +215,12 @@ async function loadRanges(
   }]));
 }
 
-async function loadTimeZones(db: QueryExecutor, listingIds: ReadonlyArray<string>): Promise<Map<string, string>> {
-  const { rows } = await db.query<{ listing_id: string; timezone: string }>(
-    `select listing_id::text as listing_id, timezone from listings where listing_id = any($1::uuid[])`,
+async function loadListings(db: QueryExecutor, listingIds: ReadonlyArray<string>): Promise<Map<string, StoredListing>> {
+  const { rows } = await db.query<{ listing_id: string } & StoredListing>(
+    `select listing_id::text as listing_id, timezone, ticker from listings where listing_id = any($1::uuid[])`,
     [[...new Set(listingIds)]],
   );
-  return new Map(rows.map((row) => [row.listing_id, row.timezone]));
+  return new Map(rows.map((row) => [row.listing_id, { timezone: row.timezone, ticker: row.ticker }]));
 }
 
 // The fields the check reads, or null when the spec cannot be checked: only

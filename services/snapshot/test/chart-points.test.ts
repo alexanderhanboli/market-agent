@@ -15,11 +15,12 @@ const amdRange = "00000000-0000-4000-8000-000000000032";
 const nvdaSeries = "00000000-0000-4000-8000-000000000041";
 const amdSeries = "00000000-0000-4000-8000-000000000042";
 const AS_OF = "2026-09-01T00:00:00.000Z";
+const TICKERS: Record<string, string> = { [nvdaListing]: "NVDA", [amdListing]: "AMD" };
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
 type Bar = { ts: string; close: number };
-type Line = { points: Array<{ x: string; y: number }> };
+type Line = { name?: string; unit?: string; points: Array<{ x: string; y: number }> };
 
 const daily = (closes: number[]): Bar[] => closes.map((close, index) => ({ ts: `2026-08-${22 + index}T00:00:00.000Z`, close }));
 // New York sessions stamped at local midnight.
@@ -77,7 +78,7 @@ function spec(seriesRef: string, listingId: string, barRangeId: string, hash: st
 
 function sealInput(
   chart: { hashes: string[]; series: Line[] },
-  options: { window?: Window; seriesRefs?: string[] } = {},
+  options: { window?: Window; seriesRefs?: string[]; subjectLabels?: string[] } = {},
 ): SnapshotVerificationInput {
   const specs = [
     spec(nvdaSeries, nvdaListing, nvdaRange, chart.hashes[0], options.window),
@@ -104,7 +105,8 @@ function sealInput(
     source_refs: [sourceId],
     as_of: AS_OF,
     subject_refs: manifest.subject_refs,
-    series: chart.series,
+    subject_labels: options.subjectLabels ?? ["NVDA", "AMD"],
+    series: chart.series.map((line, index) => ({ name: ["NVDA", "AMD"][index], unit: "%", ...line })),
   } as VerifierBlock;
   return {
     snapshot_id: snapshotId,
@@ -156,7 +158,7 @@ function barsDb(bars: Record<string, Bar[]>, ranges: Record<string, StoredRange>
       }
       if (text.includes("from listings")) {
         const ids = values?.[0] as string[];
-        return { rows: ids.map((id) => ({ listing_id: id, timezone: "America/New_York" })) as unknown as R[] };
+        return { rows: ids.map((id) => ({ listing_id: id, timezone: "America/New_York", ticker: TICKERS[id] })) as unknown as R[] };
       }
       if (text.includes("insert into verifier_fail_logs")) {
         failures.push(JSON.parse(String(values?.[3])));
@@ -198,6 +200,18 @@ test("a line shown under a company other than its series' listing fails (#315 re
   const swapped = { ...chart!, subject_refs: [...(chart!.subject_refs ?? [])].reverse() };
   const result = await verifySnapshotSeal({ ...input, blocks: [swapped, ...rest] }, barsDb(LATEST.bars));
   assert.deepEqual(pointsFailures(result), [{ block_id: "perf", series_ref: nvdaSeries, reason: "subject" }]);
+});
+
+test("a line whose legend name, subject label or unit is not its listing's ticker and percent fails (#316)", async () => {
+  const [nvda, amd] = LATEST.series;
+  const swapped = await verifySnapshotSeal(sealInput({ ...LATEST, series: [{ ...nvda!, name: "AMD" }, { ...amd!, name: "NVDA" }] }), barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(swapped), [{ block_id: "perf", series_ref: nvdaSeries, reason: "label" }], "swapped legend names");
+  const subject = await verifySnapshotSeal(sealInput(LATEST, { subjectLabels: ["NVDA", "Advanced Micro Devices"] }), barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(subject), [{ block_id: "perf", series_ref: amdSeries, reason: "label" }], "a subject label that is not the ticker");
+  const missing = await verifySnapshotSeal(sealInput(LATEST, { subjectLabels: ["NVDA"] }), barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(missing), [{ block_id: "perf", series_ref: amdSeries, reason: "label" }], "a line with no subject label");
+  const unit = await verifySnapshotSeal(sealInput({ ...LATEST, series: [nvda!, { ...amd!, unit: "USD" }] }), barsDb(LATEST.bars));
+  assert.deepEqual(pointsFailures(unit), [{ block_id: "perf", series_ref: amdSeries, reason: "label" }], "a unit other than percent");
 });
 
 test("a YTD chart seals against its sealed window, ignoring sessions stored after it", async () => {

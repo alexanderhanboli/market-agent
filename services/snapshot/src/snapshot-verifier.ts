@@ -21,7 +21,7 @@ import {
   type RequiredDisclosure,
 } from "./disclosure-policy.ts";
 import { validateSnapshotTransformManifest } from "./snapshot-transform.ts";
-import { verifyChartPoints } from "./chart-points.ts";
+import { verifyChartPoints, type DrawnChart } from "./chart-points.ts";
 import type { FinancialSealClaim } from "./financial-verifier-loader.ts";
 import type { FinancialVerification, FinancialVerifierReasonCode } from "./financial-verifier.ts";
 
@@ -117,6 +117,7 @@ export type VerifierBlock = {
   high_ref?: string;
   upside_ref?: string;
   subject_refs?: ReadonlyArray<VerifierSubjectRef>;
+  subject_labels?: ReadonlyArray<unknown>;
   subjects?: ReadonlyArray<VerifierSubjectRef>;
   // metrics_comparison value matrix; a null entry is a gap. value_ref is a
   // sealed fact ref; format is what the cell shows for it.
@@ -268,8 +269,9 @@ export async function verifySnapshotSeal(
       ? [{
         block_id: block.id,
         series_refs: dataRefSeriesRefs(block.data_ref.params),
-        series: block.series as ReadonlyArray<{ points: unknown }>,
+        series: block.series as DrawnChart["series"],
         subject_refs: block.subject_refs ?? [],
+        subject_labels: block.subject_labels ?? [],
       }]
       : []
   );
@@ -558,9 +560,12 @@ function normalizeBlock(block: VerifierBlock, index: number): VerifierBlock {
   const bars = optionalArray<unknown>(block.bars, `verifySnapshotSeal.blocks[${index}].bars`);
   const distribution = optionalArray<unknown>(block.distribution, `verifySnapshotSeal.blocks[${index}].distribution`);
   const quarters = optionalArray<unknown>(block.quarters, `verifySnapshotSeal.blocks[${index}].quarters`);
-  // Only a price chart's points are checked against its sealed series.
+  // Only a price chart's points and labels are checked against its sealed series.
   const series = block.kind === "perf_comparison"
     ? optionalArray<unknown>(block.series, `verifySnapshotSeal.blocks[${index}].series`)
+    : undefined;
+  const subjectLabels = block.kind === "perf_comparison"
+    ? optionalArray<unknown>(block.subject_labels, `verifySnapshotSeal.blocks[${index}].subject_labels`)
     : undefined;
   const subjectRefs = optionalArray<VerifierSubjectRef>(
     block.subject_refs,
@@ -617,9 +622,10 @@ function normalizeBlock(block: VerifierBlock, index: number): VerifierBlock {
       : {
           series: Object.freeze(series.map((line, lineIndex) => {
             if (!isRecord(line)) throw new Error(`verifySnapshotSeal.blocks[${index}].series[${lineIndex}]: must be an object`);
-            return Object.freeze({ points: line.points });
+            return Object.freeze({ name: line.name, unit: line.unit, points: line.points });
           })),
         }),
+    ...(subjectLabels === undefined ? {} : { subject_labels: Object.freeze([...subjectLabels]) }),
     ...(block.analyst_count_ref === undefined
       ? {}
       : { analyst_count_ref: assertUuidV4(block.analyst_count_ref, `verifySnapshotSeal.blocks[${index}].analyst_count_ref`) }),
