@@ -22,6 +22,8 @@ type PiContentBlock = PiTextContent | Record<string, unknown>;
 type PiAssistantMessage = {
   content?: ReadonlyArray<PiContentBlock>;
   stopReason?: string;
+  /** The provider's own stop reason, set only when the model ended the turn. */
+  rawStopReason?: string;
   errorMessage?: string;
   usage?: { input?: number; output?: number; totalTokens?: number; reasoning?: number };
 };
@@ -323,7 +325,11 @@ function resultFromMessage(message: PiAssistantMessage): LlmChatResult {
 }
 
 function providerErrorFromMessage(message: PiAssistantMessage): LlmProviderError {
-  return providerErrorFromText(message.errorMessage ?? "LLM provider returned an error response");
+  const text = message.errorMessage ?? "LLM provider returned an error response";
+  // The model itself declined (a Claude refusal, a content filter): another model may
+  // answer, whatever the explanation says ("unauthorized access" is not an auth failure).
+  if (message.rawStopReason !== undefined) return new LlmProviderError("provider_failed", text);
+  return providerErrorFromText(text);
 }
 
 function providerErrorFromUnknown(error: unknown): LlmProviderError {

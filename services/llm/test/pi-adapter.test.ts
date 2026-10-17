@@ -462,6 +462,31 @@ test("an anthropic channel calls the Messages API with adaptive thinking at the 
   assert.deepEqual(haikuLow!.body.messages, [{ role: "user", content: [{ type: "text", text: "hi", cache_control: { type: "ephemeral" } }] }]);
 });
 
+test("a Claude refusal and an exhausted credit balance are provider failures the router falls back from", async (t) => {
+  const stub = await messagesApiStub(t, (body) => body.model === "claude-sonnet-5-5"
+    ? { status: 200, events: claudeReply("claude-sonnet-5-5", "", "refusal", { type: "refusal", category: "cyber", explanation: "This request may enable unauthorized access to computer systems." }) }
+    : { status: 400, error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits." } });
+  const client = await createDefaultPiLlmChatClient();
+  const claude = (model: string): LlmDeployment => ({ channel: "claude", model, protocol: "anthropic", baseUrl: stub.baseUrl, apiKeys: ["k"] });
+
+  const failure = async (model: string) => {
+    try {
+      await client(claude(model), askLow);
+    } catch (error) {
+      return error instanceof LlmProviderError ? { code: error.code, message: error.message } : error;
+    }
+    return "resolved";
+  };
+
+  assert.deepEqual(await failure("claude-sonnet-5-5"), {
+    code: "provider_failed",
+    message: "This request may enable unauthorized access to computer systems.",
+  });
+  const credit = await failure("claude-opus-5-5") as { code: string; message: string };
+  assert.equal(credit.code, "provider_failed");
+  assert.match(credit.message, /^400 .*credit balance is too low/u);
+});
+
 function deployment(): LlmDeployment {
   return {
     channel: "openai",
