@@ -38,6 +38,9 @@ export type ChatSessionState = {
   sealedTurns: number
   // A send on this thread that is not the session's turn is still going.
   backgroundRun: boolean
+  // Bumped by every thread.opened that changes the thread, but not by
+  // thread.created, so ask-first keeps one message list into its new thread.
+  opens: number
 }
 
 export type ChatSessionAction =
@@ -65,16 +68,18 @@ export const INITIAL_CHAT_SESSION: ChatSessionState = {
   turn: IDLE,
   sealedTurns: 0,
   backgroundRun: false,
+  opens: 0,
 }
 
-function openedSession(threadId: string | null): ChatSessionState {
-  if (threadId === null) return INITIAL_CHAT_SESSION
+function openedSession(threadId: string | null, opens: number): ChatSessionState {
+  if (threadId === null) return { ...INITIAL_CHAT_SESSION, opens }
   return {
     threadId,
     history: { requested: 1, settled: 0, loaded: { kind: 'loading' }, unconfirmed: [] },
     turn: IDLE,
     sealedTurns: 0,
     backgroundRun: false,
+    opens,
   }
 }
 
@@ -87,7 +92,7 @@ function askable(s: ChatSessionState): boolean {
 export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): ChatSessionState {
   switch (a.type) {
     case 'thread.opened':
-      return a.threadId === s.threadId ? s : openedSession(a.threadId)
+      return a.threadId === s.threadId ? s : openedSession(a.threadId, s.opens + 1)
 
     case 'ask.started':
       return askable(s) ? { ...s, turn: { phase: 'persisting', turn: a.turn } } : s
@@ -208,6 +213,10 @@ export type ThreadView = {
   history: 'loading' | 'error' | 'ready'
   historyError: string | null
   messages: ReadonlyArray<ChatMessage>
+  // The session, not the route, picks the canvas: ask-first streams and hands
+  // off before react-router commits /chat/<id> on a slow CPU.
+  canvas: 'empty' | 'thread'
+  listKey: number
   listMounted: boolean
   turn: TurnState
   backgroundRun: boolean
@@ -241,6 +250,8 @@ export function selectThreadView(s: ChatSessionState): ThreadView {
     history: history.loaded.kind,
     historyError: history.loaded.kind === 'error' ? history.loaded.message : null,
     messages,
+    canvas: s.threadId !== null || turn.phase !== 'idle' ? 'thread' : 'empty',
+    listKey: s.opens,
     listMounted: history.loaded.kind === 'ready' || turn.phase !== 'idle',
     turn,
     backgroundRun: s.backgroundRun,

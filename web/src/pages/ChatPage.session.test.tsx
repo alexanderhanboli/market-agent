@@ -6,12 +6,12 @@ import test from 'node:test'
 import { JSDOM } from 'jsdom'
 import { act, Profiler, StrictMode, useEffect, type ReactElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { createMemoryRouter, createRoutesFromElements, Outlet, Route, RouterProvider, useLocation, useNavigate } from 'react-router-dom'
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
 import type { ChatMessage } from '../chat/messageTypes.ts'
 import { AuthContext } from '../shell/authTypes.ts'
-import { ChatEmptyState, ChatLayout, ChatThreadView } from './ChatPage.tsx'
+import { ChatLayout } from './ChatPage.tsx'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
 const ANSWER = "NVIDIA's revenue rose"
@@ -177,7 +177,14 @@ type Harness = {
   cleanup: () => Promise<void>
 }
 
-async function renderChat(initialPath: string, server: FakeServer, options: { strict?: boolean } = {}): Promise<Harness> {
+type RenderOptions = {
+  strict?: boolean
+  // Holds every navigation into a thread uncommitted, the way a slow CPU
+  // leaves react-router's navigation transition behind the stream's updates.
+  threadRoute?: Promise<unknown>
+}
+
+async function renderChat(initialPath: string, server: FakeServer, options: RenderOptions = {}): Promise<Harness> {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const globals = globalThis as unknown as Record<string, unknown>
   const saved = Object.fromEntries(['IS_REACT_ACT_ENVIRONMENT', 'document', 'window', 'ResizeObserver', 'EventSource', 'fetch']
@@ -203,20 +210,20 @@ async function renderChat(initialPath: string, server: FakeServer, options: { st
   const onNavigate = (navigate: (to: string) => void) => {
     routerNavigate = navigate
   }
+  const threadRoute = options.threadRoute
+  const router = createMemoryRouter(createRoutesFromElements(
+    <Route element={<><Outlet /><LocationProbe onPath={onPath} onNavigate={onNavigate} /></>}>
+      <Route path="/chat" element={<ChatLayout />}>
+        <Route path=":threadId" loader={threadRoute ? () => threadRoute : undefined} />
+      </Route>
+      <Route path="/home" element={<p>Home</p>} />
+    </Route>,
+  ), { initialEntries: [initialPath] })
   const tree: ReactElement = (
     <Profiler id="chat" onRender={() => frames.push(container.textContent ?? '')}>
       <AuthContext.Provider value={{ session: { userId: USER_ID, displayName: 'Test User' }, signIn: () => undefined, signOut: () => undefined }}>
         <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
-          <MemoryRouter initialEntries={[initialPath]}>
-            <Routes>
-              <Route path="/chat" element={<ChatLayout />}>
-                <Route index element={<ChatEmptyState />} />
-                <Route path=":threadId" element={<ChatThreadView />} />
-              </Route>
-              <Route path="/home" element={<p>Home</p>} />
-            </Routes>
-            <LocationProbe onPath={onPath} onNavigate={onNavigate} />
-          </MemoryRouter>
+          <RouterProvider router={router} />
         </BlockRegistryProvider>
       </AuthContext.Provider>
     </Profiler>
@@ -329,6 +336,42 @@ test('every commit from the first streamed text through the hand-off shows the a
     assert.equal(h.query('[data-testid="virtualized-message-list"]'), listBefore)
     assert.equal(h.query('[data-role="assistant"]')?.textContent?.includes(ANSWER), true)
     assert.equal(h.container.querySelectorAll('[data-testid="streaming-turn"]').length, 0)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('ask first keeps the answer on screen through the hand-off while the thread route has not committed', async () => {
+  const server = new FakeServer()
+  const sealedLoad = deferred<{ body: unknown }>()
+  server.history = () => sealedLoad.promise
+  const threadRoute = deferred<null>()
+  const h = await renderChat('/chat', server, { threadRoute: threadRoute.promise })
+  try {
+    await h.ask('Analyze NVDA')
+    await streamAnswer(h, FakeEventSource.instances[0])
+    await complete(h, FakeEventSource.instances[0])
+    const list = h.query('[data-testid="virtualized-message-list"]')
+
+    await act(async () => sealedLoad.resolve({ body: { messages: [server.postedUser('T1'), sealedAnswer('T1')] } }))
+    await h.flush()
+
+    assert.equal(h.path(), '/chat')
+    const first = h.frames.findIndex((frame) => frame.includes(ANSWER))
+    assert.notEqual(first, -1)
+    assert.deepEqual(
+      h.frames.slice(first).map((frame) => occurrences(frame, ANSWER)).filter((count) => count !== 1),
+      [],
+    )
+    assert.equal(h.query('[data-role="assistant"]')?.textContent?.includes(ANSWER), true)
+    assert.notEqual(list, null)
+    assert.equal(h.query('[data-testid="virtualized-message-list"]'), list)
+
+    await act(async () => threadRoute.resolve(null))
+    await h.flush()
+    assert.equal(h.path(), '/chat/T1')
+    assert.equal(h.query('[data-testid="virtualized-message-list"]'), list)
+    assert.equal(occurrences(h.text(), ANSWER), 1)
   } finally {
     await h.cleanup()
   }

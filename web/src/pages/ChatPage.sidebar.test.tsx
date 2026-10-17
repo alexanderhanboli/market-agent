@@ -16,7 +16,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 import { AuthContext } from '../shell/authTypes.ts'
 import { createThread, deleteThread } from '../chat/threadActions.ts'
-import { ChatEmptyState, ChatLayout, ChatThreadView } from './ChatPage.tsx'
+import { ChatLayout } from './ChatPage.tsx'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,8 +106,7 @@ test('ChatLayout: "+ New chat" goes to the ask-first page without creating a thr
           <MemoryRouter initialEntries={['/chat/thread-001']}>
             <Routes>
               <Route path="/chat" element={<ChatLayout />}>
-                <Route index element={<ChatEmptyState />} />
-                <Route path=":threadId" element={<ChatThreadView />} />
+                <Route path=":threadId" />
               </Route>
             </Routes>
           </MemoryRouter>

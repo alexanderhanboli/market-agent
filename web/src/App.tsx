@@ -14,7 +14,7 @@ import { ThemeProvider } from './shell/ThemeProvider'
 import { WorkspaceShell } from './shell/WorkspaceShell'
 import { HomePage } from './pages/HomePage'
 import { AgentsPage } from './pages/AgentsPage'
-import { ChatEmptyState, ChatLayout, ChatThreadView } from './pages/ChatPage'
+import { ChatLayout } from './pages/ChatPage'
 import { ScreenerPage } from './pages/ScreenerPage'
 import { AnalyzePage } from './pages/AnalyzePage'
 import { GridsPage } from './analyst-grids/GridsPage.tsx'
@@ -61,8 +61,7 @@ const router = createBrowserRouter(
       <Route path="review" handle={protReview} element={<ReviewPage />} />
       <Route path="settings" handle={protSettings} element={<SettingsPage />} />
       <Route path="chat" handle={protChat} element={<ChatLayout />}>
-        <Route index element={<ChatEmptyState />} />
-        <Route path=":threadId" element={<ChatThreadView />} />
+        <Route path=":threadId" />
       </Route>
       <Route path="screener" handle={publicHandle} element={<ScreenerPage />} />
       <Route path="analyze" handle={publicHandle} element={<AnalyzePage />} />

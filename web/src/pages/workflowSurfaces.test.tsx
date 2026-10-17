@@ -11,7 +11,7 @@ import { AgentPayloadValidationError, buildAgentPayload } from '../agents/agentP
 import { persistUserChatTurn } from '../chat/persistUserChatTurn.ts'
 import { AgentsPage } from './AgentsPage.tsx'
 import { AnalyzePage } from './AnalyzePage.tsx'
-import { ChatEmptyState, ChatLayout, ChatThreadView } from './ChatPage.tsx'
+import { ChatLayout } from './ChatPage.tsx'
 import { shareAnalyzeRunToChat } from '../analyze/shareToChat.ts'
 import { BlockRegistryProvider, createDefaultBlockRegistry, type Block } from '../blocks'
 import { openChatTurnStream } from '../chat/openChatTurnStream.ts'
@@ -77,9 +77,7 @@ test('Chat surface renders thread list and composer workflow copy without phase 
   const html = renderWithAuth(
     <MemoryRouter initialEntries={['/chat']}>
       <Routes>
-        <Route path="/chat" element={<ChatLayout />}>
-          <Route index element={<ChatEmptyState />} />
-        </Route>
+        <Route path="/chat" element={<ChatLayout />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -94,7 +92,7 @@ test('Chat thread route renders message stream and composer workflow copy', () =
     <MemoryRouter initialEntries={['/chat/thread-123']}>
       <Routes>
         <Route path="/chat" element={<ChatLayout />}>
-          <Route path=":threadId" element={<ChatThreadView />} />
+          <Route path=":threadId" />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -124,7 +122,7 @@ test('Chat thread route does not render imported Analyze memo from Router state'
       >
         <Routes>
           <Route path="/chat" element={<ChatLayout />}>
-            <Route path=":threadId" element={<ChatThreadView />} />
+            <Route path=":threadId" />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -193,7 +191,7 @@ test('Chat thread route loads persisted user and assistant messages on direct na
           <MemoryRouter initialEntries={['/chat/thread-123']}>
             <Routes>
               <Route path="/chat" element={<ChatLayout />}>
-                <Route path=":threadId" element={<ChatThreadView />} />
+                <Route path=":threadId" />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -231,7 +229,7 @@ test('Chat thread route virtualizes long persisted histories while preserving re
           <MemoryRouter initialEntries={['/chat/thread-123']}>
             <Routes>
               <Route path="/chat" element={<ChatLayout />}>
-                <Route path=":threadId" element={<ChatThreadView />} />
+                <Route path=":threadId" />
               </Route>
             </Routes>
           </MemoryRouter>

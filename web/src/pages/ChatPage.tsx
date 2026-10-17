@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, Outlet, useMatch, useNavigate } from 'react-router-dom'
+import { useState, type Dispatch, type SetStateAction } from 'react'
+import { Link, useMatch, useNavigate } from 'react-router-dom'
 
 import { PRIMARY_BUTTON_CLASS } from '../shell/buttonStyles.ts'
 import { VirtualizedMessageList } from '../chat'
@@ -9,9 +9,8 @@ import { ThreadColumn } from '../chat/turnLayout.tsx'
 import { useAuth } from '../shell/useAuth.ts'
 import { deleteThread } from '../chat/threadActions.ts'
 import { threadDisplayName } from '../chat/threadName.ts'
-import { useChatSession } from '../chat/useChatSession.ts'
+import { useChatSession, type ChatSession } from '../chat/useChatSession.ts'
 import { useThreadList, useTitleFollowUp, type ThreadListState } from '../chat/useThreadList.ts'
-import { useChatLayoutContext, type ChatLayoutContext } from '../chat/chatLayoutContext.ts'
 
 const STARTER_QUESTIONS = ['Analyze NVDA', 'Compare NVDA with AMD year to date', "What drives Apple's margins?"] as const
 
@@ -19,9 +18,10 @@ export function ChatLayout() {
   const { session } = useAuth()
   const userId = session?.userId ?? ''
   const navigate = useNavigate()
-  const activeThreadId = useMatch('/chat/:threadId')?.params.threadId ?? null
+  const routeThreadId = useMatch('/chat/:threadId')?.params.threadId ?? null
   const threads = useThreadList(userId)
-  const chat = useChatSession({ userId, threadId: activeThreadId, navigate, onThreadCreated: threads.refresh })
+  const chat = useChatSession({ userId, threadId: routeThreadId, navigate, onThreadCreated: threads.refresh })
+  const activeThreadId = chat.view.threadId
   const activeThread = threads.state.kind === 'ready'
     ? threads.state.threads.find((thread) => thread.thread_id === activeThreadId)
     : undefined
@@ -33,7 +33,6 @@ export function ChatLayout() {
     refresh: threads.refresh,
   })
   const [collapsed, setCollapsed] = useState(false)
-  const outletContext: ChatLayoutContext = { collapsed, setCollapsed, chat, threadName }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -51,9 +50,10 @@ export function ChatLayout() {
             />
           </aside>
         )}
-        {/* One composer across the outlet, so a draft survives /chat -> /chat/:id. */}
         <div className="flex min-h-0 flex-col overflow-auto">
-          <Outlet context={outletContext} />
+          {chat.view.canvas === 'thread'
+            ? <ChatThreadView chat={chat} threadName={threadName} collapsed={collapsed} setCollapsed={setCollapsed} />
+            : <ChatEmptyState chat={chat} />}
           <ChatComposer canAsk={chat.view.canAsk} onAsk={chat.ask} />
         </div>
       </div>
@@ -61,9 +61,7 @@ export function ChatLayout() {
   )
 }
 
-export function ChatEmptyState() {
-  const { chat } = useChatLayoutContext()
-
+function ChatEmptyState({ chat }: { chat: ChatSession }) {
   return (
     <div data-testid="chat-empty" className="flex flex-1 flex-col gap-6 p-8">
       <section className="rounded-md border border-line bg-surface p-6">
@@ -86,15 +84,18 @@ export function ChatEmptyState() {
           ))}
         </div>
       </section>
-      <ThreadColumn>
-        <PendingTurnView turn={chat.view.turn} backgroundRun={chat.view.backgroundRun} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />
-      </ThreadColumn>
     </div>
   )
 }
 
-export function ChatThreadView() {
-  const { collapsed, setCollapsed, chat, threadName } = useChatLayoutContext()
+type ChatThreadViewProps = {
+  chat: ChatSession
+  threadName: string
+  collapsed: boolean
+  setCollapsed: Dispatch<SetStateAction<boolean>>
+}
+
+function ChatThreadView({ chat, threadName, collapsed, setCollapsed }: ChatThreadViewProps) {
   const { view } = chat
 
   return (
@@ -131,7 +132,7 @@ export function ChatThreadView() {
         {view.listMounted ? (
           <section className="flex min-h-[24rem] flex-1 flex-col" aria-label="Persisted message history">
             <VirtualizedMessageList
-              key={view.threadId ?? ''}
+              key={view.listKey}
               messages={view.messages}
               tail={<PendingTurnView turn={view.turn} backgroundRun={view.backgroundRun} onRetry={chat.retry} onReload={chat.reload} onAsk={chat.ask} />}
             />
