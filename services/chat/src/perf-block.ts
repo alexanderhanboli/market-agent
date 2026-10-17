@@ -140,6 +140,7 @@ async function loadSealedRanges(
   const { rows: ranges } = await db.query<{
     bar_range_id: string;
     listing_id: string;
+    ticker: string;
     adjustment_basis: ComparableBasis;
     source_id: string;
     delay_class: string;
@@ -171,6 +172,7 @@ async function loadSealedRanges(
      )
      select picked.bar_range_id::text as bar_range_id,
             picked.listing_id::text as listing_id,
+            listings.ticker,
             picked.adjustment_basis,
             picked.source_id::text as source_id,
             picked.delay_class, picked.range_start, picked.range_end, picked.as_of,
@@ -180,7 +182,8 @@ async function loadSealedRanges(
                 where bar.bar_range_id = picked.bar_range_id),
               '[]'::json
             ) as bars
-       from picked`,
+       from picked
+       join listings on listings.listing_id = picked.listing_id`,
     [
       input.listings.map((listing) => listing.id),
       INTERVAL,
@@ -193,9 +196,10 @@ async function loadSealedRanges(
     ranges.find((range) => range.listing_id === listingId && range.adjustment_basis === basis);
   const sealedOf = (listing: { id: string; label: string }, basis: ComparableBasis): SealedPriceRange | undefined => {
     const range = rangeOf(listing.id, basis);
+    // Labelled with the listing's stored ticker, as the seal checks (#316).
     return range && {
       listing_id: listing.id,
-      label: listing.label,
+      label: range.ticker,
       bar_range_id: range.bar_range_id,
       source_id: range.source_id,
       interval: INTERVAL,

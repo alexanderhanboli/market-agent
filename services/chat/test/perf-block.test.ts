@@ -167,6 +167,7 @@ function storedRow(r: SealedPriceRange) {
   return {
     bar_range_id: r.bar_range_id,
     listing_id: r.listing_id,
+    ticker: r.label,
     adjustment_basis: r.adjustment_basis,
     source_id: r.source_id,
     delay_class: r.delay_class,
@@ -187,6 +188,17 @@ test("range metadata and its bars are read in one statement, so a concurrent ref
   });
   assert.equal(queries, 1);
   assert.equal(blocks[0]?.kind, "perf_comparison");
+});
+
+test("each line is labelled with its listing's stored ticker, not the turn's display label, as the seal checks (#316)", async () => {
+  const db = { query: fakeQuery(() => ({ rows: [storedRow(NVDA), storedRow(AMD)] })) };
+  const [chart] = await loadPerfComparisonBlocks(db, {
+    listings: [{ id: NVDA.listing_id, label: "NVIDIA Corporation" }, { id: AMD.listing_id, label: "Advanced Micro Devices" }],
+    snapshotId: SNAPSHOT_ID,
+    asOf: AS_OF,
+  });
+  assert.deepEqual(chart?.subject_labels, ["NVDA", "AMD"]);
+  assert.deepEqual((chart?.series as Array<{ name: string }>).map((line) => line.name), ["NVDA", "AMD"]);
 });
 
 test("a company without stored prices means no chart, rather than a chart missing a company", async (t) => {

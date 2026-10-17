@@ -39,7 +39,8 @@ Each block in a chat message carries three independent claims. They are not a tr
     series.
   - A price chart (`perf_comparison`) is the exception (#236). The seal reloads the bars each line's series pins,
     recomputes the line with the function chat draws it with, and fails on any digest, point or window mismatch
-    (`series_points_mismatch`). The chart is linked when its points are embedded and each line has its own sealed
+    (`series_points_mismatch`). It also fails unless each line's legend name and subject label are its listing's
+    stored ticker and its unit is `%` (#316). The chart is linked when its points are embedded and each line has its own sealed
     series. A live-rendered chart, with no embedded points, is never linked.
   - A price return in prose is a `series` ref (#317). The seal fails unless it shows the last point of the line that
     series draws in the message's price charts, as the chart labels it (`series_ref_format_mismatch`). The prose is

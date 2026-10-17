@@ -299,6 +299,7 @@ test("a comparison keeps its price chart when the fundamentals are unavailable",
         rows: listingIds.map((listingId, i) => ({
           bar_range_id: `64000000-0000-4000-8000-00000000010${i}`,
           listing_id: listingId,
+          ticker: `T${i}`,
           adjustment_basis: "split_adjusted",
           source_id: "00000000-0000-4000-a000-000000000009",
           delay_class: "eod",
