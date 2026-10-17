@@ -111,14 +111,19 @@ npm test         # contract + AAPL FY2024 income statement verification
   capex mapped from `PaymentsToAcquireProductiveAssets` still appears in
   statements but gets no context, since that concept adds purchased
   intangibles.
-- A 10-K's comparative for one of the two prior years that differs from
-  the latest stored disclosure is stored as a restatement: `method =
-  'restated'`, on the later filing's source, `supersedes` naming the
-  original, with an `as_restated` / `economic_restatement` context. An
-  unchanged comparative, two different values in one filing, or an
-  original without a recorded concept adds nothing. Readers of
-  as-reported facts filter `method = 'reported'`, so they never see a
-  restatement; only certified selection with `as_restated` picks it.
+- A 10-K's comparative for an earlier year that differs from the
+  previous filing's value for it, in filing-date order, is stored as a
+  restatement: `method = 'restated'`, on the later filing's source,
+  `reported_at` its filing date, `supersedes` naming the original, with
+  an `as_restated` / `economic_restatement` context. Every ingest checks
+  each stored original against every later 10-K in its companyfacts
+  download, which lists all of the issuer's filings, so the result does
+  not depend on which year was ingested first. An unchanged comparative,
+  two different values in one filing, or an original without a recorded
+  concept adds nothing. Readers of as-reported facts filter `method =
+  'reported'`, so they never see a restatement; only certified selection
+  with `as_restated` picks it, taking the restatement filed last among
+  those public at the cutoff.
 - Period selection, fiscal labels, scale, and unit are part of the
   contract, not caller-side cleanup. `value_num × scale` resolves to the
   native unit (e.g. millions × 1_000_000 = native USD).

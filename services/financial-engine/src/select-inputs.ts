@@ -8,8 +8,10 @@
 //    financial context, contract-expressible unit.
 // 3. "Latest" resolves among eligible periods at the cutoff.
 // 4. An eligible extraction correction replaces the fact it corrects.
-// 5. as_reported takes the original disclosure; as_restated takes the latest
-//    economic restatement public by the cutoff, else the original.
+// 5. as_reported takes the original disclosure; as_restated takes, among the
+//    economic restatements public by the cutoff, the one filed last, else the
+//    original. Publication proof only gates eligibility: an SEC proof is when
+//    a download saw the filing, so an older 10-K ingested later proves later.
 // 6. Equal values tie-break by fact id; differing values are a conflict —
 //    identifier order never chooses financial truth.
 // 7. Freshness is measured to the cutoff.
@@ -196,8 +198,9 @@ function chooseDisclosure(entries: ReadonlyArray<Eligible>, all: ReadonlyArray<I
   if (basis === "as_reported") return originals;
   const restated = entries.filter((entry) => disclosureLevel(entry.candidate, all) === "restated");
   if (restated.length === 0) return originals;
-  const latestBound = Math.max(...restated.map((entry) => Date.parse(entry.publication.available_no_later_than)));
-  return restated.filter((entry) => Date.parse(entry.publication.available_no_later_than) === latestBound);
+  const filed = (entry: Eligible) => Date.parse(entry.candidate.reported_at ?? entry.publication.available_no_later_than);
+  const latestFiled = Math.max(...restated.map(filed));
+  return restated.filter((entry) => filed(entry) === latestFiled);
 }
 
 /** Parses the stored value and scale once; null when either is outside the numeric limits. */
