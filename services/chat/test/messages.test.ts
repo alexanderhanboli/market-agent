@@ -5,6 +5,7 @@ import {
   createChatMessagePersistence,
   listChatMessagesForThread,
   persistImportedArtifactMessage,
+  readChatMessage,
   persistChatMessageAfterSnapshotSeal,
   persistChatMessageAfterSnapshotSealWithPool,
   type ChatMessageClientPool,
@@ -13,6 +14,7 @@ import {
 } from "../src/messages.ts";
 import type { SnapshotSealResult } from "../../snapshot/src/snapshot-sealer.ts";
 import { fakeQuery } from "./fake-query.ts";
+import { createChatCoordinator } from "../src/coordinator.ts";
 
 test("chat message persistence does not insert when snapshot sealing fails", async () => {
   const db = recordingDb();
@@ -62,7 +64,7 @@ test("chat message persistence inserts only after snapshot sealing succeeds", as
 
   assert.equal(result.ok, true);
   assert.equal(result.message.snapshot_id, "22222222-2222-4222-a222-222222222222");
-  assert.deepEqual(steps, ["seal", "begin", "insert", "update-thread", "commit"]);
+  assert.deepEqual(steps, ["seal", "begin", "insert", "update-thread", "commit", "select-message", "select-snapshots", "select-certificates"]);
 
   const insert = db.queries.find((query) => query.text.includes("insert into chat_messages"));
   assert.ok(insert, "expected chat message insert");
@@ -156,8 +158,63 @@ test("chat message persistence with pool pins insert transaction to one client",
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(steps, ["seal", "begin", "insert", "update-thread", "commit", "release"]);
+  assert.deepEqual(steps, ["seal", "begin", "insert", "update-thread", "commit", "select-message", "select-snapshots", "select-certificates", "release"]);
   assert.equal(pool.releasedWith, undefined);
+});
+
+test("a committed message that cannot be read back fails the write, and the client is still released", async () => {
+  const steps: string[] = [];
+  const client = recordingDb(steps, { readBack: "finds_nothing" });
+  let released = 0;
+  client.release = () => {
+    released += 1;
+  };
+
+  await assert.rejects(
+    () =>
+      persistChatMessageAfterSnapshotSealWithPool({ connect: async () => client }, {
+        thread_id: "11111111-1111-4111-a111-111111111111",
+        role: "assistant",
+        blocks: [{ type: "text", text: "sealed answer" }],
+        content_hash: "sha256:sealed",
+        sealSnapshot: async () => successfulSealResult(),
+      }),
+    /persistChatMessageAfterSnapshotSeal: the committed message 33333333-3333-4333-a333-333333333333 could not be read back/,
+  );
+  assert.deepEqual(steps, ["begin", "insert", "update-thread", "commit", "select-message"]);
+  assert.equal(released, 1);
+});
+
+test("a committed message whose read-back fails completes the turn with its id and logs the read error", async (t) => {
+  const steps: string[] = [];
+  const client = recordingDb(steps, { readBack: "rejects" });
+  const logged = t.mock.method(console, "error", () => {});
+  const coordinator = createChatCoordinator({
+    analystToolRuntime: async () => ({
+      snapshot_id: "11111111-1111-4111-a111-111111111111",
+      verification: { ok: true, failures: [] },
+      tool_calls: [],
+      blocks: [{ id: "block-1", kind: "rich_text", segments: [{ type: "text", text: "Sealed." }] }],
+    }),
+    persistAssistantMessage: createChatMessagePersistence({
+      pool: { connect: async () => client },
+      sealSnapshot: async () => successfulSealResult(),
+    }),
+  });
+  const turn = coordinator.getOrCreateTurn({ threadId: "11111111-1111-4111-a111-111111111111", runId: "run-1", userIntent: "Analyze GOOG" });
+  await turn.completed;
+
+  const events = turn.events as ReadonlyArray<Record<string, unknown> & { type: string }>;
+  assert.deepEqual(events.map((event) => event.type).slice(-1), ["turn.completed"]);
+  const completed = events.at(-1)!;
+  assert.equal(completed.message_id, "33333333-3333-4333-a333-333333333333");
+  assert.equal("message" in completed, false);
+  assert.equal(events.find((event) => event.type === "snapshot.staged")?.snapshot_id, "22222222-2222-4222-a222-222222222222");
+  assert.deepEqual(steps, ["begin", "insert", "update-thread", "commit", "select-message"]);
+  assert.equal(logged.mock.callCount(), 1);
+  const [note, cause] = logged.mock.calls[0]!.arguments as [string, Error];
+  assert.equal(note, "[chat] the committed message 33333333-3333-4333-a333-333333333333 could not be read back; its turn completes without it");
+  assert.equal(cause.message, "Connection terminated unexpectedly");
 });
 
 test("chat message persistence adapter wires coordinator persistence through seal gate", async () => {
@@ -185,18 +242,33 @@ test("chat message persistence adapter wires coordinator persistence through sea
     content_hash: "sha256:sealed",
   });
 
-  assert.deepEqual(result, {
-    snapshot_id: "22222222-2222-4222-a222-222222222222",
+  // The persisted message as every read returns it: the row and its proofs.
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), {
     message_id: "33333333-3333-4333-a333-333333333333",
+    thread_id: "11111111-1111-4111-a111-111111111111",
+    role: "assistant",
+    snapshot_id: "22222222-2222-4222-a222-222222222222",
+    blocks: [{ type: "text", text: "sealed answer" }],
+    content_hash: "sha256:sealed",
+    created_at: "2026-04-29T00:00:00.000Z",
+    answered_by: null,
+    block_proofs: {},
   });
+  assert.equal(Object.isFrozen(result), true);
+  // Read on the pinned client after commit, before it goes back to the pool.
   assert.deepEqual(steps, [
     "seal:11111111-1111-4111-a111-111111111111:assistant",
     "begin",
     "insert",
     "update-thread",
     "commit",
+    "select-message",
+    "select-snapshots",
+    "select-certificates",
     "release",
   ]);
+  const read = client.queries.find((query) => query.text.includes("from chat_messages m"));
+  assert.deepEqual(read?.values, ["33333333-3333-4333-a333-333333333333", "11111111-1111-4111-a111-111111111111"]);
 });
 
 test("chat message persistence adapter rejects failed seals without inserting", async () => {
@@ -433,6 +505,50 @@ test("blocks sharing an id share no proof: the id claims nothing (#193)", async 
   });
 });
 
+test("readChatMessage returns the element listChatMessagesForThread returns for the same row (#331)", async () => {
+  const THREAD = "11111111-1111-4111-a111-111111111111";
+  const SNAPSHOT = "22222222-2222-4222-a222-222222222222";
+  const ORIGIN = "44444444-4444-4444-a444-444444444444";
+  const HASH = "a".repeat(64);
+  const db = messageListDb((text, values) => {
+    if (text.includes("from chat_threads")) return [{ owned: true }];
+    if (text.includes("from chat_messages")) {
+      const row = {
+        message_id: "00000000-0000-4000-8000-0000000000a1",
+        thread_id: THREAD,
+        role: "assistant",
+        snapshot_id: SNAPSHOT,
+        blocks: [
+          { id: "b1", snapshot_id: ORIGIN, kind: "financial_answer", presentation_hash: HASH, financial: { run_id: "run-1", unit_id: "unit-1" } },
+          { id: "b2", kind: "rich_text", segments: [{ type: "text", text: "Margins widened." }] },
+        ],
+        content_hash: "sha256:abc",
+        created_at: "2026-05-06T00:00:00.000Z",
+        answered_by: "fixture/recorded",
+      };
+      const scoped = values?.length === 2 ? values[0] === row.message_id && values[1] === row.thread_id : values?.[0] === row.thread_id;
+      return scoped ? [row] : [];
+    }
+    if (text.includes("from snapshots")) {
+      return [SNAPSHOT, ORIGIN].map((snapshot_id) => ({ snapshot_id, fact_refs: [], claim_refs: [], event_refs: [], document_refs: [], source_ids: [], series_specs: [] }));
+    }
+    if (text.includes("from snapshot_financial_runs")) return [{ snapshot_id: ORIGIN, run_id: "run-1", unit_id: "unit-1", presentation_hash: HASH }];
+    throw new Error(`unexpected query: ${text}`);
+  });
+
+  const list = await listChatMessagesForThread(db, { thread_id: THREAD, user_id: "00000000-0000-4000-8000-000000000001" });
+  const read = await readChatMessage(db, { thread_id: THREAD, message_id: "00000000-0000-4000-8000-0000000000a1" });
+
+  assert.equal(JSON.stringify(read), JSON.stringify(list?.messages[0]));
+  assert.deepEqual({ ...read?.block_proofs }, {
+    b1: { evidence: "linked", calculation: "verified", public_by_cutoff: "proven" },
+    b2: { evidence: "unknown", calculation: "not_verified", public_by_cutoff: "unknown" },
+  });
+  assert.equal(Object.isFrozen(read), true);
+  // Another thread's id finds nothing, even for an existing message.
+  assert.equal(await readChatMessage(db, { thread_id: "99999999-9999-4999-a999-999999999999", message_id: "00000000-0000-4000-8000-0000000000a1" }), null);
+});
+
 test("listChatMessagesForThread returns null and does not read messages for wrong-user threads", async () => {
   const db = messageListDb((text) => {
     if (text.includes("from chat_threads")) return [];
@@ -544,18 +660,23 @@ function failedSealResult(): SnapshotSealResult {
   };
 }
 
-function recordingDb(steps: string[] = []): ChatMessageTransactionClient & {
+type ReadBack = "returns" | "finds_nothing" | "rejects";
+
+function recordingDb(steps: string[] = [], options: { readBack?: ReadBack } = {}): ChatMessageTransactionClient & {
   queries: Array<{ text: string; values?: unknown[] }>;
   release?(error?: Error): void;
 } {
-  return chatMessageTransactionClient(unpinnedRecordingDb(steps));
+  return chatMessageTransactionClient(unpinnedRecordingDb(steps, options));
 }
 
-function unpinnedRecordingDb(steps: string[] = []): ChatMessagePersistenceDb & {
+// Models one acquired client over a table: an insert stores its row, and a
+// read by (message_id, thread_id) returns it, finds nothing, or rejects as readBack says.
+function unpinnedRecordingDb(steps: string[] = [], { readBack = "returns" }: { readBack?: ReadBack } = {}): ChatMessagePersistenceDb & {
   queries: Array<{ text: string; values?: unknown[] }>;
   release?(error?: Error): void;
 } {
   const queries: Array<{ text: string; values?: unknown[] }> = [];
+  const stored: Array<Record<string, unknown>> = [];
   return {
     queries,
     release() {
@@ -575,19 +696,32 @@ function unpinnedRecordingDb(steps: string[] = []): ChatMessagePersistenceDb & {
       if (text === "rollback") return { rows: [] };
       if (text.includes("insert into chat_messages")) {
         steps.push("insert");
-        return {
-          rows: [
-            {
-              message_id: "33333333-3333-4333-a333-333333333333",
-              thread_id: values?.[0],
-              role: values?.[1],
-              snapshot_id: values?.[2],
-              blocks: JSON.parse(String(values?.[3])),
-              content_hash: values?.[4],
-              created_at: "2026-04-29T00:00:00.000Z",
-            },
-          ],
+        const row = {
+          message_id: "33333333-3333-4333-a333-333333333333",
+          thread_id: values?.[0],
+          role: values?.[1],
+          snapshot_id: values?.[2],
+          blocks: JSON.parse(String(values?.[3])),
+          content_hash: values?.[4],
+          created_at: "2026-04-29T00:00:00.000Z",
+          answered_by: values?.[5] ?? null,
         };
+        stored.push(row);
+        return { rows: [{ message_id: row.message_id }] };
+      }
+      if (text.includes("from chat_messages m")) {
+        steps.push("select-message");
+        if (readBack === "rejects") throw new Error("Connection terminated unexpectedly");
+        if (readBack === "finds_nothing") return { rows: [] };
+        return { rows: stored.filter((row) => row.message_id === values?.[0] && row.thread_id === values?.[1]) };
+      }
+      if (text.includes("from snapshots")) {
+        steps.push("select-snapshots");
+        return { rows: [] };
+      }
+      if (text.includes("from snapshot_financial_runs")) {
+        steps.push("select-certificates");
+        return { rows: [] };
       }
       if (text.includes("update chat_threads")) {
         steps.push("update-thread");

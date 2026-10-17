@@ -65,6 +65,7 @@ test("display_unverified: a failed runtime verification still shows the blocks, 
   const completed = events.at(-1)!;
   assert.equal(completed.type, "turn.completed");
   assert.equal(completed.message_id, undefined);
+  assert.equal("message" in completed, false, "nothing was saved, so there is no sealed message");
   assert.deepEqual(completed.unverified, {
     persisted: false,
     failures: [{ reason_code: "missing_fact_ref", details: {} }],

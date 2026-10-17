@@ -90,6 +90,10 @@ no full-stack test.
   the blocks, then emits `turn.completed` with no `message_id` and an `unverified: { persisted: false, failures, blocks }`
   payload. The web client labels each block "Unverified" and lists the failure reason codes under "Why unverified".
 
+A saved answer's `turn.completed` instead carries `message`: the saved message read back through the same code as
+the thread's messages GET (`readChatMessage` in `services/chat/src/messages.ts`), so the web client shows the sealed
+answer without fetching the thread (#331).
+
 This covers both failure points: the runtime's own verification, and the snapshot seal at persistence (a
 `ChatSnapshotSealError` carrying the verifier's failures). Other persistence errors, such as a lost database
 connection, are still `turn.error`.

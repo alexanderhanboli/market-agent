@@ -52,9 +52,17 @@ mounted and other handlers (e.g., the SSE stream) are unaffected.
 
 `CHAT_PERSISTENCE_MODULE` may be a package specifier, absolute path, file URL,
 or path relative to the process working directory. The module must export
-`persistAssistantMessage(input)`, which returns `{ snapshot_id, message_id }`
-only after a snapshot has sealed and the chat message row has been committed.
-When the variable is omitted, the dev server keeps the stub-only stream path.
+`persistAssistantMessage(input)`. It resolves only after a snapshot has sealed
+and the chat message row has been committed, and it resolves to that message
+as the thread's messages GET returns it (`ChatReadMessage` in
+`src/messages.ts`: the row plus its `block_proofs`). `turn.completed` carries
+that value as `message`. The message must be the assistant message saved in
+`input.threadId`; any other thread or role fails the turn with
+`turn.error { error_code: "ChatPersistenceContractError" }`. When the row
+committed but could not be read back, the hook throws `ChatMessageUnreadError`
+(from `src/messages.ts`) with the committed ids. The turn then completes with
+`message_id` and no `message`, and the client offers "Reload thread". When
+the variable is omitted, the dev server keeps the stub-only stream path.
 
 ## Subject Pre-Resolution Hook
 

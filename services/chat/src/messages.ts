@@ -38,6 +38,24 @@ export class ChatSnapshotSealError extends Error {
   }
 }
 
+// The message row committed, but reading it back failed. The answer is saved,
+// so its turn completes with the id alone and the client reloads the thread.
+export class ChatMessageUnreadError extends Error {
+  readonly message_id: string;
+  readonly snapshot_id: string;
+
+  constructor(messageId: string, snapshotId: string, cause: unknown) {
+    super(`the committed message ${messageId} could not be read back`, { cause });
+    this.name = "ChatMessageUnreadError";
+    this.message_id = messageId;
+    this.snapshot_id = snapshotId;
+  }
+}
+
+export function logUnreadMessage(messageId: string, cause: unknown): void {
+  console.error(`[chat] the committed message ${messageId} could not be read back; its turn completes without it`, cause);
+}
+
 const CHAT_MESSAGE_TRANSACTION_CLIENT: unique symbol = Symbol("chat.messageTransactionClient");
 
 type ChatMessageTransactionClientBrand = {
@@ -71,6 +89,18 @@ export type ChatMessageRow = {
 // A read message: each block's evidence, calculation, and public-time claims,
 // derived by the server on every read (#193), never stored or client-supplied.
 export type ChatReadMessage = ChatMessageRow & { block_proofs: Record<string, BlockProof> };
+
+// A committed assistant message: its read, or null when the read after the
+// commit failed (logged), so only its ids are known.
+export type ChatCommittedMessage = Readonly<{ message_id: string; snapshot_id: string; message: ChatReadMessage | null }>;
+
+export function sealedCompletion(
+  committed: Pick<ChatCommittedMessage, "message_id" | "message"> | null,
+  fallbackMessageId: string,
+): { message_id: string; message?: ChatReadMessage } {
+  if (committed === null) return { message_id: fallbackMessageId };
+  return committed.message ? { message_id: committed.message_id, message: committed.message } : { message_id: committed.message_id };
+}
 
 export type ChatThreadMessagesResult = {
   messages: ChatReadMessage[];
@@ -113,7 +143,7 @@ export type PersistChatMessageAfterSnapshotSealResult =
   | {
       ok: true;
       seal: SnapshotSealResult & { ok: true };
-      message: ChatMessageRow;
+      message: ChatReadMessage;
     }
   | {
       ok: false;
@@ -175,10 +205,7 @@ export function createChatMessagePersistence(
       throw new ChatSnapshotSealError(result.seal.verification.failures);
     }
 
-    return {
-      snapshot_id: result.seal.snapshot.snapshot_id,
-      message_id: result.message.message_id,
-    };
+    return result.message;
   };
 }
 
@@ -196,6 +223,25 @@ export async function listChatMessagesForThread(
   );
   if (owner.rows.length === 0) return null;
 
+  return { messages: await readMessages(db, "m.thread_id = $1::uuid", [input.thread_id]) };
+}
+
+/**
+ * One message of a thread, read exactly as listChatMessagesForThread reads it;
+ * null when the thread has no such message. It checks no owner: callers read
+ * a message they just wrote under an authorized thread.
+ */
+export async function readChatMessage(
+  db: ChatMessagePersistenceDb,
+  input: { thread_id: string; message_id: string },
+): Promise<ChatReadMessage | null> {
+  const [message] = await readMessages(db, "m.message_id = $1::uuid and m.thread_id = $2::uuid", [input.message_id, input.thread_id]);
+  return message ?? null;
+}
+
+// The read model behind every message read, so the GET and the turn's
+// completion (#331) return the same columns and the same proofs.
+async function readMessages(db: ChatMessagePersistenceDb, where: string, values: unknown[]): Promise<ChatReadMessage[]> {
   const { rows } = await db.query<ChatMessageRow>(
     `select m.message_id::text as message_id,
             m.thread_id::text as thread_id,
@@ -206,16 +252,19 @@ export async function listChatMessagesForThread(
             m.created_at::text as created_at,
             m.answered_by
        from chat_messages m
-      where m.thread_id = $1::uuid
+      where ${where}
       order by m.created_at asc, m.message_id asc`,
-    [input.thread_id],
+    values,
   );
   // Every snapshot a message or any of its blocks names: an imported block keeps
   // the snapshot it came from.
   const snapshots = await loadSealedSnapshots(db, rows.flatMap((row) => [row.snapshot_id, ...blockSnapshotIds(row.blocks)]));
-  return {
-    messages: rows.map((row) => Object.freeze({ ...row, block_proofs: blockProofs(row, snapshots) })),
-  };
+  return rows.map((row) => Object.freeze({ ...row, block_proofs: blockProofs(row, snapshots) }));
+}
+
+export function firstBlockId(message: Pick<ChatMessageRow, "blocks">): string | null {
+  const [block] = Array.isArray(message.blocks) ? message.blocks : [];
+  return block !== null && typeof block === "object" && !Array.isArray(block) && typeof block.id === "string" ? block.id : null;
 }
 
 function blockSnapshotIds(blocks: JsonValue): string[] {
@@ -509,21 +558,14 @@ async function persistSealedChatMessage(
   seal: SnapshotSealResult & { ok: true },
 ): Promise<PersistChatMessageAfterSnapshotSealResult & { ok: true }> {
   const snapshotId = seal.snapshot.snapshot_id;
+  let messageId: string;
   await db.query("begin");
   try {
-    const { rows } = await db.query<ChatMessageRow>(
+    const { rows } = await db.query<{ message_id: string }>(
       `insert into chat_messages
          (thread_id, role, snapshot_id, blocks, content_hash, answered_by, research_scope)
        values ($1::uuid, $2::chat_role, $3::uuid, $4::jsonb, $5, $6, $7::jsonb)
-       returning
-         message_id::text as message_id,
-         thread_id::text as thread_id,
-         role,
-         snapshot_id::text as snapshot_id,
-         blocks,
-         content_hash,
-         created_at::text as created_at,
-         answered_by`,
+       returning message_id::text as message_id`,
       [
         input.thread_id,
         input.role,
@@ -534,10 +576,11 @@ async function persistSealedChatMessage(
         input.research_scope === undefined ? null : serializeJsonValue(input.research_scope),
       ],
     );
-    const message = rows[0];
-    if (message === undefined) {
+    const inserted = rows[0];
+    if (inserted === undefined) {
       throw new Error("persistChatMessageAfterSnapshotSeal: chat message insert returned no row");
     }
+    messageId = inserted.message_id;
 
     await db.query(
       `update chat_threads
@@ -547,12 +590,6 @@ async function persistSealedChatMessage(
       [input.thread_id, snapshotId],
     );
     await db.query("commit");
-
-    return Object.freeze({
-      ok: true,
-      seal,
-      message: Object.freeze(message),
-    });
   } catch (error) {
     try {
       await db.query("rollback");
@@ -563,6 +600,18 @@ async function persistSealedChatMessage(
     }
     throw error;
   }
+
+  // Read back through the read model, so the caller holds what any later read returns.
+  let message: ChatReadMessage | null;
+  try {
+    message = await readChatMessage(db, { thread_id: input.thread_id, message_id: messageId });
+  } catch (error) {
+    throw new ChatMessageUnreadError(messageId, snapshotId, error);
+  }
+  if (message === null) {
+    throw new Error(`persistChatMessageAfterSnapshotSeal: the committed message ${messageId} could not be read back`);
+  }
+  return Object.freeze({ ok: true, seal, message });
 }
 
 function assertChatMessageTransactionClient(

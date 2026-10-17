@@ -28,7 +28,14 @@ import {
 } from "../../tools/src/index.ts";
 
 import type { ChatClarificationAnswer, ChatFinancialRuntime } from "./financial-runtime.ts";
-import { ChatSnapshotSealError } from "./messages.ts";
+import {
+  ChatMessageUnreadError,
+  ChatSnapshotSealError,
+  logUnreadMessage,
+  sealedCompletion,
+  type ChatCommittedMessage,
+  type ChatReadMessage,
+} from "./messages.ts";
 import { financialAwareRunner } from "./financial-turn.ts";
 import { LIST_END, namesFacet, words, type ResearchScope } from "./research-scope.ts";
 import type { AssertionReport } from "./assertions.ts";
@@ -168,14 +175,39 @@ export type ChatAssistantMessagePersistenceInput = {
   research_scope?: ResearchScope;
 };
 
-export type ChatAssistantMessagePersistenceResult = {
-  snapshot_id: string;
-  message_id: string;
-};
-
+// Resolves to the saved message as the thread's messages GET returns it.
 export type ChatAssistantMessagePersistence = (
   input: ChatAssistantMessagePersistenceInput,
-) => Promise<ChatAssistantMessagePersistenceResult>;
+) => Promise<ChatReadMessage>;
+
+export type ChatAssistantMessageCommit = (input: ChatAssistantMessagePersistenceInput) => Promise<ChatCommittedMessage>;
+
+export class ChatPersistenceContractError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ChatPersistenceContractError";
+  }
+}
+
+function committing(persist: ChatAssistantMessagePersistence): ChatAssistantMessageCommit {
+  return async (input) => {
+    let message: ChatReadMessage;
+    try {
+      message = await persist(input);
+    } catch (error) {
+      if (!(error instanceof ChatMessageUnreadError)) throw error;
+      logUnreadMessage(error.message_id, error.cause);
+      return { message_id: error.message_id, snapshot_id: error.snapshot_id, message: null };
+    }
+    if (message.thread_id !== input.threadId || message.role !== "assistant") {
+      throw new ChatPersistenceContractError(
+        `persistAssistantMessage must resolve to the assistant message it saved in thread ${input.threadId}; ` +
+          `it returned role ${JSON.stringify(message.role)} in thread ${message.thread_id}`,
+      );
+    }
+    return { message_id: message.message_id, snapshot_id: message.snapshot_id, message };
+  };
+}
 
 export type ChatTurnHandle = {
   readonly input: ChatTurnInput;
@@ -271,7 +303,7 @@ export class ChatTurnInputMismatchError extends Error {
 export function createChatCoordinator(
   options: ChatCoordinatorOptions = {},
 ): ChatCoordinator {
-  const persistAssistantMessage = options.persistAssistantMessage;
+  const persistAssistantMessage = options.persistAssistantMessage && committing(options.persistAssistantMessage);
   const preResolveSubject = options.preResolveSubject;
   const analystToolRuntime = options.analystToolRuntime;
   const baseRunner = options.runner ?? (analystToolRuntime
@@ -757,7 +789,7 @@ class MutableChatTurnHandle implements ChatTurnHandle {
 function subjectAwareRunner(
   runner: ChatTurnRunner,
   options: {
-    persistAssistantMessage?: ChatAssistantMessagePersistence;
+    persistAssistantMessage?: ChatAssistantMessageCommit;
     preResolveSubject?: ChatSubjectPreResolver;
     loadPriorSubjects?: ChatPriorSubjectsLoader;
     renderSubjectClarification?: ChatSubjectClarificationRenderer;
@@ -1035,7 +1067,7 @@ async function emitSubjectClarificationTurn(
   context: ChatTurnRunContext,
   preResolution: Exclude<ChatSubjectPreResolution, ChatResolvedSubjectPreResolution>,
   options: {
-    persistAssistantMessage?: ChatAssistantMessagePersistence;
+    persistAssistantMessage?: ChatAssistantMessageCommit;
     renderSubjectClarification?: ChatSubjectClarificationRenderer;
   } = {},
 ) {
@@ -1059,7 +1091,7 @@ async function emitSubjectClarificationTurn(
 async function emitClarificationTurn(
   context: ChatTurnRunContext,
   text: string,
-  persistAssistantMessage: ChatAssistantMessagePersistence | undefined,
+  persistAssistantMessage: ChatAssistantMessageCommit | undefined,
 ) {
   const turnId = context.turnId ?? context.runId;
   const blockId = stableUuid(`scope-clarification:${context.threadId}:${turnId}`);
@@ -1080,28 +1112,24 @@ async function emitClarificationTurn(
 async function emitClarification(
   context: ChatTurnRunContext,
   rendered: ChatSubjectClarificationRenderResult,
-  persistAssistantMessage: ChatAssistantMessagePersistence | undefined,
+  persistAssistantMessage: ChatAssistantMessageCommit | undefined,
 ) {
   const { emit } = context;
   const turnId = context.turnId ?? context.runId;
   const assistantBlocks = rendered.blocks;
   const contentHash = rendered.content_hash;
   const blockId = rendered.block_id ?? `subject-clarification-${turnId}`;
-  let snapshotId = `subject-snapshot-${turnId}`;
-  let messageId = `subject-message-${turnId}`;
-
-  if (persistAssistantMessage) {
-    const persisted = await persistAssistantMessage({
-      threadId: context.threadId,
-      runId: context.runId,
-      turnId,
-      role: "assistant",
-      blocks: assistantBlocks,
-      content_hash: contentHash,
-    });
-    snapshotId = persisted.snapshot_id;
-    messageId = persisted.message_id;
-  }
+  const persisted = persistAssistantMessage
+    ? await persistAssistantMessage({
+        threadId: context.threadId,
+        runId: context.runId,
+        turnId,
+        role: "assistant",
+        blocks: assistantBlocks,
+        content_hash: contentHash,
+      })
+    : null;
+  const snapshotId = persisted?.snapshot_id ?? `subject-snapshot-${turnId}`;
   emit("snapshot.staged", {
     snapshot_id: snapshotId,
     status: "staged",
@@ -1128,7 +1156,7 @@ async function emitClarification(
     content_hash: contentHash,
   });
   emit("turn.completed", {
-    message_id: messageId,
+    ...sealedCompletion(persisted, `subject-message-${turnId}`),
     clarification: true,
   });
 }
@@ -1148,7 +1176,7 @@ function emitSubjectResolutionToolEvents(
 async function toolBackedAnalystTurnRunner(
   context: ChatTurnRunContext,
   options: {
-    persistAssistantMessage?: ChatAssistantMessagePersistence;
+    persistAssistantMessage?: ChatAssistantMessageCommit;
     runtime: ChatAnalystToolRuntime;
     verificationMode: ChatVerificationMode;
   },
@@ -1229,11 +1257,8 @@ async function toolBackedAnalystTurnRunner(
     return;
   }
 
-  let snapshotId = result.snapshot_id;
-  let messageId = stableUuid(`message:${context.threadId}:${context.runId}:${turnId}`);
-
+  let persisted: ChatCommittedMessage | null = null;
   if (options.persistAssistantMessage) {
-    let persisted: Awaited<ReturnType<ChatAssistantMessagePersistence>>;
     try {
       persisted = await options.persistAssistantMessage({
         threadId: context.threadId,
@@ -1252,9 +1277,8 @@ async function toolBackedAnalystTurnRunner(
       }
       throw error;
     }
-    snapshotId = persisted.snapshot_id;
-    messageId = persisted.message_id;
   }
+  const snapshotId = persisted?.snapshot_id ?? result.snapshot_id;
 
   emit("snapshot.staged", {
     snapshot_id: snapshotId,
@@ -1268,7 +1292,7 @@ async function toolBackedAnalystTurnRunner(
   });
   emitAssistantBlocks(emit, assistantBlocks, contentHash);
   emit("turn.completed", {
-    message_id: messageId,
+    ...sealedCompletion(persisted, stableUuid(`message:${context.threadId}:${context.runId}:${turnId}`)),
     bundle_id: context.bundleId,
     ...subjectRef,
     ...narrativeRemoved,
@@ -1332,7 +1356,7 @@ async function missingAnalystToolRuntimeRunner(context: ChatTurnRunContext) {
 
 async function syntheticAnalystTurnRunner(
   context: ChatTurnRunContext,
-  persistAssistantMessage?: ChatAssistantMessagePersistence,
+  persistAssistantMessage?: ChatAssistantMessageCommit,
 ) {
   const { emit } = context;
   const preResolution = context.subjectPreResolution ?? null;
@@ -1348,8 +1372,6 @@ async function syntheticAnalystTurnRunner(
     }),
   ]);
   const contentHash = contentHashForText(JSON.stringify(assistantBlocks));
-  let snapshotId = snapshotSeed;
-  let messageId = stableUuid(`message:${context.threadId}:${context.runId}:${context.turnId ?? context.runId}`);
 
   if (!preResolution) {
     emit("turn.started", { bundle_id: context.bundleId });
@@ -1365,18 +1387,17 @@ async function syntheticAnalystTurnRunner(
     });
   }
 
-  if (persistAssistantMessage) {
-    const persisted = await persistAssistantMessage({
-      threadId: context.threadId,
-      runId: context.runId,
-      turnId: context.turnId ?? context.runId,
-      role: "assistant",
-      blocks: assistantBlocks,
-      content_hash: contentHash,
-    });
-    snapshotId = persisted.snapshot_id;
-    messageId = persisted.message_id;
-  }
+  const persisted = persistAssistantMessage
+    ? await persistAssistantMessage({
+        threadId: context.threadId,
+        runId: context.runId,
+        turnId: context.turnId ?? context.runId,
+        role: "assistant",
+        blocks: assistantBlocks,
+        content_hash: contentHash,
+      })
+    : null;
+  const snapshotId = persisted?.snapshot_id ?? snapshotSeed;
   emit("snapshot.staged", {
     snapshot_id: snapshotId,
     status: "staged",
@@ -1403,7 +1424,7 @@ async function syntheticAnalystTurnRunner(
     content_hash: contentHash,
   });
   emit("turn.completed", {
-    message_id: messageId,
+    ...sealedCompletion(persisted, stableUuid(`message:${context.threadId}:${context.runId}:${context.turnId ?? context.runId}`)),
     bundle_id: context.bundleId,
     ...(preResolution?.status === "resolved" ? { subject_ref: preResolution.subject_ref } : {}),
     ...(preResolution !== null && preResolution.status !== "resolved" ? { clarification: true } : {}),

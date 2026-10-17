@@ -24,6 +24,7 @@ import {
 import { loadEvidenceInspection } from "../../evidence/src/inspector.ts";
 import { createChatServer } from "../src/http.ts";
 import { closeLocalRuntimePoolForTests } from "../src/local-runtime.ts";
+import { readChatMessage } from "../src/messages.ts";
 import { loadChatServerOptionsFromEnv } from "../src/runtime.ts";
 import { AMD_Q2_2025_RELEASE, GOLDEN_COMPANIES, seedGoldenDataset } from "./golden/dataset.ts";
 import type { Client } from "pg";
@@ -147,8 +148,8 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
   });
 
   // Each turn's answer as streamed, for the reload check after turn 3.
-  const turns: Array<{ question: string; streamedIds: unknown[]; answer: ChatMessage }> = [];
-  if (assistant) turns.push({ question: "Analyze NVDA", streamedIds: streamedBlockIds(events), answer: assistant });
+  const turns: Array<{ question: string; streamedIds: unknown[]; answer: ChatMessage; completed: ParsedSseEvent }> = [];
+  if (assistant) turns.push({ question: "Analyze NVDA", streamedIds: streamedBlockIds(events), answer: assistant, completed: completedTurn(events) });
 
   await t.test("follow-up 'Compare it with AMD YTD' sets both companies side by side over the year to date", async () => {
     const turnEvents = await runTurn(base, thread.thread_id, "Compare it with AMD YTD");
@@ -156,7 +157,7 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     assert.deepEqual(completed.data.subject_refs, BOTH_LISTINGS, "'it' should carry NVDA forward and add AMD");
 
     const answer = await latestAssistantMessage(base, thread.thread_id);
-    turns.push({ question: "Compare it with AMD YTD", streamedIds: streamedBlockIds(turnEvents), answer });
+    turns.push({ question: "Compare it with AMD YTD", streamedIds: streamedBlockIds(turnEvents), answer, completed });
     const comparison = comparisonBlock(answer);
     assert.deepEqual(
       (comparison.subjects as Array<{ id: string }>).map((subject) => subject.id),
@@ -228,12 +229,13 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
       (await client.query<{ n: number }>(`select count(*)::int as n from facts where method = 'derived'`)).rows[0]!.n;
     const derivedBefore = await derivedFacts();
     const turnEvents = await runTurn(base, thread.thread_id, "Explain the differences and show the evidence");
-    assert.deepEqual(completedTurn(turnEvents).data.subject_refs, BOTH_LISTINGS);
+    const completed = completedTurn(turnEvents);
+    assert.deepEqual(completed.data.subject_refs, BOTH_LISTINGS);
     // The same comparison reuses turn 2's derived facts instead of re-minting them (#134).
     assert.equal(await derivedFacts(), derivedBefore, "turn 3 added derived facts");
 
     const answer = await latestAssistantMessage(base, thread.thread_id);
-    turns.push({ question: "Explain the differences and show the evidence", streamedIds: streamedBlockIds(turnEvents), answer });
+    turns.push({ question: "Explain the differences and show the evidence", streamedIds: streamedBlockIds(turnEvents), answer, completed });
     // The model's whole reply is shown: not the placeholder, nor cut off.
     const narrative = answer.blocks.find((block) => block.kind === "rich_text");
     assert.deepEqual(
@@ -290,6 +292,27 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     }
     const chart = answers[1]!.blocks.find((block) => block.kind === "perf_comparison");
     assert.ok((chart?.series as Array<{ points: unknown[] }>).every((line) => line.points.length > 1), "the chart lost its points");
+  });
+
+  // The client hands off on the completion, so it must carry exactly what a
+  // reload returns: the same row and the same server-derived proofs (#331).
+  await t.test("each turn.completed carries the sealed message the GET returns for that turn", async () => {
+    assert.equal(turns.length, 3, "an earlier turn failed");
+    const { messages } = await api<{ messages: ChatMessage[] }>(base, "GET", `/v1/chat/threads/${thread.thread_id}/messages`);
+    for (const [i, turn] of turns.entries()) {
+      const sealed = turn.completed.data.message as ChatMessage | undefined;
+      assert.ok(sealed, `turn ${i + 1}'s completion carries no message`);
+      assert.equal(sealed.message_id, turn.completed.data.message_id);
+      const listed = messages.find((message) => message.message_id === sealed.message_id);
+      assert.ok(listed, `turn ${i + 1}'s message is not in the thread`);
+      assert.equal(JSON.stringify(sealed), JSON.stringify(listed), `turn ${i + 1}'s completion differs from the GET`);
+    }
+    const first = String(turns[0]!.completed.data.message_id);
+    assert.equal(
+      JSON.stringify(await readChatMessage(client, { thread_id: thread.thread_id, message_id: first })),
+      JSON.stringify(messages.find((message) => message.message_id === first)),
+    );
+    assert.equal(await readChatMessage(client, { thread_id: randomUUID(), message_id: first }), null, "another thread reads nothing");
   });
 
   // A turn continues the scope when it covers one of the previous answer's
