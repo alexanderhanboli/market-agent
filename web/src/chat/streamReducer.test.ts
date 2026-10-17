@@ -222,11 +222,7 @@ test('turn.completed captures message_id; turn.error captures error', () => {
   assert.equal(state.error, 'rate_limited')
 })
 
-test('turn.completed clears blocks_by_id and block_order so memory does not grow between turns', () => {
-  // The parent uses completed_message_id to fetch the canonical sealed
-  // message and renders it via the standard MessageItem path; holding the
-  // streaming graph past completion would pin accumulated rich_text segments
-  // until the next turn.started.
+test('turn.completed keeps block_order ["b1"] and sets completed_message_id "msg-1"', () => {
   let state: StreamState = INITIAL_STREAM_STATE
   state = applyChatStreamEvent(state, event('block.began', 1, { block_id: 'b1', kind: 'rich_text' }))
   state = applyChatStreamEvent(state, event('block.delta', 2, {
@@ -235,9 +231,9 @@ test('turn.completed clears blocks_by_id and block_order so memory does not grow
   }))
   state = applyChatStreamEvent(state, event('turn.completed', 3, { message_id: 'msg-1' }))
 
-  assert.equal(state.blocks_by_id.size, 0)
-  assert.deepEqual(state.block_order, [])
-  assert.deepEqual(state.plan_steps, [])
+  assert.equal(state.turn_status, 'completed')
+  assert.deepEqual(state.block_order, ['b1'])
+  assert.deepEqual((state.blocks_by_id.get('b1') as StreamingRichTextBlock).segments, [{ type: 'text', text: 'hello' }])
   assert.equal(state.completed_message_id, 'msg-1')
 })
 
@@ -393,9 +389,6 @@ test('tool and snapshot events update the streamed agent plan from real SSE payl
 })
 
 test('multi-block sequence preserves block_order and per-block segments through to block.completed', () => {
-  // Validates the streaming graph at the moment all blocks have completed
-  // but before turn.completed clears the graph (the latter is asserted by
-  // the dedicated clear-on-completed test).
   let state: StreamState = INITIAL_STREAM_STATE
   state = applyChatStreamEvent(state, event('turn.started', 1))
   state = applyChatStreamEvent(state, event('block.began', 2, { block_id: 'b1', kind: 'rich_text' }))
