@@ -394,7 +394,6 @@ function withEnded(s: ChatSessionState, run: RunRef): ReadonlyArray<string> {
 function adopt(s: ChatSessionState, activeRun: RunRef | null): ChatSessionState {
   const { turn } = s
   if (activeRun === null || !ASKABLE_PHASES.has(turn.phase)) return s
-  if (turn.phase === 'failed' && turn.recovery === 'retry_run') return s
   if (s.endedRuns.includes(activeRun.runId) || s.released.some((r) => r.run.runId === activeRun.runId)) return s
   return { ...s, turn: { phase: 'streaming', run: activeRun, origin: { kind: 'adopted' }, stream: INITIAL_STREAM_STATE, link: ATTACHED_LINK } }
 }

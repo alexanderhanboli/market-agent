@@ -621,3 +621,22 @@ test('after a followed run hands off, a load reconciles the next run the last re
   assert.deepEqual(next.turn.phase === 'streaming' ? next.turn.run : null, R2)
   assert.equal(selectThreadView(next).canAsk, false)
 })
+
+test('when an own run fails while another run is in flight, the load it requests adopts that run with Send held', () => {
+  const U2 = message('u2', 'user', 'Compare with AMD')
+  const R2 = { runId: 'run-2', turnId: 'u2' }
+  const listed = run(streamingT1(), [
+    { type: 'history.requested' },
+    read(2, [U1], [{ run: R1, status: 'in_flight' }, { run: R2, status: 'in_flight' }]),
+  ])
+  assert.deepEqual(listed.turn.phase === 'streaming' ? listed.turn.run : null, R1)
+
+  const failed = reduceChatSession(listed, streamEvent(sse('turn.error', 5, { error_code: 'runner_failed', message: 'boom' })))
+  assert.equal(failed.turn.phase, 'failed')
+  assert.deepEqual(selectThreadView(failed).needsLoad, { threadId: 'T1', gen: 3 })
+  assert.equal(selectThreadView(failed).canAsk, false)
+
+  const next = reduceChatSession(failed, read(3, [U1, U2], [{ run: R1, status: 'failed' }, { run: R2, status: 'in_flight' }]))
+  assert.deepEqual(next.turn.phase === 'streaming' ? next.turn.run : null, R2)
+  assert.equal(selectThreadView(next).canAsk, false)
+})
