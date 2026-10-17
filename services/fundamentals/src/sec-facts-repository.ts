@@ -20,8 +20,10 @@ import {
   type SecCompanyFactsFetch,
   type SecEdgarFetcher,
   type SecDerivation,
+  type SecFetchEvidence,
   type SecSourceToken,
 } from "./sec-edgar.ts";
+import { compareExactDecimals, parseFinancialDecimal } from "../../financial-core/src/exact-decimal.ts";
 import { recordFactPrecisionAttestation } from "../../evidence/src/financial-attestations.ts";
 import { recordFactFinancialContext } from "../../evidence/src/financial-context.ts";
 import { withPinnedTransaction, type TransactionalQueryExecutor } from "./pinned-transaction.ts";
@@ -268,18 +270,13 @@ async function ingestFiling(
         }
       }
     }
-    if (accessionNumber && input.fiscal_period === "FY") {
-      await recordSecRestatements(client, {
-        facts: input.fetched.facts,
-        cik: input.cik,
-        issuerId: input.issuerId,
-        fiscalYear: input.fiscal_year,
-        accessionNumber,
-        sourceId,
-        asOf,
-        clock: input.clock,
-      });
-    }
+    await recordSecRestatements(client, {
+      facts: input.fetched.facts,
+      cik: input.cik,
+      issuerId: input.issuerId,
+      evidence: input.fetched.evidence,
+      clock: input.clock,
+    });
     if (accessionNumber) {
       await recordSecFetchPublication(client, { sourceId, accessionNumber, evidence: input.fetched.evidence });
     }
@@ -953,12 +950,15 @@ async function derivationLineage(
   };
 }
 
-// A 10-K repeats the two prior years beside its own (#321). Each stored
-// original disclosure of those years is compared with this filing's value for
-// the same concept, unit and dates. An unchanged value adds nothing; a changed
-// one is stored as that year's restatement, on this filing's source, naming
-// the original it restates. Two different values in the filing, a value
-// without its lossless token, or an original with no recorded concept is left
+// A 10-K repeats the two prior years beside its own (#321). Every stored
+// original FY disclosure of the issuer is compared with each later 10-K in the
+// download that gives the same concept, unit and dates, in filing order: a
+// value that differs from the previous filing's is stored as that year's
+// restatement, on the restating filing's source, naming the original. A
+// companyfacts download lists every filing, so the stored history does not
+// depend on which year was ingested first (#333), and repeating a restated
+// value adds nothing. A filing giving two different values, or a value without
+// its lossless token, is skipped; an original with no recorded concept is left
 // as it is. A restated fact's method keeps it out of every as-reported reader.
 async function recordSecRestatements(
   db: FundamentalsQueryExecutor,
@@ -966,10 +966,7 @@ async function recordSecRestatements(
     facts: SecCompanyFacts;
     cik: number;
     issuerId: UUID;
-    fiscalYear: number;
-    accessionNumber: string;
-    sourceId: UUID;
-    asOf: string;
+    evidence: SecFetchEvidence;
     clock: () => Date;
   },
 ): Promise<void> {
@@ -980,6 +977,7 @@ async function recordSecRestatements(
     period_start: string | null;
     period_end: string;
     fiscal_year: number;
+    value: string;
     unit: string;
     currency: string | null;
     scale: string;
@@ -987,77 +985,99 @@ async function recordSecRestatements(
   }>(
     `select f.fact_id::text as fact_id, f.metric_id::text as metric_id, f.period_kind::text as period_kind,
             f.period_start::text as period_start, f.period_end::text as period_end, f.fiscal_year,
-            f.unit, f.currency, f.scale::text as scale, c.source_context_ref
+            f.value_num::text as value, f.unit, f.currency, f.scale::text as scale, c.source_context_ref
        from facts f
        join fact_financial_contexts c on c.fact_id = f.fact_id
       where f.subject_kind = 'issuer' and f.subject_id = $1 and f.method = 'reported' and f.fiscal_period = 'FY'
-        and f.fiscal_year between $2 - 2 and $2 - 1
         and ${factActiveSql("f")}
-        and c.context_version = $3 and c.disclosure_relation = 'original'`,
-    [input.issuerId, input.fiscalYear, SEC_CONTEXT_VERSION],
+        and c.context_version = $2 and c.disclosure_relation = 'original'`,
+    [input.issuerId, SEC_CONTEXT_VERSION],
   );
   const usGaap = input.facts.facts["us-gaap"] ?? {};
+  const sources = new Map<string, UUID>();
+  const published = new Set<string>();
   for (const original of originals) {
     const located = /#([^|]+)\|([^|]+)\|([^|]+)\|/u.exec(original.source_context_ref ?? "");
-    if (!located || located[3] === input.accessionNumber) continue;
-    const [, concept, unit] = located;
-    const presented = (usGaap[concept!]?.units?.[unit!] ?? []).filter((value) =>
-      value.accn === input.accessionNumber && value.form === "10-K" && (value.start ?? null) === original.period_start && value.end === original.period_end);
-    const tokens = [...new Set(presented.map((value) => value.val_token ?? null))];
-    if (tokens.length !== 1 || tokens[0] === null) continue;
-    const token: SecSourceToken = { token: tokens[0]!, concept: concept!, unit: unit!, accn: input.accessionNumber, start: original.period_start, end: original.period_end };
-    // Compared with the latest disclosure, so a later 10-K repeating a restated value adds nothing.
-    const latest = await db.query<{ changed: boolean }>(
-      `select r.value_num <> $2::numeric as changed
-         from facts r
-        where r.fact_id = $1::uuid or (r.supersedes = $1::uuid and r.method = 'restated' and ${factActiveSql("r")})
-        order by r.as_of desc, r.created_at desc
-        limit 1`,
-      [original.fact_id, token.token],
-    );
-    if (!latest.rows[0]?.changed) continue;
-    const inserted = await db.query<{ fact_id: string }>(
-      `insert into facts (
-         subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
-         value_num, unit, currency, scale, as_of, reported_at, observed_at, source_id, method, definition_version,
-         verification_status, freshness_class, coverage_level, confidence, supersedes
-       ) values (
-         'issuer', $1, $2, $3, $4, $5, $6, 'FY', $7, $8, $9, $10, $11, $15, $12, $13, 'restated', 1,
-         'authoritative', 'filing_time', 'full', 1, $14
-       )
-       on conflict do nothing
-       returning fact_id::text as fact_id`,
-      [
-        input.issuerId, original.metric_id, original.period_kind, original.period_start, original.period_end, original.fiscal_year,
-        token.token, original.unit, original.currency, original.scale, input.asOf, input.clock().toISOString(), input.sourceId, original.fact_id,
-        presented[0]!.filed,
-      ],
-    );
-    const factId = inserted.rows[0]?.fact_id;
-    if (!factId) continue;
-    const locator = `sec_edgar:companyfacts:CIK${String(input.cik).padStart(10, "0")}#${token.concept}|${token.unit}|${token.accn}|${token.start ?? ""}..${token.end}`;
-    await recordFactPrecisionAttestation(db, {
-      fact_id: factId,
-      precision_class: "source_token_preserved",
-      raw_token: token.token,
-      token_proof_hash: secTokenProofHash(input.cik, token),
-      source_locator: locator,
-      validation_method: "sec_companyfacts_lossless_json.v1",
-    });
-    await recordFactFinancialContext(db, {
-      fact_id: factId,
-      context_version: SEC_CONTEXT_VERSION,
-      period_type: original.period_start === null ? "instant" : "duration",
-      dimension_scope: "consolidated",
-      dimension_members: [],
-      reporting_basis: "as_restated",
-      adjustment_basis: "unadjusted",
-      share_basis: "not_applicable",
-      fiscal_calendar_version: "sec_filer_fiscal_year.v1",
-      disclosure_relation: "economic_restatement",
-      source_context_ref: locator,
-    });
+    if (!located) continue;
+    const [, concept, unit, originalAccession] = located;
+    const byFiling = new Map<string, { filed: string; tokens: Set<string | null> }>();
+    for (const value of usGaap[concept!]?.units?.[unit!] ?? []) {
+      if (value.accn === originalAccession || value.form !== "10-K" || (value.start ?? null) !== original.period_start || value.end !== original.period_end) continue;
+      const filing = byFiling.get(value.accn) ?? { filed: value.filed, tokens: new Set() };
+      filing.tokens.add(value.val_token ?? null);
+      byFiling.set(value.accn, filing);
+    }
+    const filings = [...byFiling].sort(([leftAccn, left], [rightAccn, right]) => left.filed.localeCompare(right.filed) || leftAccn.localeCompare(rightAccn));
+    let previous = original.value;
+    for (const [accessionNumber, { filed, tokens }] of filings) {
+      const [presented, ...others] = tokens;
+      if (others.length > 0 || presented === null || presented === undefined) continue;
+      const unchanged = sameDecimal(presented, previous);
+      previous = presented;
+      if (unchanged !== false) continue;
+      const asOf = input.evidence.completed_at;
+      let sourceId = sources.get(accessionNumber);
+      if (sourceId === undefined) {
+        sourceId = await upsertSecFilingSource(db, { cik: input.cik, accessionNumber, retrievedAt: asOf });
+        sources.set(accessionNumber, sourceId);
+      }
+      const token: SecSourceToken = { token: presented, concept: concept!, unit: unit!, accn: accessionNumber, start: original.period_start, end: original.period_end };
+      const inserted = await db.query<{ fact_id: string }>(
+        `insert into facts (
+           subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,
+           value_num, unit, currency, scale, as_of, reported_at, observed_at, source_id, method, definition_version,
+           verification_status, freshness_class, coverage_level, confidence, supersedes
+         ) values (
+           'issuer', $1, $2, $3, $4, $5, $6, 'FY', $7, $8, $9, $10, $11, $15, $12, $13, 'restated', 1,
+           'authoritative', 'filing_time', 'full', 1, $14
+         )
+         on conflict do nothing
+         returning fact_id::text as fact_id`,
+        [
+          input.issuerId, original.metric_id, original.period_kind, original.period_start, original.period_end, original.fiscal_year,
+          token.token, original.unit, original.currency, original.scale, asOf, input.clock().toISOString(), sourceId, original.fact_id,
+          filed,
+        ],
+      );
+      const factId = inserted.rows[0]?.fact_id;
+      if (!factId) continue;
+      const locator = `sec_edgar:companyfacts:CIK${String(input.cik).padStart(10, "0")}#${token.concept}|${token.unit}|${token.accn}|${token.start ?? ""}..${token.end}`;
+      await recordFactPrecisionAttestation(db, {
+        fact_id: factId,
+        precision_class: "source_token_preserved",
+        raw_token: token.token,
+        token_proof_hash: secTokenProofHash(input.cik, token),
+        source_locator: locator,
+        validation_method: "sec_companyfacts_lossless_json.v1",
+      });
+      await recordFactFinancialContext(db, {
+        fact_id: factId,
+        context_version: SEC_CONTEXT_VERSION,
+        period_type: original.period_start === null ? "instant" : "duration",
+        dimension_scope: "consolidated",
+        dimension_members: [],
+        reporting_basis: "as_restated",
+        adjustment_basis: "unadjusted",
+        share_basis: "not_applicable",
+        fiscal_calendar_version: "sec_filer_fiscal_year.v1",
+        disclosure_relation: "economic_restatement",
+        source_context_ref: locator,
+      });
+      // The restating filing need not be the one this ingest is for; this
+      // download listing it proves it was public by the download's completion.
+      if (!published.has(accessionNumber)) {
+        await recordSecFetchPublication(db, { sourceId, accessionNumber, evidence: input.evidence });
+        published.add(accessionNumber);
+      }
+    }
   }
+}
+
+/** Numeric equality of two decimal texts, or null when either is not one. */
+function sameDecimal(left: string, right: string): boolean | null {
+  const a = parseFinancialDecimal(left);
+  const b = parseFinancialDecimal(right);
+  return a.ok && b.ok ? compareExactDecimals(a.value, b.value) === 0 : null;
 }
 
 /** Binds the exact token to its location in the SEC response. */

@@ -14,6 +14,7 @@ type CandidateSpec = {
   start?: string;
   end?: string;
   publishedLocalDate?: string;
+  filed?: string | null;
   publication?: InputCandidate["publication"];
   relation?: "original" | "economic_restatement" | "extraction_correction";
   precision?: InputCandidate["precision"];
@@ -38,6 +39,7 @@ function candidate(spec: CandidateSpec = {}): InputCandidate {
     unit: { kind: "currency", currency: "USD" },
     method: "reported",
     verification_status: "authoritative",
+    reported_at: spec.filed === undefined ? `${spec.publishedLocalDate ?? `${year + 1}-01-10`}T00:00:00.000Z` : spec.filed,
     observed_at: "2024-02-01T00:00:00.000Z",
     supersedes: spec.supersedes ?? null,
     superseded_by: spec.superseded_by ?? null,
@@ -103,6 +105,33 @@ test("public Jan 10 and ingested Feb 1 is eligible at a Jan 15 cutoff; a Jan 20 
   const later = policy({ knowledge_cutoff: "2024-01-25T00:00:00-05:00" });
   assert.equal(selectedId(selectInput(FY2023, [original, restatement], { ...later, reporting_basis: "as_restated" })), restatement.fact_id);
   assert.equal(selectedId(selectInput(FY2023, [original, restatement], later)), original.fact_id);
+});
+
+test("as_restated takes the restatement filed last, not the one proven public last", () => {
+  const original = candidate({ value: "100", publishedLocalDate: "2024-01-10" });
+  const older = candidate({ value: "95", filed: "2025-01-10T00:00:00.000Z", publishedLocalDate: "2026-03-01", relation: "economic_restatement", supersedes: original.fact_id });
+  const newer = candidate({ value: "93", filed: "2026-01-10T00:00:00.000Z", publishedLocalDate: "2026-02-01", relation: "economic_restatement", supersedes: original.fact_id });
+  const restated = (cutoff: string) => policy({ knowledge_cutoff: cutoff, reporting_basis: "as_restated" });
+  assert.equal(selectedId(selectInput(FY2023, [original, older, newer], restated("2026-04-01T00:00:00Z"))), newer.fact_id);
+  assert.equal(selectedId(selectInput(FY2023, [original, older, newer], restated("2026-02-15T00:00:00Z"))), newer.fact_id, "the older one is not public yet");
+  const published = (candidateSpec: InputCandidate, localDate: string) => ({
+    ...candidateSpec,
+    publication: [{ ...candidateSpec.publication[0]!, timing: { ...candidateSpec.publication[0]!.timing, available_no_later_than: `${localDate}T00:00:00-05:00` } }],
+  });
+  assert.equal(
+    selectedId(selectInput(FY2023, [original, published(older, "2025-01-10"), published(newer, "2026-01-10")], restated("2025-06-01T00:00:00Z"))),
+    older.fact_id,
+    "the newer one is not public yet",
+  );
+});
+
+test("a corrected restatement ranks by the filing it corrects, not by when the correction was recorded (#337 review)", () => {
+  const original = candidate({ value: "100", publishedLocalDate: "2024-01-10" });
+  const older = candidate({ value: "95", filed: "2025-01-10T00:00:00.000Z", publishedLocalDate: "2025-01-10", relation: "economic_restatement", supersedes: original.fact_id });
+  const correction = candidate({ value: "96", filed: "2026-03-01T00:00:00.000Z", publishedLocalDate: "2026-03-01", relation: "extraction_correction", supersedes: older.fact_id });
+  const newer = candidate({ value: "93", filed: "2026-01-10T00:00:00.000Z", publishedLocalDate: "2026-01-10", relation: "economic_restatement", supersedes: original.fact_id });
+  const restated = policy({ knowledge_cutoff: "2026-04-01T00:00:00Z", reporting_basis: "as_restated" });
+  assert.equal(selectedId(selectInput(FY2023, [original, older, correction, newer], restated)), newer.fact_id);
 });
 
 test("a date-only publication is not assumed available earlier on the same day", () => {

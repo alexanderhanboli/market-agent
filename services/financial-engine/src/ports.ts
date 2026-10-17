@@ -39,6 +39,8 @@ export type InputCandidate = Readonly<{
   unit: FinancialUnit | null;
   method: "reported" | "extracted" | "restated";
   verification_status: "authoritative" | "corroborated";
+  /** When the disclosing filing was filed (SEC `filed`); not proof of publication. */
+  reported_at: string | null;
   observed_at: string;
   supersedes: string | null;
   superseded_by: string | null;

@@ -42,6 +42,33 @@ function companyFacts(filings: number) {
   };
 }
 
+/**
+ * One issuer's companyfacts after `filings` 10-Ks (FY2023 to FY2025), each
+ * giving 2023 revenue as `revenue2023[i]`, under that issuer's own accessions.
+ */
+function restatingFacts(cik: number, revenue2023: readonly [string, string, string], filings: number) {
+  const accn = (fy: number) => `${String(cik).padStart(10, "0")}-${fy + 1 - 2000}-000010`;
+  const k23 = year(accn(2023), 2023, "2024-01-10");
+  const k24 = year(accn(2024), 2024, "2025-01-10");
+  const k25 = year(accn(2025), 2025, "2026-01-10");
+  const revenue = [
+    k23(2023, revenue2023[0]),
+    ...(filings > 1 ? [k24(2023, revenue2023[1]), k24(2024, "110")] : []),
+    ...(filings > 2 ? [k25(2023, revenue2023[2]), k25(2024, "110"), k25(2025, "120")] : []),
+  ];
+  const netIncome = [k23(2023, "40"), ...(filings > 1 ? [k24(2023, "40"), k24(2024, "44")] : []), ...(filings > 2 ? [k25(2024, "44"), k25(2025, "48")] : [])];
+  return {
+    cik,
+    entityName: `Restating ${cik}`,
+    facts: {
+      "us-gaap": {
+        Revenues: { label: "", description: "", units: { USD: revenue } },
+        NetIncomeLoss: { label: "", description: "", units: { USD: netIncome } },
+      },
+    },
+  };
+}
+
 test("SEC restatements", { timeout: 300_000 }, async (t) => {
   if (!dockerAvailable()) {
     t.skip("Docker is required for restatement coverage");
@@ -95,4 +122,66 @@ test("SEC restatements", { timeout: 300_000 }, async (t) => {
     await ingest(3, 2025, "2026-02-01T15:00:00.000Z");
     assert.equal((await fy2023Facts()).filter((row) => row.method === "restated").length, 1);
   });
+
+  let issuers = 0;
+  const restatingIssuer = async (revenue2023: readonly [string, string, string]) => {
+    issuers += 1;
+    const issuerId = `33000000-0000-4000-8000-0000000004${String(issuers).padStart(2, "0")}`;
+    const cik = 320190 + issuers;
+    await db.query(`insert into issuers (issuer_id, legal_name, cik) values ($1, $2, $3)`, [issuerId, `Restating ${cik}`, String(cik)]);
+    const ingestYear = (fiscalYear: number, filings: number, completedAt: string) =>
+      createSecBackedStatementRepository(db, {
+        fetcher: secCompanyFetcher(() => restatingFacts(cik, revenue2023, filings), { completed_at: completedAt }),
+        sourceId: FALLBACK_SOURCE_ID,
+        logger: { warn: () => {} },
+      }).find({ issuer_id: issuerId, family: "income", basis: "as_reported", fiscal_year: fiscalYear, fiscal_period: "FY" });
+    const restatedRevenue = async () => (await db.query<{ value: string; restates: string }>(
+      `select f.value_num::text as value, o.method::text || ':' || o.value_num::text as restates
+         from facts f join metrics m on m.metric_id = f.metric_id join facts o on o.fact_id = f.supersedes
+        where f.subject_id = $1 and f.fiscal_year = 2023 and f.method = 'restated' and m.metric_key = 'revenue'
+        order by f.reported_at`,
+      [issuerId],
+    )).rows;
+    const storedRows = async () => (await db.query<{ facts: number; contexts: number; precision: number }>(
+      `select count(*)::int as facts, count(c.fact_id)::int as contexts,
+              (select count(*)::int from fact_precision_attestations a join facts g on g.fact_id = a.fact_id where g.subject_id = $1) as precision
+         from facts f left join fact_financial_contexts c on c.fact_id = f.fact_id where f.subject_id = $1`,
+      [issuerId],
+    )).rows[0];
+    const asRestated = async (cutoff: string) => picked(await selectRevenue(db, issuerId, cutoff, "as_restated"));
+    return { ingestYear, restatedRevenue, storedRows, asRestated };
+  };
+
+  await t.test("a restatement is recorded when the year it restates is ingested after the restating 10-K", async () => {
+    const issuer = await restatingIssuer(["100", "95", "93"]);
+    await issuer.ingestYear(2024, 2, "2025-02-01T15:00:00.000Z");
+    await issuer.ingestYear(2023, 2, "2025-02-02T15:00:00.000Z");
+    assert.deepEqual(await issuer.restatedRevenue(), [{ value: "95", restates: "reported:100" }]);
+    assert.equal(await issuer.asRestated("2025-03-01T00:00:00Z"), "95");
+
+    await issuer.ingestYear(2025, 3, "2026-02-01T15:00:00.000Z");
+    assert.deepEqual(await issuer.restatedRevenue(), [{ value: "95", restates: "reported:100" }, { value: "93", restates: "reported:100" }]);
+    assert.equal(await issuer.asRestated("2025-06-01T00:00:00Z"), "95", "the second restatement was not filed yet");
+    assert.equal(await issuer.asRestated("2026-04-01T00:00:00Z"), "93");
+
+    const before = await issuer.storedRows();
+    for (const fiscalYear of [2023, 2024, 2025]) await issuer.ingestYear(fiscalYear, 3, "2026-05-01T15:00:00.000Z");
+    assert.deepEqual(await issuer.storedRows(), before);
+  });
+
+  for (const order of [[2023, 2025, 2024], [2025, 2023, 2024]] as const) {
+    await t.test(`a year restated twice resolves to the later-filed restatement, ingesting ${order.join(", ")}`, async () => {
+      const issuer = await restatingIssuer(["100", "95", "93"]);
+      const fetchedAt = ["2026-02-01T15:00:00.000Z", "2026-03-01T15:00:00.000Z", "2026-04-01T15:00:00.000Z"];
+      for (const [index, fiscalYear] of order.entries()) {
+        await issuer.ingestYear(fiscalYear, fiscalYear === 2023 && index === 0 ? 1 : 3, fiscalYear === 2023 && index === 0 ? "2024-02-01T15:00:00.000Z" : fetchedAt[index]!);
+      }
+      assert.deepEqual(await issuer.restatedRevenue(), [{ value: "95", restates: "reported:100" }, { value: "93", restates: "reported:100" }]);
+      assert.equal(await issuer.asRestated("2026-04-15T00:00:00Z"), "93");
+
+      const before = await issuer.storedRows();
+      for (const fiscalYear of order) await issuer.ingestYear(fiscalYear, 3, "2026-05-01T15:00:00.000Z");
+      assert.deepEqual(await issuer.storedRows(), before);
+    });
+  }
 });
