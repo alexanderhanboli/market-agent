@@ -47,3 +47,15 @@ test("investment_memo playbook resolves with the verdict section last", () => {
   assert.deepEqual(sectionIds.slice(-1), ["final_verdict"]);
   assert.ok(resolved.prompt.includes("Final verdict"));
 });
+
+test("the prompt lists required and optional sections apart", () => {
+  const memo = resolveAnalyzePlaybookRequest({ playbook_id: "investment_memo" }).prompt.split("\n");
+  assert.deepEqual(memo.filter((line) => /^(Required|Optional) sections:/u.test(line)), [
+    "Required sections: Investment thesis; Financial health & profitability; Growth drivers; Downside risks; Ownership & insider signals; Final verdict",
+    "Optional sections: Cash resilience; Revenue trend; Analyst overview; Price targets",
+  ]);
+  const variant = resolveAnalyzePlaybookRequest({ playbook_id: "variant_view" }).prompt.split("\n");
+  assert.deepEqual(variant.filter((line) => /^(Required|Optional) sections:/u.test(line)), [
+    "Required sections: Variant summary; Consensus view; Counter-evidence; Disconfirming signals; Decision points",
+  ], "a playbook with no optional sections has no optional line");
+});

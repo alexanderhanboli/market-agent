@@ -117,6 +117,8 @@ export function resolveAnalyzePlaybookRequest(
 
   const instructions = normalizeText(input.instructions) ?? playbook.default_instructions;
   const sourceCategories = normalizeSourceCategories(input.source_categories) ?? playbook.default_source_categories;
+  const titles = (required: boolean) => playbook.sections.filter((section) => section.required === required).map((section) => section.title);
+  const optional = titles(false);
 
   return Object.freeze({
     playbook,
@@ -125,7 +127,8 @@ export function resolveAnalyzePlaybookRequest(
     prompt: [
       `${playbook.name}: ${playbook.description}`,
       `Instructions: ${instructions}`,
-      `Required sections: ${playbook.sections.map((section) => section.title).join("; ")}`,
+      `Required sections: ${titles(true).join("; ")}`,
+      ...(optional.length > 0 ? [`Optional sections: ${optional.join("; ")}`] : []),
       `Source categories: ${sourceCategories.join(", ")}`,
     ].join("\n"),
   });
