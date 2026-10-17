@@ -123,7 +123,9 @@ npm test         # contract + AAPL FY2024 income statement verification
   not depend on which year was ingested first. An unchanged comparative,
   two different values in one filing, or an original without a recorded
   concept adds nothing. Readers of as-reported facts filter `method =
-  'reported'`, so they never see a restatement; only certified selection
+  'reported'`, or `method <> 'restated'` where they also read vendor and
+  derived facts (analyst grids, thesis evidence), so they never see a
+  restatement; only certified selection
   with `as_restated` picks it, taking the restatement filed last among
   those public at the cutoff.
 - Period selection, fiscal labels, scale, and unit are part of the
