@@ -1,5 +1,15 @@
 export type LlmEnv = Readonly<Record<string, string | undefined>>;
 
+/** What each LLM_<NAME>_PROTOCOL value speaks (pi-ai's API module) and where, when no base URL is set. */
+export const LLM_PROTOCOLS = {
+  "openai-compatible": { api: "openai-completions", defaultBaseUrl: null },
+  openai: { api: "openai-completions", defaultBaseUrl: "https://api.openai.com/v1" },
+  anthropic: { api: "anthropic-messages", defaultBaseUrl: "https://api.anthropic.com" },
+} as const satisfies Record<string, { api: string; defaultBaseUrl: string | null }>;
+
+export type LlmProtocol = keyof typeof LLM_PROTOCOLS;
+export type LlmApi = (typeof LLM_PROTOCOLS)[LlmProtocol]["api"];
+
 export type LlmChannelConfig = {
   name: string;
   envName: string;
@@ -28,8 +38,9 @@ export type LlmSettings = {
 export type LlmDeployment = {
   channel: string;
   model: string;
-  protocol: string;
-  baseUrl: string | null;
+  protocol: LlmProtocol;
+  /** The channel's base URL, or its protocol's default endpoint. */
+  baseUrl: string;
   apiKeys: ReadonlyArray<string>;
   /** Set when the channel's LLM_<NAME>_REASONING_MODELS lists this model. */
   reasoning?: boolean;
@@ -74,13 +85,13 @@ export function buildLlmDeploymentOrder(settings: LlmSettings): ReadonlyArray<Ll
       ...settings.fallbackModels,
     ]).flatMap((ref) => {
       const channel = channelsByName.get(ref.channel);
-      if (!channel || !isDeployableChannel(channel)) return [];
+      const target = channel?.enabled && channel.models.length > 0 ? endpointOf(channel) : null;
+      if (!channel || target === null) return [];
       return [
         Object.freeze({
           channel: channel.name,
           model: ref.model,
-          protocol: channel.protocol,
-          baseUrl: channel.baseUrl,
+          ...target,
           apiKeys: channel.apiKeys,
           ...(channel.reasoningModels.includes(ref.model) ? { reasoning: true } : {}),
         }),
@@ -145,8 +156,14 @@ function channelFromEnv(env: LlmEnv, name: string): LlmChannelConfig {
 function validateChannels(channels: ReadonlyArray<LlmChannelConfig>, issues: string[]): void {
   for (const channel of channels) {
     if (!channel.enabled) continue;
-    if (channel.protocol === "openai-compatible" && channel.baseUrl === null) {
-      issues.push(`LLM_${channel.envName}_BASE_URL: required for openai-compatible channel '${channel.name}'`);
+    const protocol = protocolOf(channel.protocol);
+    if (protocol === null) {
+      issues.push(
+        `LLM_${channel.envName}_PROTOCOL: unknown protocol '${channel.protocol}' for channel '${channel.name}' ` +
+          `(expected one of ${Object.keys(LLM_PROTOCOLS).join(", ")})`,
+      );
+    } else if (endpointOf(channel) === null) {
+      issues.push(`LLM_${channel.envName}_BASE_URL: required for ${protocol} channel '${channel.name}'`);
     }
     if (channel.models.length === 0) {
       issues.push(`LLM_${channel.envName}_MODELS: at least one model is required for channel '${channel.name}'`);
@@ -154,10 +171,15 @@ function validateChannels(channels: ReadonlyArray<LlmChannelConfig>, issues: str
   }
 }
 
-function isDeployableChannel(channel: LlmChannelConfig): boolean {
-  return channel.enabled &&
-    channel.models.length > 0 &&
-    (channel.protocol !== "openai-compatible" || channel.baseUrl !== null);
+// Where a channel's calls go, or null when its protocol is unknown or needs a base URL it lacks.
+function endpointOf(channel: LlmChannelConfig): { protocol: LlmProtocol; baseUrl: string } | null {
+  const protocol = protocolOf(channel.protocol);
+  const baseUrl = protocol === null ? null : channel.baseUrl ?? LLM_PROTOCOLS[protocol].defaultBaseUrl;
+  return protocol === null || baseUrl === null ? null : { protocol, baseUrl };
+}
+
+function protocolOf(value: string): LlmProtocol | null {
+  return Object.hasOwn(LLM_PROTOCOLS, value) ? value as LlmProtocol : null;
 }
 
 function parseOptionalModelRef(
