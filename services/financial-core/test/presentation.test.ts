@@ -162,6 +162,52 @@ test("one subject with a measure over several periods is a series in operand ord
   ]);
 });
 
+function singleSubjectPlan(operations: FinancialPlanV1["operations"], outputs: string[], thresholds: FinancialPlanV1["thresholds"] = []): FinancialPlanV1 {
+  const plan = mutable(planFixture()) as FinancialPlanV1;
+  plan.subjects = { ...plan.subjects, requested_count: 1, resolved_count: 1, members: [plan.subjects.members[0]!] };
+  plan.operations = operations;
+  plan.outputs = outputs.map((node_id) => ({ output_id: `o_${node_id}`, node_id, unit_id: "section" }));
+  plan.thresholds = thresholds;
+  return plan;
+}
+
+const FY = (fiscal_year: number) => ({ kind: "fiscal_period" as const, fiscal_year, fiscal_period: "FY" as const });
+const balance = (node_id: string, metric_key: string, fiscal_year = 2023) =>
+  ({ node_id, operation: "reported_metric" as const, operation_version: "reported_metric.v1", subject_slot: "a", metric_key, period: FY(fiscal_year) });
+const valueOf = (value: string, unit: unknown) => ({ kind: "value", value, unit, exact: true, rounding: null });
+
+test("a threshold on an approved ratio reads as a multiple, like the ratio's value", () => {
+  const plan = singleSubjectPlan(
+    [
+      balance("tl", "total_liabilities"),
+      balance("ta", "total_assets"),
+      { node_id: "lta", operation: "ratio", operation_version: "ratio.v1", ratio_key: "liabilities_to_assets", numerator: "tl", denominator: "ta" },
+      { node_id: "lta_check", operation: "threshold", operation_version: "threshold.v1", subject: "lta", threshold_id: "max_lta", comparison: "gt" },
+    ],
+    ["lta", "lta_check"],
+    [{ threshold_id: "max_lta", value: "0.5", unit: { kind: "ratio" }, attribution: { kind: "user_request", ref: "chat:turn:1" } }],
+  );
+  const content = present(plan, [
+    committed("o_lta", "lta", valueOf("0.55", { kind: "ratio" })),
+    committed("o_lta_check", "lta_check", { kind: "predicate", predicate: "threshold", comparison: "gt", outcome: true }),
+  ], { a: "Alpha Corp" });
+  assert.equal(resultText(content, "o_lta"), "0.55x");
+  assert.equal(resultText(content, "o_lta_check"), "Alpha Corp — Total liabilities / total assets (period-end balance sheet), end of FY2023, above 0.50x: yes");
+});
+
+test("a change between two balances names the end of each period", () => {
+  const plan = singleSubjectPlan(
+    [
+      balance("ta23", "total_assets"),
+      balance("ta22", "total_assets", 2022),
+      { node_id: "ta_change", operation: "absolute_change", operation_version: "absolute_change.v1", current: "ta23", prior: "ta22" },
+    ],
+    ["ta_change"],
+  );
+  const content = present(plan, [committed("o_ta_change", "ta_change", valueOf("50", { kind: "currency", currency: "USD" }))], { a: "Alpha Corp" });
+  assert.deepEqual(labelTexts(content, "o_ta_change"), ["Alpha Corp", "Change in Total assets", "end of FY2023 vs end of FY2022"]);
+});
+
 test("a changed label, unit, period, or denominator changes the presentation hash", () => {
   const baseline = presentationHash(present());
   assert.equal(presentationHash(present()), baseline, "presentation is deterministic");

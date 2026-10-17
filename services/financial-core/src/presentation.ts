@@ -241,11 +241,7 @@ function presentPayload(plan: FinancialPlanV1, node: OperationNode, payload: unk
   switch (record.kind) {
     case "value": {
       const unit = record.unit as FinancialUnit;
-      const value = parseValue(record.value as string);
-      // An approved ratio (leverage, cash conversion) reads as a multiple; margins and changes stay percentages.
-      const text = node.operation === "ratio" && unit.kind === "ratio"
-        ? { text: `${fixed(value, 2)}x`, full_text: `${canonicalDecimalString(value)}x` }
-        : formatValue(value, unit);
+      const text = formatNodeValue(node, parseValue(record.value as string), unit);
       return { kind: "value", ...text, value: record.value as string, unit, exact: record.exact as boolean };
     }
     case "predicate": {
@@ -253,7 +249,7 @@ function presentPayload(plan: FinancialPlanV1, node: OperationNode, payload: unk
       const threshold = node.operation === "threshold" ? plan.thresholds.find((entry) => entry.threshold_id === node.threshold_id) : undefined;
       const subject = node.operation === "threshold" ? node.subject : node.node_id;
       const subjectNode = plan.operations.find((entry) => entry.node_id === subject)!;
-      const bound = threshold ? formatValue(parseValue(threshold.value), threshold.unit).text : "the threshold";
+      const bound = threshold ? formatNodeValue(subjectNode, parseValue(threshold.value), threshold.unit).text : "the threshold";
       const slot = subjectSlot(plan, subjectNode);
       const who = slot === null ? "" : `${labels[subjectLabelId(slot)]!.text} — `;
       return {
@@ -283,6 +279,13 @@ function presentPayload(plan: FinancialPlanV1, node: OperationNode, payload: unk
 }
 
 const COMPARISON_TEXT: Readonly<Record<Comparison, string>> = { gt: "above", gte: "at or above", lt: "below", lte: "at or below", eq: "equal to" };
+
+// An approved ratio (leverage, cash conversion) reads as a multiple; margins and changes stay percentages.
+function formatNodeValue(node: OperationNode, value: ExactDecimal, unit: FinancialUnit): { text: string; full_text: string } {
+  return node.operation === "ratio" && unit.kind === "ratio"
+    ? { text: `${fixed(value, 2)}x`, full_text: `${canonicalDecimalString(value)}x` }
+    : formatValue(value, unit);
+}
 
 function formatValue(value: ExactDecimal, unit: FinancialUnit): { text: string; full_text: string } {
   switch (unit.kind) {
@@ -417,8 +420,8 @@ function periodSelectors(plan: FinancialPlanV1, node: OperationNode): PeriodSele
 
 // A balance is a point in time: "end of FY2023", never the year's amount.
 function periodText(plan: FinancialPlanV1, node: OperationNode): string {
-  const text = periodSelectors(plan, node).map(selectorText).join(" vs ");
-  return measuresInstant(plan, node) ? `end of ${text}` : text;
+  const instant = measuresInstant(plan, node);
+  return periodSelectors(plan, node).map((selector) => (instant ? `end of ${selectorText(selector)}` : selectorText(selector))).join(" vs ");
 }
 
 /** Whether every reported value under the node is a point-in-time measure. */
