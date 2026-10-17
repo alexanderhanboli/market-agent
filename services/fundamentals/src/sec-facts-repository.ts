@@ -772,7 +772,8 @@ function firstCurrency(lines: ReadonlyArray<StatementLine>): string | null {
 // precision proof, so strict financial binding treats them as gaps. A line
 // that conflicts was written by another ingestion, which recorded its own
 // proof atomically; older legacy facts are proven only by the backfill. Each
-// token's fact, inserted or already stored, gets its financial context.
+// token's fact, inserted or already stored, gets its financial context when
+// recordSecOriginalContext certifies it.
 async function persistStatementFacts(
   db: FundamentalsQueryExecutor,
   statement: MappedStatement,
@@ -887,6 +888,9 @@ async function recordSecOriginalContext(
   locator: string,
 ): Promise<void> {
   if (SEC_SHARE_METRIC_KEYS.has(line.metric_key)) return;
+  // The statement contract labels every balance FY of its fiscal year, so a
+  // certified 10-Q balance would be read as the year's closing one.
+  if (token.start === null && token.form !== "10-K") return;
   const certifiedConcept = SEC_CERTIFIED_CONCEPTS[line.metric_key];
   if (certifiedConcept !== undefined && token.concept !== certifiedConcept) return;
   const { rows } = await db.query<{ fact_id: string }>(
@@ -1024,7 +1028,7 @@ async function recordSecRestatements(
         sourceId = await upsertSecFilingSource(db, { cik: input.cik, accessionNumber, retrievedAt: asOf });
         sources.set(accessionNumber, sourceId);
       }
-      const token: SecSourceToken = { token: presented, concept: concept!, unit: unit!, accn: accessionNumber, start: original.period_start, end: original.period_end };
+      const token: SecSourceToken = { token: presented, concept: concept!, unit: unit!, accn: accessionNumber, form: "10-K", start: original.period_start, end: original.period_end };
       const inserted = await db.query<{ fact_id: string }>(
         `insert into facts (
            subject_kind, subject_id, metric_id, period_kind, period_start, period_end, fiscal_year, fiscal_period,

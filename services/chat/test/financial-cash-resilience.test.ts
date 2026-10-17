@@ -77,4 +77,19 @@ test("chat cash resilience", { timeout: 300_000 }, async (t) => {
     await ask("Show AAA's cash resilience", { mode: "shadow", analyst });
     assert.equal(analystCalls, 1);
   });
+
+  await t.test("an input only filed for an older year is a named gap under the latest fiscal year, never the older balance (#344)", async () => {
+    await seedCashResilience(db, { total_liabilities: "999" }, { subject: IDS.issuerB, years: { total_liabilities: 2022 } });
+    const { rows } = await answer("Show BBB's cash resilience");
+    assert.deepEqual(rows, [
+      ["Operating cash flow", "latest fiscal year", "120"],
+      ["Net income", "latest fiscal year", "100"],
+      ["Total liabilities", "end of latest fiscal year", "missing"],
+      ["Total assets", "end of latest fiscal year", "600"],
+      ["Stockholders' equity", "end of latest fiscal year", "200"],
+      ["Cash conversion: operating cash flow / net income (reported period)", "latest fiscal year", "1.2"],
+      ["Total liabilities / total assets (period-end balance sheet)", "end of latest fiscal year", "blocked_dependency"],
+      ["Total liabilities / stockholders' equity (period-end balance sheet)", "end of latest fiscal year", "blocked_dependency"],
+    ]);
+  });
 });

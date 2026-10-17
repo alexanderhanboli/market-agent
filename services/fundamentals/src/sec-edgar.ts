@@ -295,6 +295,8 @@ export type SecSourceToken = Readonly<{
   concept: string;
   unit: string;
   accn: string;
+  /** The filing's form: the value's own, never an amendment (selection takes only 10-K and 10-Q). */
+  form: string;
   start: string | null;
   end: string;
 }>;
@@ -389,6 +391,7 @@ export function extractStatementWithTokens(input: ExtractStatementInput): {
           concept: conceptName,
           unit: unitCode,
           accn: match.accn,
+          form: match.form,
           start: match.start ?? null,
           end: match.end,
         });

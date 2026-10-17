@@ -1,16 +1,38 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { dockerAvailable } from "../../../db/test/docker-pg.ts";
-import { hashCanonical, validateBoundInput } from "../../financial-core/src/index.ts";
+import { randomUUID } from "node:crypto";
+import { hashCanonical, validateBoundInput, validateFinancialPlan, type FinancialPlanV1 } from "../../financial-core/src/index.ts";
 import { bindPlanInputs, type InputBinding } from "../src/bind-inputs.ts";
 import { ExecutionIntegrityError } from "../../financial-core/src/index.ts";
 import { StaleLeaseError } from "../src/lease.ts";
 import { createEvidenceFinancialPort } from "../src/evidence-adapter.ts";
-import { authorityFor, engineDatabase, IDS, leasedRun, ORIGINAL_REVENUE, revenuePlan } from "./db-fixtures.ts";
+import { authorityFor, engineDatabase, IDS, leasedRun, ORIGINAL_REVENUE, revenuePlan, seedReportedFact } from "./db-fixtures.ts";
 
 function bound(binding: InputBinding | undefined) {
   assert.equal(binding?.status, "bound", JSON.stringify(binding));
   return binding as Extract<InputBinding, { status: "bound" }>;
+}
+
+/** Total assets and total liabilities per subject, both "latest fiscal year" at `offset`. */
+function latestBalancePlan(subjects: Array<"a" | "b">, offset: number): FinancialPlanV1 {
+  const base = revenuePlan({ subjects });
+  const period = { kind: "latest" as const, period_type: "annual" as const, offset };
+  const node = (slot: string, nodeId: string, metric: string) =>
+    ({ node_id: nodeId, operation: "reported_metric" as const, operation_version: "reported_metric.v1", subject_slot: slot, metric_key: metric, period });
+  const operations = subjects.flatMap((slot) => [node(slot, `${slot}_assets`, "total_assets"), node(slot, `${slot}_liab`, "total_liabilities")]);
+  const validated = validateFinancialPlan({
+    ...base,
+    plan_id: randomUUID(),
+    metric_definitions: [
+      { metric_key: "total_assets", definition_version: "total_assets.v1" },
+      { metric_key: "total_liabilities", definition_version: "total_liabilities.v1" },
+    ],
+    operations,
+    outputs: operations.map((operation) => ({ output_id: `out_${operation.node_id}`, node_id: operation.node_id, unit_id: `${operation.subject_slot}_unit` })),
+  });
+  assert.ok(validated.ok, JSON.stringify(!validated.ok && validated.issues));
+  return validated.value;
 }
 
 test("historical input binding", { timeout: 240_000 }, async (t) => {
@@ -89,6 +111,61 @@ test("historical input binding", { timeout: 240_000 }, async (t) => {
     await db.query(`update facts set invalidated_at = null where fact_id = $1`, [IDS.restated]);
     assert.notEqual(before.bindings.get("a_rev")!.candidate_set_digest, after.bindings.get("a_rev")!.candidate_set_digest);
     assert.equal(bound(before.bindings.get("a_rev")).input.fact_id, bound(after.bindings.get("a_rev")).input.fact_id);
+  });
+
+  await t.test("latest names one fiscal year per company: an input without that year is a gap, never an older balance (#344)", async () => {
+    const facts = {
+      assets2023: await seedReportedFact(db, { metric_key: "total_assets", value: "600", fiscal_year: 2023 }),
+      assets2022: await seedReportedFact(db, { metric_key: "total_assets", value: "550", fiscal_year: 2022 }),
+      liabilities2021: await seedReportedFact(db, { metric_key: "total_liabilities", value: "250", fiscal_year: 2021 }),
+      assetsB2022: await seedReportedFact(db, { metric_key: "total_assets", value: "90", fiscal_year: 2022, subject: IDS.issuerB }),
+      liabilitiesB2022: await seedReportedFact(db, { metric_key: "total_liabilities", value: "40", fiscal_year: 2022, subject: IDS.issuerB }),
+    };
+    const bind = async (offset: number) => {
+      const plan = latestBalancePlan(["a", "b"], offset);
+      const { runId, lease } = await leasedRun(db, plan, authority);
+      const { bindings } = await bindPlanInputs({ client: db, lease, plan, authority, evidence: createEvidenceFinancialPort });
+      const rows = (await db.query(`select input_slot, binding_status, fact_id::text, gap_reason from financial_run_inputs where run_id = $1 order by input_slot`, [runId])).rows;
+      return { bindings, rows: rows.map((row) => [row.input_slot, row.binding_status, row.fact_id ?? row.gap_reason]) };
+    };
+
+    const latest = await bind(0);
+    assert.equal(bound(latest.bindings.get("a_assets")).input.period.fiscal_year, 2023);
+    assert.deepEqual(latest.rows, [
+      ["a_assets", "bound", facts.assets2023],
+      ["a_liab", "gap", "missing_input"],
+      ["b_assets", "bound", facts.assetsB2022],
+      ["b_liab", "bound", facts.liabilitiesB2022],
+    ], "A's FY2021 liabilities are not its latest fiscal year; B keeps its own latest year");
+
+    const prior = await bind(1);
+    assert.deepEqual(prior.rows, [
+      ["a_assets", "bound", facts.assets2022],
+      ["a_liab", "gap", "missing_input"],
+      ["b_assets", "gap", "missing_input"],
+      ["b_liab", "gap", "missing_input"],
+    ], "offset 1 is the year before the company's latest, FY2022, for every input");
+
+    // A failed read may hide a newer year, so none of A's latest inputs is called latest (#349 review).
+    const plan = latestBalancePlan(["a", "b"], 0);
+    const { runId, lease } = await leasedRun(db, plan, authority);
+    const failingLiabilities = (client: Parameters<typeof createEvidenceFinancialPort>[0]) => {
+      const port = createEvidenceFinancialPort(client);
+      return {
+        listInputCandidates: (request: Parameters<typeof port.listInputCandidates>[0]) =>
+          request.metric_key === "total_liabilities" && request.subject.id === IDS.issuerA
+            ? Promise.resolve({ status: "error" as const, reason_code: "database_error" as const })
+            : port.listInputCandidates(request),
+      };
+    };
+    await bindPlanInputs({ client: db, lease, plan, authority, evidence: failingLiabilities });
+    const rows = (await db.query(`select input_slot, binding_status, fact_id::text, gap_reason from financial_run_inputs where run_id = $1 order by input_slot`, [runId])).rows;
+    assert.deepEqual(rows.map((row) => [row.input_slot, row.binding_status, row.fact_id ?? row.gap_reason]), [
+      ["a_assets", "gap", "database_error"],
+      ["a_liab", "gap", "database_error"],
+      ["b_assets", "bound", facts.assetsB2022],
+      ["b_liab", "bound", facts.liabilitiesB2022],
+    ]);
   });
 
   await t.test("stale leases, other owners, and foreign plans cannot bind; failures roll back cleanly", async () => {
