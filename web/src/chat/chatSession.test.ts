@@ -640,3 +640,24 @@ test('when an own run fails while another run is in flight, the load it requests
   assert.deepEqual(next.turn.phase === 'streaming' ? next.turn.run : null, R2)
   assert.equal(selectThreadView(next).canAsk, false)
 })
+
+test('#350: when a followed run ends while the last read listed another in flight, the session attaches to it, and a failed load keeps Send held', () => {
+  const U2 = message('u2', 'user', 'Compare with AMD')
+  const R2 = { runId: 'run-2', turnId: 'u2' }
+  const adopted = reduceChatSession(opened(), read(1, [U1, U2], [{ run: R1, status: 'in_flight' }, { run: R2, status: 'in_flight' }]))
+  const handedOff = run(adopted, [
+    streamEvent(sse('turn.started', 1)),
+    streamEvent(sse('turn.completed', 2, { message_id: 'a1', message: A1_SEALED })),
+  ])
+  assert.deepEqual(wantedStream(handedOff), { key: 'T1|run-2|attach|0', threadId: 'T1', run: R2, attach: true })
+
+  const failedLoad = reduceChatSession(handedOff, { type: 'history.failed', threadId: 'T1', gen: 2, message: 'HTTP 503' })
+  assert.deepEqual([failedLoad.turn.phase, selectThreadView(failedLoad).canAsk], ['streaming', false])
+})
+
+test('#350: an own run that went offline before reaching the server is sent again when its thread is opened again', () => {
+  const offline = run(unreachedT1(), [drop, drop, drop, drop])
+  const back = run(offline, [toT2, toT1, read(1, [U1], [])])
+  assert.deepEqual(wantedStream(back), { key: 'T1|run-1|start|0', threadId: 'T1', run: R1, attach: false, userIntent: 'Analyze NVDA' })
+  assert.equal(selectThreadView(back).canAsk, false)
+})
