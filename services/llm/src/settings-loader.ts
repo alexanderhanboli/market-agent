@@ -5,6 +5,7 @@ import {
   parseLlmEnv,
   parseLlmEnvFileText,
   type LlmEnv,
+  type LlmPurpose,
   type LlmSettings,
 } from "./channel-config.ts";
 import { createDefaultPiLlmChatClient } from "./pi-adapter.ts";
@@ -49,6 +50,7 @@ export type LlmRouterFromEnv = ReturnType<typeof createLlmRouter>;
 
 export type CreateLlmRouterFromEnvOptions = {
   createClient?: () => Promise<LlmChatClient> | LlmChatClient;
+  purpose?: LlmPurpose;
   /** Where LLM_USAGE_LOG lines go; console.log by default. */
   log?: (line: string) => void;
 };
@@ -58,7 +60,8 @@ export async function createLlmRouterFromEnv(
   options: CreateLlmRouterFromEnvOptions = {},
 ): Promise<LlmRouterFromEnv | null> {
   const settings = await loadLlmSettingsFromEnv(env);
-  if (buildLlmDeploymentOrder(settings).length === 0) return null;
+  const purpose = options.purpose ?? "default";
+  if (buildLlmDeploymentOrder(settings, purpose).length === 0) return null;
   const replayFile = readTrimmed(env.LLM_REPLAY_FILE);
   const client = await (
     options.createClient ??
@@ -67,6 +70,7 @@ export async function createLlmRouterFromEnv(
   const log = options.log ?? console.log;
   return createLlmRouter({
     settings,
+    purpose,
     client,
     ...(env.LLM_USAGE_LOG?.trim() === "true" ? { onCompletion: (c) => log(formatCompletion(c)) } : {}),
   });
