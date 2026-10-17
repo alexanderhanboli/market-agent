@@ -27,6 +27,8 @@ export type IssuerFundamentalFact = {
   currency: string | null;
   // Multiplier to native units (value_num * scale); 1 for most SEC facts.
   scale: number;
+  // fiscal_q, fiscal_y, point, ttm or range: what a seal binds the fact by.
+  period_kind: string;
   fiscal_year: number | null;
   fiscal_period: string | null;
   as_of: string;
@@ -85,6 +87,7 @@ export async function loadRecentIssuerFundamentals(
     unit: fact.unit,
     currency: fact.currency,
     scale: fact.scale,
+    period_kind: fact.period_kind,
     fiscal_year: fact.fiscal_year,
     fiscal_period: fact.fiscal_period,
     as_of: fact.as_of,

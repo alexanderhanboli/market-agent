@@ -189,26 +189,27 @@ test("malformed evidence or supports is rejected, not cleaned up (#208)", () => 
   ]);
 });
 
-test("with claims but no figures, only claim-bound assertions are checked; the rest are counted unchecked (#208)", () => {
+test("with claims but no figures, an assertion about figures binds nothing and is rejected; a claim's is checked (#208, #302)", () => {
   const report = checkAssertions([
     { kind: "observation", text: "ACME trades at $12.", evidence: [] },
     { kind: "management_attribution", text: "AMD management expects [[C2]]", evidence: ["C2"] },
   ], { ...PACKET, figures: [] });
-  assert.equal(report.status, "checked");
-  assert.deepEqual(report.rejected, []);
-  assert.deepEqual(report.accepted.map((entry) => entry.index), [1]);
-  assert.equal(report.unchecked, 1);
+  assert.deepEqual(report, {
+    status: "checked",
+    accepted: [{ index: 1, kind: "management_attribution", text: "AMD management expects [[C2]]", evidence: ["C2"] }],
+    rejected: [{ index: 0, text: "ACME trades at $12.", reason: "an observation cites figures, and only figures" }],
+  });
 });
 
-test("on the no-figures path, malformed or over-limit entries are still rejected, not unchecked (#208)", () => {
+test("with no figures, malformed or over-limit entries are rejected as on any packet (#208)", () => {
   const one = { kind: "observation", text: "ACME trades at $12.", evidence: [] };
   const report = checkAssertions([null, { kind: "guess", text: "x", evidence: [] }, ...Array.from({ length: 11 }, () => one)], { ...PACKET, figures: [] });
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [0, "not an assertion with text"],
     [1, 'unknown kind "guess"'],
+    ...Array.from({ length: 10 }, (_, i) => [i + 2, "an observation cites figures, and only figures"]),
     [12, "more than 12 assertions"],
   ]);
-  assert.equal(report.unchecked, 10);
 });
 
 test("digits in a company's name are not typed; a number or a worded amount is (#208)", () => {
@@ -229,7 +230,7 @@ test("digits in a company's name are not typed; a number or a worded amount is (
   ]);
 });
 
-test("on the no-figures path, an unknown id or a claim cited as a figure is rejected, not unchecked (#208)", () => {
+test("with no figures, an unknown id, a claim cited as a figure, or no evidence is rejected (#208, #302)", () => {
   const report = checkAssertions([
     { kind: "observation", text: "ACME trades at $12.", evidence: ["F99"] },
     { kind: "observation", text: "ACME trades at $12.", evidence: ["C2"] },
@@ -238,11 +239,11 @@ test("on the no-figures path, an unknown id or a claim cited as a figure is reje
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
     [0, 'unknown evidence id "F99"'],
     [1, "an observation cites figures, and only figures"],
+    [2, "an observation cites figures, and only figures"],
   ]);
-  assert.equal(report.unchecked, 1);
 });
 
-test("on the no-figures path, an inference must still rest on listed observations (#208)", () => {
+test("with no figures, an inference has no accepted observation to rest on (#208, #302)", () => {
   const report = checkAssertions([
     { kind: "observation", text: "ACME trades at $12.", evidence: [] },
     { kind: "analyst_inference", text: "ACME looks cheap.", evidence: [], supports: [0] },
@@ -250,10 +251,11 @@ test("on the no-figures path, an inference must still rest on listed observation
     { kind: "analyst_inference", text: "ACME looks cheap.", evidence: [], supports: [1] },
   ], { ...PACKET, figures: [] });
   assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [0, "an observation cites figures, and only figures"],
+    [1, "an inference binds the accepted observations it rests on"],
     [2, "an inference binds the accepted observations it rests on"],
     [3, "an inference binds the accepted observations it rests on"],
   ]);
-  assert.equal(report.unchecked, 2);
 });
 
 test("a stored quarter (\"Q42026\") gives its year as prose writes it (#208)", () => {
@@ -432,10 +434,9 @@ test("descriptive wording is not a cause; causal connectives are (#294 review)",
   }
 });
 
-test("a cause is caught on an answer with no figures too, not left unchecked (#294 review)", () => {
+test("a cause is caught on an answer with no figures too (#294 review)", () => {
   const report = checkAssertions([{ kind: "observation", text: "AMD's margin fell, driven by inventory charges.", evidence: [] }], { ...PACKET, figures: [] });
   assert.equal(rejectionCheck(report.rejected[0]?.reason ?? ""), "cause");
-  assert.equal(report.unchecked, undefined);
 });
 
 test("active causal verbs are causes too; descriptive wording still isn't (#294 review)", () => {
@@ -638,7 +639,24 @@ test("what the data cannot show is a data gap: words only, citing nothing; acros
   // With one company, naming it ranks no one.
   const single = checkAssertions([{ kind: "data_gap", text: "No segment revenue is shown for NVDA." }], { ...PACKET, companies: ["NVDA"] });
   assert.deepEqual(single.rejected, []);
-  // With no figures shown, a gap is still checked, never left unchecked.
+  // With no figures shown, a gap is still checked.
   const claimsOnly = checkAssertions([{ kind: "data_gap", text: "No segment revenue is shown." }], { ...PACKET, figures: [] });
-  assert.deepEqual([claimsOnly.accepted.map((entry) => entry.index), claimsOnly.rejected, claimsOnly.unchecked], [[0], [], undefined]);
+  assert.deepEqual([claimsOnly.accepted.map((entry) => entry.index), claimsOnly.rejected], [[0], []]);
+});
+
+test("an unknown cause's change is between periods of one kind, both fully covered (#302 review)", () => {
+  const packet: EvidencePacket = {
+    ...PACKET,
+    companies: ["AAPL"],
+    figures: [
+      { id: "F1", metric: "Revenue", period: "FY2025", value: "$416.2B", source_ids: [], displayed: false },
+      { id: "F2", metric: "Revenue", period: "Q12026", value: "$124.3B", source_ids: [], displayed: false },
+      { id: "F3", metric: "Net income", period: "Q42025", value: "$20.0B", source_ids: [], displayed: false },
+      { id: "F4", metric: "Net income", period: "Q12026", value: "$25.0B", source_ids: [], displayed: false, period_coverage: "partial" },
+    ],
+  };
+  const reasons = (evidence: string[]) =>
+    checkAssertions([{ kind: "unknown_cause", text: "The figures do not show why.", evidence }], packet).rejected.map((entry) => entry.reason);
+  const reason = "an unknown cause cites a change: one company's metric, two periods, two values";
+  assert.deepEqual([reasons(["F1"]), reasons(["F2"]), reasons(["F3"]), reasons(["F4"])], [[reason], [reason], [reason], [reason]]);
 });

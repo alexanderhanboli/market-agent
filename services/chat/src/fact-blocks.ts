@@ -890,7 +890,7 @@ export function scopeGapBlocks(
   });
 }
 
-// Whether the answer model may see the turn's other facts (available_data)
+// Whether the answer model may see the turn's other facts (its packet figures, #302)
 // when no figure is shown: not for a turn whose request is a named gap (only
 // unavailable metrics, a financial-engine answer re-read, or a segment
 // breakdown with none to show), so nothing stands in for what it asked.

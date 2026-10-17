@@ -40,6 +40,7 @@ function fact(metric_key: string, fiscal_year: number, fiscal_period: string, va
     unit: "currency",
     currency: "USD",
     scale: 1,
+    period_kind: fiscal_period === "FY" ? "fiscal_y" : "fiscal_q",
     fiscal_year,
     fiscal_period,
     as_of: AS_OF,

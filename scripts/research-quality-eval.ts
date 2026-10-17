@@ -43,8 +43,6 @@ type AssertionReport = {
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: Array<{ kind: string; text: string; evidence: string[] }>;
   rejected: Array<{ index: number; text?: string; reason: string }>;
-  // Figure assertions when no figures were shown: neither accepted nor rejected.
-  unchecked?: number;
   // The answer was written from the accepted assertions (CHAT_ASSERTION_RENDERING).
   rendered?: boolean;
 };
@@ -140,7 +138,7 @@ export function renderReport(run: string, model: string, base: string, answered:
 function renderAssertions(report: AssertionReport): string[] {
   if (report.status !== "checked") return [`_Assertions (shadow): ${report.status}._`];
   return [
-    `_Assertions (${report.rendered ? "rendered" : "shadow"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected${report.unchecked ? `, ${report.unchecked} unchecked (no figures shown)` : ""}:_`,
+    `_Assertions (${report.rendered ? "rendered" : "shadow"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
     "",
     ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]: ${entry.text}`),
     ...report.rejected.map((entry) => `- ✗ [${rejectionCheck(entry.reason)}] ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
@@ -156,7 +154,6 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   const count = (status: AssertionReport["status"]) => reports.filter((report) => report.status === status).length;
   const accepted = reports.reduce((sum, report) => sum + report.accepted.length, 0);
   const rejected = reports.reduce((sum, report) => sum + report.rejected.length, 0);
-  const unchecked = reports.reduce((sum, report) => sum + (report.unchecked ?? 0), 0);
   const rendered = reports.filter((report) => report.rendered).length;
   // Rejections by the check they failed, so a wrong number or citation (binding)
   // reads apart from a wrong ranking or trend (comparative) (#221).
@@ -166,7 +163,7 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
     checks.set(check, (checks.get(check) ?? 0) + 1);
   }
   const byCheck = checks.size > 0 ? ` (${[...checks].sort(([a], [b]) => a.localeCompare(b)).map(([check, n]) => `${check} ${n}`).join(", ")})` : "";
-  return `${accepted} accepted, ${rejected} rejected${byCheck}, ${unchecked} unchecked over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
+  return `${accepted} accepted, ${rejected} rejected${byCheck} over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
 }
 
 // Sentences the narrative guard dropped, in total and per answered turn.

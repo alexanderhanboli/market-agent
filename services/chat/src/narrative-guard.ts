@@ -300,24 +300,6 @@ export function keepSupportedSentences(
   return { text: withoutEmptySections(lines), removed };
 }
 
-// For an answer with no figures shown, which writes the values it was given
-// (available_data, #181): only a sentence citing a reference the table does not
-// hold goes, since nothing could render it.
-export function keepKnownReferences(text: string, table: ReferenceTable): { text: string; removed: string[] } {
-  const removed: string[] = [];
-  const lines = text.trim().split(/\r?\n/).map((line) => {
-    if (line.trim() === "") return "";
-    const lead = line.match(LIST_MARKER)?.[0] ?? line.match(/^\s*/)![0];
-    const kept = line.slice(lead.length).trim().split(SENTENCE_BREAK).filter((sentence) => {
-      const known = [...sentence.matchAll(REFERENCE)].every((match) => table.references.has(match[1]!));
-      if (!known) removed.push(sentence);
-      return known;
-    });
-    return kept.length > 0 ? lead + kept.join(" ") : null;
-  });
-  return { text: withoutEmptySections(lines), removed };
-}
-
 // The cause check alone, for an answer that shows no figures (#263): with
 // nothing displayed there is no vocabulary to ground a cause in, so any stated
 // cause goes, hedged or not. A labelled hypothesis within the cap keeps its
@@ -325,8 +307,8 @@ export function keepKnownReferences(text: string, table: ReferenceTable): { text
 // ("given …"); any
 // further sentence is ordinary prose. A line claiming to be one in any other
 // form goes whole, as in keepSupportedSentences. An explicit gap ("the data
-// does not show why") names no cause and stays. Numbers are not checked: there are none shown to check
-// them against (#181).
+// does not show why") names no cause and stays. Numbers are
+// keepSupportedSentences' to check.
 export function keepUncausedSentences(text: string): { text: string; removed: string[] } {
   let hypotheses = 0;
   const removed: string[] = [];

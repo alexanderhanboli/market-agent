@@ -128,8 +128,9 @@ export function typedDigits(text: string, allowed: Pick<ReferenceTable, "years" 
 
 export type Sealer = {
   // A figure's value: a fact ref when its fact can seal here (a UUID with the
-  // binding its fact block carries), a series ref for a price return read off
-  // its chart line, otherwise the packet's value as plain text.
+  // binding its fact block carries, or its own for a value no block shows), a
+  // series ref for a price return read off its chart line, otherwise the
+  // packet's value as plain text.
   value: (figure: PacketFigure) => Segment;
   // A claim's text: a claim ref when its id is a UUID, otherwise plain text.
   quote: (claim: PacketClaim) => Segment;
@@ -147,7 +148,7 @@ export function createSealer(factBlocks: ReadonlyArray<Block>): Sealer {
         figure.source_ids.forEach((id) => sourceRefs.add(id));
         return { type: "ref", ref_kind: "series", ref_id: figure.series_ref, format: figure.value };
       }
-      const binding = figure.fact_id ? bindings.get(figure.fact_id) : undefined;
+      const binding = figure.fact_id ? (figure.displayed === false ? figure.binding : bindings.get(figure.fact_id)) : undefined;
       if (!figure.fact_id || !UUID.test(figure.fact_id) || !binding) return { type: "text", text: figure.value };
       factBindings.push(binding);
       figure.source_ids.forEach((id) => sourceRefs.add(id));

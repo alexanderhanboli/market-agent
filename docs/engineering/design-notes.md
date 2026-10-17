@@ -157,8 +157,8 @@ filing's cash flow and balance sheet are extracted from it and stored in the sam
   (`withDerivationSources`, `services/chat/src/fact-blocks.ts`), so the inspector reaches every filing.
 - **A balance is a point** at the filing's period end. The statement contract labels every point `FY` of its fiscal
   year, so readers date a balance by `period_end`, never by its fiscal label. The chat block's figures tell the model it
-  is a "balance at period end" (`displayedFigures`). The model's other facts (`available_data`) leave out cash flow and
-  balances altogether (`excludeMetricKeys`, `local-runtime-structured.ts`): there a balance would read as its fiscal
+  is a "balance at period end" (`displayedFigures`). The model's other facts (`availableFigures` in
+  `services/chat/src/llm-runtime.ts`, its figures when no block shows one) leave out cash flow and balances altogether (`excludeMetricKeys`, `local-runtime-structured.ts`): there a balance would read as its fiscal
   label, and the extra rows would crowd income facts out of the 24-row cap.
 - A family that cannot be extracted or mapped is logged and left out; only a database failure fails the ingestion.
 - **Mapped:** operating cash flow, capex (`PaymentsToAcquirePropertyPlantAndEquipment`, else NVDA-style

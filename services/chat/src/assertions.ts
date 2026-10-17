@@ -14,7 +14,7 @@
 // assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
 // when it is checked in shadow and the guarded prose is shown.
 
-import { checkComparison, type ComparisonOp } from "./comparisons.ts";
+import { checkComparison, comparablePeriods, type ComparisonOp } from "./comparisons.ts";
 import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
@@ -40,14 +40,10 @@ export type Assertion = {
 
 export type AssertionReport = {
   // missing: the answer listed none; malformed: the list did not parse;
-  // skipped: no figures or claims, so there was nothing to bind (the answer
-  // stood on available_data, which carries no packet ids).
+  // skipped: no figures or claims, so there was nothing to bind.
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: ReadonlyArray<Assertion & { index: number }>;
   rejected: ReadonlyArray<{ index: number; text?: string; reason: string }>;
-  // Assertions about figures when none were shown (the answer stood on
-  // available_data, which carries no packet ids): neither accepted nor rejected.
-  unchecked?: number;
   // The answer was written from the accepted assertions (controlled rendering).
   rendered?: boolean;
   // Accepted observations the rendered answer leaves out, since a comparison
@@ -107,9 +103,6 @@ export function checkAssertions(
   // Inferences last, so the observations they rest on are already checked.
   const order = list.map((item, index) => ({ item, index }))
     .sort((a, b) => Number(kindOf(a.item) === "analyst_inference") - Number(kindOf(b.item) === "analyst_inference"));
-  let unchecked = 0;
-  // Observations that passed every check they could take, with no figures to bind.
-  const uncheckedObservations = new Set<number>();
   for (const { item, index } of order) {
     if (index >= MAX_ASSERTIONS) {
       reject(index, item, `more than ${MAX_ASSERTIONS} assertions`);
@@ -197,19 +190,6 @@ export function checkAssertions(
       reject(index, item, `an ${kind === "observation" ? "observation" : "comparison"} states no cause: give it as a management attribution or an unknown cause`);
       continue;
     }
-    // About figures when none were shown: nothing to bind, unless it cites a
-    // claim where only figures may stand.
-    if (packet.figures.length === 0 && kind !== "management_attribution") {
-      if ((kind === "observation" || kind === "comparison" || kind === "unknown_cause") && claimIds.length > 0) {
-        reject(index, item, shapeError(kind, [], claimIds, [])!);
-      } else if (kind === "analyst_inference" && !restsOnObservations(item.supports, uncheckedObservations)) {
-        reject(index, item, "an inference binds the accepted observations it rests on");
-      } else {
-        unchecked++;
-        if (kind === "observation") uncheckedObservations.add(index);
-      }
-      continue;
-    }
     // A support that failed its own check is dropped; the inference stands on the rest.
     const supports = ((item.supports ?? []) as number[]).filter((n) =>
       accepted.some((entry) => entry.index === n && (entry.kind === "observation" || entry.kind === "comparison"))
@@ -269,7 +249,7 @@ export function checkAssertions(
   }
   accepted.sort((a, b) => a.index - b.index);
   rejected.sort((a, b) => a.index - b.index);
-  return { status: "checked", accepted, rejected, ...(unchecked > 0 ? { unchecked } : {}) };
+  return { status: "checked", accepted, rejected };
 }
 
 // An amount in words: a number word, then a unit ("seventy percent", "a few
@@ -280,18 +260,12 @@ const AMOUNT_UNIT = String.raw`(?:per ?cent|percent(?:age points?)?|basis points
 // "a billion dollars": an article counts as a number only before a scale.
 const AMOUNT_WORD = new RegExp(String.raw`\b(?:${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}|an? (?:hundred|thousand|million|billion|trillion))\b`, "i");
 
-// An inference's supports, when the observations cannot be figure-checked:
-// at least one observation that passed every check it could take.
-function restsOnObservations(supports: unknown, observations: ReadonlySet<number>): boolean {
-  return Array.isArray(supports) && supports.some((n) => observations.has(n as number));
-}
-
 // Every cited figure: the template says each cited metric changed. The
 // other period may be any shown, so the figure that moved alone will do.
 function showsChange(cited: ReadonlyArray<EvidencePacket["figures"][number]>, shown: EvidencePacket["figures"]): boolean {
   return cited.length > 0 && cited.every((a) => shown.some((b) =>
     a.company === b.company && a.metric === b.metric && a.segment === b.segment && a.period !== undefined && b.period !== undefined &&
-    a.period.replace(/\s+/g, "") !== b.period.replace(/\s+/g, "") && a.value !== b.value
+    a.period.replace(/\s+/g, "") !== b.period.replace(/\s+/g, "") && a.value !== b.value && comparablePeriods(a, b)
   ));
 }
 
