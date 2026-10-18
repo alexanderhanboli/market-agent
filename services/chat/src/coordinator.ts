@@ -197,7 +197,7 @@ function committing(persist: ChatAssistantMessagePersistence): ChatAssistantMess
   return async (input) => {
     let message: ChatReadMessage;
     try {
-      message = await persist({ ...input, message_id: answerMessageId(input.threadId, input.turnId) });
+      message = await persist({ ...input, message_id: answerMessageId(input.threadId, input.runId, input.turnId) });
     } catch (error) {
       if (!(error instanceof ChatMessageUnreadError)) throw error;
       logUnreadMessage(error.message_id, error.cause);
@@ -519,7 +519,7 @@ export function createChatCoordinator(
 function runStatus(record: TurnRecord, readIds: ReadonlySet<string>): ChatRunStatus {
   const { threadId, runId, turnId } = record.handle.input as NormalizedChatTurnInput;
   const terminal = record.handle.terminal;
-  const answerId = [financialMessageId(threadId, turnId), answerMessageId(threadId, turnId)].find((id) => readIds.has(id));
+  const answerId = [financialMessageId(threadId, turnId), answerMessageId(threadId, runId, turnId)].find((id) => readIds.has(id));
   if (terminal === null && answerId !== undefined) return { runId, turnId, status: "completed", messageId: answerId };
   if (terminal?.type === "turn.completed") {
     return typeof terminal.message_id === "string"

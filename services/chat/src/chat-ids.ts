@@ -11,8 +11,8 @@ export function contentHashForText(text: string): string {
  * The one assistant message a turn saves, so a read of the thread can tell
  * that a turn's answer is saved before the turn ends.
  */
-export function answerMessageId(threadId: string, turnId: string): string {
-  return stableUuid(`answer-message:${threadId}:${turnId}`);
+export function answerMessageId(threadId: string, runId: string, turnId: string): string {
+  return stableUuid(`answer-message:${threadId}:${runId}:${turnId}`);
 }
 
 /**
