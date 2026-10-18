@@ -98,7 +98,10 @@ function GridCell({ cell }: { cell: GridCellDetail | undefined }): ReactElement 
   const inspector = useEvidenceInspector();
   const tone = cell?.display?.tone ? TONE_CLASS[cell.display.tone] : { text: "", bg: "" };
   const certified = certifiedResultId(cell);
-  const evidence = cell?.snapshot_id && cell.primary_ref ? { snapshotId: cell.snapshot_id, ref: cell.primary_ref as EvidenceInspectionRef } : null;
+  const shownAs = cell?.primary_ref?.kind === "fact" ? cell.display?.value : undefined;
+  const evidence = cell?.snapshot_id && cell.primary_ref
+    ? { snapshotId: cell.snapshot_id, ref: cell.primary_ref as EvidenceInspectionRef, ...(shownAs ? { shownAs } : {}) }
+    : null;
   const gap = gapText(cell);
   const buttonClass = `num text-left text-fg underline decoration-dotted${tone.text}`;
   const open = certified !== null && inspector?.openFinancialResult
