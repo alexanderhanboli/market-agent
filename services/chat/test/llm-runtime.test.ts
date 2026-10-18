@@ -1023,13 +1023,19 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
     withList([{ kind: "observation", text: "NVDA's gross margin was [[F9]].", evidence: ["F9"] }]),
     // Cut off inside the list: what was written of it does not parse.
     { text: `${prose}\n\n\`\`\`assertions\n[{"kind": "observation", "text": "NVDA's gross margin was [[F2]].", "evidence": ["F2"]}, {"kind"`, truncated: true },
-    // Accepted, but about only one of the two companies shown: it would read one-sided.
-    withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]),
   ]) {
     const { block, report } = await renderWithReply(reply);
     assert.deepEqual({ segments: block.segments, rendered: report.rendered }, { segments: fallback, rendered: undefined }, JSON.stringify(reply));
   }
+  // Accepted, but about only one of the two companies shown: it would read one-sided, and the report says so.
+  const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]));
+  assert.deepEqual({ segments: oneSided.block.segments, accepted: oneSided.report.accepted, rejected: oneSided.report.rejected }, {
+    segments: fallback,
+    accepted: [],
+    rejected: [{ index: 0, text: "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).", reason: "left out: the answer would show only some of the companies shown" }],
+  });
   // The guard removed every accepted assertion: a claim's magnitude in words is no figure shown (#228).
+  const removed: string[][] = [];
   const reports: AssertionReport[] = [];
   const blocks = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
@@ -1044,10 +1050,12 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
     factBlocks: [],
     createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Demand doubled.", evidence: ["C1"] }]) }),
     onAssertions: (report) => reports.push(report),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
   });
-  assert.deepEqual({ segments: blocks[0]!.segments, rejected: reports[0]!.rejected }, {
+  assert.deepEqual({ segments: blocks[0]!.segments, rejected: reports[0]!.rejected, removed }, {
     segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }],
     rejected: [{ index: 0, text: "According to a source: Data center demand doubled.", reason: "removed by the narrative guard" }],
+    removed: [["According to a source: Data center demand doubled."]],
   });
 });
 
