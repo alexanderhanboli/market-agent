@@ -371,7 +371,38 @@ test('a chip inside Markdown opens the evidence inspector for its ref', async ()
     const chip = dom.window.document.querySelector('[data-testid="block-rich-text-rt-click-ref-1"]') as HTMLElement
     assert.equal(chip.tagName, 'BUTTON')
     await act(async () => chip.click())
-    assert.deepEqual(opened, [{ snapshotId: SNAPSHOT_ID, ref: { kind: 'fact', id: FACT_A } }])
+    assert.deepEqual(opened, [{ snapshotId: SNAPSHOT_ID, ref: { kind: 'fact', id: FACT_A }, shownAs: '$12.6B' }])
+    await act(async () => root.unmount())
+  } finally {
+    restoreGlobals()
+  }
+})
+
+test('a fact chip hands the inspector its text, a claim chip leaves it the server title', async () => {
+  const opened: Array<{ ref: EvidenceInspectionRef; shownAs?: string }> = []
+  const inspector: EvidenceInspectorContextValue = {
+    openInspection(input) { opened.push(input) },
+    openBlockInspection() {},
+    closeInspection() {},
+  }
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const root = createRoot(dom.window.document.getElementById('root')!)
+    await act(async () => {
+      root.render(
+        <EvidenceInspectorContext.Provider value={inspector}>
+          <RichText block={richTextBlock('rt-kinds', [
+            { type: 'ref', ref_kind: 'fact', ref_id: FACT_A, format: '30.0×' },
+            { type: 'ref', ref_kind: 'claim', ref_id: FACT_B, format: 'margins expand' },
+          ])} />
+        </EvidenceInspectorContext.Provider>,
+      )
+    })
+    for (const chip of dom.window.document.querySelectorAll<HTMLElement>('button[data-ref-kind]')) {
+      await act(async () => chip.click())
+    }
+    assert.deepEqual(opened.map(({ ref, shownAs }) => [ref.kind, shownAs]), [['fact', '30.0×'], ['claim', undefined]])
     await act(async () => root.unmount())
   } finally {
     restoreGlobals()

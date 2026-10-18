@@ -135,6 +135,7 @@ function PageBody({ page }: { page: InspectorPage }) {
 function pageTitle(page: InspectorPage): string {
   if (page.kind === 'financial') return 'Verified calculation'
   if (page.kind === 'block') return page.inspection.title
+  if (page.shownAs) return page.shownAs
   return page.load.kind === 'ready' ? page.load.inspection.title : REF_KIND_NAMES[page.ref.kind]
 }
 

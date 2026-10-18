@@ -59,6 +59,8 @@ function RefSegmentSpan({ snapshotId, blockId, index, segment }: RefSegmentSpanP
     <InspectableRef
       snapshotId={snapshotId}
       inspectionRef={{ kind: segment.ref_kind, id: segment.ref_id }}
+      // Other kinds keep the server title, which says more than their prose text.
+      shownAs={segment.ref_kind === 'fact' ? segment.format || undefined : undefined}
       testId={`block-rich-text-${blockId}-ref-${index}`}
       dataAttrs={{ 'data-ref-kind': segment.ref_kind, 'data-ref-id': segment.ref_id }}
       className={REF_CLASS}

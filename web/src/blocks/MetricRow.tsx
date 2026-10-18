@@ -64,6 +64,7 @@ function MetricChip({ snapshotId, valueRef, blockId, index, cell }: MetricChipPr
       <InspectableRef
         snapshotId={snapshotId}
         inspectionRef={valueRef}
+        shownAs={cell.format || undefined}
         className="num text-left text-sm font-medium text-fg underline decoration-dotted underline-offset-2"
       >
         {metricCellDisplayValue(cell)}

@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { installDomGlobals } from "./testDom.ts";
 import { AuthContext } from "../shell/authTypes.ts";
 import { EvidenceInspectorProvider } from "../evidence/EvidenceInspectorProvider.tsx";
+import { EvidenceInspectorContext } from "../evidence/evidenceInspectorContext.ts";
 import { GridTable } from "./GridTable.tsx";
 import type { GridColumn, GridRunDetail } from "./gridsTypes.ts";
 
@@ -58,6 +59,33 @@ test("an inspectable cell exposes a keyboard-operable button, a missing one does
   // cell renders inert text (no button to tab into).
   assert.match(html, /<button[^>]*>\$2\.5T<\/button>/);
   assert.doesNotMatch(html, /<button[^>]*>—<\/button>/);
+});
+
+test("clicking a fact cell opens the inspector with the text the cell shows", async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
+  const restore = installDomGlobals(dom.window as unknown as Window);
+  const opened: unknown[] = [];
+  const inspector = {
+    openInspection(input: unknown) { opened.push(input); },
+    openBlockInspection() {},
+    closeInspection() {},
+  };
+  try {
+    const root = createRoot(dom.window.document.getElementById("root")!);
+    await act(async () => {
+      root.render(
+        <EvidenceInspectorContext.Provider value={inspector}>
+          <GridTable columns={COLUMNS} detail={DETAIL} />
+        </EvidenceInspectorContext.Provider>,
+      );
+    });
+    const okButton = dom.window.document.querySelector('[data-snapshot-id="snap-1"] button') as HTMLElement;
+    await act(async () => { okButton.click(); });
+    assert.deepEqual(opened, [{ snapshotId: "snap-1", ref: { kind: "fact", id: "fact-1" }, shownAs: "$2.5T" }]);
+    await act(async () => root.unmount());
+  } finally {
+    restore();
+  }
 });
 
 test("clicking an inspectable cell triggers an evidence inspection fetch", async () => {
