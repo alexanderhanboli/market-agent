@@ -76,7 +76,9 @@ export async function judgeInferences(input: {
     ...rest,
     verdicts: input.cases.map(({ index }) => ({ index, verdict: "error", reason })),
   });
-  const router = await createLlmRouterFromEnv(input.env, { createClient: input.createClient, purpose: "judge" });
+  const router = await createLlmRouterFromEnv(input.env, { createClient: input.createClient, purpose: "judge" })
+    .catch((error: unknown) => (error instanceof Error ? error : new Error(String(error))));
+  if (router instanceof Error) return failed(`judge model could not be configured: ${router.message}`);
   if (!router) return failed("no judge model is configured");
   const startedAt = performance.now();
   const result = await router.complete(

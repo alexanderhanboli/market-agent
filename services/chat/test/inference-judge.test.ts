@@ -159,6 +159,15 @@ test("a failed or cut-off judge call is an error for every inference; with no in
     createClient: () => async () => ({ text: '{"verdicts":[{"id":2,"verdict":"entailed"}]}', truncated: true }),
   });
   assert.deepEqual(cut.verdicts, [{ index: 2, verdict: "error", reason: "the judge's reply was cut off" }]);
+  const unbuilt = await judgeInferences({
+    cases: CASES.slice(0, 1),
+    companies: PACKET.companies,
+    env: ENV,
+    createClient: () => {
+      throw new Error("no such replay file");
+    },
+  });
+  assert.deepEqual(unbuilt.verdicts, [{ index: 2, verdict: "error", reason: "judge model could not be configured: no such replay file" }]);
   const unconfigured = await judgeInferences({ cases: CASES.slice(0, 1), companies: PACKET.companies, env: {} });
   assert.deepEqual(unconfigured.verdicts, [{ index: 2, verdict: "error", reason: "no judge model is configured" }]);
   let called = false;
