@@ -223,6 +223,22 @@ test("a financial turn's in-progress notice is not saved under the id its publis
   assert.notEqual(saved[0], financialMessageId("thread-1", "run-1"));
 });
 
+test("a retried run of a turn saves its answer under its own id", async () => {
+  const saved: string[] = [];
+  const coordinator = createChatCoordinator({
+    allowSyntheticAnalystFallback: true,
+    persistAssistantMessage: async (input) => {
+      saved.push(input.message_id);
+      return { message_id: input.message_id, thread_id: input.threadId, role: "assistant", snapshot_id: "s-1", blocks: [] } as unknown as ChatReadMessage;
+    },
+  });
+  await coordinator.getOrCreateTurn({ threadId: "thread-1", runId: "run-1", turnId: "turn-1", userId: U1, userIntent: "Analyze NVDA" }).completed;
+  await coordinator.getOrCreateTurn({ threadId: "thread-1", runId: "run-2", turnId: "turn-1", userId: U1, userIntent: "Analyze NVDA" }).completed;
+
+  assert.equal(saved.length, 2);
+  assert.notEqual(saved[0], saved[1]);
+});
+
 test("readThread lists no run once its retention has passed and it is tombstoned", async () => {
   let clock = 1_000;
   const coordinator = createChatCoordinator({
