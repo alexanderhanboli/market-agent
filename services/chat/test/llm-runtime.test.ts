@@ -21,6 +21,8 @@ const BASE_ENV = {
   LLM_OPENAI_MODELS: "gpt-4.1",
   LITELLM_MODEL: "openai/gpt-4.1",
 };
+// Rendering off: the guarded prose is the answer, so a reference in it renders (#301).
+const SHADOW_ENV = { ...BASE_ENV, CHAT_ASSERTION_RENDERING: "0" };
 
 test("createLlmThreadTitleModel delegates to the shared router", async () => {
   const calls: string[] = [];
@@ -409,7 +411,7 @@ async function composeWithReply(reply: string, subjectLabels?: ReadonlyArray<str
   let prompt = "";
   let removed: ReadonlyArray<string> = [];
   const blocks = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: SHADOW_ENV,
     context: { userIntent: "Analyze NVDA", bundleId: "single_subject_analysis" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
@@ -540,7 +542,7 @@ const COMPARISON_BLOCKS = [{
 async function compareWithReply(reply: string) {
   let prompt = "";
   const blocks = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: SHADOW_ENV,
     context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
@@ -722,7 +724,7 @@ test("with no figures shown, the turn's other values are packet figures with ids
 test("with no figures shown, a typed figure goes; an available value's reference renders from the packet, sealed to its fact (#302)", async () => {
   const removed: string[][] = [];
   const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: SHADOW_ENV,
     context: { userIntent: "How did AAPL do?", bundleId: "single_subject_analysis" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [AVAILABLE_TOOL_CALL, CHARGES_CLAIM_TOOL_CALL],
@@ -774,7 +776,7 @@ test("beside blocks that show no figures (a gap note), the quote is referenced, 
   const gap = { kind: "rich_text", segments: [{ type: "text", text: "Year-to-date price performance is not shown." }] };
   const shown = async (text: string) => {
     const blocks = await composeAnalystBlocksWithLlm({
-      env: BASE_ENV,
+      env: SHADOW_ENV,
       context: { userIntent: "How is AAPL doing YTD?", bundleId: "single_subject_analysis" },
       blocks: [NARRATIVE_BLOCK],
       toolCalls: [AVAILABLE_TOOL_CALL],
@@ -790,7 +792,7 @@ test("beside blocks that show no figures (a gap note), the quote is referenced, 
 test("with no figures shown, a stated cause still goes; figures and gaps stay (#263)", async () => {
   let removed: ReadonlyArray<string> = [];
   const blocks = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: SHADOW_ENV,
     context: { userIntent: "How is AAPL doing?", bundleId: "single_subject_analysis" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [AVAILABLE_TOOL_CALL],
@@ -829,7 +831,7 @@ test("a turn showing only a price chart stays guarded against returns it does no
   };
   const narrate = async (text: string) => {
     const composed = await composeAnalystBlocksWithLlm({
-      env: BASE_ENV,
+      env: SHADOW_ENV,
       context: { userIntent: "How has NVDA done?", bundleId: "peer_comparison" },
       blocks: [NARRATIVE_BLOCK],
       toolCalls: [],
@@ -1151,7 +1153,7 @@ test("an answer of data gaps alone is not rendered: the prose stands (#301 B2 re
 test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
   const removed: string[][] = [];
   const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
+    env: SHADOW_ENV,
     context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
@@ -1195,6 +1197,56 @@ test("with rendering off, or nothing accepted, the guarded prose stands (#208)",
   const none = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was 99%.", evidence: ["F2"] }]));
   assert.equal((none.block.segments as Array<{ text: string }>)[0]!.text, "NVDA earns more on each sale than AMD.");
   assert.equal(none.report.rendered, undefined);
+});
+
+test("with rendering on, prose shown in place of a rendered answer keeps no sentence holding a figure reference (#301)", async () => {
+  // F2 is NVDA's gross margin: the sentence credits it as NVDA's revenue, and nothing on the page says whose figure it is.
+  const shown = async (reply: string) => {
+    const removed: string[][] = [];
+    const composed = await composeAnalystBlocksWithLlm({
+      env: RENDERING_ENV,
+      context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+      blocks: [NARRATIVE_BLOCK],
+      toolCalls: [],
+      factBlocks: RENDER_BLOCKS,
+      createClient: () => async () => ({ text: reply }),
+      onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+    });
+    return { segments: composed[0]!.segments, removed };
+  };
+  const swapped = "NVDA's revenue was [[F2]]. NVDA is larger than AMD.";
+  const expected = { segments: [{ type: "text", text: "NVDA is larger than AMD." }], removed: [["NVDA's revenue was [[F2]]."]] };
+  assert.deepEqual(await shown(swapped), expected);
+  assert.deepEqual(await shown(`${swapped}\n\n\`\`\`assertions\n{"kind": "observation"\n\`\`\``), expected);
+  assert.deepEqual(await shown("NVDA's revenue was [[F2]]."), { segments: [{ type: "text", text: FACT_BLOCKS_FALLBACK_TEXT }], removed: [["NVDA's revenue was [[F2]]."]] });
+});
+
+test("with rendering on, a claim reference in that prose goes across companies, as its words name none; for one company it stays (#301)", async () => {
+  const shown = async (factBlocks: ReadonlyArray<Record<string, unknown>>) => {
+    const removed: string[][] = [];
+    const composed = await composeAnalystBlocksWithLlm({
+      env: RENDERING_ENV,
+      context: { userIntent: "How is the outlook?", bundleId: "peer_comparison" },
+      blocks: [NARRATIVE_BLOCK],
+      toolCalls: [A_TOOL_CALL],
+      factBlocks,
+      createClient: () => async () => ({ text: "A source says so ([[C1]]). The outlook is the latest on file." }),
+      onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+    });
+    return { segments: composed[0]!.segments, removed };
+  };
+  assert.deepEqual(await shown(RENDER_BLOCKS), {
+    segments: [{ type: "text", text: "The outlook is the latest on file." }],
+    removed: [["A source says so ([[C1]])."]],
+  });
+  assert.deepEqual(await shown([{ ...RENDER_BLOCKS[0]!, subject_labels: ["NVDA"], cells: [RENDER_BLOCKS[0]!.cells[0]!] }]), {
+    segments: [
+      { type: "text", text: "A source says so (" },
+      { type: "ref", ref_kind: "claim", ref_id: A_CLAIM, format: "Management raised its outlook." },
+      { type: "text", text: "). The outlook is the latest on file." },
+    ],
+    removed: [],
+  });
 });
 
 test("a claim-only answer is rendered too; guard drops while rendering count as narrative removals (#208)", async () => {
