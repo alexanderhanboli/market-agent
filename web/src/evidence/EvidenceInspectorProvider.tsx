@@ -47,6 +47,14 @@ export function EvidenceInspectorProvider({ children }: { children: ReactNode })
     return () => document.removeEventListener('click', onClick, true)
   }, [])
 
+  // Evidence fetched for one user is never left docked for the next.
+  const userId = session?.userId ?? null
+  useEffect(() => {
+    dispatch({ type: 'close' })
+    originRef.current?.removeAttribute(INSPECTING_ATTRIBUTE)
+    originRef.current = null
+  }, [userId])
+
   const controls = useMemo<InspectorControls>(() => {
     function releaseOrigin(): HTMLElement | null {
       const origin = originRef.current
@@ -73,7 +81,8 @@ export function EvidenceInspectorProvider({ children }: { children: ReactNode })
     function close() {
       dispatch({ type: 'close' })
       const origin = releaseOrigin()
-      if (origin?.isConnected) origin.focus()
+      const target = origin?.isConnected ? origin : document.getElementById('workspace-main')
+      target?.focus()
     }
 
     function openEvidence(navigation: Navigation, { snapshotId, ref }: { snapshotId: string; ref: EvidenceInspectionRef }) {

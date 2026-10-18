@@ -251,7 +251,7 @@ function RelatedRefs({ snapshotId, refs }: { snapshotId: string; refs: ReadonlyA
   const labels = relatedRefLabels(refs)
   return (
     <section className="grid gap-2">
-      <h4 className="text-xs font-semibold uppercase text-muted">Related</h4>
+      <h3 className="text-xs font-semibold uppercase text-muted">Related</h3>
       <ul className="flex flex-col gap-2">
         {refs.map((ref, index) => (
           <li key={`${ref.kind}:${ref.id}`}>
