@@ -3,7 +3,7 @@
 // fresh replies from the live model (live), and tabulates what the answer shows.
 //
 //   node --experimental-strip-types scripts/answer-lab.ts recorded <trace dir|files...> [--check | --update] [--judge]
-//   node --experimental-strip-types scripts/answer-lab.ts live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>] [--judge]
+//   node --experimental-strip-types scripts/answer-lab.ts live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>] [--judge]
 //   node --experimental-strip-types scripts/answer-lab.ts replies <trace dir|files...> --out <file>
 //   node --experimental-strip-types scripts/answer-lab.ts judge-mutations <set.json> [--concurrency N]
 //
@@ -13,11 +13,9 @@
 // differ from the recorded ones; --update writes each replay over its trace
 // (blocks, removals, assertions), for a deliberate change to post-processing. live uses the stack's LLM settings
 // (LLM_SETTINGS_ENV_FILE, default .env.dev, as dev-shell sets it) and writes
-// docs/eval-runs/answer-lab/<stamp>.json; --rendering sets
-// CHAT_ASSERTION_RENDERING for every trace (recorded, the default: each
-// trace's own), so one command shows the answers rendered or as prose.
-// --judge has the judge model (JUDGE_LITELLM_MODEL, src/inference-judge.ts)
-// read each answer's accepted inferences against what they rest on, and adds
+// docs/eval-runs/answer-lab/<stamp>.json. --judge has the judge model
+// (JUDGE_LITELLM_MODEL, src/inference-judge.ts) read each answer's accepted
+// inferences against what they rest on, and adds
 // its verdicts to the table and the run. recorded also summarizes the verdicts
 // the shadow judge recorded on the traces' turns, when any did. judge-mutations
 // judges a held-out set of inferences and their mutations
@@ -35,7 +33,6 @@ import {
   answerMetrics,
   composeTraced,
   judgeAnswer,
-  renderingEnv,
   replayRecorded,
   type AnswerMetrics,
   type JudgedAnswer,
@@ -171,9 +168,6 @@ function judgeCounts(verdicts: ReadonlyArray<InferenceVerdict>): JudgeCounts {
   return { entailed: count("entailed"), not_entailed: count("not_entailed"), judge_error: count("error") };
 }
 
-export const RENDERING_MODES = ["on", "off", "recorded"] as const;
-export type RenderingMode = (typeof RENDERING_MODES)[number];
-
 // text: the model's raw reply; answer: the rich_text the user reads, each
 // value as displayed; assertions: what rendering accepted, by kind, why the
 // rest went, and how many accepted observations a comparison already showed.
@@ -192,7 +186,6 @@ type LiveSample = {
 type LiveRun = {
   run: string;
   samples: number;
-  rendering?: RenderingMode;
   judged?: boolean;
   wall_ms: number;
   traces: string[];
@@ -222,7 +215,7 @@ export function answerText(blocks: ReadonlyArray<Record<string, unknown>>): stri
     .join("\n\n");
 }
 
-async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concurrency: number, rendering: RenderingMode, judge = false): Promise<LiveRun> {
+async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concurrency: number, judge = false): Promise<LiveRun> {
   const startedAt = Date.now();
   const jobs = traces.flatMap(({ key, label, trace }) => Array.from({ length: samples }, (_, sample) => ({ key, label, trace, sample })));
   const results: LiveSample[] = [];
@@ -230,7 +223,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
     for (let job = jobs.shift(); job; job = jobs.shift()) {
       const { key, label, trace, sample } = job;
       try {
-        const env = { ...liveEnv(), ...renderingEnv(rendering === "recorded" ? trace : { assertion_rendering: rendering === "on" }) };
+        const env = liveEnv();
         const answer = await composeTraced(trace.input, { env });
         // No deployment configured: the placeholder came back and no model answered.
         if (answer.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
@@ -267,7 +260,6 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
   return {
     run: new Date(startedAt).toISOString().slice(0, 19).replace(/:/g, ""),
     samples,
-    rendering,
     ...(judge ? { judged: true } : {}),
     wall_ms: Date.now() - startedAt,
     traces: traces.map(({ key }) => key),
@@ -425,7 +417,6 @@ async function main(argv: string[]): Promise<number> {
       samples: { type: "string", default: "1" },
       concurrency: { type: "string", default: "2" },
       against: { type: "string" },
-      rendering: { type: "string", default: "recorded" },
       out: { type: "string" },
       judge: { type: "boolean", default: false },
     },
@@ -435,7 +426,7 @@ async function main(argv: string[]): Promise<number> {
     (mode !== "recorded" && mode !== "live" && mode !== "replies" && mode !== "judge-mutations") || paths.length === 0 ||
     (mode === "replies" && !values.out) || (mode === "judge-mutations" && paths.length !== 1)
   ) {
-    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] [--judge] | live <trace dir|files...> [--samples K] [--concurrency N] [--rendering on|off|recorded] [--against <run.json>] [--judge] | replies <trace dir|files...> --out <file> | judge-mutations <set.json> [--concurrency N]");
+    console.error("usage: answer-lab.ts recorded <trace dir|files...> [--check | --update] [--judge] | live <trace dir|files...> [--samples K] [--concurrency N] [--against <run.json>] [--judge] | replies <trace dir|files...> --out <file> | judge-mutations <set.json> [--concurrency N]");
     return 2;
   }
   if (mode === "judge-mutations") {
@@ -504,11 +495,6 @@ async function main(argv: string[]): Promise<number> {
     console.error("--samples and --concurrency take a positive integer");
     return 2;
   }
-  const rendering = values.rendering as RenderingMode;
-  if (!RENDERING_MODES.includes(rendering)) {
-    console.error(`--rendering takes ${RENDERING_MODES.join(", ")}`);
-    return 2;
-  }
   // Read before the model is called, so a baseline that cannot match costs no run.
   const before = values.against === undefined ? undefined : JSON.parse(readFileSync(values.against, "utf8")) as LiveRun;
   // A run from before traces were keyed by turn names them by file: nothing would match.
@@ -516,14 +502,14 @@ async function main(argv: string[]): Promise<number> {
     console.error(`${values.against} is from an older answer-lab whose traces are not keyed by turn; rerun it`);
     return 2;
   }
-  const run = await live(traces, samples, concurrency, rendering, values.judge);
+  const run = await live(traces, samples, concurrency, values.judge);
   mkdirSync(RUNS_DIR, { recursive: true });
   const file = join(RUNS_DIR, `${run.run}.json`);
   writeFileSync(file, `${JSON.stringify(run, null, 2)}\n`, { flag: "wx" });
   const rows = liveRows(run);
   const errors = run.results.filter((result) => result.error).length;
   const unanswered = run.traces.filter((key) => !rows.some((row) => row.key === key)).map((key) => run.labels?.[key] ?? key);
-  console.log(`\n${table(rows, undefined, columnsOf(values.judge))}\n\n${assertionSummary(run)}${values.judge ? `\n\n${judgeSummary(run)}` : ""}\n\n${run.results.length - errors} answers, ${errors} errors, rendering ${rendering}, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
+  console.log(`\n${table(rows, undefined, columnsOf(values.judge))}\n\n${assertionSummary(run)}${values.judge ? `\n\n${judgeSummary(run)}` : ""}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
   if (unanswered.length > 0) console.log(`no answer: ${unanswered.join(", ")}`);
   if (before) {
     // Only traces both runs answered, so a failed one does not read as a change.

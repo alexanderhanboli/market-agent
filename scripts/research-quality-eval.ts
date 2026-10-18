@@ -43,7 +43,7 @@ type AssertionReport = {
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: Array<{ kind: string; text: string; evidence: string[] }>;
   rejected: Array<{ index: number; text?: string; reason: string }>;
-  // The answer was written from the accepted assertions (CHAT_ASSERTION_RENDERING).
+  // The answer was written from the accepted assertions; otherwise it is the fallback sentence.
   rendered?: boolean;
 };
 
@@ -136,9 +136,9 @@ export function renderReport(run: string, model: string, base: string, answered:
 // A turn's assertion check: each accepted assertion with its evidence, each
 // rejected one with the check it failed and its reason (#221).
 function renderAssertions(report: AssertionReport): string[] {
-  if (report.status !== "checked") return [`_Assertions (shadow): ${report.status}._`];
+  if (report.status !== "checked") return [`_Assertions (fallback): ${report.status}._`];
   return [
-    `_Assertions (${report.rendered ? "rendered" : "shadow"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
+    `_Assertions (${report.rendered ? "rendered" : "fallback"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
     "",
     ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]${entry.kind === "analyst_inference" && report.rendered ? "" : " (text not shown)"}: ${entry.text}`),
     ...report.rejected.map((entry) => `- ✗ [${rejectionCheck(entry.reason)}] ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
