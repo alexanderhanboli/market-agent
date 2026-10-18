@@ -11,20 +11,35 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks, requestIsNamedGap } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type AvailableFigure, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, companiesOf, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { assertionList, checkAssertions, companiesOf, MAX_ASSERTIONS, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
-import { calendarNote, plainText, renderAssertion } from "./render-assertions.ts";
-import { proseSegments, referenceTable, type ProseSegments, type ReferenceTable } from "./prose-refs.ts";
+import { calendarNote, plainText, renderAssertion, type RenderedAssertion } from "./render-assertions.ts";
+import { referenceTable } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
-import { keepSupportedSentences, keepUncausedSentences, LIST_MARKER, SENTENCE_BREAK, withoutEmptySections } from "./narrative-guard.ts";
+import { causalSentences, unsupportedSentences } from "./narrative-guard.ts";
 
-// Shown when the guard strips every sentence of the model's prose, or the model gave
-// no usable answer (empty, or cut off at the token limit).
-export const FACT_BLOCKS_FALLBACK_TEXT =
+// Shown when no assertion renders.
+const FACT_BLOCKS_FALLBACK_TEXT =
   "The reported figures below come from the company's filings; select any value to see its source.";
 // The same case for an answer without figures to point to.
-export const NO_ANSWER_FALLBACK_TEXT = "No written answer is available for this question; try asking again.";
+const NO_ANSWER_FALLBACK_TEXT = "No written answer is available for this question; try asking again.";
+
+// What the reader sees as the answer (#208): the accepted assertions in their
+// templates, with the notes they cannot say themselves, or a fixed sentence no
+// model wrote. The model's prose is never shown.
+type Answer =
+  | { kind: "rendered"; paragraphs: ReadonlyArray<Pick<RenderedAssertion, "segments" | "fact_bindings" | "source_refs">>; notes: ReadonlyArray<string> }
+  | { kind: "fallback"; text: string };
+
+// The accepted assertions' answer, null when none renders; the report with
+// what rendering left out and why, whether or not it renders, so evals see it
+// either way; and the text of those the guard removed.
+type Rendering = {
+  answer: Extract<Answer, { kind: "rendered" }> | null;
+  report: AssertionReport;
+  dropped: ReadonlyArray<string>;
+};
 
 // A provider can accept a request and never answer (one held a turn 516 s, #184).
 // Each attempt gets a deadline, after which the router tries the next deployment: the
@@ -100,11 +115,9 @@ export async function composeAnalystBlocksWithLlm(input: {
   context: LlmRuntimeContext;
   blocks: ReadonlyArray<Record<string, unknown>>;
   toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
-  // Deterministic chart/table blocks shown with the answer. When present, the
-  // prose may only quote figures they display (or that cited claims state).
+  // Deterministic chart/table blocks shown with the answer, whose figures its
+  // assertions cite.
   factBlocks?: ReadonlyArray<Record<string, unknown>>;
-  // The turn's subjects as labelled ("NVDA"), for the guard (2026-10-08 eval).
-  subjectLabels?: ReadonlyArray<string>;
   // Recent thread messages, oldest first, so the answer reads as a reply.
   conversation?: ReadonlyArray<{ role: string; text: string }>;
   // False when the turn asks only for metrics no reader serves (#206): the
@@ -114,13 +127,13 @@ export async function composeAnalystBlocksWithLlm(input: {
   scope?: ResearchScope;
   cutoff?: string;
   createClient?: () => Promise<LlmChatClient> | LlmChatClient;
-  // Receives the sentences the narrative guard dropped, so evals can count them (#144).
-  onNarrativeRemoved?: (sentences: ReadonlyArray<string>) => void;
+  // Receives the rendered assertions the narrative guard dropped, so evals can count them (#144).
+  onNarrativeRemoved?: (assertions: ReadonlyArray<string>) => void;
   // Receives the deployment (channel/model) that wrote the answer (#183).
   onAnswered?: (deployment: string) => void;
   // Receives the answer call's token usage, so evals can measure it (#181).
   onUsage?: (usage: AnswerUsage) => void;
-  // Receives the check of the answer's assertion list, in shadow (#208).
+  // Receives the check of the answer's assertion list, and what rendering left out (#208).
   onAssertions?: (report: AssertionReport) => void;
   // Receives what the model was sent and wrote, raw, for turn traces (answer-trace.ts).
   onModelExchange?: (exchange: ModelExchange) => void;
@@ -132,9 +145,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (!router) return input.blocks;
   const packet = turnPacket(input);
   const factBlocks = input.factBlocks ?? [];
-  // The references the prose may cite, rendered as the packet's values (prose-refs.ts).
-  const table = referenceTable(packet, factBlocks);
-  const asProse = (text: string) => rewriteFirstRichTextBlockWith(input.blocks, [proseSegments(text, table, factBlocks)], []);
+  const table = referenceTable(packet);
 
   const request: LlmChatRequest = {
     messages: [
@@ -201,7 +212,6 @@ export async function composeAnalystBlocksWithLlm(input: {
           "fact_recency.stale / a large fact_recency.age_days), explicitly note",
           "that the figure may be out of date and say how old it is.",
           "Return plain text suitable for a rich_text block.",
-          // Shadow assertions (#208): checked against the packet, never shown.
           "After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line:",
           `a JSON array of at most ${MAX_ASSERTIONS} objects {"kind", "text", "evidence"}. kind is "observation" (what figures`,
           "show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one",
@@ -222,7 +232,7 @@ export async function composeAnalystBlocksWithLlm(input: {
           "and say only what it means (\"the margin lead funds more research\", not \"NVDA leads AMD\"); the text refers to its",
           "subject as \"it\" or \"its\" ({\"kind\":\"analyst_inference\",\"subject\":\"AMD\",\"text\":\"Its net margin may understate",
           "underlying profitability, given the one-time charge management disclosed.\",\"supports\":[2,3]}).",
-          "The answer may be shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
+          "The answer is shown from this list alone, in its order, so it must carry the answer: your takeaway first, as an",
           "analyst_inference; then the observations, comparisons and what the data cannot tell about a change, as an",
           "unknown_cause; and last your counterpoint, as an analyst_inference. List nothing for what the data shown cannot tell:",
           // A gap's words name a metric or company nothing checks (#302).
@@ -261,55 +271,50 @@ export async function composeAnalystBlocksWithLlm(input: {
     ...(usage ? { usage } : {}),
   });
   if (usage) input.onUsage?.(usage);
-  // The deployment is reported only when some of its prose is shown: a fallback
-  // sentence in its place was written by no model (#183).
-  const answered = () => input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
-  const rendering = assertionRenderingEnabled(input.env ?? process.env);
-  // The assertion list is checked, never shown (#208).
-  const { prose, list, open } = splitAssertions(result.text.trim());
-  const report = checkAssertions(list, packet);
+  const report = checkAssertions(assertionList(result.text), packet);
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }
-  // Assertions rendering left out, with why: on the report whether or not the
-  // answer was rendered, so evals see them either way.
-  let renderRemovals: AssertionReport["rejected"] = [];
-  let repeated: number[] = [];
-  const reportAssertions = (rendered = false) =>
-    input.onAssertions?.(renderRemovals.length > 0 || rendered
-      ? {
-        ...report,
-        accepted: report.accepted.filter((entry) => !renderRemovals.some((removed) => removed.index === entry.index)),
-        rejected: [...report.rejected, ...renderRemovals].sort((a, b) => a.index - b.index),
-        ...(rendered ? { rendered: true } : {}),
-        ...(rendered && repeated.length > 0 ? { repeated } : {}),
-      }
-      : report);
-  // Controlled rendering (#208), unless CHAT_ASSERTION_RENDERING is off: the answer
-  // written from the accepted assertions, with the turn's guard still the
-  // backstop on each (its drops reported as narrative removals). Null when
-  // there is nothing to render, so the guarded prose stands, as with the flag
-  // off.
-  const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
-    if (!rendering || report.status !== "checked" || report.accepted.length === 0) return null;
+  // Pointing to "the reported figures below" needs figures shown: not a gap
+  // note, nor values only an assertion references (#302).
+  const shown = displayedFigures(factBlocks);
+  // The words a stated cause may use: what the blocks display, the cited
+  // claims, and each figure's period end as a rendered observation names it
+  // ("ended Jan 2026", #208).
+  const supportingTexts = [
+    ...displayTextsForBlocks(factBlocks),
+    ...claimTextsFromToolCalls(input.toolCalls),
+    ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
+  ];
+  // With no figure shown, no cause may be stated (#263); an attribution quotes
+  // its sourced claim word for word, so a cause the claim states is the
+  // claim's, not the model's.
+  const drops = (text: string, kind: AssertionKind) =>
+    (shown.length === 0 && kind !== "management_attribution" && causalSentences(text).length > 0) ||
+    unsupportedSentences(text, table, supportingTexts).length > 0;
+  const renderAccepted = (): Rendering => {
+    if (report.status !== "checked" || report.accepted.length === 0) return { answer: null, report, dropped: [] };
+    const reported = (omitted: AssertionReport["rejected"]): AssertionReport => ({
+      ...report,
+      accepted: report.accepted.filter((entry) => !omitted.some((left) => left.index === entry.index)),
+      rejected: [...report.rejected, ...omitted].sort((a, b) => a.index - b.index),
+    });
     const rendered = report.accepted.map((assertion) => ({
       ...renderAssertion(assertion, packet, factBlocks, report.accepted),
       kind: assertion.kind,
       supports: assertion.supports ?? [],
     }));
-    // The guard reads each rendered assertion with its values as references,
-    // so a template's own periods ("Q4 2026") pass and its values are the packet's.
     // Inferences last: an inference's label states what its comparisons
     // checked, so it is rebuilt from those still on the page before the guard
     // reads it, and never names (or is dropped for) one the guard removed.
-    const guarded = new Set(rendered.filter((entry) => entry.kind !== "analyst_inference" && drops(entry.reference_text, entry.kind).length > 0).map((entry) => entry.index));
+    const guarded = new Set(rendered.filter((entry) => entry.kind !== "analyst_inference" && drops(entry.reference_text, entry.kind)).map((entry) => entry.index));
     const surviving = report.accepted.filter((assertion) => !guarded.has(assertion.index));
     for (const [i, entry] of rendered.entries()) {
       if (entry.kind !== "analyst_inference") continue;
       if (entry.supports.some((n) => guarded.has(n))) {
         rendered[i] = { ...entry, ...renderAssertion(report.accepted.find((assertion) => assertion.index === entry.index)!, packet, factBlocks, surviving) };
       }
-      if (drops(rendered[i]!.reference_text, entry.kind).length > 0) guarded.add(entry.index);
+      if (drops(rendered[i]!.reference_text, entry.kind)) guarded.add(entry.index);
     }
     // An inference goes when the guard removed every assertion it rests on:
     // none of its support is on the page. So does one whose subject only the
@@ -321,17 +326,19 @@ export async function composeAnalystBlocksWithLlm(input: {
       (entry.supports.every((n) => guarded.has(n)) || uncovered(report.accepted.find((assertion) => assertion.index === entry.index)!))
     ).map((entry) => entry.index));
     const kept = rendered.filter((entry) => !guarded.has(entry.index) && !orphaned.has(entry.index));
-    renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
+    const omitted = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
-      check: "rendering",
+      check: "rendering" as const,
       reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
+    // The guard's own drops; an inference removed with its observation is on the report.
+    const dropped = omitted.filter((entry) => guarded.has(entry.index)).map((entry) => entry.text);
     // The guard removed every assertion: an inference never stays without a support.
-    if (kept.length === 0) return null;
+    if (kept.length === 0) return { answer: null, report: reported(omitted), dropped };
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
-    // one-sided, so its prose stands instead.
+    // one-sided, so the fallback stands instead.
     // An inference shows no figure, so its evidence covers no company.
     const keptAssertions = kept.flatMap((entry) => report.accepted.filter((assertion) => assertion.index === entry.index && assertion.kind !== "analyst_inference"));
     const keptFigures = keptAssertions.flatMap((assertion) => packet.figures.filter((figure) => assertion.evidence.includes(figure.id)));
@@ -339,18 +346,16 @@ export async function composeAnalystBlocksWithLlm(input: {
       ...keptFigures.map((figure) => figure.company ?? packet.companies[0]),
       ...keptAssertions.flatMap((assertion) => packet.claims.filter((claim) => assertion.evidence.includes(claim.id)).map((claim) => claim.company)),
     ]);
-    if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) return null;
+    if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) {
+      const oneSided = kept.map((entry) => ({ index: entry.index, text: plainText(entry.segments), check: "rendering" as const, reason: "left out: the answer would show only some of the companies shown" }));
+      return { answer: null, report: reported([...omitted, ...oneSided]), dropped };
+    }
     // An observation whose every figure a kept comparison writes is not said
     // twice; it still stands as an inference's support. One fact shown in two
     // blocks is one figure.
     const factOf = (id: string) => packet.figures.find((figure) => figure.id === id)?.fact_id ?? id;
     const compared = new Set(kept.filter((entry) => entry.kind === "comparison").flatMap((entry) => entry.figure_ids.map(factOf)));
-    repeated = kept.filter((entry) => entry.kind === "observation" && entry.figure_ids.every((id) => compared.has(factOf(id)))).map((entry) => entry.index);
-    // The guard's own drops; an inference removed with its observation is on the report.
-    const dropped = renderRemovals.filter((entry) => guarded.has(entry.index));
-    if (dropped.length > 0) input.onNarrativeRemoved?.(dropped.flatMap((entry) => (entry.text ? [entry.text] : [])));
-    reportAssertions(true);
-    answered();
+    const repeated = kept.filter((entry) => entry.kind === "observation" && entry.figure_ids.every((id) => compared.has(factOf(id)))).map((entry) => entry.index);
     // A stored disagreement keeps both sides: a claim rendered without the
     // claim that contradicts it brings that claim along, said as such.
     const shownClaims = new Set(kept.filter((entry) => entry.kind === "management_attribution")
@@ -366,121 +371,42 @@ export async function composeAnalystBlocksWithLlm(input: {
     // no value), and stale data.
     const stated = new Set(keptFigures.map((figure) => figure.company ?? packet.companies[0]));
     const notShown = packet.coverage.filter((entry) => entry.status === "not_shown" && !stated.has(entry.company)).map((entry) => entry.company);
-    return rewriteFirstRichTextBlockWith(input.blocks, [...kept.filter((entry) => !repeated.includes(entry.index)), ...otherSides], [
-      ...[calendarNote(keptAssertions, packet)].filter((note) => note !== undefined),
-      ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
-      // The claims as selected: more matched than were read, or none could be.
-      ...(packet.claims_truncated ? ["More sources matched than are shown here."] : []),
-      ...(packet.claims_status === "unavailable" ? ["Research claims could not be read for this answer."] : []),
-      ...stalenessNotes(input.toolCalls),
-    ]);
-  };
-  const text = prose.trim();
-  // Pointing to "the reported figures below" needs figures shown: not a gap
-  // note, nor values only the prose references (#302).
-  const shown = displayedFigures(factBlocks);
-  // With nothing to answer from, and a request the data does not hold, the gap
-  // notes shown below the answer are what the turn can say: the model's words
-  // on what is missing name a metric or company nothing checks (#302). Not
-  // every note is a gap ("the previous answer's figures were ... verified"),
-  // so the scope says whether the request is one (#358 review).
-  const gapsOnly = input.scope !== undefined && requestIsNamedGap(input.scope, factBlocks) &&
-    packet.figures.length === 0 && packet.claims.length === 0 && packet.gaps.length > 0;
-  const fallback = gapsOnly
-    ? [
-      `The data here does not answer this question; the ${packet.gaps.length > 1 ? "notes below say" : "note below says"} what is missing.`,
-      ...(packet.claims_status === "unavailable" ? ["Research claims could not be read for this answer."] : []),
-    ].join(" ")
-    : shown.length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT;
-  // Never show a sentence cut off mid-way, or the placeholder the turn started with.
-  // Cut off inside the assertion list, the prose before it is whole.
-  if ((result.truncated && !open) || text.length === 0) {
-    reportAssertions();
-    console.warn(`[chat] model answer was ${result.truncated ? "cut off at the token limit" : "empty"}; showing the fallback sentence`);
-    return rewriteFirstRichTextBlock(input.blocks, fallback);
-  }
-  const claimTexts = claimTextsFromToolCalls(input.toolCalls);
-  // The words a stated cause or a hypothesis's basis may use: what the blocks
-  // display, the cited claims, and each figure's period end as a rendered
-  // observation names it ("ended Jan 2026", #208). With no figure shown, no
-  // cause may be stated outside a labelled hypothesis (#263); an attribution
-  // quotes its sourced claim word for word, so a cause the claim states is the
-  // claim's, not the model's.
-  const guard = (text: string, kind?: AssertionKind, references: ReferenceTable = table) => {
-    const uncaused = shown.length === 0 && kind !== "management_attribution" ? keepUncausedSentences(text) : { text, removed: [] };
-    const supported = keepSupportedSentences(
-      uncaused.text,
-      references,
-      [
-        ...displayTextsForBlocks(factBlocks),
-        ...claimTexts,
-        ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
+    const answer = {
+      kind: "rendered" as const,
+      paragraphs: [...kept.filter((entry) => !repeated.includes(entry.index)), ...otherSides],
+      notes: [
+        ...[calendarNote(keptAssertions, packet)].filter((note) => note !== undefined),
+        ...(notShown.length > 0 ? [`No figures are shown for ${new Intl.ListFormat("en").format(notShown)}.`] : []),
+        // The claims as selected: more matched than were read, or none could be.
+        ...(packet.claims_truncated ? ["More sources matched than are shown here."] : []),
+        ...(packet.claims_status === "unavailable" ? ["Research claims could not be read for this answer."] : []),
+        ...stalenessNotes(input.toolCalls),
       ],
-      input.subjectLabels ?? [],
-    );
-    return { text: supported.text, removed: [...uncaused.removed, ...supported.removed] };
+    };
+    return { answer, report: { ...reported(omitted), rendered: true, ...(repeated.length > 0 ? { repeated } : {}) }, dropped };
   };
-  const rendered = renderAccepted((text, kind) => guard(text, kind).removed);
-  if (rendered) return rendered;
-  // With rendering on, a comparison the check rejected may be what the prose
-  // says ("AMD has the highest margin"), and the guard checks figures, not
-  // direction: the prose does not stand in for it.
-  // Any rejected comparison, whichever check rejected it (its kind as listed).
-  const rejectedComparison = report.rejected.some((entry) => {
-    const item = Array.isArray(list) ? list[entry.index] : undefined;
-    return isRecord(item) && item.kind === "comparison";
-  });
-  if (rendering && (gapsOnly || rejectedComparison)) {
-    reportAssertions();
-    return rewriteFirstRichTextBlock(input.blocks, fallback);
-  }
-  reportAssertions();
-  // A named gap's turn gives the model no data (availableData false): any
-  // digit it types is invented, a year included (#221). A claim's number
-  // appears only by citing the claim, which renders it whole (#294 review).
-  const checked = shown.length === 0 && input.availableData === false
-    ? withoutSentences(guard(text, undefined, { ...table, years: new Set() }), WORDED_AMOUNT)
-    : guard(text);
-  // With rendering on, only a rendered assertion states a figure's company,
-  // metric and period from the packet: in the prose a reference sits in words
-  // no check reads ("NVDA's revenue was [[F2]]" for AMD's margin, #301). A
-  // claim renders its words alone, without its company, so across companies
-  // its sentence goes too.
-  const guarded = rendering ? withoutSentences(checked, packet.companies.length > 1 ? /\[\[[FC]\d+\]\]/ : /\[\[F\d+\]\]/) : checked;
-  if (guarded.removed.length > 0) {
-    console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) the evidence packet does not support`);
-    input.onNarrativeRemoved?.(guarded.removed);
-  }
-  if (guarded.text) answered();
-  return guarded.text ? asProse(guarded.text) : rewriteFirstRichTextBlock(input.blocks, fallback);
-}
-
-// An amount in words: any magnitude or unit word ("three billion dollars",
-// "a quarter billion", "hundreds of millions", "twelve percent", "zero
-// dollars"), which the guard's digit-based check does not see (#294 review).
-// On a turn with no data there is nothing such a word could measure.
-// A bare number word is a value too ("a P/E of twenty", #294 review); "one"
-// and "a" are left out, as ordinary wording ("one of the metrics").
-const WORDED_AMOUNT = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|dozens?|hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?)\b/i;
-
-// The guarded text without each sentence the pattern matches, reported with
-// the guard's removals.
-function withoutSentences(guarded: { text: string; removed: string[] }, pattern: RegExp): { text: string; removed: string[] } {
-  const removed = [...guarded.removed];
-  // A line that lost every sentence is dropped (null), so a heading left with
-  // nothing under it goes too, as in the guard (#294 review).
-  const lines = guarded.text.split("\n").map((line) => {
-    if (line.trim() === "") return line;
-    // A list marker leads the line, not a sentence of it, as in the guard.
-    const lead = line.match(LIST_MARKER)?.[0] ?? "";
-    const kept = line.slice(lead.length).trim().split(SENTENCE_BREAK).filter((sentence) => {
-      if (!pattern.test(sentence)) return true;
-      removed.push(sentence.trim());
-      return false;
-    });
-    return kept.length === 0 ? null : `${lead}${kept.join(" ")}`;
-  });
-  return { text: withoutEmptySections(lines), removed };
+  // A request the data does not hold points to the gap notes shown below the
+  // answer (#302). Not every note is a gap ("the previous answer's figures
+  // were ... verified"), so the scope says whether the request is one (#358 review).
+  const namedGap = input.scope !== undefined && requestIsNamedGap(input.scope, factBlocks) &&
+    packet.figures.length === 0 && packet.gaps.length > 0;
+  const rendering = renderAccepted();
+  const answer: Answer = rendering.answer ?? {
+    kind: "fallback",
+    text: namedGap
+      ? [
+        `The data here does not answer this question; the ${packet.gaps.length > 1 ? "notes below say" : "note below says"} what is missing.`,
+        ...(packet.claims_status === "unavailable" ? ["Research claims could not be read for this answer."] : []),
+      ].join(" ")
+      : shown.length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT,
+  };
+  if (rendering.dropped.length > 0) input.onNarrativeRemoved?.(rendering.dropped);
+  input.onAssertions?.(rendering.report);
+  // The deployment is reported only when the answer is rendered from its
+  // assertions: the fallback sentence was written by no model (#183).
+  if (rendering.answer) input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
+  else console.warn(`[chat] no assertion rendered (list ${report.status}${result.truncated ? ", answer cut off at the token limit" : ""}); showing the fallback sentence`);
+  return withAnswer(input.blocks, answer);
 }
 
 // Claim text the answer cites; a figure a claim states is supported.
@@ -683,28 +609,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// The narrative block as segments (the guarded prose, or rendered assertions
-// paragraph by paragraph), with the fact bindings and sources their refs seal with.
-function rewriteFirstRichTextBlockWith(
-  blocks: ReadonlyArray<Record<string, unknown>>,
-  rendered: ReadonlyArray<ProseSegments>,
-  notes: ReadonlyArray<string>,
-): ReadonlyArray<Record<string, unknown>> {
-  const segments = [
-    ...rendered.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]),
-    ...(notes.length > 0 ? [{ type: "text", text: `\n\n${notes.join(" ")}` }] : []),
-  ];
-  const factBindings = [...new Map(rendered.flatMap((entry) => entry.fact_bindings).map((binding) => [binding.fact_id, binding])).values()];
+function withAnswer(blocks: ReadonlyArray<Record<string, unknown>>, answer: Answer): ReadonlyArray<Record<string, unknown>> {
   let rewritten = false;
   return Object.freeze(blocks.map((block) => {
     if (rewritten || block.kind !== "rich_text") return block;
     rewritten = true;
+    if (answer.kind === "fallback") {
+      return Object.freeze({ ...block, segments: Object.freeze([Object.freeze({ type: "text", text: answer.text })]) });
+    }
+    const { paragraphs, notes } = answer;
+    const segments = [
+      ...paragraphs.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]),
+      ...(notes.length > 0 ? [{ type: "text", text: `\n\n${notes.join(" ")}` }] : []),
+    ];
+    const factBindings = [...new Map(paragraphs.flatMap((entry) => entry.fact_bindings).map((binding) => [binding.fact_id, binding])).values()];
     const dataRef = (block.data_ref ?? {}) as Record<string, unknown>;
     return Object.freeze({
       ...block,
       segments: Object.freeze(segments.map((segment) => Object.freeze({ ...segment }))),
       ...(factBindings.length > 0 ? { data_ref: { ...dataRef, params: { fact_bindings: factBindings } } } : {}),
-      source_refs: [...new Set(rendered.flatMap((entry) => entry.source_refs))],
+      source_refs: [...new Set(paragraphs.flatMap((entry) => entry.source_refs))],
     });
   }));
 }
@@ -730,30 +654,4 @@ function stalenessNotes(toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>
       `The quote, as of ${new Date(asOf).toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}, may be out of date.`
     ),
   ];
-}
-
-// On unless turned off (CHAT_ASSERTION_RENDERING=0, false, no or off): an
-// answer is written from its checked assertions (#288).
-export function assertionRenderingEnabled(env: Record<string, string | undefined>): boolean {
-  return !/^(?:0|false|no|off)$/i.test(env.CHAT_ASSERTION_RENDERING?.trim() ?? "");
-}
-
-function rewriteFirstRichTextBlock(
-  blocks: ReadonlyArray<Record<string, unknown>>,
-  text: string,
-): ReadonlyArray<Record<string, unknown>> {
-  let rewritten = false;
-  return Object.freeze(blocks.map((block) => {
-    if (rewritten || block.kind !== "rich_text") return block;
-    rewritten = true;
-    return Object.freeze({
-      ...block,
-      segments: Object.freeze([
-        Object.freeze({
-          type: "text",
-          text,
-        }),
-      ]),
-    });
-  }));
 }

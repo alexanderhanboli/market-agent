@@ -20,7 +20,6 @@ const ENV = {
   LLM_ANTHROPIC_API_KEY: "sk-test",
   LLM_ANTHROPIC_MODELS: "claude-sonnet-5-5,claude-haiku-5-5",
   LITELLM_MODEL: "anthropic/claude-sonnet-5-5",
-  CHAT_ASSERTION_RENDERING: "1",
 };
 const JUDGED_ENV = { ...ENV, JUDGE_LITELLM_MODEL: "anthropic/claude-haiku-5-5" };
 
@@ -110,15 +109,15 @@ test("a judge that hangs does not hold the turn: the turn completes first, and t
   assert.deepEqual(judge?.verdicts.map(({ index, verdict }) => [index, verdict]), [[6, "error"], [7, "error"]]);
 });
 
-test("a turn that shows no inference makes no judge call: none rendered, or prose shown", async () => {
-  const cases: Array<[TurnTrace, typeof JUDGED_ENV]> = [
-    [NO_INFERENCE, JUDGED_ENV],
-    // Its inferences are listed but, rendering off, the reader sees prose.
-    [SEGMENTS, { ...JUDGED_ENV, CHAT_ASSERTION_RENDERING: "0" }],
+test("a turn that shows no inference makes no judge call: none rendered, or the fallback shown", async () => {
+  const cases: TurnTrace[] = [
+    NO_INFERENCE,
+    // Its inferences are listed, but the list does not parse: the reader sees the fallback sentence.
+    { ...SEGMENTS, exchange: { ...SEGMENTS.exchange!, text: SEGMENTS.exchange!.text.replace("```assertions\n[", "```assertions\n{") } },
   ];
-  for (const [recorded, env] of cases) {
+  for (const recorded of cases) {
     const { calls, createClient } = models(recorded, async () => ({ text: VERDICTS }));
-    const answer = await answerTurn(recorded.input, turn(recorded), { env, createClient });
+    const answer = await answerTurn(recorded.input, turn(recorded), { env: JUDGED_ENV, createClient });
     assert.equal(await answer.judged, null);
     assert.deepEqual(calls, ["anthropic/claude-sonnet-5-5"]);
   }

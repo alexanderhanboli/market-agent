@@ -12,7 +12,6 @@ const TRACE: TurnTrace = {
   run_id: "run-1",
   question: "How did NVDA's revenue change?",
   recorded_at: "2026-10-15T00:00:00.000Z",
-  assertion_rendering: false,
   input: { context: { userIntent: "How did NVDA's revenue change?", bundleId: "single_subject_analysis" }, blocks: [], toolCalls: [] },
   exchange: {
     messages: [{ role: "system", content: "Write." }],
@@ -22,7 +21,12 @@ const TRACE: TurnTrace = {
     latency_ms: 41_200,
     usage: { input_tokens: 9000, output_tokens: 700 },
   },
-  assertions: { status: "checked", accepted: [], rejected: [{ index: 0, check: "kind", reason: "cites no figure" }] },
+  assertions: {
+    status: "checked",
+    accepted: [{ index: 0, kind: "observation", text: "NVDA revenue rose to [[F1]].", evidence: ["F1"] }],
+    rejected: [{ index: 1, check: "kind", reason: "cites no figure" }],
+    rendered: true,
+  },
   removed: ["NVDA grew 12% in FY2024."],
   blocks: [
     {
@@ -79,24 +83,23 @@ test("a failed trace write does not fail the turn", async () => {
   assert.deepEqual(await readdir(dir), ["thread-1"]);
 });
 
-test("answerMetrics counts the prose's sealed figures, a price return's series among them, and plain numbers", () => {
+test("answerMetrics counts the answer's sealed figures, a price return's series among them, and plain numbers", () => {
   assert.deepEqual(answerMetrics(TRACE), {
     figure_refs: 2,
     plain_numbers: 3,
     removed: 1,
     fallback: false,
-    accepted: 0,
+    accepted: 1,
     rejected: 1,
     output_tokens: 700,
     latency_ms: 41_200,
   });
 });
 
-test("answerMetrics reads a fallback sentence as the fallback", () => {
+test("answerMetrics reads an answer no assertion rendered as the fallback; with no model called there is none", () => {
   const fallback = {
     ...TRACE,
-    exchange: null,
-    assertions: null,
+    assertions: { status: "missing" as const, accepted: [], rejected: [] },
     removed: [],
     blocks: [{ kind: "rich_text", segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }] }],
   };
@@ -107,7 +110,8 @@ test("answerMetrics reads a fallback sentence as the fallback", () => {
     fallback: true,
     accepted: 0,
     rejected: 0,
-    output_tokens: 0,
-    latency_ms: 0,
+    output_tokens: 700,
+    latency_ms: 41_200,
   });
+  assert.equal(answerMetrics({ ...fallback, exchange: null, assertions: null }).fallback, false);
 });

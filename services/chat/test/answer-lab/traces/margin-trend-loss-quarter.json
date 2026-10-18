@@ -1848,9 +1848,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -1889,7 +1886,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -1980,18 +1976,19 @@
       {
         "index": 1,
         "text": "Operating margin trended upward over the eight quarters, with the Q2 2025 dip as the sole decline and four consecutive quarters of improvement thereafter.",
+        "check": "comparative",
         "reason": "comparison: operating margin did not rise in every period"
       },
       {
         "index": 5,
         "text": "The Q2 2025 negative operating margin was a one-time event driven by export-control charges, not a structural deterioration, as margins rebounded immediately and continued rising.",
+        "check": "binding",
         "reason": "an inference rests on its supports; it writes no figure"
       }
-    ]
+    ],
+    "rendered": true
   },
-  "removed": [
-    "The steady margin expansion from Q3 2025 onward could reflect a higher-revenue mix shifting toward data center, given that revenue grew from [[F14]] to [[F17]] over the same span while margins rose."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "8b99f633-23e8-4ee1-8a46-4d1e927b01f0",
@@ -2003,16 +2000,6 @@
         "params": {
           "fact_bindings": [
             {
-              "fact_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2026-03-29",
-              "period_end": "2026-06-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q2"
-            },
-            {
               "fact_id": "ce00c50a-f51f-4bd2-8cf2-7023d2076ba4",
               "unit": "ratio",
               "period_kind": "fiscal_q",
@@ -2021,6 +2008,16 @@
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2024,
               "fiscal_period": "Q3"
+            },
+            {
+              "fact_id": "4cabf3fa-490b-4764-a458-0cdf1ae92a63",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-09-29",
+              "period_end": "2024-12-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2024,
+              "fiscal_period": "Q4"
             },
             {
               "fact_id": "d56714a3-f542-4cba-b141-b83c58ceb8e7",
@@ -2051,6 +2048,36 @@
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2025,
               "fiscal_period": "Q3"
+            },
+            {
+              "fact_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-09-28",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q4"
+            },
+            {
+              "fact_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-12-28",
+              "period_end": "2026-03-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q1"
+            },
+            {
+              "fact_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2026-03-29",
+              "period_end": "2026-06-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q2"
             }
           ]
         }
@@ -2064,17 +2091,7 @@
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** AMD's operating margin has trended decisively higher over the eight quarters shown, recovering from a sharp one-quarter dip and reaching its peak in the most recent period. The current run-rate of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
-          "format": "14.4%"
-        },
-        {
-          "type": "text",
-          "text": " represents the strongest operating profitability in the window.\n\n**Trend across all periods.** Operating margin held in a narrow band around the low double digits from Q3 2024 ("
+          "text": "AMD's operating margin was "
         },
         {
           "type": "ref",
@@ -2084,7 +2101,25 @@
         },
         {
           "type": "text",
-          "text": ") through Q1 2025 ("
+          "text": " in Q3 2024 (ended Sep 2024)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "4cabf3fa-490b-4764-a458-0cdf1ae92a63",
+          "format": "11.4%"
+        },
+        {
+          "type": "text",
+          "text": " in Q4 2024 (ended Dec 2024)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
         },
         {
           "type": "ref",
@@ -2094,7 +2129,11 @@
         },
         {
           "type": "text",
-          "text": "). It then plunged to "
+          "text": " in Q1 2025 (ended Mar 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
         },
         {
           "type": "ref",
@@ -2104,7 +2143,11 @@
         },
         {
           "type": "text",
-          "text": " in Q2 2025 (period ending June 2025), before rebounding sharply to "
+          "text": " in Q2 2025 (ended Jun 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
         },
         {
           "type": "ref",
@@ -2114,7 +2157,39 @@
         },
         {
           "type": "text",
-          "text": " in Q3 2025 and continuing to edge higher each subsequent quarter through "
+          "text": " in Q3 2025 (ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
+          "format": "14.1%"
+        },
+        {
+          "type": "text",
+          "text": " in Q4 2025 (ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
+          "format": "14.2%"
+        },
+        {
+          "type": "text",
+          "text": " in Q1 2026 (ended Mar 2026)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's operating margin was "
         },
         {
           "type": "ref",
@@ -2124,7 +2199,37 @@
         },
         {
           "type": "text",
-          "text": " in Q2 2026 (period ending June 2026).\n\n**What is strong and what is weak.** The four most recent quarters (Q3 2025 through Q2 2026) show consistent sequential improvement, with each quarter printing a higher operating margin than the last. The Q2 2025 quarter is the clear outlier on the weak side; management attributed the result to "
+          "text": " in Q2 2026 (ended Jun 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "AMD's operating margin was highest in Q2 2026, at "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
+          "format": "14.4%"
+        },
+        {
+          "type": "text",
+          "text": ", of the periods from Q3 2024 to Q2 2026."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "According to a source dated Aug 2025, effective Jun 2025 on AMD: "
         },
         {
           "type": "ref",
@@ -2134,7 +2239,19 @@
         },
         {
           "type": "text",
-          "text": ", published in August 2025. Excluding that quarter, the trajectory is steadily upward.\n\n**Counterpoint.** The improvement from Q3 2025 onward has been incremental rather than dramatic—each step-up is modest. If revenue growth decelerates, the operating margin could plateau near current levels rather than continuing to expand, since the easy recovery from the Q2 2025 trough is already behind.\n\n**What the data cannot tell.** The figures do not break out operating margin by segment, so we cannot see whether the improvement is driven by data center, client, or other segments. There is also no operating income dollar figure for quarters prior to Q2 2026, limiting visibility into the absolute profit trajectory behind the margin percentages."
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "> **Analyst inference** (AMD's operating margin highest in Q2 2026): AMD's operating profitability has recovered to its strongest level in the eight-quarter window and is trending higher, though the pace of improvement has been incremental since the initial rebound."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "The figures do not show why AMD's operating margin changed."
         }
       ]
     }

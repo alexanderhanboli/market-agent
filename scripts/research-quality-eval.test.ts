@@ -183,7 +183,7 @@ test("the report shows each turn's answer tokens and the run's mean (#181)", () 
   assert.equal(usageSummary([]), "not reported");
 });
 
-test("the report lists each turn's dropped sentences and the run's total (#144)", () => {
+test("the report lists each turn's dropped assertions and the run's total (#144)", () => {
   const [first, second] = QUESTIONS;
   const answered = [
     { question: first, threadId: "t1", turns: [{ message: "q1", outcome: "turn.completed", blocks: [], removed: ["At 74.6%, NVDA leads.", "AMD trails at 49.2%."] }] },
@@ -192,10 +192,10 @@ test("the report lists each turn's dropped sentences and the run's total (#144)"
       { message: "q3", outcome: "turn.failed", blocks: [] },
     ] },
   ];
-  assert.equal(removedSummary(answered), "2 sentences in 1 of 2 answered turns");
+  assert.equal(removedSummary(answered), "2 assertions in 1 of 2 answered turns");
   const report = renderReport("r", "a/m", "http://app", answered);
-  assert.match(report, /Guard drops: 2 sentences in 1 of 2 answered turns\./);
-  assert.match(report, /_Guard dropped 2 sentences:_\n\n> ~~At 74\.6%, NVDA leads\.~~\n> ~~AMD trails at 49\.2%\.~~/);
+  assert.match(report, /Guard drops: 2 assertions in 1 of 2 answered turns\./);
+  assert.match(report, /_Guard dropped 2 assertions:_\n\n> ~~At 74\.6%, NVDA leads\.~~\n> ~~AMD trails at 49\.2%\.~~/);
 });
 
 test("the report shows each turn's assertion check and the run's totals (#208)", () => {
@@ -218,11 +218,11 @@ test("the report shows each turn's assertion check and the run's totals (#208)",
   assert.equal(assertionSummary(answered), "2 accepted, 1 rejected (kind 1) over 4 answered turns; 1 missing, 0 malformed, 0 with no figures; 1 rendered");
   const report = renderReport("r", "a/m", "http://app", answered);
   assert.match(report, /Assertions: 2 accepted, 1 rejected \(kind 1\) over 4 answered turns; 1 missing, 0 malformed, 0 with no figures; 1 rendered\./);
-  assert.match(report, /_Assertions \(shadow\): 0 accepted, 0 rejected:_/);
+  assert.match(report, /_Assertions \(fallback\): 0 accepted, 0 rejected:_/);
   assert.match(report, /_Assertions \(rendered\): 1 accepted, 0 rejected:_/);
   assert.match(report, /_Assertions \(rendered\): 1 accepted, 0 rejected:_/);
   assert.match(report, /- ✓ observation \[F1\] \(text not shown\): NVDA's margin was 75\.0%\.\n- ✗ \[kind\] a management attribution cites the claim that makes it: Mix lifted margins\./);
-  assert.match(report, /_Assertions \(shadow\): missing\._/);
+  assert.match(report, /_Assertions \(fallback\): missing\._/);
   assert.equal(assertionSummary([]), "not reported");
 });
 
@@ -235,9 +235,9 @@ test("an accepted assertion's text is marked not shown unless it is an inference
     ] },
   }] }]);
   assert.match(report, /- ✓ observation \[F1\] \(text not shown\): NVDA's revenue was \$99B\.\n- ✓ analyst_inference \[\]: Scale funds research\./);
-  const shadow = renderReport("r", "a/m", "http://app", [{ question: QUESTIONS[0], threadId: "t1", turns: [{
+  const fallback = renderReport("r", "a/m", "http://app", [{ question: QUESTIONS[0], threadId: "t1", turns: [{
     message: "q1", outcome: "turn.completed", blocks: [],
     assertions: { status: "checked" as const, rejected: [], accepted: [{ kind: "analyst_inference", text: "Scale funds research.", evidence: [] }] },
   }] }]);
-  assert.match(shadow, /- ✓ analyst_inference \[\] \(text not shown\): Scale funds research\./);
+  assert.match(fallback, /- ✓ analyst_inference \[\] \(text not shown\): Scale funds research\./);
 });

@@ -3269,11 +3269,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA",
-      "AMD",
-      "AAPL"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -3320,7 +3315,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -3448,27 +3442,30 @@
       {
         "index": 9,
         "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "AMD's net margin may have been depressed by the export-control charge management disclosed, which is a headwind specific to that fiscal year rather than a structural margin ceiling.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 11,
         "text": "The data does not show why AMD's net margin is so far below its gross margin relative to peers; no operating expense breakdown is provided.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
+    ],
+    "rendered": true,
+    "repeated": [
+      0,
+      1,
+      2
     ]
   },
-  "removed": [
-    "**What is strong and weak:** NVDA's gross margin of [[F2]] and net margin of [[F3]] are the highest of the three, reflecting a far more profitable revenue base than either peer.",
-    "On gross margin, AMD's [[F6]] is only slightly above AAPL's [[F10]], but AMD's net margin is less than half of AAPL's, indicating heavier operating costs relative to revenue.",
-    "Management attributed a headwind to U.S. export controls on its MI308 data center GPU, which led to approximately $800 million in inventory and related charges in the quarter ending June 2025 [[C1]].",
-    "AMD's lower net margin relative to its gross margin could reflect elevated R&D or restructuring costs, given the gap between [[F6]] and [[F7]].",
-    "NVDA's margin premium could reflect pricing power in data-center GPUs, given the combination of [[F2]] and [[F4]]."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "78c2b935-6f76-42dc-892c-1342eaae4a13",
@@ -3479,6 +3476,66 @@
         "id": "78c2b935-6f76-42dc-892c-1342eaae4a13",
         "params": {
           "fact_bindings": [
+            {
+              "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "6529293e-4f62-4344-b6b2-47b903f2dcc9",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-09-29",
+              "period_end": "2025-09-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "927d708f-21be-44ee-be7a-c3d25c1f876e",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-09-29",
+              "period_end": "2025-09-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
             {
               "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
               "unit": "ratio",
@@ -3501,26 +3558,6 @@
             },
             {
               "fact_id": "0f3b901e-0f59-40f7-aa06-fbbbb884915a",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-09-29",
-              "period_end": "2025-09-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "927d708f-21be-44ee-be7a-c3d25c1f876e",
               "unit": "ratio",
               "period_kind": "fiscal_y",
               "period_start": "2024-09-29",
@@ -3563,44 +3600,87 @@
         }
       },
       "source_refs": [
-        "00000000-0000-4000-a000-000000000001"
+        "00000000-0000-4000-a000-000000000001",
+        "138fef65-4ad7-48cf-b641-6c099b2d0a60"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVDA is the clear margin leader and fastest grower of the three; AAPL remains the largest by absolute revenue; AMD trails on both profitability metrics but is growing faster than AAPL.\n\n**Trend across periods shown:** Only one fiscal year per company is displayed, so no multi-period trend can be traced. The year-over-year growth rates give a sense of momentum: NVDA grew revenue at "
+          "text": "Of NVDA, AMD, and AAPL, NVDA's gross margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
-          "format": "60.9%"
+          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+          "format": "70.8%"
         },
         {
           "type": "text",
-          "text": ", AMD at "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
-          "format": "34.5%"
+          "ref_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+          "format": "49.9%"
         },
         {
           "type": "text",
-          "text": ", and AAPL at "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", AAPL "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "0f3b901e-0f59-40f7-aa06-fbbbb884915a",
-          "format": "6.4%"
+          "ref_id": "6529293e-4f62-4344-b6b2-47b903f2dcc9",
+          "format": "46.9%"
         },
         {
           "type": "text",
-          "text": ". Note that the fiscal years end up to four months apart—NVDA's FY2026 ended January 2026, AMD's FY2025 ended December 2025, and AAPL's FY2025 ended September 2025—so the periods are not perfectly aligned.\n\nAMD's net margin of "
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA, AMD, and AAPL, NVDA's net margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+          "format": "53.6%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -3610,7 +3690,11 @@
         },
         {
           "type": "text",
-          "text": " is the lowest, sitting well below AAPL's "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", AAPL "
         },
         {
           "type": "ref",
@@ -3620,37 +3704,91 @@
         },
         {
           "type": "text",
-          "text": ". NVDA's revenue of "
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA, AMD, and AAPL, AMD's net margin was lowest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "672cd83c-a487-4d08-ada6-267141565554",
-          "format": "$209.9B"
+          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+          "format": "53.6%"
         },
         {
           "type": "text",
-          "text": " is larger than AMD's "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
-          "format": "$34.7B"
+          "ref_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+          "format": "12.0%"
         },
         {
           "type": "text",
-          "text": " but smaller than AAPL's "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", AAPL "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "69e42eac-3e5c-4990-b4be-fe5c15036203",
-          "format": "$416.2B"
+          "ref_id": "927d708f-21be-44ee-be7a-c3d25c1f876e",
+          "format": "26.9%"
         },
         {
           "type": "text",
-          "text": ".\n\n**Counterpoint:** AMD's revenue growth of "
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA, AMD, and AAPL, NVDA's revenue growth (YoY) was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+          "format": "60.9%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -3660,7 +3798,11 @@
         },
         {
           "type": "text",
-          "text": " is healthy and far outpaces AAPL's "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", AAPL "
         },
         {
           "type": "ref",
@@ -3670,7 +3812,83 @@
         },
         {
           "type": "text",
-          "text": ", suggesting AMD is still in a scaling phase. That charge likely depressed AMD's net margin for the fiscal year shown.\n\n**What the data cannot tell:** No prior-year revenue or margin figures are shown for any of the three companies, so we cannot assess whether margins expanded or contracted. No segment or product-line breakdown is provided, so we cannot see how much of NVDA's margin advantage comes from data-center mix versus other segments. No quarterly progression is shown, so the trajectory within each fiscal year is unknown."
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA, AMD, and AAPL, AAPL's revenue was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "672cd83c-a487-4d08-ada6-267141565554",
+          "format": "$209.9B"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
+          "format": "$34.7B"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", AAPL "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "69e42eac-3e5c-4990-b4be-fe5c15036203",
+          "format": "$416.2B"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "According to a source dated Aug 2025, effective Jun 2025 on AMD: "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "claim",
+          "ref_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+          "format": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges."
+        },
+        {
+          "type": "text",
+          "text": "\n\nThe periods compared end at different times, so they do not line up: AMD's FY2025 ended Dec 2025, AAPL's FY2025 ended Sep 2025, and NVDA's FY2026 ended Jan 2026."
         }
       ]
     }

@@ -1090,7 +1090,7 @@ test("default analyst runner surfaces bundle_id on turn.started for no-subject t
   assert.equal(completedEvent.bundle_id, "theme_research");
 });
 
-test("turn.completed reports the narrative sentences the guard dropped, only when there are any (#144)", async () => {
+test("turn.completed reports the rendered assertions the guard dropped, only when there are any (#144)", async () => {
   const removed = ["At 74.6%, NVDA had a higher gross margin than AMD at 49.2%."];
   const guarded = createChatCoordinator({
     analystToolRuntime: async (context) => ({ ...(await successfulRuntime(context)), narrative_removed: removed }),

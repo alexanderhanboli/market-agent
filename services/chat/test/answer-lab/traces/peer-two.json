@@ -2379,10 +2379,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA",
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -2416,7 +2412,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -2540,25 +2535,30 @@
       {
         "index": 9,
         "text": "NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 11,
         "text": "The data does not show why AMD's net margin is so much lower than NVDA's beyond the disclosed charge; segment mix and operating leverage are not visible.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
+    ],
+    "rendered": true,
+    "repeated": [
+      0,
+      1,
+      2
     ]
   },
-  "removed": [
-    "That charge weighed on the quarter's profitability, meaning AMD's underlying margin trajectory may look better than the full-year net margin of [[F7]] suggests.",
-    "AMD's lower net margin partly reflects the export-control charge management disclosed, given the net margin of [[F7]] and the stated impact in [[C1]].",
-    "NVDA's margin premium reflects pricing power in AI accelerators that AMD has not yet matched, given the gross-margin gap between [[F2]] and [[F6]]."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "d1770af7-a83c-4e61-86f4-03fe521454ca",
@@ -2569,66 +2569,6 @@
         "id": "d1770af7-a83c-4e61-86f4-03fe521454ca",
         "params": {
           "fact_bindings": [
-            {
-              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2025-01-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2025-01-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2025-01-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
             {
               "fact_id": "672cd83c-a487-4d08-ada6-267141565554",
               "unit": "currency",
@@ -2648,81 +2588,85 @@
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2025,
               "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
             }
           ]
         }
       },
       "source_refs": [
         "00000000-0000-4000-a000-000000000001",
-        "138fef65-4ad7-48cf-b641-6c099b2d0a60",
-        "00000000-0000-4000-a000-000000000009"
+        "00000000-0000-4000-a000-000000000009",
+        "138fef65-4ad7-48cf-b641-6c099b2d0a60"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVDA is in a different league from AMD on every metric shown. Its revenue, gross margin, net margin, and revenue growth all far exceed AMD's corresponding figures. AMD is growing healthily but remains a much smaller, thinner-margin business.\n\n**Trend:** Only one fiscal year per company is displayed, so no multi-period trend can be traced. The year-over-year growth rates tell us the direction of each company's most recent fiscal year: NVDA grew revenue "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
-          "format": "60.9%"
+          "text": "Of NVDA and AMD, NVDA's revenue was highest: "
         },
         {
           "type": "text",
-          "text": " and AMD grew revenue "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
-          "format": "34.5%"
-        },
-        {
-          "type": "text",
-          "text": ", both positive but NVDA's pace is faster.\n\n**What is strong and what is weak:** NVDA's profitability is the standout. Its gross margin of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
-          "format": "70.8%"
-        },
-        {
-          "type": "text",
-          "text": " and net margin of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
-          "format": "53.6%"
-        },
-        {
-          "type": "text",
-          "text": " dwarf AMD's "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
-          "format": "49.9%"
-        },
-        {
-          "type": "text",
-          "text": " and "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
-          "format": "12.0%"
-        },
-        {
-          "type": "text",
-          "text": " respectively. Revenue scale is similarly lopsided: NVDA at "
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2732,7 +2676,11 @@
         },
         {
           "type": "text",
-          "text": " versus AMD at "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2742,7 +2690,77 @@
         },
         {
           "type": "text",
-          "text": ". AMD's net margin of "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's gross margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+          "format": "70.8%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+          "format": "49.9%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's net margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+          "format": "53.6%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2752,17 +2770,63 @@
         },
         {
           "type": "text",
-          "text": " is the weakest figure in the set, indicating that even with solid top-line growth, relatively little reaches the bottom line. Note that the two fiscal years end about one month apart (NVDA's ends January 2026, AMD's ends December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD's reported results were depressed by a specific headwind. Management stated that "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "claim",
-          "ref_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
-          "format": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges."
+          "text": " (FY2025, ended Dec 2025)"
         },
         {
           "type": "text",
-          "text": " (published August 2025).\n\n**What the data cannot tell:** No prior-year revenue is shown for either company, so we cannot see whether growth is accelerating or decelerating. No segment or product-line breakdown is provided, so we cannot tell how much of NVDA's revenue is concentrated in data center versus other end markets. No quarterly progression is shown, so the path within each fiscal year is invisible. No forward guidance figures are included.\n\n**Price performance:** Over the nine-month window from December 2025 through August 2026, NVDA returned "
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's revenue growth (YoY) was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+          "format": "60.9%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
+          "format": "34.5%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's price return was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2772,7 +2836,7 @@
         },
         {
           "type": "text",
-          "text": " and AMD returned "
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2782,7 +2846,29 @@
         },
         {
           "type": "text",
-          "text": ", both modestly positive but NVDA ahead."
+          "text": " (Dec 2025 to Aug 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "According to a source dated Aug 2025, effective Jun 2025 on AMD: "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "claim",
+          "ref_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+          "format": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges."
+        },
+        {
+          "type": "text",
+          "text": "\n\nThe periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025."
         }
       ]
     }

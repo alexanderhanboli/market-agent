@@ -2334,10 +2334,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "AAPL",
-      "NVDA"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -2371,7 +2367,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -2490,13 +2485,22 @@
       {
         "index": 9,
         "text": "NVDA shows superior profitability and growth, but AAPL has a larger revenue base; the similar price returns suggest the market may have already priced in NVDA's advantage or sees offsetting risks.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "The close price returns despite divergent fundamentals could reflect prior pricing of NVDA's growth or unshown risks.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       }
+    ],
+    "rendered": true,
+    "repeated": [
+      0,
+      1,
+      2,
+      3
     ]
   },
   "removed": [],
@@ -2511,26 +2515,6 @@
         "params": {
           "fact_bindings": [
             {
-              "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2025-01-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2025-01-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
               "fact_id": "6529293e-4f62-4344-b6b2-47b903f2dcc9",
               "unit": "ratio",
               "period_kind": "fiscal_y",
@@ -2538,6 +2522,16 @@
               "period_end": "2025-09-27",
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
               "fiscal_period": "FY"
             },
             {
@@ -2551,7 +2545,7 @@
               "fiscal_period": "FY"
             },
             {
-              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+              "fact_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
               "unit": "ratio",
               "period_kind": "fiscal_y",
               "period_start": "2025-01-27",
@@ -2568,6 +2562,16 @@
               "period_end": "2025-09-27",
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
               "fiscal_period": "FY"
             },
             {
@@ -2594,95 +2598,15 @@
         }
       },
       "source_refs": [
-        "00000000-0000-4000-a000-000000000001",
-        "00000000-0000-4000-a000-000000000009"
+        "00000000-0000-4000-a000-000000000009",
+        "00000000-0000-4000-a000-000000000001"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVDA is the stronger grower and far more profitable on both gross and net margins, while AAPL generates a larger revenue base. Over the nine-month price window shown, the two stocks returned nearly the same, suggesting the market has not yet repriced AAPL for its slower growth or NVDA for its margin premium in this period.\n\n**Trend across periods shown:** Only one fiscal year per company is displayed, so no multi-period trend can be described. The price-return window covers December 2025 through August 2026 for both names.\n\n**What is strong and what is weak:** NVDA's gross margin of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
-          "format": "70.8%"
-        },
-        {
-          "type": "text",
-          "text": " and net margin of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
-          "format": "53.6%"
-        },
-        {
-          "type": "text",
-          "text": " are higher than AAPL's "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "6529293e-4f62-4344-b6b2-47b903f2dcc9",
-          "format": "46.9%"
-        },
-        {
-          "type": "text",
-          "text": " and "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "927d708f-21be-44ee-be7a-c3d25c1f876e",
-          "format": "26.9%"
-        },
-        {
-          "type": "text",
-          "text": ", respectively. NVDA's revenue growth of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
-          "format": "60.9%"
-        },
-        {
-          "type": "text",
-          "text": " is also higher than AAPL's "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "0f3b901e-0f59-40f7-aa06-fbbbb884915a",
-          "format": "6.4%"
-        },
-        {
-          "type": "text",
-          "text": ". AAPL's revenue of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "69e42eac-3e5c-4990-b4be-fe5c15036203",
-          "format": "$416.2B"
-        },
-        {
-          "type": "text",
-          "text": " is larger than NVDA's "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "672cd83c-a487-4d08-ada6-267141565554",
-          "format": "$209.9B"
-        },
-        {
-          "type": "text",
-          "text": ". Note that the fiscal years end four months apart—AAPL's ends in September 2025 and NVDA's in January 2026—so they cover different calendar months.\n\n**Counterpoint:** Despite NVDA's superior growth and profitability metrics, the price returns over the shown window are close: AAPL at "
+          "text": "AAPL's price return was "
         },
         {
           "type": "ref",
@@ -2692,7 +2616,11 @@
         },
         {
           "type": "text",
-          "text": " versus NVDA at "
+          "text": " in Dec 2025 to Aug 2026"
+        },
+        {
+          "type": "text",
+          "text": "; NVDA's price return was "
         },
         {
           "type": "ref",
@@ -2702,7 +2630,175 @@
         },
         {
           "type": "text",
-          "text": ". This suggests that either the market had already priced in NVDA's fundamental advantage before the window began, or that investors see offsetting risks not captured in these headline numbers.\n\n**What the data cannot tell:** No prior-year revenue or margin figures are shown for either company, so we cannot assess whether NVDA's margins are expanding or AAPL's are compressing. No segment breakdown is provided, so we cannot see how concentrated each company's revenue is. No management guidance or KPI claims were returned."
+          "text": " in Dec 2025 to Aug 2026"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of AAPL and NVDA, NVDA's gross margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "AAPL "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "6529293e-4f62-4344-b6b2-47b903f2dcc9",
+          "format": "46.9%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
+          "format": "70.8%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of AAPL and NVDA, NVDA's net margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "AAPL "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "927d708f-21be-44ee-be7a-c3d25c1f876e",
+          "format": "26.9%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "420cbe72-f5a9-454f-9720-035958c26d7a",
+          "format": "53.6%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of AAPL and NVDA, NVDA's revenue growth (YoY) was highest: "
+        },
+        {
+          "type": "text",
+          "text": "AAPL "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "0f3b901e-0f59-40f7-aa06-fbbbb884915a",
+          "format": "6.4%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+          "format": "60.9%"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of AAPL and NVDA, AAPL's revenue was highest: "
+        },
+        {
+          "type": "text",
+          "text": "AAPL "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "69e42eac-3e5c-4990-b4be-fe5c15036203",
+          "format": "$416.2B"
+        },
+        {
+          "type": "text",
+          "text": " (FY2025, ended Sep 2025)"
+        },
+        {
+          "type": "text",
+          "text": ", NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "672cd83c-a487-4d08-ada6-267141565554",
+          "format": "$209.9B"
+        },
+        {
+          "type": "text",
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\nThe periods compared end at different times, so they do not line up: AAPL's FY2025 ended Sep 2025 and NVDA's FY2026 ended Jan 2026."
         }
       ]
     }

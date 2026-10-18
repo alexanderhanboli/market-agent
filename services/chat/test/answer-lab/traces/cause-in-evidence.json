@@ -1821,9 +1821,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -1866,7 +1863,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -1948,18 +1944,6 @@
         ]
       },
       {
-        "index": 8,
-        "kind": "analyst_inference",
-        "text": "The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
-        "evidence": [],
-        "supports": [
-          0,
-          1,
-          2,
-          6
-        ]
-      },
-      {
         "index": 9,
         "kind": "analyst_inference",
         "text": "Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin.",
@@ -1984,20 +1968,26 @@
       {
         "index": 4,
         "text": "Operating margin fell from the 10-11% range in Q3 2024 through Q1 2025 to -1.7% in Q2 2025, then recovered to 13-14% from Q3 2025 onward.",
+        "check": "comparative",
         "reason": "comparison: operating margin did not fall in every period"
       },
       {
         "index": 5,
         "text": "Gross margin dropped sharply in Q2 2025 relative to all other quarters shown, then recovered and stabilized in the low-to-mid 50s.",
+        "check": "comparative",
         "reason": "comparison: gross margin did not fall in every period"
+      },
+      {
+        "index": 8,
+        "text": "> **Analyst inference:** The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
+        "check": "rendering",
+        "reason": "removed by the narrative guard"
       }
-    ]
+    ],
+    "rendered": true
   },
   "removed": [
-    "**Takeaway:** AMD's operating margin turned negative in Q2 2025 because of U.S. export-control restrictions on its Instinct MI308 data center GPUs, which management said led to approximately $800 million in inventory and related charges [[C1]].",
-    "**Trend across all periods shown:** Operating margin held steady in the 10–11% range from Q3 2024 through Q1 2025 [[F25]][[F26]][[F27]], then plunged to [[F28]] in Q2 2025 (period ending June 2025).",
-    "Gross margin followed the same pattern: stable near 50% for three quarters [[F17]][[F18]][[F19]], a sharp drop to [[F20]] in Q2 2025, then a rebound to the low-to-mid 50s [[F21]][[F22]][[F23]][[F24]].",
-    "The gross margin drop to [[F20]] reflects the inventory charge flowing through cost of goods sold, given that gross margin and operating margin both fell sharply in the same quarter while revenue was stable."
+    "> **Analyst inference:** The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered."
   ],
   "blocks": [
     {
@@ -2010,48 +2000,58 @@
         "params": {
           "fact_bindings": [
             {
-              "fact_id": "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
+              "fact_id": "02303148-4a24-4de7-95c7-2e399af2d181",
               "unit": "ratio",
               "period_kind": "fiscal_q",
-              "period_start": "2025-06-29",
-              "period_end": "2025-09-27",
+              "period_start": "2025-03-30",
+              "period_end": "2025-06-28",
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2025,
-              "fiscal_period": "Q3"
-            },
-            {
-              "fact_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-09-28",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "Q4"
-            },
-            {
-              "fact_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-12-28",
-              "period_end": "2026-03-28",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q1"
-            },
-            {
-              "fact_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2026-03-29",
-              "period_end": "2026-06-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
               "fiscal_period": "Q2"
             },
             {
-              "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+              "fact_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
               "unit": "currency",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-03-30",
+              "period_end": "2025-06-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q2"
+            },
+            {
+              "fact_id": "c0e84104-e68f-4aa0-9eea-dde53ed5ce4c",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-06-30",
+              "period_end": "2024-09-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2024,
+              "fiscal_period": "Q3"
+            },
+            {
+              "fact_id": "412f2827-331d-46f2-8df0-c05f422750bc",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-09-29",
+              "period_end": "2024-12-28",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2024,
+              "fiscal_period": "Q4"
+            },
+            {
+              "fact_id": "b6640235-f31e-4e18-8786-325a40c60bb7",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2024-12-29",
+              "period_end": "2025-03-29",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "Q1"
+            },
+            {
+              "fact_id": "506570de-d34e-4477-902d-79a73f8426e5",
+              "unit": "ratio",
               "period_kind": "fiscal_q",
               "period_start": "2025-03-30",
               "period_end": "2025-06-28",
@@ -2080,7 +2080,7 @@
               "fiscal_period": "Q1"
             },
             {
-              "fact_id": "65235eee-6ded-441b-a83c-7283ccbdde93",
+              "fact_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
               "unit": "currency",
               "period_kind": "fiscal_q",
               "period_start": "2025-03-30",
@@ -2108,91 +2108,34 @@
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2025,
               "fiscal_period": "Q2"
-            },
-            {
-              "fact_id": "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2024-06-30",
-              "period_end": "2024-09-28",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2024,
-              "fiscal_period": "Q3"
             }
           ]
         }
       },
       "source_refs": [
-        "00000000-0000-4000-a000-000000000001"
+        "00000000-0000-4000-a000-000000000001",
+        "138fef65-4ad7-48cf-b641-6c099b2d0a60"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "This is a management attribution published in August 2025.\n\nIt recovered immediately to "
+          "text": "AMD's operating margin was "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "f13bfc7f-418c-43c9-b4cd-e3af30f28d79",
-          "format": "13.7%"
+          "ref_id": "02303148-4a24-4de7-95c7-2e399af2d181",
+          "format": "-1.7%"
         },
         {
           "type": "text",
-          "text": " in Q3 2025 and continued edging higher through Q2 2026 "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "dbed8c9f-d721-41db-b8f0-55daf26be9a4",
-          "format": "14.1%"
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "0fff02ad-ec1c-4f8e-9c66-228386366341",
-          "format": "14.2%"
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "b0eacb5e-dbab-4d82-9045-c46740a0bac7",
-          "format": "14.4%"
+          "text": " in Q2 2025 (ended Jun 2025)"
         },
         {
           "type": "text",
-          "text": ".\n\n**What is strong and what is weak:** The Q2 2025 quarter is a stark outlier on both gross margin and operating margin relative to every other quarter shown. Revenue itself was not the problem—Q2 2025 revenue of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
-          "format": "$7.7B"
-        },
-        {
-          "type": "text",
-          "text": " was in line with Q4 2024 "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
-          "format": "$7.7B"
-        },
-        {
-          "type": "text",
-          "text": " and only modestly above Q1 2025 "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "7be6cc26-0771-4991-959e-984cc3141466",
-          "format": "$7.4B"
-        },
-        {
-          "type": "text",
-          "text": ". The margin compression, not a revenue shortfall, drove the negative operating result.\n\n**Counterpoint:** Despite the negative operating income of "
+          "text": "; AMD's operating income was "
         },
         {
           "type": "ref",
@@ -2202,7 +2145,133 @@
         },
         {
           "type": "text",
-          "text": ", net income was positive at "
+          "text": " in Q2 2025 (ended Jun 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "AMD's gross margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "c0e84104-e68f-4aa0-9eea-dde53ed5ce4c",
+          "format": "50.1%"
+        },
+        {
+          "type": "text",
+          "text": " in Q3 2024 (ended Sep 2024)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's gross margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "412f2827-331d-46f2-8df0-c05f422750bc",
+          "format": "51.0%"
+        },
+        {
+          "type": "text",
+          "text": " in Q4 2024 (ended Dec 2024)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's gross margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "b6640235-f31e-4e18-8786-325a40c60bb7",
+          "format": "50.2%"
+        },
+        {
+          "type": "text",
+          "text": " in Q1 2025 (ended Mar 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's gross margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "506570de-d34e-4477-902d-79a73f8426e5",
+          "format": "39.8%"
+        },
+        {
+          "type": "text",
+          "text": " in Q2 2025 (ended Jun 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "AMD's revenue was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "dd7f1ab0-38ab-4efa-8db5-c584f577f370",
+          "format": "$7.7B"
+        },
+        {
+          "type": "text",
+          "text": " in Q4 2024 (ended Dec 2024)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's revenue was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "7be6cc26-0771-4991-959e-984cc3141466",
+          "format": "$7.4B"
+        },
+        {
+          "type": "text",
+          "text": " in Q1 2025 (ended Mar 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's revenue was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "c157ae2b-3a75-4ad8-aefd-da5b7e5fc718",
+          "format": "$7.7B"
+        },
+        {
+          "type": "text",
+          "text": " in Q2 2025 (ended Jun 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "AMD's net income was "
         },
         {
           "type": "ref",
@@ -2212,7 +2281,11 @@
         },
         {
           "type": "text",
-          "text": " in the same quarter, and net margin was "
+          "text": " in Q2 2025 (ended Jun 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; AMD's net margin was "
         },
         {
           "type": "ref",
@@ -2222,17 +2295,49 @@
         },
         {
           "type": "text",
-          "text": "—matching the net margin from Q3 2024 "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "9c7e8ba0-dfb9-4bdf-90f9-50b59ca7d536",
-          "format": "11.3%"
+          "text": " in Q2 2025 (ended Jun 2025)"
         },
         {
           "type": "text",
-          "text": ". This means below-the-line items fully offset the operating loss, so the bottom-line impact was far less severe than the operating margin alone suggests.\n\n**What the data cannot tell:** The figures shown do not break out how much of the charge hit gross profit versus operating expenses, so we cannot pinpoint whether the margin compression was primarily a COGS effect or an opex effect. There is also no prior-year Q2 quarter shown for year-over-year comparison."
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "According to a source dated Aug 2025, effective Jun 2025 on AMD: "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "claim",
+          "ref_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+          "format": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "The figures do not show why AMD's gross margin and AMD's operating margin changed."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "> **Analyst inference:** Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "> **Analyst inference:** The export-control charge is the stated cause of the margin decline, but the data alone cannot confirm the mechanism without a line-item breakdown."
         }
       ]
     }

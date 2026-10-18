@@ -7,15 +7,7 @@ import { dirname, join } from "node:path";
 import { loadLlmSettingsFromEnv, type LlmChatClient, type LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
 import type { AssertionReport } from "./assertions.ts";
 import { judgeCases, judgeInferences, type InferenceVerdict, type JudgeOutcome } from "./inference-judge.ts";
-import {
-  assertionRenderingEnabled,
-  composeAnalystBlocksWithLlm,
-  FACT_BLOCKS_FALLBACK_TEXT,
-  NO_ANSWER_FALLBACK_TEXT,
-  turnPacket,
-  type AnswerUsage,
-  type ModelDeadlines,
-} from "./llm-runtime.ts";
+import { composeAnalystBlocksWithLlm, turnPacket, type AnswerUsage, type ModelDeadlines } from "./llm-runtime.ts";
 
 export type AnswerTraceInput = Omit<
   Parameters<typeof composeAnalystBlocksWithLlm>[0],
@@ -38,13 +30,11 @@ export type TurnTrace = {
   turn_id?: string;
   question: string;
   recorded_at: string;
-  // CHAT_ASSERTION_RENDERING when recorded: it picks the post-processing path.
-  assertion_rendering: boolean;
   input: AnswerTraceInput;
   // Null when no model was called.
   exchange: ModelExchange | null;
   assertions: AssertionReport | null;
-  // The narrative guard's drops.
+  // The rendered assertions the narrative guard dropped.
   removed: ReadonlyArray<string>;
   blocks: ReadonlyArray<Record<string, unknown>>;
   // The shadow judge's verdicts on the inferences shown, added after the turn (#302).
@@ -54,7 +44,7 @@ export type TurnTrace = {
 // The judge's verdicts on an answer's accepted inferences, each with its text.
 export type JudgedAnswer = Omit<JudgeOutcome, "verdicts"> & { verdicts: Array<InferenceVerdict & { text: string }> };
 
-export type TracedAnswer = Pick<TurnTrace, "assertion_rendering" | "exchange" | "assertions" | "removed" | "blocks">;
+export type TracedAnswer = Pick<TurnTrace, "exchange" | "assertions" | "removed" | "blocks">;
 
 export async function composeTraced(
   input: AnswerTraceInput,
@@ -76,11 +66,11 @@ export async function composeTraced(
     onAssertions: (report) => {
       assertions = report;
     },
-    onNarrativeRemoved: (sentences) => {
-      removed = sentences;
+    onNarrativeRemoved: (dropped) => {
+      removed = dropped;
     },
   });
-  return { assertion_rendering: assertionRenderingEnabled(options.env), exchange, assertions, removed, blocks };
+  return { exchange, assertions, removed, blocks };
 }
 
 type TurnIds = Pick<TurnTrace, "thread_id" | "run_id" | "turn_id">;
@@ -121,8 +111,7 @@ export async function judgeShadowEnabled(env: LlmSettingsLoaderEnv & Record<stri
   return (await loadLlmSettingsFromEnv(env)).judgeModel !== null;
 }
 
-// The inferences a rendered answer shows; with rendering off, or not rendered,
-// the reader sees prose, not inferences.
+// The inferences a rendered answer shows; the fallback sentence shows none.
 async function shadowJudge(input: AnswerTraceInput, report: AssertionReport | null, turn: TurnIds, options: JudgeOptions): Promise<JudgedAnswer | null> {
   try {
     if (report?.rendered !== true || !(await judgeShadowEnabled(options.env))) return null;
@@ -160,7 +149,7 @@ function traceIds(turn: TurnIds): string {
 export async function replayRecorded(trace: TurnTrace): Promise<TurnTrace> {
   const { exchange } = trace;
   const replayed = await composeTraced(trace.input, {
-    env: exchange === null ? renderingEnv(trace) : { ...RECORDED_CHANNEL, ...renderingEnv(trace) },
+    env: exchange === null ? {} : RECORDED_CHANNEL,
     createClient: () => async () => ({
       text: exchange?.text ?? "",
       truncated: exchange?.truncated,
@@ -185,10 +174,6 @@ const RECORDED_CHANNEL = {
   LLM_RECORDED_MODELS: "reply",
   LITELLM_MODEL: "recorded/reply",
 };
-
-export function renderingEnv(trace: Pick<TurnTrace, "assertion_rendering">): Record<string, string> {
-  return { CHAT_ASSERTION_RENDERING: trace.assertion_rendering ? "1" : "0" };
-}
 
 // Each path's last write: a trace rewritten with the judge's verdicts waits for
 // the turn's own write, so the two never share the partial file.
@@ -234,11 +219,12 @@ export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, 
 }
 
 export type AnswerMetrics = {
-  // Figures in the answer's prose as sealed refs: facts, and price returns as series.
+  // Figures in the answer as sealed refs: facts, and price returns as series.
   figure_refs: number;
   // Digit runs in its plain text, figures or not ("Q1", "2025", "$4.2").
   plain_numbers: number;
   removed: number;
+  // A model answered, and no assertion rendered.
   fallback: boolean;
   accepted: number;
   rejected: number;
@@ -249,15 +235,15 @@ export type AnswerMetrics = {
 type Segment = { type?: string; ref_kind?: string; text?: string };
 
 export function answerMetrics(trace: Pick<TurnTrace, "blocks" | "removed" | "assertions" | "exchange">): AnswerMetrics {
-  const prose = trace.blocks.filter((block) => block.kind === "rich_text")
+  const narrative = trace.blocks.filter((block) => block.kind === "rich_text")
     .map((block) => (Array.isArray(block.segments) ? block.segments as Segment[] : []));
   const text = (segments: ReadonlyArray<Segment>) =>
     segments.map((segment) => (segment.type === "text" ? segment.text ?? "" : "")).join("");
   return {
-    figure_refs: prose.flat().filter((segment) => segment.type === "ref" && (segment.ref_kind === "fact" || segment.ref_kind === "series")).length,
-    plain_numbers: prose.flatMap((segments) => text(segments).match(/\d+(?:[.,]\d+)*/g) ?? []).length,
+    figure_refs: narrative.flat().filter((segment) => segment.type === "ref" && (segment.ref_kind === "fact" || segment.ref_kind === "series")).length,
+    plain_numbers: narrative.flatMap((segments) => text(segments).match(/\d+(?:[.,]\d+)*/g) ?? []).length,
     removed: trace.removed.length,
-    fallback: prose.some((segments) => [FACT_BLOCKS_FALLBACK_TEXT, NO_ANSWER_FALLBACK_TEXT].includes(text(segments))),
+    fallback: trace.exchange !== null && trace.assertions?.rendered !== true,
     accepted: trace.assertions?.accepted.length ?? 0,
     rejected: trace.assertions?.rejected.length ?? 0,
     output_tokens: trace.exchange?.usage?.output_tokens ?? 0,

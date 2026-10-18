@@ -541,9 +541,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -579,7 +576,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -622,7 +618,7 @@
       "segments": [
         {
           "type": "text",
-          "text": "Free cash flow for AMD is not available in the data shown. The query covered the latest reported quarter and fiscal year, but no free cash flow figure was returned for AMD."
+          "text": "The data here does not answer this question; the note below says what is missing."
         }
       ]
     }

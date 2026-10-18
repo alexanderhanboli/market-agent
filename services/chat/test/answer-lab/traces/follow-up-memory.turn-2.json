@@ -2215,10 +2215,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA",
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -2263,7 +2259,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -2353,19 +2348,22 @@
       {
         "index": 4,
         "text": "NVDA's revenue, revenue growth, gross margin, and net margin were all higher than AMD's in their respective latest fiscal years.",
+        "check": "comparative",
         "reason": "comparison: a comparison is of one metric"
       },
       {
         "index": 6,
         "text": "NVIDIA is outperforming AMD both on YTD price return and on every fundamental metric shown, though AMD's results were weighed down by a disclosed export-control charge.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       }
+    ],
+    "rendered": true,
+    "repeated": [
+      2
     ]
   },
-  "removed": [
-    "**Counterpoint:** AMD disclosed in August 2025 that U.S. export controls on its Instinct MI308 data-center GPU led to roughly $800 million in inventory and related charges in its second quarter [[C1]].",
-    "AMD's lower net margin could partly reflect the export-control charge disclosed in [[C1]], given that the charge is described as impacting a single quarter's results."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "79ac247c-c706-47b6-8a31-50c6650f7e2c",
@@ -2387,36 +2385,6 @@
               "fiscal_period": "FY"
             },
             {
-              "fact_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
-              "unit": "currency",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2025-01-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "FY"
-            },
-            {
               "fact_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
               "unit": "ratio",
               "period_kind": "fiscal_y",
@@ -2424,16 +2392,6 @@
               "period_end": "2026-01-25",
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2026,
-              "fiscal_period": "FY"
-            },
-            {
-              "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
-              "unit": "ratio",
-              "period_kind": "fiscal_y",
-              "period_start": "2024-12-29",
-              "period_end": "2025-12-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
               "fiscal_period": "FY"
             },
             {
@@ -2447,7 +2405,47 @@
               "fiscal_period": "FY"
             },
             {
+              "fact_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2025-01-27",
+              "period_end": "2026-01-25",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
+              "unit": "currency",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
               "fact_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+              "unit": "ratio",
+              "period_kind": "fiscal_y",
+              "period_start": "2024-12-29",
+              "period_end": "2025-12-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2025,
+              "fiscal_period": "FY"
+            },
+            {
+              "fact_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
               "unit": "ratio",
               "period_kind": "fiscal_y",
               "period_start": "2024-12-29",
@@ -2460,35 +2458,16 @@
         }
       },
       "source_refs": [
+        "00000000-0000-4000-a000-000000000001",
         "00000000-0000-4000-a000-000000000009",
-        "00000000-0000-4000-a000-000000000001"
+        "138fef65-4ad7-48cf-b641-6c099b2d0a60"
       ],
       "as_of": "1970-01-01T00:00:00.000Z",
       "title": "single_subject_analysis",
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVIDIA has outperformed AMD year-to-date in 2026 on price return, and its latest fiscal-year fundamentals are stronger across every metric shown—revenue, growth, gross margin, and net margin.\n\n**Trend across periods shown:** Only one fiscal-year period is displayed for each company, so no multi-period trend is visible. The YTD price-return window runs from the end of December 2025 through the end of August 2026 for both names. NVDA returned "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "series",
-          "ref_id": "dffb79e3-eac9-43e3-831d-eafdca5aa699",
-          "format": "5.81%"
-        },
-        {
-          "type": "text",
-          "text": " over that window; AMD returned "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "series",
-          "ref_id": "8961b45c-2fd7-4288-8ea6-1699f1de18fa",
-          "format": "3.17%"
-        },
-        {
-          "type": "text",
-          "text": ".\n\n**What is strong and what is weak:** NVIDIA is stronger on every figure shown. Revenue of "
+          "text": "NVDA's revenue was "
         },
         {
           "type": "ref",
@@ -2498,37 +2477,7 @@
         },
         {
           "type": "text",
-          "text": " versus AMD's "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
-          "format": "$34.7B"
-        },
-        {
-          "type": "text",
-          "text": "; YoY revenue growth of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
-          "format": "60.9%"
-        },
-        {
-          "type": "text",
-          "text": " versus "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
-          "format": "34.5%"
-        },
-        {
-          "type": "text",
-          "text": "; gross margin of "
+          "text": ", gross margin "
         },
         {
           "type": "ref",
@@ -2538,17 +2487,7 @@
         },
         {
           "type": "text",
-          "text": " versus "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
-          "format": "49.9%"
-        },
-        {
-          "type": "text",
-          "text": "; and net margin of "
+          "text": ", net margin "
         },
         {
           "type": "ref",
@@ -2558,27 +2497,39 @@
         },
         {
           "type": "text",
-          "text": " versus "
+          "text": " and revenue growth (YoY) "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
-          "format": "12.0%"
+          "ref_id": "ae834621-4243-452b-8cfe-89ae490cd0ca",
+          "format": "60.9%"
         },
         {
           "type": "text",
-          "text": ". AMD's profitability gap is the most notable weakness—its net margin is far below NVIDIA's, indicating either a less favorable product mix, higher operating costs relative to revenue, or both. Note that the two fiscal years end about one month apart (NVDA's ends in January 2026, AMD's in December 2025), so they do not cover identical calendar periods.\n\nThat one-time hit depresses the fiscal-year margins shown here and may overstate the underlying profitability gap between the two companies.\n\n**What the data cannot tell:** There is no quarterly breakdown, no segment or end-market split, no valuation multiple, no balance-sheet or cash-flow data, and no forward guidance for either company. The data does not show why NVIDIA's margins are so much higher.\n\n> **Unverified hypothesis (medium confidence):** NVIDIA's margin advantage could reflect a higher share of data-center accelerator revenue carrying premium pricing, given its gross margin of "
+          "text": " in FY2026 (ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "AMD's revenue was "
         },
         {
           "type": "ref",
           "ref_kind": "fact",
-          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
-          "format": "70.8%"
+          "ref_id": "a1f36630-d8d7-4c74-96d0-23ebddcf236f",
+          "format": "$34.7B"
         },
         {
           "type": "text",
-          "text": " versus AMD's "
+          "text": ", gross margin "
         },
         {
           "type": "ref",
@@ -2588,7 +2539,89 @@
         },
         {
           "type": "text",
+          "text": ", net margin "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "73f2cf53-c5b7-4f07-820d-0b0a09837e85",
+          "format": "12.0%"
+        },
+        {
+          "type": "text",
+          "text": " and revenue growth (YoY) "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "6007c204-e28a-4fd3-9fe5-fa7cb4b5e892",
+          "format": "34.5%"
+        },
+        {
+          "type": "text",
+          "text": " in FY2025 (ended Dec 2025)"
+        },
+        {
+          "type": "text",
           "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's price return was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "dffb79e3-eac9-43e3-831d-eafdca5aa699",
+          "format": "5.81%"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "series",
+          "ref_id": "8961b45c-2fd7-4288-8ea6-1699f1de18fa",
+          "format": "3.17%"
+        },
+        {
+          "type": "text",
+          "text": " (YTD 2026: Dec 2025 close to Aug 2026 close)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "According to a source dated Aug 2025, effective Jun 2025 on AMD: "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "claim",
+          "ref_id": "6d499c74-bc94-43d6-8468-ae34d0becda2",
+          "format": "As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "> **Analyst inference:** The one-month offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability."
         }
       ]
     }

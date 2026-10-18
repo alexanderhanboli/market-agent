@@ -10,7 +10,6 @@ import {
   quoteSummaryFromCachedQuote,
   STALE_FACT_AGE_DAYS,
   structuredEvidenceStatus,
-  subjectLabelsFromHandoff,
   structuredRefsFromHandoff,
   type IssuerFactSummary,
   type StructuredSubjectRefs,
@@ -389,10 +388,4 @@ test("the model's other facts leave out cash flow and balances, before the row c
   ]);
   // The exclusion is a filter inside the canonical read, so the limit comes after it.
   assert.ok(query!.text.indexOf("<> all") < query!.text.indexOf("limit"));
-});
-
-test("a subject's guard labels are its listing tickers, whether it resolved as a listing or an issuer (#268 review)", () => {
-  assert.deepEqual(subjectLabelsFromHandoff(handoffWithListing()), ["AAOI"]);
-  assert.deepEqual(subjectLabelsFromHandoff(handoffIssuerOnly()), ["AAOI"]);
-  assert.deepEqual(subjectLabelsFromHandoff(handoffIssuerNoListings()), []);
 });

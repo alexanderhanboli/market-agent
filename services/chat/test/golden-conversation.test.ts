@@ -84,11 +84,26 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     );
     assert.ok(assistant, "assistant message missing from the reloaded thread");
     assert.equal(assistant.message_id, completed.data.message_id);
-    // The narrative comes from the recorded model reply, so the LLM step really ran.
-    assert.match(JSON.stringify(assistant.blocks), /NVIDIA's reported revenue rose in every quarter shown/);
+    // The narrative is rendered from the recorded reply's assertions, so the LLM step really ran.
+    const narrative = assistant.blocks.find((block) => block.kind === "rich_text");
+    assert.equal(
+      (narrative?.segments as Array<{ text?: string; format?: string }> | undefined)?.map((segment) => segment.text ?? segment.format).join(""),
+      "NVDA's revenue rose in every period from Q1 2025 ($26.0B) to Q4 2026 ($62.1B).",
+    );
     // ...and the deployment that wrote it is on the completion and saved with the message (#183).
     assert.equal(completed.data.answered_by, "fixture/recorded");
     assert.equal(assistant.answered_by, "fixture/recorded");
+  });
+
+  await t.test("the rendered answer passes strict verification, each value a fact the snapshot cites (#208)", async () => {
+    const completed = events.find((event) => event.event === "turn.completed")!;
+    assert.equal(completed.data.unverified, undefined, `the rendered answer failed verification: ${JSON.stringify(completed.data.unverified)}`);
+    assert.equal((completed.data.assertion_report as { rendered?: boolean } | undefined)?.rendered, true);
+    const segments = (assistant!.blocks.find((block) => block.kind === "rich_text")?.segments ?? []) as Array<{ type: string; ref_kind?: string; ref_id?: string }>;
+    const factRefs = segments.filter((segment) => segment.type === "ref" && segment.ref_kind === "fact").map((segment) => segment.ref_id!);
+    assert.equal(factRefs.length, 2);
+    const { rows } = await client.query<{ fact_refs: string[] }>(`select fact_refs from snapshots where snapshot_id = $1::uuid`, [assistant!.snapshot_id]);
+    for (const ref of factRefs) assert.ok((rows[0]?.fact_refs ?? []).includes(ref), `the rendered value ${ref} is not a fact the snapshot cites`);
   });
 
   await t.test("reload returns the streamed blocks", () => {
@@ -236,11 +251,15 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
 
     const answer = await latestAssistantMessage(base, thread.thread_id);
     turns.push({ question: "Explain the differences and show the evidence", streamedIds: streamedBlockIds(turnEvents), answer, completed });
-    // The model's whole reply is shown: not the placeholder, nor cut off.
+    // The answer is rendered from the recorded reply's assertions: not the placeholder, nor the fallback.
     const narrative = answer.blocks.find((block) => block.kind === "rich_text");
     assert.deepEqual(
-      (narrative?.segments as Array<{ text?: string }> | undefined)?.map((segment) => segment.text).join(""),
-      "NVIDIA is far larger than AMD and converts more of its revenue into profit, as the table below shows; each figure links to its filing.",
+      (narrative?.segments as Array<{ text?: string; format?: string }> | undefined)?.map((segment) => segment.text ?? segment.format).join(""),
+      [
+        "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 70.8% (FY2026, ended Jan 2026), AMD 49.9% (FY2025, ended Dec 2025).",
+        "Of NVDA and AMD, NVDA's net margin was highest: NVDA 53.6% (FY2026, ended Jan 2026), AMD 12.0% (FY2025, ended Dec 2025).",
+        "The periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025.",
+      ].join("\n\n"),
     );
     // The figures it points to are displayed for both companies, and cited.
     const comparison = comparisonBlock(answer);
@@ -702,40 +721,6 @@ function withEnv(t: TestContext, values: Record<string, string>): void {
     }
   });
 }
-
-test("golden conversation: a rendered answer seals under strict verification (#208)", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
-  const { databaseUrl } = await bootstrapDatabase(t, "chat-golden-rendered");
-  withEnv(t, {
-    ...GOLDEN_ENV,
-    CHAT_DATABASE_URL: databaseUrl,
-    LLM_REPLAY_FILE: join(import.meta.dirname, "golden", "llm-replies-rendered.json"),
-    CHAT_ASSERTION_RENDERING: "1",
-  });
-  registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
-  const client = await connectedClient(t, databaseUrl);
-  await client.query(`insert into users (user_id, email) values ($1::uuid, 'golden@chat.example.test')`, [USER_ID]);
-  await seedGoldenDataset(client);
-  const base = await startGoldenServer(t, databaseUrl);
-  const thread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "Golden" });
-  const events = await runTurn(base, thread.thread_id, "Analyze NVDA");
-
-  const error = events.find((event) => event.event === "turn.error");
-  assert.equal(error, undefined, `turn.error: ${JSON.stringify(error?.data)}`);
-  const completed = events.find((event) => event.event === "turn.completed");
-  assert.ok(completed, `no turn.completed; events: ${events.map((event) => event.event).join(", ")}`);
-  assert.equal(completed.data.unverified, undefined, `the rendered answer failed verification: ${JSON.stringify(completed.data.unverified)}`);
-  assert.equal((completed.data.assertion_report as { rendered?: boolean } | undefined)?.rendered, true);
-
-  const answer = await latestAssistantMessage(base, thread.thread_id);
-  const narrative = answer.blocks.find((block) => block.kind === "rich_text");
-  const segments = (narrative?.segments ?? []) as Array<{ type: string; ref_kind?: string; ref_id?: string; text?: string; format?: string }>;
-  const factRef = segments.find((segment) => segment.type === "ref" && segment.ref_kind === "fact");
-  assert.ok(factRef, `the narrative has no fact ref: ${JSON.stringify(segments)}`);
-  assert.match(segments.map((segment) => segment.text ?? segment.format).join(""), /^NVDA's revenue was \$[\d.]+B in Q\d \d{4} \(ended [A-Z][a-z]{2} \d{4}\)\.$/);
-  // The value is a fact the snapshot cites.
-  const { rows } = await client.query<{ fact_refs: string[] }>(`select fact_refs from snapshots where snapshot_id = $1::uuid`, [answer.snapshot_id]);
-  assert.ok((rows[0]?.fact_refs ?? []).includes(factRef.ref_id!), "the rendered value's fact is not in the snapshot");
-});
 
 // An AMD claim published a month after the golden cutoff (#282).
 async function seedLateClaim(client: Client, issuerId: string): Promise<string> {

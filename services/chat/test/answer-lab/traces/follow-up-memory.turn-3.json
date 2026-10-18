@@ -2215,10 +2215,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA",
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
@@ -2274,7 +2270,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -2412,13 +2407,20 @@
       {
         "index": 11,
         "text": "NVIDIA leads AMD on every metric shown, with the widest gap in net margin, though AMD's one-time export-control charge may overstate the profitability gap.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       }
+    ],
+    "rendered": true,
+    "repeated": [
+      0,
+      1,
+      2,
+      3,
+      4
     ]
   },
-  "removed": [
-    "AMD's lower net margin could partly reflect the export-control charge disclosed in [[C1]], given that the charge is described as inventory and related costs that would reduce both gross and net income."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "5783cfc7-b813-43e0-84ed-693e2c1d7eea",
@@ -2522,7 +2524,11 @@
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVIDIA leads AMD on every metric shown—revenue scale, growth rate, gross margin, net margin, and year-to-date price return. The gap is widest in profitability, where NVIDIA's margins are far above AMD's.\n\n**Trend across periods shown:** Only one fiscal-year period is displayed per company, so no multi-period trend is visible. The price-return window runs from the end of December 2025 through the end of August 2026 for both names.\n\n**What is strong and what is weak:**\n\n- **Revenue scale:** NVIDIA's FY2026 (ending January 2026) revenue of "
+          "text": "Of NVDA and AMD, NVDA's revenue was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2532,7 +2538,11 @@
         },
         {
           "type": "text",
-          "text": " is far larger than AMD's FY2025 (ending December 2025) revenue of "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2542,7 +2552,23 @@
         },
         {
           "type": "text",
-          "text": ".\n- **Growth:** NVIDIA's YoY revenue growth of "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's revenue growth (YoY) was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2552,7 +2578,11 @@
         },
         {
           "type": "text",
-          "text": " is higher than AMD's "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2562,7 +2592,23 @@
         },
         {
           "type": "text",
-          "text": ".\n- **Gross margin:** NVIDIA's "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's gross margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2572,7 +2618,11 @@
         },
         {
           "type": "text",
-          "text": " is well above AMD's "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2582,7 +2632,23 @@
         },
         {
           "type": "text",
-          "text": ".\n- **Net margin:** This is the largest gap. NVIDIA's "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's net margin was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2592,7 +2658,11 @@
         },
         {
           "type": "text",
-          "text": " versus AMD's "
+          "text": " (FY2026, ended Jan 2026)"
+        },
+        {
+          "type": "text",
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2602,7 +2672,23 @@
         },
         {
           "type": "text",
-          "text": " shows NVIDIA converting a much larger share of revenue into profit.\n- **Price return YTD 2026:** NVIDIA's "
+          "text": " (FY2025, ended Dec 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "Of NVDA and AMD, NVDA's price return was highest: "
+        },
+        {
+          "type": "text",
+          "text": "NVDA "
         },
         {
           "type": "ref",
@@ -2612,7 +2698,7 @@
         },
         {
           "type": "text",
-          "text": " exceeds AMD's "
+          "text": ", AMD "
         },
         {
           "type": "ref",
@@ -2622,7 +2708,19 @@
         },
         {
           "type": "text",
-          "text": ", though both are modest single-digit returns.\n\nNote that the two fiscal years end about one month apart (NVDA in January 2026, AMD in December 2025), so they do not cover identical calendar periods.\n\n**Counterpoint:** AMD disclosed in August 2025 that "
+          "text": " (YTD 2026: Dec 2025 close to Aug 2026 close)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "According to a source dated Aug 2025, effective Jun 2025 on AMD: "
         },
         {
           "type": "ref",
@@ -2632,27 +2730,7 @@
         },
         {
           "type": "text",
-          "text": ". That one-time charge depresses AMD's fiscal-year margins shown here and may overstate the underlying profitability gap between the two companies.\n\n**What the data cannot tell:** There is no segment or end-market breakdown for either company, no quarterly progression, no operating-expense detail, no balance-sheet or cash-flow data, and no forward guidance. The data does not show why NVIDIA's margins are so much higher.\n\n> **Unverified hypothesis (medium confidence):** NVIDIA's margin advantage could reflect a higher share of data-center accelerator revenue carrying premium pricing, given its gross margin of "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "d5fe236c-96c7-4c96-96d5-60d52e01d2ca",
-          "format": "70.8%"
-        },
-        {
-          "type": "text",
-          "text": " versus AMD's "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "e739b4b5-2e5e-44fa-8ef5-492365db7717",
-          "format": "49.9%"
-        },
-        {
-          "type": "text",
-          "text": "."
+          "text": "\n\nThe periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025."
         }
       ]
     }
