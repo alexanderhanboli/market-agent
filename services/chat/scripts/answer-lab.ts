@@ -18,9 +18,11 @@
 // trace's own), so one command shows the answers rendered or as prose.
 // --judge has the judge model (JUDGE_LITELLM_MODEL, src/inference-judge.ts)
 // read each answer's accepted inferences against what they rest on, and adds
-// its verdicts to the table and the run. judge-mutations judges a held-out set
-// of inferences and their mutations (test/answer-lab/judge-mutations.json) and
-// reports how many mutations it catches and how many originals it flags.
+// its verdicts to the table and the run. recorded also summarizes the verdicts
+// the shadow judge recorded on the traces' turns, when any did. judge-mutations
+// judges a held-out set of inferences and their mutations
+// (test/answer-lab/judge-mutations.json) and reports how many mutations it
+// catches and how many originals it flags.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -474,6 +476,11 @@ async function main(argv: string[]): Promise<number> {
     const columns = columnsOf(values.judge);
     console.log(table(results.map((result) => meanRow(result, [result.metrics], columns)), (row) => (differs.has(row.key) ? "  DIFFERS" : ""), columns));
     console.log(`\n${traces.length - differs.size} of ${traces.length} replayed to the recorded blocks`);
+    // Verdicts the shadow judge recorded on the turns as they ran (#302).
+    const shadowed = traces.flatMap(({ key, trace }) => (trace.judge ? [{ trace: key, sample: 0, judge: trace.judge }] : []));
+    if (shadowed.length > 0) {
+      console.log(`\nrecorded in shadow, ${judgeSummary({ results: shadowed, labels: Object.fromEntries(traces.map(({ key, label }) => [key, label])) })}`);
+    }
     if (values.judge) {
       const run: LiveRun = {
         run: new Date().toISOString().slice(0, 19).replace(/:/g, ""),

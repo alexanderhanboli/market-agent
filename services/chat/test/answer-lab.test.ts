@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import test from "node:test";
 
 import { replayRecorded } from "../src/answer-trace.ts";
@@ -185,5 +187,28 @@ test("a judged run's summary counts verdicts, the judge's cost per answer, and l
     "judge: 1 entailed, 1 not entailed, 0 errors, of 2 inferences in 1 answers",
     "judge per answer: 2000 ms, 1000 in / 100 out tokens, on anthropic/claude-haiku-5-5",
     "  not entailed  peer-two #1 [10] amd trails.\n      other_company: names AMD.",
+  ].join("\n"));
+});
+
+test("recorded summarizes the verdicts the shadow judge recorded on a trace's turn", async () => {
+  const { trace } = TRACES.find(({ label }) => label === "segment-drill-down")!;
+  const judge = {
+    deployment: "anthropic/claude-haiku-5-5",
+    latency_ms: 4657,
+    usage: { input_tokens: 1055, output_tokens: 465 },
+    verdicts: [
+      { index: 6, verdict: "entailed", text: "NVIDIA's revenue is heavily concentrated in Data Center." },
+      { index: 7, verdict: "not_entailed", reason: "unsupported: no support measures diversification.", text: "The other four segments provide limited diversification." },
+    ],
+  };
+  const root = traceFiles({ "judged.json": { ...trace, judge }, "plain.json": TRACES.find(({ label }) => label === "peer-two")!.trace });
+  const script = fileURLToPath(new URL("../scripts/answer-lab.ts", import.meta.url));
+  const { stdout } = await promisify(execFile)(process.execPath, ["--experimental-strip-types", script, "recorded", root]);
+  assert.equal(stdout.slice(stdout.indexOf("recorded in shadow")), [
+    "recorded in shadow, judge: 1 entailed, 1 not entailed, 0 errors, of 2 inferences in 1 answers",
+    "judge per answer: 4657 ms, 1055 in / 465 out tokens, on anthropic/claude-haiku-5-5",
+    "  not entailed  judged #0 [7] The other four segments provide limited diversification.",
+    "      unsupported: no support measures diversification.",
+    "",
   ].join("\n"));
 });
