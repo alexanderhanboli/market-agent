@@ -33,12 +33,14 @@ export type LlmSettings = {
   fallbackModels: ReadonlyArray<LlmModelRef>;
   agentModel: LlmModelRef | null;
   extractionModel: LlmModelRef | null;
+  judgeModel: LlmModelRef | null;
   issues: ReadonlyArray<string>;
 };
 
 /** What a call is for. "extraction" leads with EXTRACTION_LITELLM_MODEL (a cheaper model
- * for reading filings and picking from fixed lists) when set, else the primary model. */
-export type LlmPurpose = "default" | "extraction";
+ * for reading filings and picking from fixed lists) when set, "judge" with
+ * JUDGE_LITELLM_MODEL (checking a written answer against its evidence); else the primary model. */
+export type LlmPurpose = "default" | "extraction" | "judge";
 
 export type LlmDeployment = {
   channel: string;
@@ -68,6 +70,7 @@ export function parseLlmEnv(env: LlmEnv): LlmSettings {
     channels,
     issues,
   );
+  const judgeModel = parseOptionalModelRef("JUDGE_LITELLM_MODEL", env.JUDGE_LITELLM_MODEL, channels, issues);
 
   return Object.freeze({
     channels: Object.freeze(channels),
@@ -75,6 +78,7 @@ export function parseLlmEnv(env: LlmEnv): LlmSettings {
     fallbackModels: Object.freeze(dedupeModelRefs(fallbackModels)),
     agentModel,
     extractionModel,
+    judgeModel,
     issues: Object.freeze(issues),
   });
 }
@@ -94,7 +98,7 @@ export function buildLlmDeploymentOrder(
   purpose: LlmPurpose = "default",
 ): ReadonlyArray<LlmDeployment> {
   const channelsByName = new Map(settings.channels.map((channel) => [channel.name, channel]));
-  const lead = purpose === "extraction" ? settings.extractionModel ?? settings.primaryModel : settings.primaryModel;
+  const lead = { default: null, extraction: settings.extractionModel, judge: settings.judgeModel }[purpose] ?? settings.primaryModel;
   return Object.freeze(
     dedupeModelRefs([
       ...(lead ? [lead] : []),
