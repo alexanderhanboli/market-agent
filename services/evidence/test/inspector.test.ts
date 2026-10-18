@@ -352,6 +352,65 @@ test("loadEvidenceInspection returns artifact-safe fact details and related sour
   assertNoRawFields(result);
 });
 
+function factRow(overrides: Record<string, unknown>) {
+  return {
+    fact_id: FACT_ID,
+    source_id: SOURCE_ID,
+    value_text: null,
+    currency: null,
+    metric_name: null,
+    as_of: "2026-09-01T00:00:00.000Z",
+    verification_status: "authoritative",
+    freshness_class: "filing_time",
+    coverage_level: "full",
+    method: "reported",
+    confidence: "1",
+    provider: "sec_edgar",
+    canonical_url: null,
+    ...overrides,
+  };
+}
+
+async function inspectFactRow(row: Record<string, unknown>) {
+  const { db } = stubDb((text) => {
+    if (text.includes("from chat_messages")) return [{ visible: 1 }];
+    if (text.includes("from snapshots")) return [manifestRow()];
+    if (text.includes("from facts")) return [row];
+    return [];
+  });
+  return loadEvidenceInspection(db, { user_id: USER_ID, snapshot_id: SNAPSHOT_ID, ref: { kind: "fact", id: FACT_ID } });
+}
+
+test("a currency fact reads as the answer shows it, under its metric and fiscal year", async () => {
+  const result = await inspectFactRow(factRow({
+    value: "209911000000",
+    unit: "currency",
+    currency: "USD",
+    metric_name: "Revenue",
+    period_kind: "fiscal_y",
+    fiscal_year: 2026,
+    fiscal_period: "FY",
+  }));
+
+  assert.equal(result.title, "$209.9B");
+  assert.equal(result.subtitle, "Revenue · FY 2026");
+  assert.deepEqual(result.rows.find((row) => row.label === "Value"), { label: "Value", value: "209911000000" });
+});
+
+test("a fact's title follows its unit, and its period reads in words", async () => {
+  const cases: Array<[Record<string, unknown>, string, string]> = [
+    [{ value: "13.9", unit: "percent", metric_name: "ROIC", period_kind: "fiscal_q", fiscal_year: 2026, fiscal_period: "Q2" }, "13.9%", "ROIC · Q2 FY 2026"],
+    [{ value: "4.1234", unit: "currency_per_share", currency: "USD", metric_name: "EPS", period_kind: "ttm", fiscal_year: null, fiscal_period: null, period_end: "2026-06-30" }, "$4.12", "EPS · TTM to 2026-06-30"],
+    [{ value: "24400000000", unit: "shares", metric_name: "Shares outstanding", period_kind: "point", fiscal_year: null, fiscal_period: null, period_end: "2026-06-30" }, "24.4B shares", "Shares outstanding · 2026-06-30"],
+    [{ value: "45.2", unit: "ratio", metric_name: null, period_kind: "point", fiscal_year: null, fiscal_period: null, period_end: null }, "45.2 ratio", ""],
+    [{ value: "Nasdaq", value_text: "Nasdaq", unit: "string", metric_name: "Exchange", period_kind: "point", fiscal_year: null, fiscal_period: null, period_end: null }, "Nasdaq", "Exchange"],
+  ];
+  for (const [overrides, title, subtitle] of cases) {
+    const result = await inspectFactRow(factRow(overrides));
+    assert.deepEqual([result.title, result.subtitle], [title, subtitle], String(overrides.unit));
+  }
+});
+
 test("loadEvidenceInspection filters related refs to the sealed snapshot manifest", async () => {
   const { db } = stubDb((text) => {
     if (text.includes("from chat_messages")) return [{ visible: 1 }];
