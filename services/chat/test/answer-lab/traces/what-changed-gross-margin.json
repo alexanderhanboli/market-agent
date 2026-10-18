@@ -1847,7 +1847,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -1947,12 +1946,13 @@
         "text": "The V-shaped recovery in gross margin suggests the Q1 fiscal 2026 dip was transitory rather than structural.",
         "reason": "an inference rests on its supports; it writes no figure"
       }
+    ],
+    "rendered": true,
+    "repeated": [
+      0
     ]
   },
-  "removed": [
-    "A one-time charge or product-mix shift compressed margins in that single quarter, given the sharp V-shaped recovery to [[F23]] the very next quarter while revenue kept growing.",
-    "A change in revenue recognition or inventory accounting affected the quarter, given that operating margin and net margin also dropped to their window lows ([[F30]], [[F38]]) in the same period."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "fb80d764-4fe7-47b7-80f8-336b78be6c26",
@@ -1974,8 +1974,28 @@
               "fiscal_period": "Q1"
             },
             {
-              "fact_id": "402ba56a-53d4-45f8-b66f-f153d0e5a4d6",
+              "fact_id": "3e3292d9-36b5-433b-a071-df4226b6d293",
               "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-01-27",
+              "period_end": "2025-04-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q1"
+            },
+            {
+              "fact_id": "a4d01d27-cd4d-46df-ac19-74d97983d007",
+              "unit": "ratio",
+              "period_kind": "fiscal_q",
+              "period_start": "2025-01-27",
+              "period_end": "2025-04-27",
+              "as_of": "2026-09-01T00:00:00.000Z",
+              "fiscal_year": 2026,
+              "fiscal_period": "Q1"
+            },
+            {
+              "fact_id": "650f96e7-a96a-435e-b960-fffe50f9bd67",
+              "unit": "currency",
               "period_kind": "fiscal_q",
               "period_start": "2024-10-28",
               "period_end": "2025-01-26",
@@ -1984,44 +2004,14 @@
               "fiscal_period": "Q4"
             },
             {
-              "fact_id": "e2ed6819-032e-4ed4-8ab3-513a65a35e82",
-              "unit": "ratio",
+              "fact_id": "92d70d3e-9d91-4f22-a7a8-d0385b7f06d1",
+              "unit": "currency",
               "period_kind": "fiscal_q",
-              "period_start": "2024-01-29",
-              "period_end": "2024-04-28",
+              "period_start": "2025-01-27",
+              "period_end": "2025-04-27",
               "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
+              "fiscal_year": 2026,
               "fiscal_period": "Q1"
-            },
-            {
-              "fact_id": "849a735d-b011-4a86-8dcc-91530de6924f",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-04-28",
-              "period_end": "2025-07-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q2"
-            },
-            {
-              "fact_id": "8f6bac93-78ce-44b6-8716-62026f7eefff",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-07-28",
-              "period_end": "2025-10-26",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q3"
-            },
-            {
-              "fact_id": "40a1d034-34d1-4361-bc97-cbb54d8efaff",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-10-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q4"
             },
             {
               "fact_id": "ceaf87e1-b79e-493b-8741-7f095ac9c5de",
@@ -2042,76 +2032,6 @@
               "as_of": "2026-09-01T00:00:00.000Z",
               "fiscal_year": 2026,
               "fiscal_period": "Q1"
-            },
-            {
-              "fact_id": "92d70d3e-9d91-4f22-a7a8-d0385b7f06d1",
-              "unit": "currency",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-01-27",
-              "period_end": "2025-04-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q1"
-            },
-            {
-              "fact_id": "650f96e7-a96a-435e-b960-fffe50f9bd67",
-              "unit": "currency",
-              "period_kind": "fiscal_q",
-              "period_start": "2024-10-28",
-              "period_end": "2025-01-26",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "Q4"
-            },
-            {
-              "fact_id": "93e603b3-06c5-4933-adcb-9aa74a6aec04",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2024-07-29",
-              "period_end": "2024-10-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "Q3"
-            },
-            {
-              "fact_id": "b27ac585-c679-428e-8fd2-3bd4ebbdf893",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-10-27",
-              "period_end": "2026-01-25",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q4"
-            },
-            {
-              "fact_id": "b3afe268-6ab3-4f77-ad04-e49a2536ceaf",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2024-01-29",
-              "period_end": "2024-04-28",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2025,
-              "fiscal_period": "Q1"
-            },
-            {
-              "fact_id": "3e3292d9-36b5-433b-a071-df4226b6d293",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-01-27",
-              "period_end": "2025-04-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q1"
-            },
-            {
-              "fact_id": "a4d01d27-cd4d-46df-ac19-74d97983d007",
-              "unit": "ratio",
-              "period_kind": "fiscal_q",
-              "period_start": "2025-01-27",
-              "period_end": "2025-04-27",
-              "as_of": "2026-09-01T00:00:00.000Z",
-              "fiscal_year": 2026,
-              "fiscal_period": "Q1"
             }
           ]
         }
@@ -2124,7 +2044,7 @@
       "segments": [
         {
           "type": "text",
-          "text": "**Takeaway:** NVDA's gross margin fell sharply in Q1 fiscal 2026 (quarter ending April 2025), dropping to "
+          "text": "NVDA's gross margin was lowest in Q1 2026, at "
         },
         {
           "type": "ref",
@@ -2134,157 +2054,15 @@
         },
         {
           "type": "text",
-          "text": " from "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "402ba56a-53d4-45f8-b66f-f153d0e5a4d6",
-          "format": "73.0%"
+          "text": ", of the periods from Q1 2025 to Q4 2026."
         },
         {
           "type": "text",
-          "text": " in the prior quarter. The data does not show why.\n\n**Trend across all periods shown.** Gross margin had been declining gradually from "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "e2ed6819-032e-4ed4-8ab3-513a65a35e82",
-          "format": "78.4%"
+          "text": "\n\n"
         },
         {
           "type": "text",
-          "text": " in Q1 fiscal 2025 through "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "402ba56a-53d4-45f8-b66f-f153d0e5a4d6",
-          "format": "73.0%"
-        },
-        {
-          "type": "text",
-          "text": " in Q4 fiscal 2025. In Q1 fiscal 2026 it dropped to "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "a8cfdda2-d0e5-4b33-9236-5e4e1cbb4b02",
-          "format": "60.5%"
-        },
-        {
-          "type": "text",
-          "text": ", the lowest point in the eight-quarter window. It then recovered to "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "849a735d-b011-4a86-8dcc-91530de6924f",
-          "format": "72.4%"
-        },
-        {
-          "type": "text",
-          "text": " in Q2 fiscal 2026 and continued improving through "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "8f6bac93-78ce-44b6-8716-62026f7eefff",
-          "format": "73.4%"
-        },
-        {
-          "type": "text",
-          "text": " and "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "40a1d034-34d1-4361-bc97-cbb54d8efaff",
-          "format": "74.4%"
-        },
-        {
-          "type": "text",
-          "text": " in Q3 and Q4 fiscal 2026, though it had not yet returned to the Q1 fiscal 2025 level by the end of the window.\n\n**What is strong and what is weak.** The Q1 fiscal 2026 quarter is the clear outlier: gross margin, operating margin ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "ceaf87e1-b79e-493b-8741-7f095ac9c5de",
-          "format": "49.1%"
-        },
-        {
-          "type": "text",
-          "text": "), and net margin ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "57665601-74ce-4e45-9dbd-73579ef2e9ba",
-          "format": "42.6%"
-        },
-        {
-          "type": "text",
-          "text": ") all hit their lows in that quarter simultaneously, while revenue continued to grow sequentially ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "92d70d3e-9d91-4f22-a7a8-d0385b7f06d1",
-          "format": "$44.1B"
-        },
-        {
-          "type": "text",
-          "text": " vs. "
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "650f96e7-a96a-435e-b960-fffe50f9bd67",
-          "format": "$39.3B"
-        },
-        {
-          "type": "text",
-          "text": "). The recovery in subsequent quarters is notable—by Q4 fiscal 2026, gross margin ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "40a1d034-34d1-4361-bc97-cbb54d8efaff",
-          "format": "74.4%"
-        },
-        {
-          "type": "text",
-          "text": ") had nearly matched the Q3 fiscal 2025 level ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "93e603b3-06c5-4933-adcb-9aa74a6aec04",
-          "format": "74.6%"
-        },
-        {
-          "type": "text",
-          "text": "), and operating margin ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "b27ac585-c679-428e-8fd2-3bd4ebbdf893",
-          "format": "64.9%"
-        },
-        {
-          "type": "text",
-          "text": ") had returned to the Q1 fiscal 2025 level ("
-        },
-        {
-          "type": "ref",
-          "ref_kind": "fact",
-          "ref_id": "b3afe268-6ab3-4f77-ad04-e49a2536ceaf",
-          "format": "64.9%"
-        },
-        {
-          "type": "text",
-          "text": ").\n\n**Counterpoint.** Revenue growth remained robust in Q1 fiscal 2026 at "
+          "text": "NVDA's revenue growth (QoQ) was "
         },
         {
           "type": "ref",
@@ -2294,7 +2072,7 @@
         },
         {
           "type": "text",
-          "text": " quarter-over-quarter and "
+          "text": " and revenue growth (YoY) "
         },
         {
           "type": "ref",
@@ -2304,7 +2082,87 @@
         },
         {
           "type": "text",
-          "text": " year-over-year, so the margin compression occurred alongside accelerating top-line expansion rather than a demand shortfall. This suggests the margin dip may have been a cost-side or mix event rather than a structural deterioration in pricing power.\n\n**What the data cannot tell.** The data does not show why gross margin fell in Q1 fiscal 2026. No management attribution or claim is available in the evidence provided. The figures shown do not include a cost-of-revenue breakdown, segment-level margins, or any commentary that would explain the driver."
+          "text": " in Q1 2026 (ended Apr 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; NVDA's revenue was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "650f96e7-a96a-435e-b960-fffe50f9bd67",
+          "format": "$39.3B"
+        },
+        {
+          "type": "text",
+          "text": " in Q4 2025 (ended Jan 2025)"
+        },
+        {
+          "type": "text",
+          "text": "; NVDA's revenue was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "92d70d3e-9d91-4f22-a7a8-d0385b7f06d1",
+          "format": "$44.1B"
+        },
+        {
+          "type": "text",
+          "text": " in Q1 2026 (ended Apr 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "NVDA's operating margin was "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "ceaf87e1-b79e-493b-8741-7f095ac9c5de",
+          "format": "49.1%"
+        },
+        {
+          "type": "text",
+          "text": " and net margin "
+        },
+        {
+          "type": "ref",
+          "ref_kind": "fact",
+          "ref_id": "57665601-74ce-4e45-9dbd-73579ef2e9ba",
+          "format": "42.6%"
+        },
+        {
+          "type": "text",
+          "text": " in Q1 2026 (ended Apr 2025)"
+        },
+        {
+          "type": "text",
+          "text": "."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "The figures do not show why NVDA's gross margin changed."
+        },
+        {
+          "type": "text",
+          "text": "\n\n"
+        },
+        {
+          "type": "text",
+          "text": "> **Analyst inference** (NVDA's gross margin lowest in Q1 2026): The margin compression appears to be a cost-side or mix event rather than a demand problem, because revenue continued to grow while margins dropped and then recovered."
         }
       ]
     }

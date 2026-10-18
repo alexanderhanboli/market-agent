@@ -582,7 +582,6 @@
     },
     "cutoff": "2026-09-01T00:00:00.000Z"
   },
-  "assertion_rendering": false,
   "exchange": {
     "messages": [
       {
@@ -609,9 +608,7 @@
     "accepted": [],
     "rejected": []
   },
-  "removed": [
-    "One related claim from August 2025 notes that AMD's second-quarter results were impacted by U.S. export controls on Instinct MI308 data center GPU products, leading to approximately [[C1]], but this does not constitute a segment revenue breakdown."
-  ],
+  "removed": [],
   "blocks": [
     {
       "id": "26ec85b4-f23f-4358-8033-60a53a2a43f3",
@@ -627,7 +624,7 @@
       "segments": [
         {
           "type": "text",
-          "text": "Revenue by segment is not available for AMD in this data. The query looked for the latest quarter's segment breakdown, but no segment-level revenue figures were returned.\n\nThe data shown cannot tell how AMD's total revenue splits across its reporting segments (Data Center, Client, Gaming, Embedded) for any period."
+          "text": "The data here does not answer this question; the note below says what is missing."
         }
       ]
     }
