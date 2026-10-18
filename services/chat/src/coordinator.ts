@@ -1,4 +1,4 @@
-import { answerMessageId, contentHashForText, stableUuid } from "./chat-ids.ts";
+import { answerMessageId, contentHashForText, financialMessageId, stableUuid } from "./chat-ids.ts";
 import { DEFAULT_BUNDLE_ID, chooseBundleIdForSubjectKind } from "./bundle-routing.ts";
 import { COMPARATIVE, companyKey, extractSubjectMentions } from "./subject-extraction.ts";
 import {
@@ -251,7 +251,7 @@ export type ChatCoordinator = {
    * turn.completed or turn.error. A turn that ended during the read is reported
    * in flight only when the read lacks its answer, since the read may predate
    * the answer's commit; attaching replays its outcome. A turn whose saved answer
-   * (answerMessageId) the read holds is reported completed, though its runner
+   * (answerMessageId or financialMessageId) the read holds is reported completed, though its runner
    * has not yet emitted turn.completed.
    */
   readThread<M extends { message_id: string }>(
@@ -519,8 +519,8 @@ export function createChatCoordinator(
 function runStatus(record: TurnRecord, readIds: ReadonlySet<string>): ChatRunStatus {
   const { threadId, runId, turnId } = record.handle.input as NormalizedChatTurnInput;
   const terminal = record.handle.terminal;
-  const answerId = answerMessageId(threadId, turnId);
-  if (terminal === null && readIds.has(answerId)) return { runId, turnId, status: "completed", messageId: answerId };
+  const answerId = [answerMessageId(threadId, turnId), financialMessageId(threadId, turnId)].find((id) => readIds.has(id));
+  if (terminal === null && answerId !== undefined) return { runId, turnId, status: "completed", messageId: answerId };
   if (terminal?.type === "turn.completed") {
     return typeof terminal.message_id === "string"
       ? { runId, turnId, status: "completed", messageId: terminal.message_id }

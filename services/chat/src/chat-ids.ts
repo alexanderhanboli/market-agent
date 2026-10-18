@@ -12,7 +12,7 @@ export function contentHashForText(text: string): string {
  * that a turn's answer is saved before the turn ends.
  */
 export function answerMessageId(threadId: string, turnId: string): string {
-  return stableUuid(`financial-message:${threadId}:${turnId}`);
+  return stableUuid(`answer-message:${threadId}:${turnId}`);
 }
 
 /**
