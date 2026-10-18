@@ -1,0 +1,175 @@
+{
+  "about": "Held-out set for the inference judge (src/inference-judge.ts, #302): inferences on real recorded turns, each original paired with mutations the word rules in assertions.ts pass but its supports do not back. A case stands in the place of its trace's assertion at index, resting on the accepted assertions in supports. source: trace (the trace's own accepted inference), edited (the trace's inference with a worded quantity cut), adapted (an inference the trace's checks rejected for naming companies, rewritten about its subject), written (a new inference on the trace's accepted supports, where the trace's own claims more than they show). Run: node --experimental-strip-types scripts/answer-lab.ts judge-mutations test/answer-lab/judge-mutations.json",
+  "cases": [
+    {
+      "id": "segment-concentration",
+      "trace": "traces/segment-drill-down.json",
+      "index": 6,
+      "supports": [
+        5
+      ],
+      "source": "trace",
+      "original": "NVIDIA's revenue is heavily concentrated in Data Center, creating significant single-segment exposure for the consolidated top line.",
+      "mutations": [
+        {
+          "kind": "worded_amount",
+          "text": "Data Center alone brings in tens of billions of dollars a quarter, creating significant single-segment exposure for the consolidated top line."
+        },
+        {
+          "kind": "unsupported_claim",
+          "text": "NVIDIA's revenue is heavily concentrated in Data Center, and that segment's growth is slowing as hyperscaler demand matures."
+        },
+        {
+          "kind": "contradicted_ranking",
+          "text": "Gaming, not Data Center, is the largest contributor to NVIDIA's revenue, which limits single-segment exposure for the consolidated top line."
+        }
+      ]
+    },
+    {
+      "id": "segment-cushion",
+      "trace": "traces/segment-drill-down.json",
+      "index": 7,
+      "supports": [
+        5
+      ],
+      "source": "trace",
+      "original": "The other four segments provide limited diversification cushion relative to Data Center's dominance.",
+      "mutations": [
+        {
+          "kind": "worded_amount",
+          "text": "The other four segments bring in only single-digit billions of dollars together, a limited diversification cushion relative to Data Center's dominance."
+        },
+        {
+          "kind": "contradicted_ranking",
+          "text": "The other four segments together outweigh Data Center, giving the top line a broad diversification cushion."
+        }
+      ]
+    },
+    {
+      "id": "fiscal-calendars",
+      "trace": "traces/fiscal-year-trap.json",
+      "index": 8,
+      "supports": [
+        0,
+        1
+      ],
+      "source": "edited",
+      "original": "The gap between fiscal year ends limits direct comparability of the two revenue figures.",
+      "mutations": [
+        {
+          "kind": "company_name",
+          "text": "The gap between Nvidia's January and Apple's September year ends limits direct comparability of the two revenue figures."
+        },
+        {
+          "kind": "worded_amount",
+          "text": "The gap of two-thirds of a year between fiscal year ends limits direct comparability of the two revenue figures."
+        },
+        {
+          "kind": "unsupported_claim",
+          "text": "The gap between fiscal year ends limits direct comparability, and aligning the calendars would close most of the revenue difference."
+        }
+      ]
+    },
+    {
+      "id": "fiscal-offset",
+      "trace": "traces/follow-up-memory.turn-2.json",
+      "index": 7,
+      "supports": [
+        0,
+        1
+      ],
+      "source": "edited",
+      "original": "The offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability.",
+      "mutations": [
+        {
+          "kind": "company_name",
+          "text": "The offset between nvda's and amd's fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability."
+        },
+        {
+          "kind": "unsupported_claim",
+          "text": "The offset between the two fiscal-year end dates flatters the later reporter's growth, which explains most of the gap between them."
+        }
+      ]
+    },
+    {
+      "id": "peer-lead",
+      "trace": "traces/peer-two.json",
+      "index": 9,
+      "supports": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "subject": "NVDA",
+      "source": "adapted",
+      "original": "It leads on scale, profitability and growth in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+      "mutations": [
+        {
+          "kind": "contradicted_ranking",
+          "text": "It trails its peer on profitability and growth in the latest fiscal year shown, making it the weaker fundamental story on these metrics."
+        },
+        {
+          "kind": "company_name",
+          "text": "amd leads nvda on scale, profitability and growth in the latest fiscal year shown."
+        },
+        {
+          "kind": "company_name",
+          "text": "Nvidia leads Advanced Micro Devices on scale, profitability and growth in the latest fiscal year shown."
+        },
+        {
+          "kind": "worded_amount",
+          "text": "Its net margin is more than four times its peer's, making it the stronger fundamental story on these metrics."
+        }
+      ]
+    },
+    {
+      "id": "revenue-trend",
+      "trace": "traces/single-latest-quarter.json",
+      "index": 4,
+      "supports": [
+        2
+      ],
+      "source": "written",
+      "original": "The top line has expanded without interruption across the window shown.",
+      "mutations": [
+        {
+          "kind": "flipped_direction",
+          "text": "The top line has contracted across the window shown, which points to weakening demand."
+        },
+        {
+          "kind": "worded_amount",
+          "text": "The top line has more than doubled across the window shown."
+        },
+        {
+          "kind": "unsupported_claim",
+          "text": "The top line has expanded without interruption across the window shown, driven by data center demand."
+        }
+      ]
+    },
+    {
+      "id": "margin-trough",
+      "trace": "traces/what-changed-gross-margin.json",
+      "index": 6,
+      "supports": [
+        2
+      ],
+      "source": "written",
+      "original": "Gross margin bottomed out in the quarter the comparison names and stood higher in every other period shown.",
+      "mutations": [
+        {
+          "kind": "flipped_direction",
+          "text": "Gross margin peaked in the quarter the comparison names and stood lower in every other period shown."
+        },
+        {
+          "kind": "flipped_direction",
+          "text": "Margins have been expanding steadily through the window shown."
+        },
+        {
+          "kind": "unsupported_claim",
+          "text": "Gross margin bottomed out in that quarter because of an inventory charge, then recovered."
+        }
+      ]
+    }
+  ]
+}

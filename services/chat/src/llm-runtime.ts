@@ -560,7 +560,7 @@ export function answerContext(input: {
 
 // The turn's evidence packet: its figures, claims and bounds (#207). A named
 // gap's turn offers no other values in the metric's place (#206).
-function turnPacket(input: {
+export function turnPacket(input: {
   toolCalls: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
   factBlocks?: ReadonlyArray<Record<string, unknown>>;
   availableData?: boolean;

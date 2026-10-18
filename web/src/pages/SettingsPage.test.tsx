@@ -108,12 +108,12 @@ test('switching protocol drops another provider\'s stock base URL but keeps a cu
   assert.equal(await switchToAnthropic('https://llm-proxy.internal/v1'), 'https://llm-proxy.internal/v1')
 })
 
-test('SettingsView saves the chosen extraction model, and "Use primary" clears it', async () => {
+test('SettingsView saves the chosen extraction and judge models, and "Use primary" clears each', async () => {
   const saved: LlmEditableSettings[] = []
   const changes: LlmEditableSettings[] = []
   const { document, cleanup } = renderIntoDom(
     <SettingsView
-      state={{ kind: 'ready', version: 'sha256:test', settings: { ...settings(), extractionModel: 'openai/o3' } }}
+      state={{ kind: 'ready', version: 'sha256:test', settings: { ...settings(), extractionModel: 'openai/o3', judgeModel: 'openai/gpt-4.1' } }}
       onChange={(next) => changes.push(next)}
       onSave={async (next) => {
         saved.push(next)
@@ -123,11 +123,14 @@ test('SettingsView saves the chosen extraction model, and "Use primary" clears i
 
   try {
     assert.equal(selectByLabel(document, 'Extraction model').value, 'openai/o3')
+    assert.equal(selectByLabel(document, 'Judge model').value, 'openai/gpt-4.1')
     await click(buttonByText(document, 'Save'))
     await change(selectByLabel(document, 'Extraction model'), '')
+    await change(selectByLabel(document, 'Judge model'), '')
 
-    assert.equal(saved[0]?.extractionModel, 'openai/o3')
-    assert.equal(changes[0]?.extractionModel, null)
+    assert.deepEqual([saved[0]?.extractionModel, saved[0]?.judgeModel], ['openai/o3', 'openai/gpt-4.1'])
+    assert.deepEqual([changes[0]?.extractionModel, changes[0]?.judgeModel], [null, 'openai/gpt-4.1'])
+    assert.equal(changes[1]?.judgeModel, null)
   } finally {
     cleanup()
   }
@@ -187,6 +190,7 @@ function settings(): LlmEditableSettings {
     fallbackModels: [],
     agentModel: null,
     extractionModel: null,
+    judgeModel: null,
     issues: [],
   }
 }

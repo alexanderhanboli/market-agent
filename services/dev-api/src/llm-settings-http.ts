@@ -152,6 +152,7 @@ function readLlmSettingsUpdateBody(body: unknown): Parameters<typeof writeLlmSet
     fallbackModels: stringArray(settings.fallbackModels ?? settings.fallback_models),
     agentModel: nonEmptyString(settings.agentModel ?? settings.agent_model),
     extractionModel: nonEmptyString(settings.extractionModel ?? settings.extraction_model),
+    judgeModel: nonEmptyString(settings.judgeModel ?? settings.judge_model),
   };
 }
 

@@ -1,0 +1,184 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import type { LlmChatRequest } from "../../llm/src/index.ts";
+import type { Assertion } from "../src/assertions.ts";
+import type { EvidencePacket } from "../src/evidence-packet.ts";
+import { judgeCases, judgeInferences, parseVerdicts, type JudgeCase } from "../src/inference-judge.ts";
+
+const ENV = {
+  LLM_CHANNELS: "anthropic",
+  LLM_ANTHROPIC_PROTOCOL: "anthropic",
+  LLM_ANTHROPIC_API_KEY: "sk-test",
+  LLM_ANTHROPIC_MODELS: "claude-sonnet-5-5,claude-haiku-5-5",
+  LITELLM_MODEL: "anthropic/claude-sonnet-5-5",
+  JUDGE_LITELLM_MODEL: "anthropic/claude-haiku-5-5",
+};
+
+const PACKET: EvidencePacket = {
+  route: "comparison",
+  cutoff: "2026-09-01T00:00:00.000Z",
+  companies: ["NVDA", "AMD"],
+  figures: [
+    { id: "F1", company: "NVDA", metric: "Gross margin", period: "FY2026", value: "74.6%", fact_id: "not-a-uuid-1", source_ids: [] },
+    { id: "F2", company: "AMD", metric: "Gross margin", period: "FY2025", value: "49.2%", fact_id: "not-a-uuid-2", source_ids: [] },
+  ],
+  coverage: [],
+  gaps: [],
+  query_bounds: {},
+  claims: [],
+  disagreements: [],
+  claims_status: "available",
+  claims_truncated: false,
+};
+
+const ACCEPTED: ReadonlyArray<Assertion & { index: number }> = [
+  { index: 0, kind: "observation", text: "x", evidence: ["F1", "F2"] },
+  { index: 1, kind: "comparison", text: "x", evidence: ["F1", "F2"], op: "highest", result: "F1" },
+  { index: 2, kind: "analyst_inference", text: "It keeps more of each sale.", evidence: [], supports: [0, 1], subject: "NVDA" },
+  { index: 3, kind: "analyst_inference", text: "Its peer trails on margin.", evidence: [], supports: [1], subject: "NVDA" },
+];
+
+const CASES = judgeCases(ACCEPTED, PACKET, []);
+
+test("a case is the inference beside its supports as the reader sees them, figures as the packet's values, and its checked results", () => {
+  assert.deepEqual(CASES, [
+    {
+      index: 2,
+      subject: "NVDA",
+      text: "It keeps more of each sale.",
+      checked: ["NVDA highest on gross margin"],
+      supports: [
+        "NVDA's gross margin was 74.6% in FY2026; AMD's gross margin was 49.2% in FY2025.",
+        "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026), AMD 49.2% (FY2025).",
+      ],
+    },
+    {
+      index: 3,
+      subject: "NVDA",
+      text: "Its peer trails on margin.",
+      checked: ["NVDA highest on gross margin"],
+      supports: ["Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026), AMD 49.2% (FY2025)."],
+    },
+  ]);
+  // A one-company answer's inference is about that company.
+  const single = judgeCases([ACCEPTED[0]!, { index: 1, kind: "analyst_inference", text: "Margins are high.", evidence: [], supports: [0] }], { ...PACKET, companies: ["NVDA"] }, []);
+  assert.deepEqual(single.map(({ subject, checked }) => [subject, checked]), [["NVDA", []]]);
+});
+
+test("one judge call per answer, on JUDGE_LITELLM_MODEL, carries every inference with its supports' text; its verdicts are read per inference", async () => {
+  const requests: Array<{ model: string; request: LlmChatRequest }> = [];
+  const outcome = await judgeInferences({
+    cases: CASES,
+    companies: PACKET.companies,
+    env: ENV,
+    createClient: () => async (deployment, request) => {
+      requests.push({ model: `${deployment.channel}/${deployment.model}`, request });
+      return {
+        text: 'Here you go:\n{"verdicts":[{"id":3,"verdict":"entailed"},{"id":2,"verdict":"not_entailed","reason":"unsupported: no figure shows what it keeps of a sale."}]}',
+        usage: { inputTokens: 900, outputTokens: 60, totalTokens: 960 },
+      };
+    },
+  });
+  assert.deepEqual(outcome.verdicts, [
+    { index: 2, verdict: "not_entailed", reason: "unsupported: no figure shows what it keeps of a sale." },
+    { index: 3, verdict: "entailed" },
+  ]);
+  assert.deepEqual([outcome.deployment, outcome.usage], ["anthropic/claude-haiku-5-5", { input_tokens: 900, output_tokens: 60 }]);
+  assert.deepEqual(requests.map(({ model }) => model), ["anthropic/claude-haiku-5-5"]);
+  const [{ request }] = requests as [typeof requests[number]];
+  assert.deepEqual([request.temperature, request.reasoning, request.messages.map((message) => message.role)], [undefined, "low", ["system", "user"]]);
+  assert.deepEqual(JSON.parse(request.messages[1]!.content), {
+    companies: ["NVDA", "AMD"],
+    inferences: [
+      {
+        id: 2,
+        subject: "NVDA",
+        text: "It keeps more of each sale.",
+        checked_results: ["NVDA highest on gross margin"],
+        supports: [
+          "NVDA's gross margin was 74.6% in FY2026; AMD's gross margin was 49.2% in FY2025.",
+          "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026), AMD 49.2% (FY2025).",
+        ],
+      },
+      {
+        id: 3,
+        subject: "NVDA",
+        text: "Its peer trails on margin.",
+        checked_results: ["NVDA highest on gross margin"],
+        supports: ["Of NVDA and AMD, NVDA's gross margin was highest: NVDA 74.6% (FY2026), AMD 49.2% (FY2025)."],
+      },
+    ],
+  });
+});
+
+test("a malformed reply is an error for every inference, never entailed; a bad verdict is an error for its own", () => {
+  const two: JudgeCase[] = [...CASES];
+  for (const reply of ["entailed", '{"verdicts":"entailed"}', '{"verdicts":[{"id":2,"verdict":"entailed"}', ""]) {
+    assert.deepEqual(parseVerdicts(reply, two), [
+      { index: 2, verdict: "error", reason: "the judge's reply is not a verdict list" },
+      { index: 3, verdict: "error", reason: "the judge's reply is not a verdict list" },
+    ]);
+  }
+  // A reply that corrects itself is read by its last list.
+  const corrected = [
+    '{"verdicts":[{"id":2,"verdict":"not_entailed","reason":"other_company: it says \\"its peer\\"."},{"id":3,"verdict":"entailed"}]}',
+    "Correction: no company is named. Final:",
+    '```json\n{"verdicts":[{"id":2,"verdict":"entailed"},{"id":3,"verdict":"not_entailed","reason":"contradicts_ranking: NVDA is highest."}]}\n```',
+  ].join("\n\n");
+  assert.deepEqual(parseVerdicts(corrected, two), [
+    { index: 2, verdict: "entailed" },
+    { index: 3, verdict: "not_entailed", reason: "contradicts_ranking: NVDA is highest." },
+  ]);
+  assert.deepEqual(parseVerdicts('{"verdicts":[{"id":2,"verdict":"probably"}]}', two), [
+    { index: 2, verdict: "error", reason: 'unknown verdict "probably"' },
+    { index: 3, verdict: "error", reason: "no verdict for this inference" },
+  ]);
+  assert.deepEqual(parseVerdicts('{"verdicts":[{"id":2,"verdict":"entailed"},{"id":2,"verdict":"not_entailed"},{"id":"3","verdict":"entailed"}]}', two), [
+    { index: 2, verdict: "error", reason: "more than one verdict for this inference" },
+    { index: 3, verdict: "error", reason: "no verdict for this inference" },
+  ]);
+});
+
+test("a failed or cut-off judge call is an error for every inference; with no inference no call is made", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const thrown = await judgeInferences({
+    cases: CASES,
+    companies: PACKET.companies,
+    env: ENV,
+    createClient: () => async () => {
+      throw new Error("provider down");
+    },
+  });
+  assert.deepEqual([thrown.deployment, thrown.verdicts.map(({ verdict }) => verdict)], [null, ["error", "error"]]);
+  assert.match(thrown.verdicts[0]!.reason!, /^judge call failed: /);
+  const cut = await judgeInferences({
+    cases: CASES.slice(0, 1),
+    companies: PACKET.companies,
+    env: ENV,
+    createClient: () => async () => ({ text: '{"verdicts":[{"id":2,"verdict":"entailed"}]}', truncated: true }),
+  });
+  assert.deepEqual(cut.verdicts, [{ index: 2, verdict: "error", reason: "the judge's reply was cut off" }]);
+  const unbuilt = await judgeInferences({
+    cases: CASES.slice(0, 1),
+    companies: PACKET.companies,
+    env: ENV,
+    createClient: () => {
+      throw new Error("no such replay file");
+    },
+  });
+  assert.deepEqual(unbuilt.verdicts, [{ index: 2, verdict: "error", reason: "judge model could not be configured: no such replay file" }]);
+  const unconfigured = await judgeInferences({ cases: CASES.slice(0, 1), companies: PACKET.companies, env: {} });
+  assert.deepEqual(unconfigured.verdicts, [{ index: 2, verdict: "error", reason: "no judge model is configured" }]);
+  let called = false;
+  const none = await judgeInferences({
+    cases: [],
+    companies: PACKET.companies,
+    env: ENV,
+    createClient: () => async () => {
+      called = true;
+      return { text: "" };
+    },
+  });
+  assert.deepEqual([none, called], [{ verdicts: [], deployment: null, latency_ms: 0 }, false]);
+});
