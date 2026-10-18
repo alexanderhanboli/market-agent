@@ -3,7 +3,7 @@ import {
   sourceDisclosure,
   storagePolicyForDocument,
 } from "./source-disclosure.ts";
-import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
+import { formatCompactCurrency, formatCurrency, formatPercent } from "../../analyze/src/block-format.ts";
 
 export const EVIDENCE_INSPECTION_REF_KINDS = [
   "source",
@@ -502,6 +502,7 @@ async function inspectFact(
     unit: string;
     currency: string | null;
     metric_name: string | null;
+    metric_unit_class: string | null;
     period_kind: string;
     period_start: string | null;
     period_end: string | null;
@@ -531,6 +532,7 @@ async function inspectFact(
             f.unit,
             f.currency,
             m.display_name as metric_name,
+            m.unit_class as metric_unit_class,
             f.period_kind,
             f.period_start::text as period_start,
             f.period_end::text as period_end,
@@ -574,9 +576,17 @@ async function inspectFact(
 }
 
 // Worded as the answer words the figure, with its formatters: "$209.9B", "$2.0M", "13.9%", "$4.12".
-function factValueText(row: { value: string; value_text: string | null; unit: string; currency: string | null }): string {
+function factValueText(row: {
+  value: string;
+  value_text: string | null;
+  unit: string;
+  currency: string | null;
+  metric_unit_class: string | null;
+}): string {
   const value = Number(row.value);
   if (row.value_text !== null || row.value === "" || !Number.isFinite(value)) return row.value;
+  // A percent metric derived as a fraction (a margin of 0.462) is stored as a ratio.
+  if (row.metric_unit_class === "percent" && (row.unit === "ratio" || row.unit === "pure")) return formatPercent(value);
   const format = (options: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-US", options).format(value);
   // Some sources name the currency in the unit itself ("USD").
   const unitCode = currencyCode(row.unit);
