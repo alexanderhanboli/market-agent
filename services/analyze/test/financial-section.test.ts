@@ -164,6 +164,10 @@ test("a gap inside the optional cash-resilience section stays in that section", 
   assert.deepEqual(resilience.block.financial.coverage, { state: "partial", requested: 8, verified: 7 }, "a net loss leaves cash conversion undefined");
   assert.equal(result.coverage, "complete", "the required sections are fully verified");
   assert.deepEqual(await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }), result);
+
+  // A run saved under a playbook version this code doesn't have can't know which sections were optional (#355 review).
+  await db.query(`update analyze_template_runs set run_metadata = jsonb_set(run_metadata, '{playbook_version}', '99') where run_id = $1`, [memo.runId]);
+  assert.equal((await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }))?.coverage, "partial");
 });
 
 test("a memo with no required financial section reads its optional sections' coverage (#355 review)", { timeout: 300_000 }, async (t) => {

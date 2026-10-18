@@ -286,7 +286,7 @@ async function loadMemoRun(db: SqlExecutor, analyzeRunId: string): Promise<MemoR
     template_id: row.template_id,
     template_version: Number(row.template_version),
     context: metadata?.financial ?? null,
-    optional_sections: optionalSections(metadata?.playbook_id ?? null),
+    optional_sections: optionalSections(metadata?.playbook_id ?? null, metadata?.playbook_version ?? null),
   };
 }
 
@@ -300,9 +300,9 @@ function savedMetadata(metadata: unknown): AnalyzeRunMetadataV1 | null {
   }
 }
 
-/** Sections the memo's playbook marks optional; an unknown playbook marks none, so every section counts. */
-function optionalSections(playbookId: string | null): ReadonlySet<string> {
-  const playbook = ANALYZE_PLAYBOOKS.find((candidate) => candidate.playbook_id === playbookId);
+/** Sections the memo's saved playbook version marks optional; an unknown playbook or version marks none, so every section counts. */
+function optionalSections(playbookId: string | null, playbookVersion: number | null): ReadonlySet<string> {
+  const playbook = ANALYZE_PLAYBOOKS.find((candidate) => candidate.playbook_id === playbookId && candidate.version === playbookVersion);
   return new Set(playbook?.sections.filter((section) => !section.required).map((section) => section.section_id) ?? []);
 }
 
