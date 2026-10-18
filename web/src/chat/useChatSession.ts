@@ -114,7 +114,11 @@ function createRunStreams(store: SessionStore) {
   return {
     // A send whose user left its thread mid-POST: opened only to start the run.
     start(threadId: string, run: RunRef, userIntent: string) {
-      if (!disposed) store.dispatch({ type: 'run.released', threadId, run, input: { userIntent } })
+      if (!disposed) {
+        store.dispatch({ type: 'run.released', threadId, run, input: { userIntent } })
+        // Its thread is on screen and the session follows it: that stream starts the run.
+        if (!store.getState().released.some((r) => r.run.runId === run.runId)) return
+      }
       open({ threadId, run, attach: false, userIntent }, false)
     },
     get disposed() {

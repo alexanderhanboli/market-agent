@@ -157,15 +157,13 @@ test('returning to a thread whose question is still being saved follows its run 
     started = true
     await act(async () => saved.resolve())
     await h.flush()
-    assert.equal(FakeEventSource.instances.length, 2)
-    const [followed, starter] = FakeEventSource.instances
-    assert.deepEqual(streamParams(followed), streamParams(starter))
-    assert.equal(starter.params.get('user_intent'), 'Analyze NVDA')
+    assert.equal(FakeEventSource.instances.length, 1)
+    const followed = FakeEventSource.instances[0]
+    assert.equal(followed.params.get('user_intent'), 'Analyze NVDA')
+    assert.equal(followed.params.get('attach'), null)
     assert.equal(server.gets(HISTORY_T1), 3)
     assert.equal(h.button('Send').disabled, true)
 
-    await act(async () => starter.open())
-    assert.equal(starter.closed, true)
     await streamAnswer(h, followed)
     await complete(h, followed)
     assert.equal(occurrences(h.text(), ANSWER), 1)

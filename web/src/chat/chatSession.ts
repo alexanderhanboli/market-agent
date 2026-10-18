@@ -221,7 +221,12 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
 
     case 'released.reached': {
       const index = s.released.findIndex((r) => r.threadId === a.threadId && r.run.runId === a.runId && !r.reached)
-      if (index === -1) return s
+      if (index === -1) {
+        // The session resent the run and gave up first: the run exists now, so ask the server how it stands.
+        const { turn } = s
+        if (a.threadId !== s.threadId || turn.phase !== 'streaming' || turn.run.runId !== a.runId || turn.link.kind !== 'offline' || turn.link.attach) return s
+        return { ...s, history: requestHistory(s.history), turn: { ...turn, link: { ...turn.link, kind: 'reconnecting', attach: true, drops: 0 } } }
+      }
       const reached = { ...s, released: s.released.map((r, i) => (i === index ? { ...r, reached: true } : r)) }
       // A load already in flight may have read the thread before the run
       // existed; a newer generation replaces it.

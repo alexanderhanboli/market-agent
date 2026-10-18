@@ -632,3 +632,12 @@ test('a run released on the thread on screen, its question saved after the user 
   const released = reduceChatSession(back, { type: 'run.released', threadId: 'T1', run: R1, input: { userIntent: 'Analyze NVDA' } })
   assert.deepEqual([wantedStream(released)?.key, released.released, selectThreadView(released).canAsk, selectThreadView(released).needsLoad], ['T1|run-1|start|0', [], false, { threadId: 'T1', gen: 2 }])
 })
+
+test('a starter that reaches the server after the resent run went offline brings it back through a load', () => {
+  const offline = run(unreachedT1(), [toT2, toT1, read(1, [U1], []), drop, drop, drop, drop])
+  assert.equal(linkOf(offline)?.kind, 'offline')
+  const reached = reduceChatSession(offline, { type: 'released.reached', threadId: 'T1', runId: 'run-1' })
+  assert.deepEqual([linkOf(reached)?.kind, linkOf(reached)?.attach, selectThreadView(reached).needsLoad], ['reconnecting', true, { threadId: 'T1', gen: 2 }])
+  const attached = reduceChatSession(reached, read(2, [U1], [IN_FLIGHT]))
+  assert.deepEqual(wantedStream(attached), { key: 'T1|run-1|attach|4', threadId: 'T1', run: R1, attach: true })
+})
