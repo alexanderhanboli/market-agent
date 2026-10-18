@@ -583,7 +583,8 @@ function factValueText(row: { value: string; value_text: string | null; unit: st
   const money = code === null ? {} : { style: "currency" as const, currency: code };
   switch (unitCode === null ? row.unit : "currency") {
     case "currency":
-      return format({ ...money, notation: "compact", maximumFractionDigits: 1 });
+      // Currency style defaults to two minimum digits, which some ICU versions keep ("$2.0M").
+      return format({ ...money, notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 });
     case "currency_per_share":
       return format({ ...money, minimumFractionDigits: 2, maximumFractionDigits: 2 });
     case "percent":
