@@ -17,7 +17,7 @@
 
 import { checkComparison, comparablePeriods, type ComparisonOp } from "./comparisons.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
-import { REFERENCE, referenceTable, type ReferenceTable } from "./prose-refs.ts";
+import { REFERENCE } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
@@ -84,13 +84,7 @@ export function splitAssertions(text: string): { prose: string; list: unknown[] 
   }
 }
 
-// table: the turn's references and the names its text may write (prose-refs.ts);
-// from the packet alone, its names are the figures' metrics and segments.
-export function checkAssertions(
-  list: unknown[] | null | undefined,
-  packet: EvidencePacket,
-  table: ReferenceTable = referenceTable(packet, []),
-): AssertionReport {
+export function checkAssertions(list: unknown[] | null | undefined, packet: EvidencePacket): AssertionReport {
   if (packet.figures.length === 0 && packet.claims.length === 0) return { status: "skipped", accepted: [], rejected: [] };
   if (list === undefined) return { status: "missing", accepted: [], rejected: [] };
   if (list === null) return { status: "malformed", accepted: [], rejected: [] };
@@ -186,8 +180,6 @@ export function checkAssertions(
       reject(index, item, "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
     }
-    // A metric the question asked for that no reader serves is a named gap: an
-    // inference does not speak for it ("free cash flow" from net income).
     // Read with the question's own metric names, so "FCF" is free cash flow.
     const gap = kind === "analyst_inference"
       ? requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label
@@ -200,7 +192,7 @@ export function checkAssertions(
     const cited = kind === "analyst_inference"
       ? [...evidence, ...accepted.filter((entry) => supports.includes(entry.index)).flatMap((entry) => entry.evidence)]
       : evidence;
-    const binding = bindingError(kind, item.text, cited, packet, table);
+    const binding = bindingError(kind, item.text, cited, packet);
     if (binding) {
       reject(index, item, binding);
       continue;
@@ -274,11 +266,9 @@ function shapeError(
   }
 }
 
-// Each reference the text writes is one its evidence cites, and every company
-// an inference names is its evidence's.
-function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket, table: ReferenceTable): string | null {
+function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
   for (const [reference, id] of text.matchAll(REFERENCE)) {
-    if (!table.references.has(id!)) return `unknown reference ${reference}`;
+    if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return `unknown reference ${reference}`;
     if (!cited.includes(id!)) return `${reference} is not in its evidence`;
   }
   if (kind !== "analyst_inference") return null;

@@ -267,7 +267,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   const rendering = assertionRenderingEnabled(input.env ?? process.env);
   // The assertion list is checked, never shown (#208).
   const { prose, list, open } = splitAssertions(result.text.trim());
-  const report = checkAssertions(list, packet, table);
+  const report = checkAssertions(list, packet);
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }

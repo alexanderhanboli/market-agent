@@ -1076,7 +1076,6 @@ async function renderA(list: unknown[]) {
 test("with rendering on, the answer is written from its accepted assertions, values as sealed refs (#208)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
-    // The template writes F1's value, never the figure the model typed.
     { kind: "observation", text: "NVDA's revenue was $99B.", evidence: ["F1"] },
     // Two companies in one period show no change.
     { kind: "unknown_cause", text: "The figures do not show why.", evidence: ["F2", "F4"] },

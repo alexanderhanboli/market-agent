@@ -115,6 +115,7 @@ test("a reference is its own evidence's: another's figure or an unknown id is re
   ]);
   assert.equal(report.accepted.length, 0);
 });
+
 test("at most twelve assertions are checked; the rest are rejected (#208)", () => {
   const one = { kind: "observation", text: "NVDA's gross margin was [[F1]].", evidence: ["F1"] };
   const report = check(Array.from({ length: 14 }, () => one));
@@ -132,6 +133,7 @@ test("an attribution renders its claim's quote, never its text: a company or num
   assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 1, 2]);
   assert.deepEqual(report.rejected.map((entry) => entry.reason), ["[[C1]] is not in its evidence"]);
 });
+
 test("a packet with claims but no figures is still checked; one with neither is skipped (#208)", () => {
   const claimsOnly = { ...PACKET, figures: [] };
   const report = checkAssertions([{ kind: "management_attribution", text: "AMD management expects [[C2]]", evidence: ["C2"] }], claimsOnly);
@@ -273,6 +275,7 @@ test("a requested metric no reader serves is a named gap an inference does not s
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 4]);
 });
+
 test("an unknown cause needs a change: one company's metric in two periods (#208)", () => {
   const report = check([
     // The figure that moved alone: the packet shows its other period (F2).
@@ -406,6 +409,12 @@ test("an inference's text is shown, so it still types no figure and names no com
     [2, "an inference names no company; its subject does"],
     [3, "Free cash flow is not in the evidence: it is a named gap"],
   ]);
+  // A one-company inference resting only on a claim about another company.
+  const single = checkAssertions([
+    { kind: "management_attribution", text: "AMD expects [[C2]]", evidence: ["C2"] },
+    { kind: "analyst_inference", text: "NVDA could follow.", supports: [0] },
+  ], { ...PACKET, companies: ["NVDA"] });
+  assert.deepEqual(single.rejected.map((entry) => [entry.index, entry.reason]), [[1, "names NVDA, which its evidence does not"]]);
 });
 
 test("each rejection names the check that failed, so binding and comparative failures are told apart (#221)", () => {

@@ -43,7 +43,6 @@ import {
 } from "../src/answer-trace.ts";
 import { judgeCases, judgeInferences, type InferenceVerdict, type JudgeCase, type JudgeOutcome } from "../src/inference-judge.ts";
 import { turnPacket } from "../src/llm-runtime.ts";
-import { referenceTable } from "../src/prose-refs.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const RUNS_DIR = join(ROOT, "docs/eval-runs/answer-lab");
@@ -369,7 +368,7 @@ export function mutationVariants(file: string): MutationVariant[] {
     return variants.map(({ kind, text }) => {
       if (kind !== "original" && !MUTATION_KINDS.includes(kind)) throw new Error(`${entry.id}: unknown mutation kind ${JSON.stringify(kind)}`);
       const inference = { kind: "analyst_inference", text, evidence: [], supports: entry.supports, ...(entry.subject ? { subject: entry.subject } : {}) };
-      const report = checkAssertions(list.with(entry.index, inference), packet, referenceTable(packet, factBlocks));
+      const report = checkAssertions(list.with(entry.index, inference), packet);
       const accepted = report.accepted.find((assertion) => assertion.index === entry.index);
       if (accepted?.supports?.length !== entry.supports.length) {
         const reason = report.rejected.find((rejection) => rejection.index === entry.index)?.reason ?? "a support was not accepted";
