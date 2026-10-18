@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { JSDOM } from "jsdom";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AuthContext } from "../shell/authTypes.ts";
@@ -433,6 +433,35 @@ test("opening from the page starts a fresh stack and moves the highlight to the 
   }
 });
 
+test("signing out closes the inspector, so no evidence is left for the next user", async () => {
+  const app = await mountDockedInspector(async () => jsonResponse(FACT_INSPECTION));
+  try {
+    await app.click(app.opener("Revenue"));
+    assert.equal(app.heading(), "42 %");
+
+    await app.signOut();
+
+    assert.equal(app.panel(), null);
+    assert.deepEqual(app.rowChildren(), ["MAIN", "Activity rail"]);
+  } finally {
+    await app.unmount();
+  }
+});
+
+test("closing returns focus to the main content when the opener is gone", async () => {
+  const app = await mountDockedInspector(async () => jsonResponse(FACT_INSPECTION));
+  try {
+    await app.click(app.opener("Once"));
+    assert.equal(app.document.querySelector("main")?.textContent?.includes("Once"), false);
+
+    await app.click(app.button("Close"));
+
+    assert.equal(app.document.activeElement?.id, "workspace-main");
+  } finally {
+    await app.unmount();
+  }
+});
+
 async function mountDockedInspector(respond: (ref: { kind: string; id: string }) => Promise<Response>) {
   const dom = new JSDOM("<!doctype html><html><body><div id=\"root\"></div></body></html>");
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window);
@@ -446,8 +475,20 @@ async function mountDockedInspector(respond: (ref: { kind: string; id: string })
 
   function Openers() {
     const inspector = useEvidenceInspector();
+    const [once, setOnce] = useState(true);
     return (
       <>
+        {once ? (
+          <button
+            type="button"
+            onClick={() => {
+              setOnce(false);
+              inspector?.openInspection({ snapshotId: SNAPSHOT_ID, ref: { kind: "fact", id: FACT_ID } });
+            }}
+          >
+            Once
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => inspector?.openInspection({ snapshotId: SNAPSHOT_ID, ref: { kind: "fact", id: FACT_ID } })}
@@ -465,26 +506,22 @@ async function mountDockedInspector(respond: (ref: { kind: string; id: string })
   }
 
   const root = createRoot(dom.window.document.getElementById("root")!);
-  await act(async () => {
-    root.render(
-      <AuthContext.Provider
-        value={{
-          session: { userId: USER_ID, displayName: "Mock User" },
-          signIn: () => undefined,
-          signOut: () => undefined,
-        }}
-      >
-        <EvidenceInspectorProvider>
-          <div data-testid="content-row" className="flex">
-            <main>
-              <Openers />
-            </main>
-            <EvidenceInspectorDock fallback={<aside aria-label="Activity rail">Rail</aside>} />
-          </div>
-        </EvidenceInspectorProvider>
-      </AuthContext.Provider>,
-    );
-  });
+  const render = (session: { userId: string; displayName: string } | null) =>
+    act(async () => {
+      root.render(
+        <AuthContext.Provider value={{ session, signIn: () => undefined, signOut: () => undefined }}>
+          <EvidenceInspectorProvider>
+            <div data-testid="content-row" className="flex">
+              <main id="workspace-main" tabIndex={-1}>
+                <Openers />
+              </main>
+              <EvidenceInspectorDock fallback={<aside aria-label="Activity rail">Rail</aside>} />
+            </div>
+          </EvidenceInspectorProvider>
+        </AuthContext.Provider>,
+      );
+    });
+  await render({ userId: USER_ID, displayName: "Mock User" });
 
   const document = dom.window.document;
   const panel = () => document.querySelector<HTMLElement>('aside[aria-label="Evidence inspector"]');
@@ -522,6 +559,7 @@ async function mountDockedInspector(respond: (ref: { kind: string; id: string })
       });
       await act(async () => undefined);
     },
+    signOut: () => render(null),
     async unmount() {
       await act(async () => root.unmount());
       globalThis.fetch = originalFetch;
