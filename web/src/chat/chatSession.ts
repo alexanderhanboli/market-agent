@@ -222,9 +222,10 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
     case 'released.reached': {
       const index = s.released.findIndex((r) => r.threadId === a.threadId && r.run.runId === a.runId && !r.reached)
       if (index === -1) {
-        // The session resent the run and gave up first: the run exists now, so ask the server how it stands.
+        // The session follows the run with its own resend, which hasn't reached the server: the run exists now.
         const { turn } = s
-        if (a.threadId !== s.threadId || turn.phase !== 'streaming' || turn.run.runId !== a.runId || turn.link.kind !== 'offline' || turn.link.attach) return s
+        if (a.threadId !== s.threadId || turn.phase !== 'streaming' || turn.run.runId !== a.runId || turn.link.attach || turn.link.reached) return s
+        if (turn.link.kind === 'open') return { ...s, turn: { ...turn, link: { ...turn.link, reached: true } } }
         return { ...s, history: requestHistory(s.history), turn: { ...turn, link: { ...turn.link, kind: 'reconnecting', attach: true, drops: 0 } } }
       }
       const reached = { ...s, released: s.released.map((r, i) => (i === index ? { ...r, reached: true } : r)) }

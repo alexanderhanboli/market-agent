@@ -641,3 +641,12 @@ test('a starter that reaches the server after the resent run went offline brings
   const attached = reduceChatSession(reached, read(2, [U1], [IN_FLIGHT]))
   assert.deepEqual(wantedStream(attached), { key: 'T1|run-1|attach|4', threadId: 'T1', run: R1, attach: true })
 })
+
+test('a starter that reaches the server while the resend is still open marks the run reached, so a later drop asks the server', () => {
+  const resent = run(unreachedT1(), [toT2, toT1, read(1, [U1], [])])
+  assert.deepEqual([linkOf(resent)?.kind, linkOf(resent)?.reached], ['open', false])
+  const reached = reduceChatSession(resent, { type: 'released.reached', threadId: 'T1', runId: 'run-1' })
+  assert.equal(linkOf(reached)?.reached, true)
+  const dropped = reduceChatSession(reached, drop)
+  assert.deepEqual([linkOf(dropped)?.kind, linkOf(dropped)?.attach, selectThreadView(dropped).needsLoad], ['reconnecting', true, { threadId: 'T1', gen: 2 }])
+})
