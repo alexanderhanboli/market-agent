@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 
 import { createChatCoordinator, type ChatCoordinator, type ChatTurnRunner } from "../src/coordinator.ts";
+import type { ChatReadMessage } from "../src/messages.ts";
 import { deferred, parseSseEvents, startChatTestServer } from "./sse-helpers.ts";
 import { buildRow, fakeDb, THREAD_ID, USER_ID } from "./threads-fixtures.ts";
 
@@ -173,6 +174,31 @@ test("readThread lists a run that ended during the read by its status after the 
   });
   assert.deepEqual(result?.runs, [{ runId: "run-1", turnId: "run-1", status: "completed", messageId: "m-run-1" }]);
   assert.deepEqual(result?.activeRun, { runId: "run-1", turnId: "run-1" });
+});
+
+test("readThread reports a run completed once the read holds its saved answer, before its stream ends", async () => {
+  const saved: { message_id: string }[] = [];
+  const commit = deferred<void>();
+  const committed = deferred<void>();
+  const coordinator = createChatCoordinator({
+    allowSyntheticAnalystFallback: true,
+    persistAssistantMessage: async (input) => {
+      saved.push({ message_id: input.message_id });
+      committed.resolve();
+      await commit.promise;
+      return { message_id: input.message_id, thread_id: input.threadId, role: "assistant", snapshot_id: "s-1", blocks: [] } as unknown as ChatReadMessage;
+    },
+  });
+  const turn = coordinator.getOrCreateTurn({ threadId: "thread-1", runId: "run-1", userId: U1, userIntent: "Analyze NVDA" });
+  await committed.promise;
+
+  const result = await coordinator.readThread({ userId: U1, threadId: "thread-1" }, async () => [...saved]);
+  assert.deepEqual(result?.runs, [{ runId: "run-1", turnId: "run-1", status: "completed", messageId: saved[0].message_id }]);
+  assert.equal(result?.activeRun, null);
+
+  commit.resolve();
+  await turn.completed;
+  assert.equal(turn.events.at(-1)?.message_id, saved[0].message_id);
 });
 
 test("readThread lists no run once its retention has passed and it is tombstoned", async () => {
