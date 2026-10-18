@@ -64,10 +64,7 @@ function templateSegments(
 ): Segment[] {
   const figures = assertion.evidence.flatMap((id) => packet.figures.filter((figure) => figure.id === id));
   const claims = assertion.evidence.flatMap((id) => packet.claims.filter((claim) => claim.id === id));
-  const owner = (figure: PacketFigure) => {
-    const company = figure.company ?? (packet.companies.length === 1 ? packet.companies[0] : undefined);
-    return company ? `${company}'s ` : "";
-  };
+  const owner = (figure: PacketFigure) => ownerOf(figure, packet);
   const segments: Segment[] = [];
   const text = (value: string) => segments.push({ type: "text", text: value });
   switch (assertion.kind) {
@@ -112,18 +109,8 @@ function templateSegments(
       break;
     }
     case "analyst_inference": {
-      // Words only: the check rejected any figure or reference in it. What
-      // its comparisons checked is said in its label, from their results.
-      // One company highest on several metrics is one clause.
-      const clauses = new Map<string, string[]>();
-      for (const n of assertion.supports ?? []) {
-        const entry = accepted.find((candidate) => candidate.index === n && candidate.kind === "comparison");
-        const result = entry && checkComparison(entry, entry.evidence, packet);
-        if (!result || !("comparison" in result)) continue;
-        const [clause, metric] = resultClause(result.comparison, owner);
-        clauses.set(clause, [...(clauses.get(clause) ?? []), ...(metric ? [metric] : [])]);
-      }
-      const label = [...clauses].map(([clause, metrics]) => (metrics.length > 0 ? `${clause} ${new Intl.ListFormat("en").format(metrics)}` : clause));
+      // Words only: the check rejected any figure or reference in it.
+      const label = checkedResults(assertion, packet, accepted);
       // A one-company answer's subject goes without saying.
       const on = assertion.subject && packet.companies.length > 1 ? ` on ${assertion.subject}` : "";
       text(`> **Analyst inference${on}${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
@@ -131,6 +118,30 @@ function templateSegments(
     }
   }
   return segments;
+}
+
+// What an inference's comparisons checked, for its label, from their results.
+// One company highest on several metrics is one clause.
+export function checkedResults(
+  assertion: Assertion,
+  packet: EvidencePacket,
+  accepted: ReadonlyArray<Assertion & { index: number }>,
+): string[] {
+  const clauses = new Map<string, string[]>();
+  for (const n of assertion.supports ?? []) {
+    const entry = accepted.find((candidate) => candidate.index === n && candidate.kind === "comparison");
+    const result = entry && checkComparison(entry, entry.evidence, packet);
+    if (!result || !("comparison" in result)) continue;
+    const [clause, metric] = resultClause(result.comparison, (figure) => ownerOf(figure, packet));
+    clauses.set(clause, [...(clauses.get(clause) ?? []), ...(metric ? [metric] : [])]);
+  }
+  return [...clauses].map(([clause, metrics]) => (metrics.length > 0 ? `${clause} ${new Intl.ListFormat("en").format(metrics)}` : clause));
+}
+
+// "NVDA's ": a figure's company as its possessive, the only company's when it names none.
+function ownerOf(figure: PacketFigure, packet: EvidencePacket): string {
+  const company = figure.company ?? (packet.companies.length === 1 ? packet.companies[0] : undefined);
+  return company ? `${company}'s ` : "";
 }
 
 type Writer = {
