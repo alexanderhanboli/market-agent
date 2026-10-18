@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { LlmChatRequest } from "../../llm/src/index.ts";
-import type { Assertion } from "../src/assertions.ts";
+import { checkAssertions, type Assertion } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 import { judgeCases, judgeInferences, parseVerdicts, type JudgeCase } from "../src/inference-judge.ts";
 
@@ -64,6 +64,30 @@ test("a case is the inference beside its supports as the reader sees them, figur
   // A one-company answer's inference is about that company.
   const single = judgeCases([ACCEPTED[0]!, { index: 1, kind: "analyst_inference", text: "Margins are high.", evidence: [], supports: [0] }], { ...PACKET, companies: ["NVDA"] }, []);
   assert.deepEqual(single.map(({ subject, checked }) => [subject, checked]), [["NVDA", []]]);
+});
+
+test("an inference resting on a management attribution reaches the judge with the claim it quotes (#302)", () => {
+  const packet: EvidencePacket = {
+    ...PACKET,
+    companies: ["AMD"],
+    figures: [PACKET.figures[1]!],
+    claims: [{
+      id: "C1", text: "Export controls led to about $800 million in inventory charges.", predicate: "kpi.commentary", stance: "supporting",
+      company: "AMD", published_at: "2025-08-05T00:00:00.000Z", claim_id: "c1", source_id: "s1",
+    }],
+  };
+  const { accepted } = checkAssertions([
+    { kind: "observation", text: "AMD's gross margin was [[F2]] in FY2025.", evidence: ["F2"] },
+    { kind: "management_attribution", text: "AMD management said [[C1]]", evidence: ["C1"] },
+    { kind: "analyst_inference", text: "The charge weighs on its margin.", supports: [0, 1] },
+  ], packet);
+  assert.deepEqual(judgeCases(accepted, packet, []).map(({ text, supports }) => [text, supports]), [[
+    "The charge weighs on its margin.",
+    [
+      "AMD's gross margin was 49.2% in FY2025.",
+      "According to a source dated Aug 2025 on AMD: Export controls led to about $800 million in inventory charges.",
+    ],
+  ]]);
 });
 
 test("one judge call per answer, on JUDGE_LITELLM_MODEL, carries every inference with its supports' text; its verdicts are read per inference", async () => {
