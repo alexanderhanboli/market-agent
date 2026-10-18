@@ -5,6 +5,11 @@ export type EvidenceInspectionRef = {
   id: string
 }
 
+/** A ref the inspector links to, with a readable name when the server has one. */
+export type EvidenceInspectionRelatedRef = EvidenceInspectionRef & {
+  label?: string
+}
+
 export type EvidenceInspectionRow = {
   label: string
   value: string
@@ -24,7 +29,7 @@ export type EvidenceInspection = {
   badges: ReadonlyArray<string>
   rows: ReadonlyArray<EvidenceInspectionRow>
   links: ReadonlyArray<EvidenceInspectionLink>
-  related_refs: ReadonlyArray<EvidenceInspectionRef>
+  related_refs: ReadonlyArray<EvidenceInspectionRelatedRef>
 }
 
 export type EvidenceBlockInspection = {
@@ -35,5 +40,5 @@ export type EvidenceBlockInspection = {
   subtitle: string | null
   badges: ReadonlyArray<string>
   rows: ReadonlyArray<EvidenceInspectionRow>
-  related_refs: ReadonlyArray<EvidenceInspectionRef>
+  related_refs: ReadonlyArray<EvidenceInspectionRelatedRef>
 }

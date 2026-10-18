@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 
-import { EvidenceInspectorProvider } from "../evidence/EvidenceInspectorProvider.tsx";
+import { EvidenceInspectorDock, EvidenceInspectorProvider } from "../evidence/EvidenceInspectorProvider.tsx";
 import { AuthContext } from "../shell/authTypes.ts";
 import { BlockRegistryProvider, BlockView, createDefaultBlockRegistry } from "./index.ts";
 import type { RichTextBlock } from "./types.ts";
@@ -47,6 +47,7 @@ test("BlockView opens local block metadata in the evidence inspector", async () 
             <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
               <BlockView block={block} />
             </BlockRegistryProvider>
+            <EvidenceInspectorDock />
           </EvidenceInspectorProvider>
         </AuthContext.Provider>,
       );
@@ -60,8 +61,11 @@ test("BlockView opens local block metadata in the evidence inspector", async () 
 
     assert.match(dom.window.document.body.innerHTML, /Block metadata/);
     assert.match(dom.window.document.body.innerHTML, /rich_text/);
-    assert.match(dom.window.document.body.innerHTML, /source:/);
-    assert.match(dom.window.document.body.innerHTML, /claim:/);
+    assert.deepEqual(
+      [...dom.window.document.querySelectorAll('aside[aria-label="Evidence inspector"] li > button[data-inspection-kind]')]
+        .map((button) => button.textContent),
+      ["Source", "Claim"],
+    );
 
     await act(async () => root.unmount());
   } finally {
