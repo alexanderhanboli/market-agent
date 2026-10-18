@@ -25,7 +25,7 @@ insert into metrics (metric_key, display_name, unit_class, aggregation, interpre
   -- Balance sheet
   ('total_assets',          'Total Assets',               'currency', 'point_in_time', 'neutral',         'gaap',    1, 'Total assets at period end.'),
   ('total_liabilities',     'Total Liabilities',          'currency', 'point_in_time', 'lower_is_better', 'gaap',    1, 'Total liabilities at period end.'),
-  ('total_equity',          'Total Equity',               'currency', 'point_in_time', 'higher_is_better','gaap',    1, 'Total shareholders equity at period end.'),
+  ('total_equity',          'Stockholders'' Equity',       'currency', 'point_in_time', 'higher_is_better','gaap',    1, 'Total stockholders equity (parent) at period end.'),
   ('cash_and_equivalents',  'Cash and Equivalents',       'currency', 'point_in_time', 'higher_is_better','gaap',    1, 'Cash and cash equivalents at period end, excluding short-term investments.'),
   ('total_debt',            'Total Debt',                 'currency', 'point_in_time', 'lower_is_better', 'gaap',    1, 'Short-term plus long-term interest-bearing debt.'),
 

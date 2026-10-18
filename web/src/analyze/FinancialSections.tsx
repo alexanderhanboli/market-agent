@@ -18,7 +18,8 @@ const GAP_TEXT: Readonly<Record<string, string>> = {
 
 // The memo's verified numerical sections, each its own certified block beside
 // the narrative memo. A requested section that did not publish stays visible
-// as a gap with its reason; the memo never reads as complete without it.
+// as a gap with its reason; the memo never reads as complete without a
+// required one.
 export function FinancialSections({ sections }: { sections: AnalyzeFinancialSections }): ReactElement | null {
   if (sections.sections.length === 0) return null
   return (

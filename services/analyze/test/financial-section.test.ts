@@ -150,3 +150,36 @@ test("analyze financial sections", { timeout: 300_000 }, async (t) => {
     assert.equal(await loadAnalyzeFinancialSections(db, { userId: IDS.other, analyzeRunId: memo.runId }), null);
   });
 });
+
+test("a gap inside the optional cash-resilience section stays in that section", { timeout: 300_000 }, async (t) => {
+  if (!dockerAvailable()) {
+    t.skip("Docker is required for analyze financial section coverage");
+    return;
+  }
+  const { db, pool, templateId } = await memoDatabase(t, "analyze-fin-optional");
+  await seedCashResilience(db, { net_income: "-100" });
+  const memo = await createMemoRun(db, pool, { templateId, playbookId: "investment_memo" });
+  const result = await memo.publish();
+  const resilience = published(result.sections.find((section) => section.section_id === "cash_resilience"));
+  assert.deepEqual(resilience.block.financial.coverage, { state: "partial", requested: 8, verified: 7 }, "a net loss leaves cash conversion undefined");
+  assert.equal(result.coverage, "complete", "the required sections are fully verified");
+  assert.deepEqual(await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }), result);
+
+  // A run saved under a playbook version this code doesn't have can't know which sections were optional (#355 review).
+  await db.query(`update analyze_template_runs set run_metadata = jsonb_set(run_metadata, '{playbook_version}', '99') where run_id = $1`, [memo.runId]);
+  assert.equal((await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }))?.coverage, "partial");
+});
+
+test("a memo with no required financial section reads its optional sections' coverage (#355 review)", { timeout: 300_000 }, async (t) => {
+  if (!dockerAvailable()) {
+    t.skip("Docker is required for analyze financial section coverage");
+    return;
+  }
+  const { db, pool, templateId } = await memoDatabase(t, "analyze-fin-optional-only");
+  await db.query(`update facts set invalidated_at = now() where fact_id = $1`, [IDS.fy2022]);
+  const memo = await createMemoRun(db, pool, { templateId, playbookId: "earnings_quality" });
+  const result = await memo.publish();
+  const trend = published(result.sections[0]);
+  assert.equal(trend.block.financial.coverage.state, "partial", "the prior year is missing, so growth is blocked");
+  assert.equal(result.coverage, "partial", "revenue trend is the memo's only verified section, so its gap is the memo's");
+});

@@ -210,7 +210,7 @@ test("the balance sheet shows its latest period end, dated by month, never as a 
     ["Cash and equivalents", "$10.6B"],
     ["Total assets", "$206.8B"],
     ["Total liabilities", "$49.5B"],
-    ["Total equity", "$157.3B"],
+    ["Stockholders' equity", "$157.3B"],
   ]);
   // The model reads a balance as a point at its date (its "FY" label is no quarter).
   const figure = displayedFigures(blocks).find((candidate) => candidate.metric === "Total assets");
@@ -236,8 +236,8 @@ test("a block shows the statement items asked for, and a dropped item stays drop
   assert.deepEqual(labels(ask("What is NVDA's free cash flow?")).slice(0, 3), ["Operating cash flow", "Capital expenditures", "Free cash flow"]);
 
   const balance = ask("Show NVDA's balance sheet");
-  assert.deepEqual(labels(balance), ["Cash and equivalents", "Total assets", "Total liabilities", "Total equity"]);
-  assert.deepEqual(labels(ask("Drop total assets", balance)), ["Cash and equivalents", "Total liabilities", "Total equity"]);
+  assert.deepEqual(labels(balance), ["Cash and equivalents", "Total assets", "Total liabilities", "Stockholders' equity"]);
+  assert.deepEqual(labels(ask("Drop total assets", balance)), ["Cash and equivalents", "Total liabilities", "Stockholders' equity"]);
   assert.deepEqual(labels(ask("How much cash does NVDA have?")), ["Cash and equivalents"]);
 });
 

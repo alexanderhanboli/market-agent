@@ -1,7 +1,7 @@
 // A memo section's snapshot, certificate, and memo record commit together or
-// not at all. A failed section leaves declared partial results, never a memo
-// that reads as complete, and a retry or the recovery worker publishes each
-// section exactly once.
+// not at all. A failed required section leaves declared partial results, never
+// a memo that reads as complete, and a retry or the recovery worker publishes
+// each section exactly once.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -33,18 +33,19 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
   const statuses = (result: { sections: ReadonlyArray<{ section_id: string; status: string; reason_code?: string }> }) =>
     Object.fromEntries(result.sections.map((section) => [section.section_id, section.status === "gap" ? `gap:${section.reason_code}` : section.status]));
 
-  await t.test("a failed section rolls back alone; the memo reads partial; the retry publishes it once", async () => {
+  await t.test("a failed required section rolls back; the memo reads partial; the retry publishes each section once", async () => {
     const memo = await createMemoRun(db, pool, { templateId, playbookId: "investment_memo" });
-    await failSection("revenue_trend");
+    await failSection("financial_health");
     let failed;
     try {
       failed = await memo.publish();
     } finally {
       await restore();
     }
-    assert.deepEqual(statuses(failed), { financial_health: "published", cash_resilience: "published", revenue_trend: "gap:publication_failed" });
-    assert.equal(failed.coverage, "partial", "a memo with a failed section never reads as complete");
-    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 }, "the failed section left no snapshot or certificate");
+    // Units finalize in unit order; the first failure stops the drive, so revenue_trend waits for the retry.
+    assert.deepEqual(statuses(failed), { financial_health: "gap:publication_failed", cash_resilience: "published", revenue_trend: "gap:publication_failed" });
+    assert.equal(failed.coverage, "partial", "a memo with a failed required section never reads as complete");
+    assert.deepEqual(await committed(db, memo.runId), { sections: 1, certificates: 1, plans: 1 }, "the failed section left no snapshot or certificate");
     assert.equal((await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }))!.coverage, "partial");
 
     const retried = await memo.publish();
@@ -92,9 +93,23 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
     }
   });
 
-  await t.test("a cancelled calculation leaves its unpublished sections as cancelled gaps", async () => {
+  await t.test("a failed optional section stays a gap in that section; the memo reads complete", async () => {
     const memo = await createMemoRun(db, pool, { templateId, playbookId: "investment_memo" });
     await failSection("revenue_trend");
+    let failed;
+    try {
+      failed = await memo.publish();
+    } finally {
+      await restore();
+    }
+    assert.deepEqual(statuses(failed), { financial_health: "published", cash_resilience: "published", revenue_trend: "gap:publication_failed" });
+    assert.equal(failed.coverage, "complete");
+    assert.equal((await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }))!.coverage, "complete");
+  });
+
+  await t.test("a cancelled calculation leaves its unpublished sections as cancelled gaps", async () => {
+    const memo = await createMemoRun(db, pool, { templateId, playbookId: "investment_memo" });
+    await failSection("financial_health");
     try {
       await memo.publish();
     } finally {
@@ -103,9 +118,9 @@ test("analyze memo financial publication", { timeout: 300_000 }, async (t) => {
     const run = (await db.query(`select run_id::text from financial_runs where parent_id = $1`, [memo.runId])).rows[0];
     await requestCancellation(db, IDS.owner, run.run_id);
     const result = await memo.publish();
-    assert.deepEqual(statuses(result), { financial_health: "published", cash_resilience: "published", revenue_trend: "gap:run_cancelled" });
+    assert.deepEqual(statuses(result), { financial_health: "gap:run_cancelled", cash_resilience: "published", revenue_trend: "gap:run_cancelled" });
     assert.equal(result.coverage, "partial");
-    assert.deepEqual(await committed(db, memo.runId), { sections: 2, certificates: 2, plans: 1 });
+    assert.deepEqual(await committed(db, memo.runId), { sections: 1, certificates: 1, plans: 1 });
   });
 
   await t.test("an erased run's sections read as gaps, and deleting the memo run erases its runs", async () => {
