@@ -234,6 +234,7 @@ test("chat message persistence adapter wires coordinator persistence through sea
   });
 
   const result = await persist({
+    message_id: "44444444-4444-4444-a444-444444444444",
     threadId: "11111111-1111-4111-a111-111111111111",
     runId: "run-1",
     turnId: "turn-1",
@@ -269,6 +270,8 @@ test("chat message persistence adapter wires coordinator persistence through sea
   ]);
   const read = client.queries.find((query) => query.text.includes("from chat_messages m"));
   assert.deepEqual(read?.values, ["33333333-3333-4333-a333-333333333333", "11111111-1111-4111-a111-111111111111"]);
+  const insert = client.queries.find((query) => query.text.includes("insert into chat_messages"));
+  assert.equal(insert?.values?.at(-1), "44444444-4444-4444-a444-444444444444");
 });
 
 test("chat message persistence adapter rejects failed seals without inserting", async () => {
@@ -285,6 +288,7 @@ test("chat message persistence adapter rejects failed seals without inserting", 
   await assert.rejects(
     () =>
       persist({
+        message_id: "44444444-4444-4444-a444-444444444444",
         threadId: "11111111-1111-4111-a111-111111111111",
         runId: "run-1",
         turnId: "turn-1",
@@ -313,6 +317,7 @@ test("chat message persistence adapter rejects inconsistent verification without
   await assert.rejects(
     () =>
       persist({
+        message_id: "44444444-4444-4444-a444-444444444444",
         threadId: "11111111-1111-4111-a111-111111111111",
         runId: "run-1",
         turnId: "turn-1",

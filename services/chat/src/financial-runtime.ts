@@ -35,7 +35,7 @@ import type { FinancialEvidencePort, FinancialPool, SqlExecutor } from "../../fi
 import { requireFinancialReadiness } from "../../financial-engine/src/readiness.ts";
 import { publishRequest, type FinancialMode, type RequestGap } from "../../financial-engine/src/request.ts";
 import type { ChatTurnRunContext } from "./coordinator.ts";
-import { contentHashForText, stableUuid } from "./chat-ids.ts";
+import { answerMessageId, contentHashForText } from "./chat-ids.ts";
 import { logUnreadMessage, readChatMessage, type ChatReadMessage } from "./messages.ts";
 import { COMPARATIVE, companyKey, extractSubjectMentions } from "./subject-extraction.ts";
 import type { ChatResolvedSubjectPreResolution, ChatSubjectPreResolution } from "./subjects.ts";
@@ -101,7 +101,7 @@ export function createChatFinancialRuntime(deps: ChatFinancialRuntimeDeps): Chat
     const turnId = context.turnId ?? context.runId;
     const authority = chatAuthority(context.userId!, context.threadId, turnId, deps.mode);
 
-    const messageId = financialMessageId(context.threadId, turnId);
+    const messageId = answerMessageId(context.threadId, turnId);
     // The scope only informs follow-ups: failing to resolve it never fails the answer.
     // This lane runs before the analyst path resolves the turn's companies, so
     // the scope gets the companies the plan requests (requestedMentions).
@@ -331,11 +331,6 @@ function chatAuthority(userId: string, threadId: string, turnId: string, mode: C
     approval_state: "not_required",
     lease: null,
   });
-}
-
-/** One assistant message per financial turn, so a retry after an unseen commit finds the same row. */
-export function financialMessageId(threadId: string, turnId: string): string {
-  return stableUuid(`financial-message:${threadId}:${turnId}`);
 }
 
 /** Writes the assistant message inside the finalization transaction, under the thread's owner. */
