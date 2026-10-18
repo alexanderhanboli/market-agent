@@ -391,8 +391,8 @@ test('a failed first thread-list load shows its error', async () => {
 const GOLDEN = JSON.parse(readFileSync(new URL('../../../services/app/fixtures/golden-conversation.replay.json', import.meta.url), 'utf-8')) as {
   exchanges: Array<{ method: string; path: string; body: string }>
 }
-const GOLDEN_THREAD = '9f8a9795-80ff-408b-8d5a-066549cd5bce'
-const GOLDEN_RICH_TEXT = 'efb37f76-a669-4917-8fa7-a12bdb3ab840'
+const GOLDEN_THREAD = 'c0f8aadd-3117-4446-be29-d78b9bf01b5a'
+const GOLDEN_RICH_TEXT = '55d64c37-8b10-46ad-8396-db4e21d839df'
 
 function goldenCompletion(): { message_id: string; message: ChatMessage } {
   const stream = GOLDEN.exchanges.find((exchange) => exchange.path.endsWith('/stream'))!
@@ -490,7 +490,7 @@ test('a valid golden completion renders every block with no notice', async () =>
     assert.deepEqual(notices(h), [])
     const answer = h.query('[data-role="assistant"]')?.textContent ?? ''
     assert.deepEqual(
-      ["NVIDIA's reported revenue rose in every quarter shown", 'Latest quarter (Q4 2026)', 'Quarterly revenue'].map((text) => answer.includes(text)),
+      ["NVDA's revenue rose in every period from Q1 2025 ($26.0B) to Q4 2026 ($62.1B).", 'Latest quarter (Q4 2026)', 'Quarterly revenue'].map((text) => answer.includes(text)),
       [true, true, true],
     )
   } finally {

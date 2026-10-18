@@ -5,11 +5,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 // reload, on the no-keys stack (frozen dataset + recorded model replies) and against its UI
 // replay. The API-level golden test covers the data; this proves the UI renders and links it.
 
-const NVDA_NARRATIVE = "NVIDIA's reported revenue rose in every quarter shown"
-const COMPARE_NARRATIVE = 'Side by side, NVIDIA reports much higher revenue'
-// The whole recorded reply: a placeholder or a cut-off answer doesn't pass.
-const EXPLAIN_NARRATIVE =
-  'NVIDIA is far larger than AMD and converts more of its revenue into profit, as the table below shows; each figure links to its filing.'
+// Each answer is rendered from its recorded reply's assertions, so neither the
+// placeholder nor the fallback sentence passes.
+const NVDA_NARRATIVE = "NVDA's revenue rose in every period from Q1 2025"
+const COMPARE_NARRATIVE = "Of NVDA and AMD, NVDA's revenue was highest"
+const EXPLAIN_NARRATIVE = "Of NVDA and AMD, NVDA's gross margin was highest"
 const QUESTIONS = ['Analyze NVDA', 'Compare it with AMD YTD', 'Explain the differences and show the evidence']
 const YTD_TITLE = 'Price return YTD 2026 (split-adjusted, excluding dividends)'
 const YTD_RANGE = 'YTD 2026: 2025-12-31 close to 2026-08-31 close'

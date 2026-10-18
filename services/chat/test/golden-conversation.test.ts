@@ -84,8 +84,12 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     );
     assert.ok(assistant, "assistant message missing from the reloaded thread");
     assert.equal(assistant.message_id, completed.data.message_id);
-    // The narrative comes from the recorded model reply, so the LLM step really ran.
-    assert.match(JSON.stringify(assistant.blocks), /NVIDIA's reported revenue rose in every quarter shown/);
+    // The narrative is rendered from the recorded reply's assertions, so the LLM step really ran.
+    const narrative = assistant.blocks.find((block) => block.kind === "rich_text");
+    assert.equal(
+      (narrative?.segments as Array<{ text?: string; format?: string }> | undefined)?.map((segment) => segment.text ?? segment.format).join(""),
+      "NVDA's revenue rose in every period from Q1 2025 ($26.0B) to Q4 2026 ($62.1B).",
+    );
     // ...and the deployment that wrote it is on the completion and saved with the message (#183).
     assert.equal(completed.data.answered_by, "fixture/recorded");
     assert.equal(assistant.answered_by, "fixture/recorded");
@@ -236,11 +240,15 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
 
     const answer = await latestAssistantMessage(base, thread.thread_id);
     turns.push({ question: "Explain the differences and show the evidence", streamedIds: streamedBlockIds(turnEvents), answer, completed });
-    // The model's whole reply is shown: not the placeholder, nor cut off.
+    // The answer is rendered from the recorded reply's assertions: not the placeholder, nor the fallback.
     const narrative = answer.blocks.find((block) => block.kind === "rich_text");
     assert.deepEqual(
-      (narrative?.segments as Array<{ text?: string }> | undefined)?.map((segment) => segment.text).join(""),
-      "NVIDIA is far larger than AMD and converts more of its revenue into profit, as the table below shows; each figure links to its filing.",
+      (narrative?.segments as Array<{ text?: string; format?: string }> | undefined)?.map((segment) => segment.text ?? segment.format).join(""),
+      [
+        "Of NVDA and AMD, NVDA's gross margin was highest: NVDA 70.8% (FY2026, ended Jan 2026), AMD 49.9% (FY2025, ended Dec 2025).",
+        "Of NVDA and AMD, NVDA's net margin was highest: NVDA 53.6% (FY2026, ended Jan 2026), AMD 12.0% (FY2025, ended Dec 2025).",
+        "The periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025.",
+      ].join("\n\n"),
     );
     // The figures it points to are displayed for both companies, and cited.
     const comparison = comparisonBlock(answer);
@@ -709,7 +717,6 @@ test("golden conversation: a rendered answer seals under strict verification (#2
     ...GOLDEN_ENV,
     CHAT_DATABASE_URL: databaseUrl,
     LLM_REPLAY_FILE: join(import.meta.dirname, "golden", "llm-replies-rendered.json"),
-    CHAT_ASSERTION_RENDERING: "1",
   });
   registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
   const client = await connectedClient(t, databaseUrl);
