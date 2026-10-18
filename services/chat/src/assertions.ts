@@ -7,8 +7,8 @@
 // ([[F3]], prose-refs.ts) and names only its evidence's periods and companies.
 // An analyst inference writes no figure at all: it says in words what the
 // observations and comparisons it rests on mean, so every figure a rendered
-// answer shows is a template's value from the packet. A data gap says in words
-// what the shown data cannot tell, held to the inference's word rule.
+// answer shows is a template's value from the packet. What the data cannot
+// show is the packet's to say, in its gap notes, never the model's (#302).
 //
 // The report goes to evals and logs; the answer is written from the accepted
 // assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
@@ -20,7 +20,7 @@ import type { EvidencePacket } from "./evidence-packet.ts";
 import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
-export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause", "data_gap"] as const;
+export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
 
 export type Assertion = {
@@ -118,9 +118,8 @@ export function checkAssertions(
       continue;
     }
     // A malformed list is the model's error to report, never cleaned up. An
-    // inference cites through its supports and a data gap cites nothing, so
-    // their evidence may be left out.
-    const listed = item.evidence === undefined && (kind === "analyst_inference" || kind === "data_gap") ? [] : item.evidence;
+    // inference cites through its supports, so its evidence may be left out.
+    const listed = item.evidence === undefined && kind === "analyst_inference" ? [] : item.evidence;
     if (!Array.isArray(listed) || !listed.every((id) => typeof id === "string")) {
       reject(index, item, "evidence is not a list of packet ids");
       continue;
@@ -153,24 +152,9 @@ export function checkAssertions(
       continue;
     }
     // An inference writes no digit at all, a period's included: the periods
-    // are its supports', rendered from the packet beside it. A data gap
-    // describes a missing period in words ("no prior-year revenue").
-    if ((kind === "analyst_inference" || kind === "data_gap") && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
-      reject(index, item, kind === "data_gap" ? "a data gap writes no figure; it says in words what is not shown" : "an inference rests on its supports; it writes no figure");
-      continue;
-    }
-    // Across companies a gap names none, as an inference: its words could rank
-    // them ("AMD's margin is higher than NVDA's"). Whose data is missing is
-    // the server's gap notes' to say.
-    if (kind === "data_gap" && packet.companies.length > 1 &&
-      packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
-      reject(index, item, "a data gap names no company; the gap notes do");
-      continue;
-    }
-    if (kind === "data_gap") {
-      const shape = shapeError(kind, evidence, [], []);
-      if (shape) reject(index, item, shape);
-      else accepted.push({ index, kind, text: item.text, evidence });
+    // are its supports', rendered from the packet beside it.
+    if (kind === "analyst_inference" && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
+      reject(index, item, "an inference rests on its supports; it writes no figure");
       continue;
     }
     // Across companies, who leads or trails is its comparisons' checked
@@ -290,8 +274,6 @@ function shapeError(
       return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
     case "analyst_inference":
       return supports.length === 0 ? "an inference binds the accepted observations it rests on" : null;
-    case "data_gap":
-      return figureIds.length > 0 || claimIds.length > 0 ? "a data gap cites nothing; it names what is not shown" : null;
   }
 }
 

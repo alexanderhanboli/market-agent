@@ -895,11 +895,18 @@ export function scopeGapBlocks(
 // unavailable metrics, a financial-engine answer re-read, or a segment
 // breakdown with none to show), so nothing stands in for what it asked.
 export function mayOfferOtherFacts(scope: ResearchScope, shown: ReadonlyArray<Block>): boolean {
-  if (scope.reads === "unavailable_metric" || scope.reads === "financial_answer") return false;
+  return scope.reads !== "financial_answer" && !requestIsNamedGap(scope, shown);
+}
+
+// Whether what the turn asks for is not in the data, so its gap notes say what
+// is missing. A financial-engine answer re-read is not: its note says where
+// the figures are.
+export function requestIsNamedGap(scope: ResearchScope, shown: ReadonlyArray<Block>): boolean {
+  if (scope.reads === "unavailable_metric") return true;
   // A named quarter with no figures is a gap: no other quarter stands in (#290).
-  if (readsNamedQuarter(scope) && !showsQuarter(shown)) return false;
-  if (scope.reads === "statements") return statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key));
-  return !(scope.reads === "segments" && !showsSegments(shown));
+  if (readsNamedQuarter(scope) && !showsQuarter(shown)) return true;
+  if (scope.reads === "statements") return !statementMetrics(scope).some((metric) => showsStatementMetric(shown, metric.metric_key));
+  return scope.reads === "segments" && !showsSegments(shown);
 }
 
 // A single company's named quarter, on a route that reads the quarterly
