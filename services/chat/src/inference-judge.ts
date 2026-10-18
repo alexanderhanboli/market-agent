@@ -114,17 +114,11 @@ export function judgeMessages(cases: ReadonlyArray<JudgeCase>, companies: Readon
   ];
 }
 
-// A verdict per case. A reply that does not parse leaves every case an error;
+// A verdict per case. A reply with no verdict list leaves every case an error;
 // a case with no well-formed verdict of its own is one too.
 export function parseVerdicts(text: string, cases: ReadonlyArray<JudgeCase>): InferenceVerdict[] {
-  let reply: unknown;
-  try {
-    reply = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-  } catch {
-    reply = undefined;
-  }
-  const items = (reply as { verdicts?: unknown } | undefined)?.verdicts;
-  if (!Array.isArray(items)) return cases.map(({ index }) => ({ index, verdict: "error", reason: "the judge's reply is not a verdict list" }));
+  const items = lastVerdictList(text);
+  if (items === undefined) return cases.map(({ index }) => ({ index, verdict: "error", reason: "the judge's reply is not a verdict list" }));
   return cases.map(({ index }): InferenceVerdict => {
     const mine = items.filter((item) => (item as { id?: unknown } | null)?.id === index);
     if (mine.length !== 1) return { index, verdict: "error", reason: mine.length === 0 ? "no verdict for this inference" : "more than one verdict for this inference" };
@@ -132,6 +126,22 @@ export function parseVerdicts(text: string, cases: ReadonlyArray<JudgeCase>): In
     if (verdict !== "entailed" && verdict !== "not_entailed") return { index, verdict: "error", reason: `unknown verdict ${JSON.stringify(verdict)}` };
     return { index, verdict, ...(typeof reason === "string" && reason.trim() !== "" ? { reason: reason.trim() } : {}) };
   });
+}
+
+// The reply's last verdict list: a model that corrects itself in prose
+// ("Correction: ... Final answer:") writes its final list last.
+function lastVerdictList(text: string): unknown[] | undefined {
+  const end = text.lastIndexOf("}") + 1;
+  for (let start = text.lastIndexOf("{", end); start >= 0; start = text.lastIndexOf("{", start - 1)) {
+    try {
+      const verdicts = (JSON.parse(text.slice(start, end)) as { verdicts?: unknown } | null)?.verdicts;
+      if (Array.isArray(verdicts)) return verdicts;
+    } catch {
+      // Not a whole object from here: try the brace before.
+    }
+    if (start === 0) break;
+  }
+  return undefined;
 }
 
 const JUDGE_INSTRUCTIONS = [
@@ -158,7 +168,7 @@ const JUDGE_INSTRUCTIONS = [
   "- contradicts_trend: a direction it states (rising, falling, expanding, recovering) disagrees with a",
   "  checked trend or the supports' figures.",
   "",
-  "Reply with JSON only, one verdict per inference id:",
+  "Reply with JSON only, one verdict per inference id; if you correct yourself, the last JSON in the reply is read:",
   '{"verdicts":[{"id":<id>,"verdict":"entailed"|"not_entailed","reason":"<code>: <one short sentence>"}]}',
   "Give a reason for every not_entailed verdict; for entailed, leave it out.",
 ].join("\n");
