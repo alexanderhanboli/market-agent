@@ -9,7 +9,7 @@ import type { ThreadTitleModel } from "../../summary/src/title-generator.ts";
 import type {
   ChatAnalystToolRuntimeToolCall,
 } from "./coordinator.ts";
-import { displayedFigures, displayTextsForBlocks } from "./fact-blocks.ts";
+import { displayedFigures, displayTextsForBlocks, requestIsNamedGap } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type AvailableFigure, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
 import { checkAssertions, companiesOf, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
@@ -374,10 +374,13 @@ export async function composeAnalystBlocksWithLlm(input: {
   // Pointing to "the reported figures below" needs figures shown: not a gap
   // note, nor values only the prose references (#302).
   const shown = displayedFigures(factBlocks);
-  // With no figure to state, the gap notes shown below the answer are what the
-  // turn can say: the model's words on what is missing name a metric or company
-  // nothing checks (#302).
-  const gapsOnly = packet.figures.length === 0 && packet.gaps.length > 0;
+  // With nothing to answer from, and a request the data does not hold, the gap
+  // notes shown below the answer are what the turn can say: the model's words
+  // on what is missing name a metric or company nothing checks (#302). Not
+  // every note is a gap ("the previous answer's figures were ... verified"),
+  // so the scope says whether the request is one (#358 review).
+  const gapsOnly = input.scope !== undefined && requestIsNamedGap(input.scope, factBlocks) &&
+    packet.figures.length === 0 && packet.claims.length === 0 && packet.gaps.length > 0;
   const fallback = gapsOnly
     ? [
       `The data here does not answer this question; the ${packet.gaps.length > 1 ? "notes below say" : "note below says"} what is missing.`,

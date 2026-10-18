@@ -13,6 +13,7 @@ import {
   TITLE_DEADLINES,
   createLlmThreadTitleModel,
 } from "../src/llm-runtime.ts";
+import { mayOfferOtherFacts, scopeGapBlocks } from "../src/fact-blocks.ts";
 import { resolveResearchScope } from "../src/research-scope.ts";
 
 const BASE_ENV = {
@@ -918,7 +919,7 @@ function hang(t: { after(fn: () => void): void }): Promise<never> {
   return new Promise<never>(() => {});
 }
 
-test("an answer whose every sentence goes beside a gap note falls back to the note, without pointing to figures (#263, #302)", async () => {
+test("an answer whose every sentence goes beside a gap note falls back without pointing to figures (#263)", async () => {
   const gap = { kind: "rich_text", segments: [{ type: "text", text: "Free cash flow is not available for AMD in this data." }] };
   const blocks = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
@@ -928,7 +929,7 @@ test("an answer whose every sentence goes beside a gap note falls back to the no
     factBlocks: [gap],
     createClient: () => async () => ({ text: "It fell due to heavy spending." }),
   });
-  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "The data here does not answer this question; the note below says what is missing.");
+  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "No written answer is available for this question; try asking again.");
 });
 
 test("with claims unreadable and nothing else on file, the gap never says there are no claims (#207)", () => {
@@ -1121,8 +1122,21 @@ test("with rendering on, a data gap the model writes never reaches the answer: w
   assert.deepEqual(report.rejected, [{ index: 1, text: "No revenue is shown.", reason: "unknown kind \"data_gap\"" }]);
 });
 
+const AMD = [{ issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" }];
+const GAP_AS_OF = "2026-09-01T00:00:00.000Z";
+
+// The blocks, scope and offer local-runtime gives the answer for a scope with nothing shown.
+function gapTurn(scope: ReturnType<typeof resolveResearchScope>) {
+  return {
+    scope,
+    factBlocks: scopeGapBlocks(scope, [], { snapshotId: "00000000-0000-4000-8000-0000000000aa", asOf: GAP_AS_OF }),
+    availableData: mayOfferOtherFacts(scope, []),
+  };
+}
+
 test("with rendering on, a turn with no figure and only gap notes points to its notes, never the model's prose (#302)", async () => {
-  const gapNote = { id: "gap-fcf", kind: "rich_text", segments: [{ type: "text", text: "Free cash flow is not available for AMD in this data, so no other figure is shown in its place." }] };
+  const turn = gapTurn(resolveResearchScope({ question: "What is AMD's free cash flow?", companies: AMD, prior: null, asOf: GAP_AS_OF }));
+  assert.deepEqual(turn.factBlocks.map((block) => (block.segments as Array<{ text: string }>)[0]!.text), ["Free cash flow is not available for AMD in this data, so no other figure is shown in its place."]);
   const prose = "It shows no operating cash flow, no capital expenditure and no free cash flow for AMD.";
   const shown = async (env: Record<string, string>, reply: string, toolCalls: ReadonlyArray<never> = []) => {
     const answered: string[] = [];
@@ -1131,8 +1145,7 @@ test("with rendering on, a turn with no figure and only gap notes points to its 
       context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
       blocks: [NARRATIVE_BLOCK],
       toolCalls,
-      factBlocks: [gapNote],
-      availableData: false,
+      ...turn,
       createClient: () => async () => ({ text: reply }),
       onAnswered: (deployment) => answered.push(deployment),
     });
@@ -1140,17 +1153,54 @@ test("with rendering on, a turn with no figure and only gap notes points to its 
   };
   const pointer = { segments: [{ type: "text", text: "The data here does not answer this question; the note below says what is missing." }], answered: [] };
   assert.deepEqual(await shown(RENDERING_ENV, prose), pointer);
-  assert.deepEqual(await shown(RENDERING_ENV, `${prose}\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "data_gap", text: "No free cash flow is shown." }])}\n\`\`\``, [A_TOOL_CALL]), pointer);
+  // The data does not hold what was asked whatever the model replied.
+  assert.deepEqual(await shown(SHADOW_ENV, ""), pointer);
+  assert.deepEqual(await shown(RENDERING_ENV, `${prose}\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "data_gap", text: "No free cash flow is shown." }])}\n\`\`\``), pointer);
   // A claim the model attributes is an answer, rendered as such.
   assert.deepEqual(
     (await shown(RENDERING_ENV, withList([{ kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] }]), [A_TOOL_CALL])).segments,
     [
       { type: "text", text: "According to a source dated Feb 2026: " },
       { type: "ref", ref_kind: "claim", ref_id: A_CLAIM, format: "Management raised its outlook." },
+      { type: "text", text: "\n\nNo figures are shown for AMD." },
     ],
   );
   // With rendering off, the guarded prose stands.
   assert.deepEqual((await shown(SHADOW_ENV, prose)).segments, [{ type: "text", text: prose }]);
+});
+
+test("a financial-engine answer's evidence follow-up never reads its note as missing data (#358 review)", async () => {
+  const served = resolveResearchScope({ question: "What is AMD's operating margin?", companies: AMD, prior: null, asOf: GAP_AS_OF, served: true });
+  const turn = gapTurn(resolveResearchScope({ question: "Show the evidence", companies: AMD, prior: served, asOf: GAP_AS_OF }));
+  assert.deepEqual(turn.factBlocks.map((block) => (block.segments as Array<{ text: string }>)[0]!.text), [
+    "The previous answer's figures were calculated and verified by the financial engine; each one links to its sources in that answer, and no other figure is shown in their place.",
+  ]);
+  const prose = "The previous answer's operating margin came from the financial engine, and each figure links to its filing.";
+  const shown = async (reply: string) => (await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "Show the evidence", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [],
+    ...turn,
+    createClient: () => async () => ({ text: reply }),
+  }))[0]!.segments;
+  assert.deepEqual(await shown(prose), [{ type: "text", text: prose }]);
+  // An empty reply is the model's failure, not a gap in the data.
+  assert.deepEqual(await shown(""), [{ type: "text", text: "No written answer is available for this question; try asking again." }]);
+});
+
+test("with no figure but claims to answer from, a gap note leaves the guarded prose standing (#358 review)", async () => {
+  const turn = gapTurn(resolveResearchScope({ question: "What is AMD's free cash flow?", companies: AMD, prior: null, asOf: GAP_AS_OF }));
+  const prose = "Management raised its outlook.";
+  const composed = await composeAnalystBlocksWithLlm({
+    env: RENDERING_ENV,
+    context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [A_TOOL_CALL],
+    ...turn,
+    createClient: () => async () => ({ text: prose }),
+  });
+  assert.deepEqual(composed[0]!.segments, [{ type: "text", text: prose }]);
 });
 
 test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
