@@ -150,3 +150,18 @@ test("analyze financial sections", { timeout: 300_000 }, async (t) => {
     assert.equal(await loadAnalyzeFinancialSections(db, { userId: IDS.other, analyzeRunId: memo.runId }), null);
   });
 });
+
+test("a gap inside the optional cash-resilience section stays in that section", { timeout: 300_000 }, async (t) => {
+  if (!dockerAvailable()) {
+    t.skip("Docker is required for analyze financial section coverage");
+    return;
+  }
+  const { db, pool, templateId } = await memoDatabase(t, "analyze-fin-optional");
+  await seedCashResilience(db, { net_income: "-100" });
+  const memo = await createMemoRun(db, pool, { templateId, playbookId: "investment_memo" });
+  const result = await memo.publish();
+  const resilience = published(result.sections.find((section) => section.section_id === "cash_resilience"));
+  assert.deepEqual(resilience.block.financial.coverage, { state: "partial", requested: 8, verified: 7 }, "a net loss leaves cash conversion undefined");
+  assert.equal(result.coverage, "complete", "the required sections are fully verified");
+  assert.deepEqual(await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }), result);
+});

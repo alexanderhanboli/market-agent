@@ -10,8 +10,9 @@
 //
 // The memo's run metadata declares which sections were requested. A declared
 // section without a committed row reads as a gap with its reason, so a failed
-// section can leave partial results but never a memo that implies complete
-// coverage.
+// required section can leave partial results but never a memo that implies
+// complete coverage. A gap in a section the playbook marks optional stays in
+// that section.
 
 import { randomUUID } from "node:crypto";
 
@@ -24,8 +25,8 @@ import type { ParentRecovery } from "../../financial-engine/src/recovery.ts";
 import { issuerLabels, publishRequest, type FinancialMode, type RequestGap } from "../../financial-engine/src/request.ts";
 import type { RunRecord } from "../../financial-engine/src/run-record.ts";
 import type { FinancialAnswerBlock } from "../../snapshot/src/financial-verifier.ts";
-import type { AnalyzePlaybook } from "./playbook.ts";
-import { AnalyzeRunMetadataError, parseAnalyzeRunMetadata, type AnalyzeRunFinancialMetadata } from "./runMetadata.ts";
+import { ANALYZE_PLAYBOOKS, type AnalyzePlaybook } from "./playbook.ts";
+import { AnalyzeRunMetadataError, parseAnalyzeRunMetadata, type AnalyzeRunFinancialMetadata, type AnalyzeRunMetadataV1 } from "./runMetadata.ts";
 
 export type AnalyzeFinancialMode = FinancialMode;
 
@@ -161,16 +162,16 @@ export async function publishAnalyzeFinancialSections(deps: AnalyzeFinancialDeps
     evidence: deps.evidence,
     persistParent: persistMemoSection,
   });
+  if (outcome.status === "planned") return { coverage: "none", sections: [] };
+  const optional = (await loadMemoRun(deps.pool, run.analyze_run_id))?.optional_sections ?? new Set<string>();
   switch (outcome.status) {
-    case "planned":
-      return { coverage: "none", sections: [] };
     case "driven":
-      return readSections(deps.pool, run.user_id, run.analyze_run_id, run.context, null);
+      return readSections(deps.pool, run.user_id, run.analyze_run_id, run.context, optional, null);
     case "gap":
       // This call's reason is more precise than committed state for every section it left unpublished.
-      return readSections(deps.pool, run.user_id, run.analyze_run_id, run.context, outcome.reason);
+      return readSections(deps.pool, run.user_id, run.analyze_run_id, run.context, optional, outcome.reason);
     case "clarification":
-      return readSections(deps.pool, run.user_id, run.analyze_run_id, run.context, "configuration_needed");
+      return readSections(deps.pool, run.user_id, run.analyze_run_id, run.context, optional, "configuration_needed");
   }
 }
 
@@ -179,7 +180,7 @@ export async function loadAnalyzeFinancialSections(db: SqlExecutor, input: { use
   const memo = await loadMemoRun(db, input.analyzeRunId);
   if (!memo || memo.user_id !== input.userId) return null;
   if (!memo.context || memo.context.mode !== "enforce") return { coverage: "none", sections: [] };
-  return readSections(db, input.userId, input.analyzeRunId, memo.context, null);
+  return readSections(db, input.userId, input.analyzeRunId, memo.context, memo.optional_sections, null);
 }
 
 /** Lets the supervised worker resume a memo's interrupted financial run under the memo's current owner and version. */
@@ -269,7 +270,7 @@ const persistMemoSection: PersistParentArtifact = async (tx, publication) => {
   if (inserted.rows.length === 0) throw new Error("the memo run no longer belongs to the financial run's owner");
 };
 
-type MemoRun = { user_id: string; template_id: string; template_version: number; context: AnalyzeRunFinancialMetadata | null };
+type MemoRun = { user_id: string; template_id: string; template_version: number; context: AnalyzeRunFinancialMetadata | null; optional_sections: ReadonlySet<string> };
 
 async function loadMemoRun(db: SqlExecutor, analyzeRunId: string): Promise<MemoRun | null> {
   const row = (await db.query<{ user_id: string; template_id: string; template_version: number; run_metadata: unknown }>(
@@ -279,17 +280,30 @@ async function loadMemoRun(db: SqlExecutor, analyzeRunId: string): Promise<MemoR
     [analyzeRunId],
   )).rows[0];
   if (!row) return null;
-  return { user_id: row.user_id, template_id: row.template_id, template_version: Number(row.template_version), context: financialContextOf(row.run_metadata) };
+  const metadata = savedMetadata(row.run_metadata);
+  return {
+    user_id: row.user_id,
+    template_id: row.template_id,
+    template_version: Number(row.template_version),
+    context: metadata?.financial ?? null,
+    optional_sections: optionalSections(metadata?.playbook_id ?? null),
+  };
 }
 
-/** The saved financial context, validated; metadata from before the lane existed has none. */
-function financialContextOf(metadata: unknown): AnalyzeRunFinancialMetadata | null {
+/** The saved metadata, validated; unreadable metadata reads as none. Metadata from before the lane existed has no financial context. */
+function savedMetadata(metadata: unknown): AnalyzeRunMetadataV1 | null {
   try {
-    return parseAnalyzeRunMetadata(metadata).financial ?? null;
+    return parseAnalyzeRunMetadata(metadata);
   } catch (error) {
     if (error instanceof AnalyzeRunMetadataError) return null;
     throw error;
   }
+}
+
+/** Sections the memo's playbook marks optional; an unknown playbook marks none, so every section counts. */
+function optionalSections(playbookId: string | null): ReadonlySet<string> {
+  const playbook = ANALYZE_PLAYBOOKS.find((candidate) => candidate.playbook_id === playbookId);
+  return new Set(playbook?.sections.filter((section) => !section.required).map((section) => section.section_id) ?? []);
 }
 
 async function readSections(
@@ -297,6 +311,7 @@ async function readSections(
   userId: string,
   analyzeRunId: string,
   context: AnalyzeRunFinancialMetadata,
+  optional: ReadonlySet<string>,
   override: AnalyzeFinancialGapReason | null,
 ): Promise<AnalyzeFinancialSections> {
   const published = new Map((await db.query<{ section_id: string; financial_run_id: string; snapshot_id: string; block: FinancialAnswerBlock }>(
@@ -319,7 +334,7 @@ async function readSections(
     if (row) return { section_id: sectionId, status: "published", run_id: row.financial_run_id, snapshot_id: row.snapshot_id, block: row.block };
     return { section_id: sectionId, status: "gap", reason_code: override ?? gapReason(units.get(sectionId)) };
   });
-  return { coverage: coverageOf(sections), sections };
+  return { coverage: coverageOf(sections, optional), sections };
 }
 
 function gapReason(unit: { unit_state: string; execution_state: string } | undefined): AnalyzeFinancialGapReason {
@@ -331,9 +346,13 @@ function gapReason(unit: { unit_state: string; execution_state: string } | undef
   return "run_in_progress";
 }
 
-/** Complete only when every requested section is published and covers everything it was asked; none when nothing verified. */
-function coverageOf(sections: ReadonlyArray<AnalyzeFinancialSection>): AnalyzeFinancialSections["coverage"] {
-  const states = sections.map((section) => (section.status === "published" ? section.block.financial.coverage.state : "none"));
-  if (states.every((state) => state === "complete")) return "complete";
-  return states.every((state) => state === "none") ? "none" : "partial";
+/**
+ * Complete when every required section is published and covers everything it
+ * was asked; an optional section's gaps stay in that section. None when
+ * nothing verified.
+ */
+function coverageOf(sections: ReadonlyArray<AnalyzeFinancialSection>, optional: ReadonlySet<string>): AnalyzeFinancialSections["coverage"] {
+  const stateOf = (section: AnalyzeFinancialSection) => (section.status === "published" ? section.block.financial.coverage.state : "none");
+  if (sections.length > 0 && sections.every((section) => stateOf(section) === "none")) return "none";
+  return sections.every((section) => optional.has(section.section_id) || stateOf(section) === "complete") ? "complete" : "partial";
 }
