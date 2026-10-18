@@ -134,7 +134,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   onAnswered?: (deployment: string) => void;
   // Receives the answer call's token usage, so evals can measure it (#181).
   onUsage?: (usage: AnswerUsage) => void;
-  // Receives the check of the answer's assertion list, in shadow (#208).
+  // Receives the check of the answer's assertion list, and what rendering left out (#208).
   onAssertions?: (report: AssertionReport) => void;
   // Receives what the model was sent and wrote, raw, for turn traces (answer-trace.ts).
   onModelExchange?: (exchange: ModelExchange) => void;

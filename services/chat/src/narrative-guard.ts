@@ -14,8 +14,8 @@ import { renderedText, type ReferenceTable } from "./prose-refs.ts";
 // ISO code, #150), so every period before whitespace ends a sentence.
 // "vs." abbreviates, it does not end a sentence ("($44.1B vs. $39.3B)", 2026-10-08 eval),
 // nor does a letter-dot initialism before a lowercase word ("U.S. export
-// controls"): a sentence cut there and dropped left half of it on the page
-// (2026-10-15 run). Before a capital it ends one ("in the U.S. Revenue rose").
+// controls", 2026-10-15 run), so the sentence is judged whole. Before a
+// capital it ends one ("in the U.S. Revenue rose").
 const SENTENCE_BREAK = /(?<=[.!?])(?<!\b[Vv]s\.)(?!(?<=\b(?:[A-Z]\.){2,})\s+\p{Ll})\s+/u;
 // A magnitude comparison in words ("more than double", "thirteen times AMD's",
 // "sixfold", "one in eight", "half as large", "a third of", "by a factor of

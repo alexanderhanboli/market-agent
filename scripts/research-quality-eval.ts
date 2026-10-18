@@ -34,7 +34,7 @@ export type AnsweredQuestion = {
   // answeredBy: the deployment that wrote the turn's answer, as chat recorded it (#183).
   // usage: the answer call's tokens, from turn.completed (#181).
   // removed: sentences the narrative guard dropped, from turn.completed (#144).
-  // assertions: the check of the answer's assertion list, in shadow (#208).
+  // assertions: the check of the answer's assertion list, which the answer is rendered from (#208).
   turns: Array<{ message: string; outcome: string; blocks: Block[]; answeredBy?: string | null; usage?: AnswerUsage | null; removed?: string[]; assertions?: AssertionReport | null }>;
 };
 

@@ -20,7 +20,7 @@ type Block = Record<string, unknown>;
 export type RenderedAssertion = {
   index: number;
   // A value with no fact to seal (a price return read off its chart) is the
-  // packet's value as plain text, as in the prose.
+  // packet's value as plain text.
   segments: ReadonlyArray<Segment>;
   // The same text with each value its packet reference ([[F3]]), for the guard.
   reference_text: string;

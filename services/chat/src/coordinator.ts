@@ -97,10 +97,10 @@ export type ChatAnalystToolRuntimeResult = {
   blocks: ReadonlyArray<Record<string, unknown>>;
   verification: ChatAnalystToolRuntimeVerification;
   tool_calls?: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
-  // Narrative sentences the guard dropped for quoting figures it could not
-  // attribute; reported on turn.completed so evals can count them (#144).
+  // The rendered assertions the narrative guard dropped; reported on
+  // turn.completed so evals can count them (#144).
   narrative_removed?: ReadonlyArray<string>;
-  // The check of the answer's assertion list, in shadow (#208).
+  // The check of the answer's assertion list, which the answer is rendered from (#208).
   assertion_report?: AssertionReport;
   // The deployment (channel/model) that wrote the narrative; absent when no
   // model answered (#183).
