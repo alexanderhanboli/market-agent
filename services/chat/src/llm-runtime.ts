@@ -128,7 +128,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   cutoff?: string;
   createClient?: () => Promise<LlmChatClient> | LlmChatClient;
   // Receives the rendered assertions the narrative guard dropped, so evals can count them (#144).
-  onNarrativeRemoved?: (sentences: ReadonlyArray<string>) => void;
+  onNarrativeRemoved?: (assertions: ReadonlyArray<string>) => void;
   // Receives the deployment (channel/model) that wrote the answer (#183).
   onAnswered?: (deployment: string) => void;
   // Receives the answer call's token usage, so evals can measure it (#181).
@@ -294,11 +294,10 @@ export async function composeAnalystBlocksWithLlm(input: {
     unsupportedSentences(text, table, supportingTexts).length > 0;
   const renderAccepted = (): Rendering => {
     if (report.status !== "checked" || report.accepted.length === 0) return { answer: null, report, dropped: [] };
-    const reported = (omitted: AssertionReport["rejected"], repeated?: ReadonlyArray<number>): AssertionReport => ({
+    const reported = (omitted: AssertionReport["rejected"]): AssertionReport => ({
       ...report,
       accepted: report.accepted.filter((entry) => !omitted.some((left) => left.index === entry.index)),
       rejected: [...report.rejected, ...omitted].sort((a, b) => a.index - b.index),
-      ...(repeated ? { rendered: true, ...(repeated.length > 0 ? { repeated } : {}) } : {}),
     });
     const rendered = report.accepted.map((assertion) => ({
       ...renderAssertion(assertion, packet, factBlocks, report.accepted),
@@ -383,7 +382,7 @@ export async function composeAnalystBlocksWithLlm(input: {
         ...stalenessNotes(input.toolCalls),
       ],
     };
-    return { answer, report: reported(omitted, repeated), dropped };
+    return { answer, report: { ...reported(omitted), rendered: true, ...(repeated.length > 0 ? { repeated } : {}) }, dropped };
   };
   // A request the data does not hold points to the gap notes shown below the
   // answer (#302). Not every note is a gap ("the previous answer's figures

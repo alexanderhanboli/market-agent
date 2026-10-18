@@ -66,8 +66,8 @@ export async function composeTraced(
     onAssertions: (report) => {
       assertions = report;
     },
-    onNarrativeRemoved: (sentences) => {
-      removed = sentences;
+    onNarrativeRemoved: (dropped) => {
+      removed = dropped;
     },
   });
   return { exchange, assertions, removed, blocks };

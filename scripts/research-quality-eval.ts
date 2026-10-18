@@ -166,7 +166,7 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   return `${accepted} accepted, ${rejected} rejected${byCheck} over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
 }
 
-// Sentences the narrative guard dropped, in total and per answered turn.
+// Rendered assertions the narrative guard dropped, in total and per answered turn.
 export function removedSummary(answered: ReadonlyArray<AnsweredQuestion>): string {
   const turns = answered.flatMap((question) => question.turns).filter((turn) => turn.outcome === "turn.completed");
   const removed = turns.reduce((sum, turn) => sum + (turn.removed?.length ?? 0), 0);
