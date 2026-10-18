@@ -32,14 +32,13 @@ type Answer =
   | { kind: "rendered"; paragraphs: ReadonlyArray<Pick<RenderedAssertion, "segments" | "fact_bindings" | "source_refs">>; notes: ReadonlyArray<string> }
   | { kind: "fallback"; text: string };
 
-// The accepted assertions' answer, null when none renders, with what rendering
-// left out and why, the text of those the guard removed, and the observations
-// a comparison already writes.
+// The accepted assertions' answer, null when none renders; the report with
+// what rendering left out and why, whether or not it renders, so evals see it
+// either way; and the text of those the guard removed.
 type Rendering = {
   answer: Extract<Answer, { kind: "rendered" }> | null;
-  omitted: AssertionReport["rejected"];
+  report: AssertionReport;
   dropped: ReadonlyArray<string>;
-  repeated: ReadonlyArray<number>;
 };
 
 // A provider can accept a request and never answer (one held a turn 516 s, #184).
@@ -294,7 +293,13 @@ export async function composeAnalystBlocksWithLlm(input: {
     (shown.length === 0 && kind !== "management_attribution" && causalSentences(text).length > 0) ||
     unsupportedSentences(text, table, supportingTexts).length > 0;
   const renderAccepted = (): Rendering => {
-    if (report.status !== "checked" || report.accepted.length === 0) return { answer: null, omitted: [], dropped: [], repeated: [] };
+    if (report.status !== "checked" || report.accepted.length === 0) return { answer: null, report, dropped: [] };
+    const reported = (omitted: AssertionReport["rejected"], repeated?: ReadonlyArray<number>): AssertionReport => ({
+      ...report,
+      accepted: report.accepted.filter((entry) => !omitted.some((left) => left.index === entry.index)),
+      rejected: [...report.rejected, ...omitted].sort((a, b) => a.index - b.index),
+      ...(repeated ? { rendered: true, ...(repeated.length > 0 ? { repeated } : {}) } : {}),
+    });
     const rendered = report.accepted.map((assertion) => ({
       ...renderAssertion(assertion, packet, factBlocks, report.accepted),
       kind: assertion.kind,
@@ -330,7 +335,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // The guard's own drops; an inference removed with its observation is on the report.
     const dropped = omitted.filter((entry) => guarded.has(entry.index)).map((entry) => entry.text);
     // The guard removed every assertion: an inference never stays without a support.
-    if (kept.length === 0) return { answer: null, omitted, dropped, repeated: [] };
+    if (kept.length === 0) return { answer: null, report: reported(omitted), dropped };
     // The figures the kept assertions state, and their companies: a comparison
     // rendered for only some of the companies it shows figures for would read
     // one-sided, so the fallback stands instead.
@@ -343,7 +348,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     ]);
     if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) {
       const oneSided = kept.map((entry) => ({ index: entry.index, text: plainText(entry.segments), reason: "left out: the answer would show only some of the companies shown" }));
-      return { answer: null, omitted: [...omitted, ...oneSided], dropped, repeated: [] };
+      return { answer: null, report: reported([...omitted, ...oneSided]), dropped };
     }
     // An observation whose every figure a kept comparison writes is not said
     // twice; it still stands as an inference's support. One fact shown in two
@@ -378,15 +383,15 @@ export async function composeAnalystBlocksWithLlm(input: {
         ...stalenessNotes(input.toolCalls),
       ],
     };
-    return { answer, omitted, dropped, repeated };
+    return { answer, report: reported(omitted, repeated), dropped };
   };
   // A request the data does not hold points to the gap notes shown below the
   // answer (#302). Not every note is a gap ("the previous answer's figures
   // were ... verified"), so the scope says whether the request is one (#358 review).
   const namedGap = input.scope !== undefined && requestIsNamedGap(input.scope, factBlocks) &&
     packet.figures.length === 0 && packet.gaps.length > 0;
-  const { answer: rendered, omitted, dropped, repeated } = renderAccepted();
-  const answer: Answer = rendered ?? {
+  const rendering = renderAccepted();
+  const answer: Answer = rendering.answer ?? {
     kind: "fallback",
     text: namedGap
       ? [
@@ -395,22 +400,11 @@ export async function composeAnalystBlocksWithLlm(input: {
       ].join(" ")
       : shown.length > 0 ? FACT_BLOCKS_FALLBACK_TEXT : NO_ANSWER_FALLBACK_TEXT,
   };
-  const isRendered = answer.kind === "rendered";
-  if (dropped.length > 0) input.onNarrativeRemoved?.(dropped);
-  // What rendering left out is on the report whether or not the answer
-  // renders, so evals see it either way.
-  input.onAssertions?.(omitted.length > 0 || isRendered
-    ? {
-      ...report,
-      accepted: report.accepted.filter((entry) => !omitted.some((removed) => removed.index === entry.index)),
-      rejected: [...report.rejected, ...omitted].sort((a, b) => a.index - b.index),
-      ...(isRendered ? { rendered: true } : {}),
-      ...(isRendered && repeated.length > 0 ? { repeated } : {}),
-    }
-    : report);
+  if (rendering.dropped.length > 0) input.onNarrativeRemoved?.(rendering.dropped);
+  input.onAssertions?.(rendering.report);
   // The deployment is reported only when the answer is rendered from its
   // assertions: the fallback sentence was written by no model (#183).
-  if (isRendered) input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
+  if (rendering.answer) input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
   else console.warn(`[chat] no assertion rendered (list ${report.status}${result.truncated ? ", answer cut off at the token limit" : ""}); showing the fallback sentence`);
   return withAnswer(input.blocks, answer);
 }
