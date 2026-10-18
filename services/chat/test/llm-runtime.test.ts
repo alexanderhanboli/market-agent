@@ -1027,13 +1027,6 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
     const { block, report } = await renderWithReply(reply);
     assert.deepEqual({ segments: block.segments, rendered: report.rendered }, { segments: fallback, rendered: undefined }, JSON.stringify(reply));
   }
-  // Accepted, but about only one of the two companies shown: it would read one-sided, and the report says so.
-  const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]));
-  assert.deepEqual({ segments: oneSided.block.segments, accepted: oneSided.report.accepted, rejected: oneSided.report.rejected }, {
-    segments: fallback,
-    accepted: [],
-    rejected: [{ index: 0, text: "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).", reason: "left out: the answer would show only some of the companies shown" }],
-  });
   // The guard removed every accepted assertion: a claim's magnitude in words is no figure shown (#228).
   const removed: string[][] = [];
   const reports: AssertionReport[] = [];
@@ -1247,16 +1240,54 @@ test("a rendered answer keeps the other side of a stored disagreement (#208)", a
 });
 
 test("a rendered comparison covers every company it shows figures for, and warns of calendars across observations (#208)", async () => {
+  const leftOut = "left out: the answer would show only some of the companies shown";
+  const nvdaMargin = { index: 0, text: "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).", reason: leftOut };
+  // An answer about one of the two companies shown falls back, and the report says why.
   const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]));
-  assert.equal((oneSided.block.segments as Array<{ text: string }>)[0]!.text, FIGURES_FALLBACK);
-  assert.equal(oneSided.report.rendered, undefined);
+  assert.deepEqual(
+    { segments: oneSided.block.segments, rendered: oneSided.report.rendered, accepted: oneSided.report.accepted, rejected: oneSided.report.rejected },
+    { segments: [{ type: "text", text: FIGURES_FALLBACK }], rendered: undefined, accepted: [], rejected: [nvdaMargin] },
+  );
   // An inference shows no figure, so its evidence covers no company: AMD still has none on the page.
   const inferred = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] },
-    { kind: "analyst_inference", text: "NVDA keeps more of each sale than AMD.", evidence: ["F4"], supports: [0] },
+    { kind: "analyst_inference", text: "It keeps more of each sale.", subject: "NVDA", evidence: [], supports: [0] },
   ]));
-  assert.equal(inferred.report.rendered, undefined);
-  assert.equal((inferred.block.segments as Array<{ text: string }>)[0]!.text, FIGURES_FALLBACK);
+  assert.deepEqual(
+    { segments: inferred.block.segments, rendered: inferred.report.rendered, rejected: inferred.report.rejected },
+    {
+      segments: [{ type: "text", text: FIGURES_FALLBACK }],
+      rendered: undefined,
+      rejected: [nvdaMargin, { index: 1, text: "> **Analyst inference on NVDA:** It keeps more of each sale.", reason: leftOut }],
+    },
+  );
+  // One-sided once the guard removed AMD's side: both are on the report, and the guard's drop is a narrative removal.
+  const reports: AssertionReport[] = [];
+  const removed: string[][] = [];
+  const guardedSide = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [{
+      tool_call_id: "tc-1",
+      tool_name: "research_lookup",
+      status: "ok",
+      result: { evidence: { claims: [{ claim_id: A_CLAIM, source_id: "s-a", text_canonical: "Data center demand doubled.", predicate: "kpi.commentary", polarity: "positive" }] } },
+    } as never],
+    factBlocks: RENDER_BLOCKS,
+    createClient: () => async () => ({ text: withList([
+      { kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] },
+      { kind: "management_attribution", text: "Demand doubled.", evidence: ["C1"] },
+    ]) }),
+    onAssertions: (report) => reports.push(report),
+    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+  });
+  const attribution = "According to a source: Data center demand doubled.";
+  assert.deepEqual({ segments: guardedSide[0]!.segments, rejected: reports[0]!.rejected, removed }, {
+    segments: [{ type: "text", text: FIGURES_FALLBACK }],
+    rejected: [nvdaMargin, { index: 1, text: attribution, reason: "removed by the narrative guard" }],
+    removed: [[attribution]],
+  });
 
   const sameYear = [{
     ...RENDER_BLOCKS[0]!,
