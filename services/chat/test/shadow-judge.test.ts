@@ -95,8 +95,8 @@ test("a judge that throws fails no turn; its verdicts are errors", async () => {
   assert.equal(judge?.verdicts[0]?.reason, "judge call failed: all LLM deployments failed");
 });
 
-test("a judge that hangs does not hold the turn: the turn completes first, and the judge ends at its deadline", async () => {
-  const { createClient } = models(SEGMENTS, () => new Promise<LlmChatResult>(() => {}));
+test("a judge that hangs does not hold the turn: the turn completes first, and the judge ends at its deadline", async (t) => {
+  const { createClient } = models(SEGMENTS, () => hang(t));
   let settled = false;
   const answer = await answerTurn(SEGMENTS.input, turn(SEGMENTS), { env: JUDGED_ENV, createClient, judgeDeadlines: { attemptMs: 50, totalMs: 120 } });
   void answer.judged.then(() => {
@@ -123,3 +123,13 @@ test("a turn that shows no inference makes no judge call: none rendered, or pros
     assert.deepEqual(calls, ["anthropic/claude-sonnet-5-5"]);
   }
 });
+
+// A judge that accepts the request and never answers. Its open connection keeps
+// the event loop alive; a bare pending promise doesn't (the deadline timers are
+// unref'd, and on Node 22 the runner then cancels the test), so the interval
+// stands in for it.
+function hang(t: { after(fn: () => void): void }): Promise<never> {
+  const connection = setInterval(() => {}, 1_000);
+  t.after(() => clearInterval(connection));
+  return new Promise<never>(() => {});
+}
