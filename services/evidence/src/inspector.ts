@@ -578,9 +578,10 @@ function factValueText(row: { value: string; value_text: string | null; unit: st
   if (row.value_text !== null || row.value === "" || !Number.isFinite(value)) return row.value;
   const format = (options: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-US", options).format(value);
   // Some sources name the currency in the unit itself ("USD").
-  const code = currencyCode(row.currency) ?? currencyCode(row.unit);
+  const unitCode = currencyCode(row.unit);
+  const code = unitCode ?? currencyCode(row.currency);
   const money = code === null ? {} : { style: "currency" as const, currency: code };
-  switch (code !== null && code === currencyCode(row.unit) ? "currency" : row.unit) {
+  switch (unitCode === null ? row.unit : "currency") {
     case "currency":
       return format({ ...money, notation: "compact", maximumFractionDigits: 1 });
     case "currency_per_share":
