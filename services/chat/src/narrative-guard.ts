@@ -1,18 +1,14 @@
-// The backstop on each rendered assertion (render-assertions.ts): a sentence
-// of its text fails when a reference it cites ("[[F3]]", prose-refs.ts) is not
-// in the turn's table. A template writes only the packet's values, as
-// references, and periods; an analyst inference's words are the model's, and
-// hold no digit (assertions.ts). Which company a reference belongs to is not
-// checked here: the reference renders as the packet's own value, credited
-// where the packet credits it.
-//
-// The rest of the guard reads the sentence with its references rendered to
-// their displayed values: a magnitude or multiple in words (#228), and a cause
-// the data does not show (#249, #261).
+// The backstop on each rendered assertion (render-assertions.ts). A template
+// writes only the packet's values, as references ("[[F3]]", prose-refs.ts),
+// and periods; an analyst inference's words are the model's, and hold no
+// digit or reference (assertions.ts). So the guard reads each sentence with
+// its references rendered to their displayed values for what words can still
+// carry: a magnitude or multiple (#228), and a cause the data does not show
+// (#249, #261), in an inference or in a claim an attribution quotes.
 // ponytail: companies are recognized by their displayed label (ticker) only,
 // case-sensitively, and never by a one-letter ticker (the article "A").
 
-import { REFERENCE, renderedText, type ReferenceTable } from "./prose-refs.ts";
+import { renderedText, type ReferenceTable } from "./prose-refs.ts";
 
 // The formatter writes no dotted currency prefix (a dotted symbol becomes its
 // ISO code, #150), so every period before whitespace ends a sentence.
@@ -148,11 +144,9 @@ export function unsupportedSentences(
     [...sentence.matchAll(CAUSAL)].every((match) => causeWords(match[1]).every(known)) &&
     [...sentence.matchAll(ACTIVE_CAUSAL)].every((match) => causeWords(match[1]).every(known));
   return sentences(text).filter((written) => {
-    // A reference the table does not hold is nothing the user can check.
-    if ([...written.matchAll(REFERENCE)].some((match) => !table.has(match[1]!))) return true;
-    // The checks below read the sentence as it renders, each reference its
-    // displayed value, so a figure's magnitude reads as the user sees it.
-    // Inline Markdown ("double **AMD's**") is ignored for all of them.
+    // The sentence as it renders, each reference its displayed value, so a
+    // figure's magnitude reads as the user sees it. Inline Markdown ("double
+    // **AMD's**") is ignored.
     const plain = renderedText(written, table).replace(/[*_`]+/g, "");
     // MULTIPLIER is case-sensitive so that a ticker ("AMD") counts as the
     // thing compared: the sentence is lowercased, whatever its case ("Six

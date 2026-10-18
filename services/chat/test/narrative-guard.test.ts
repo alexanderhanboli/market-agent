@@ -35,12 +35,6 @@ const QUARTER: Figure[] = [{ metric: "Revenue", period: "Q42026", value: "$62.1B
 const DISPLAYED = ["Revenue", "Quarterly revenue (Q1 2025 to Q4 2026)"];
 const TABLE = tableOf(QUARTER);
 
-test("a sentence passes when each reference it cites is in the table; one citing an unknown id fails", () => {
-  assert.deepEqual(unsupportedSentences("Revenue reached [[F1]] in Q4 2026. It rose every quarter.", TABLE, DISPLAYED), []);
-  assert.deepEqual(unsupportedSentences("Revenue reached [[F1]] in Q4 2026. Growth was [[F2]]. Margins held up.", TABLE, DISPLAYED), ["Growth was [[F2]]."]);
-  assert.deepEqual(unsupportedSentences("Margins were [[C1]] strong.", TABLE, DISPLAYED), ["Margins were [[C1]] strong."]);
-});
-
 test("an initialism does not end a sentence: a failing sentence is read whole", () => {
   assert.deepEqual(
     unsupportedSentences("Results were hit by U.S. export rules costing $800 million. Revenue reached [[F1]] in Q4 2026.", TABLE, DISPLAYED),
