@@ -183,7 +183,7 @@ test("the report shows each turn's answer tokens and the run's mean (#181)", () 
   assert.equal(usageSummary([]), "not reported");
 });
 
-test("the report lists each turn's dropped sentences and the run's total (#144)", () => {
+test("the report lists each turn's dropped assertions and the run's total (#144)", () => {
   const [first, second] = QUESTIONS;
   const answered = [
     { question: first, threadId: "t1", turns: [{ message: "q1", outcome: "turn.completed", blocks: [], removed: ["At 74.6%, NVDA leads.", "AMD trails at 49.2%."] }] },
@@ -192,10 +192,10 @@ test("the report lists each turn's dropped sentences and the run's total (#144)"
       { message: "q3", outcome: "turn.failed", blocks: [] },
     ] },
   ];
-  assert.equal(removedSummary(answered), "2 sentences in 1 of 2 answered turns");
+  assert.equal(removedSummary(answered), "2 assertions in 1 of 2 answered turns");
   const report = renderReport("r", "a/m", "http://app", answered);
-  assert.match(report, /Guard drops: 2 sentences in 1 of 2 answered turns\./);
-  assert.match(report, /_Guard dropped 2 sentences:_\n\n> ~~At 74\.6%, NVDA leads\.~~\n> ~~AMD trails at 49\.2%\.~~/);
+  assert.match(report, /Guard drops: 2 assertions in 1 of 2 answered turns\./);
+  assert.match(report, /_Guard dropped 2 assertions:_\n\n> ~~At 74\.6%, NVDA leads\.~~\n> ~~AMD trails at 49\.2%\.~~/);
 });
 
 test("the report shows each turn's assertion check and the run's totals (#208)", () => {

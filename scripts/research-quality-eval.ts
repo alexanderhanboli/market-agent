@@ -33,7 +33,7 @@ export type AnsweredQuestion = {
   traces?: string[];
   // answeredBy: the deployment that wrote the turn's answer, as chat recorded it (#183).
   // usage: the answer call's tokens, from turn.completed (#181).
-  // removed: sentences the narrative guard dropped, from turn.completed (#144).
+  // removed: the rendered assertions the narrative guard dropped, from turn.completed (#144).
   // assertions: the check of the answer's assertion list, which the answer is rendered from (#208).
   turns: Array<{ message: string; outcome: string; blocks: Block[]; answeredBy?: string | null; usage?: AnswerUsage | null; removed?: string[]; assertions?: AssertionReport | null }>;
 };
@@ -124,7 +124,7 @@ export function renderReport(run: string, model: string, base: string, answered:
       const tokens = turn.usage ? `${turn.usage.input_tokens} input / ${turn.usage.output_tokens} output tokens${turn.usage.reasoning_tokens === undefined ? "" : ` (${turn.usage.reasoning_tokens} reasoning)`}` : null;
       if (turn.answeredBy || tokens) lines.push(`_${[turn.answeredBy ? `Answered by \`${turn.answeredBy}\`` : null, tokens].filter(Boolean).join("; ")}._`, "");
       if (turn.removed?.length) {
-        lines.push(`_Guard dropped ${turn.removed.length} sentence${turn.removed.length === 1 ? "" : "s"}:_`, "", ...turn.removed.map((sentence) => `> ~~${sentence}~~`), "");
+        lines.push(`_Guard dropped ${turn.removed.length} assertion${turn.removed.length === 1 ? "" : "s"}:_`, "", ...turn.removed.map((assertion) => `> ~~${assertion}~~`), "");
       }
       if (turn.assertions) lines.push(...renderAssertions(turn.assertions), "");
       lines.push(...turn.blocks.flatMap((block) => [renderBlock(block), ""]));
@@ -171,7 +171,7 @@ export function removedSummary(answered: ReadonlyArray<AnsweredQuestion>): strin
   const turns = answered.flatMap((question) => question.turns).filter((turn) => turn.outcome === "turn.completed");
   const removed = turns.reduce((sum, turn) => sum + (turn.removed?.length ?? 0), 0);
   const hit = turns.filter((turn) => turn.removed?.length).length;
-  return `${removed} sentence${removed === 1 ? "" : "s"} in ${hit} of ${turns.length} answered turn${turns.length === 1 ? "" : "s"}`;
+  return `${removed} assertion${removed === 1 ? "" : "s"} in ${hit} of ${turns.length} answered turn${turns.length === 1 ? "" : "s"}`;
 }
 
 // Each answering model with its turn count; turns whose answer recorded none (no model
