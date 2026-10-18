@@ -348,11 +348,12 @@ function gapReason(unit: { unit_state: string; execution_state: string } | undef
 
 /**
  * Complete when every required section is published and covers everything it
- * was asked; an optional section's gaps stay in that section. None when
- * nothing verified.
+ * was asked; an optional section's gaps stay in that section, unless the memo
+ * has no required financial section to speak for it. None when nothing verified.
  */
 function coverageOf(sections: ReadonlyArray<AnalyzeFinancialSection>, optional: ReadonlySet<string>): AnalyzeFinancialSections["coverage"] {
   const stateOf = (section: AnalyzeFinancialSection) => (section.status === "published" ? section.block.financial.coverage.state : "none");
   if (sections.length > 0 && sections.every((section) => stateOf(section) === "none")) return "none";
-  return sections.every((section) => optional.has(section.section_id) || stateOf(section) === "complete") ? "complete" : "partial";
+  const required = sections.filter((section) => !optional.has(section.section_id));
+  return (required.length > 0 ? required : sections).every((section) => stateOf(section) === "complete") ? "complete" : "partial";
 }

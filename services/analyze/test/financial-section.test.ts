@@ -165,3 +165,17 @@ test("a gap inside the optional cash-resilience section stays in that section", 
   assert.equal(result.coverage, "complete", "the required sections are fully verified");
   assert.deepEqual(await loadAnalyzeFinancialSections(db, { userId: IDS.owner, analyzeRunId: memo.runId }), result);
 });
+
+test("a memo with no required financial section reads its optional sections' coverage (#355 review)", { timeout: 300_000 }, async (t) => {
+  if (!dockerAvailable()) {
+    t.skip("Docker is required for analyze financial section coverage");
+    return;
+  }
+  const { db, pool, templateId } = await memoDatabase(t, "analyze-fin-optional-only");
+  await db.query(`update facts set invalidated_at = now() where fact_id = $1`, [IDS.fy2022]);
+  const memo = await createMemoRun(db, pool, { templateId, playbookId: "earnings_quality" });
+  const result = await memo.publish();
+  const trend = published(result.sections[0]);
+  assert.equal(trend.block.financial.coverage.state, "partial", "the prior year is missing, so growth is blocked");
+  assert.equal(result.coverage, "partial", "revenue trend is the memo's only verified section, so its gap is the memo's");
+});
