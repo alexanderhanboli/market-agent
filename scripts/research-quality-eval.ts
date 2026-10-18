@@ -140,7 +140,7 @@ function renderAssertions(report: AssertionReport): string[] {
   return [
     `_Assertions (${report.rendered ? "rendered" : "shadow"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
     "",
-    ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]: ${entry.text}`),
+    ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]${entry.kind === "analyst_inference" ? "" : " (text not shown)"}: ${entry.text}`),
     ...report.rejected.map((entry) => `- ✗ [${rejectionCheck(entry.reason)}] ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
   ];
 }
