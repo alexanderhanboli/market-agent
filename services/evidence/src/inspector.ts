@@ -497,8 +497,12 @@ async function inspectFact(
     fact_id: string;
     source_id: string;
     value: string;
+    value_text: string | null;
     unit: string;
+    currency: string | null;
+    metric_name: string | null;
     period_kind: string;
+    period_end: string | null;
     fiscal_year: number | null;
     fiscal_period: string | null;
     as_of: Date | string;
@@ -521,8 +525,12 @@ async function inspectFact(
     `select f.fact_id::text as fact_id,
             f.source_id::text as source_id,
             coalesce(f.value_text, (f.value_num * f.scale)::text, '') as value,
+            f.value_text,
             f.unit,
+            f.currency,
+            m.display_name as metric_name,
             f.period_kind,
+            f.period_end::text as period_end,
             f.fiscal_year,
             f.fiscal_period,
             f.as_of,
@@ -535,6 +543,7 @@ async function inspectFact(
             s.canonical_url
        from facts f
        join sources s on s.source_id = f.source_id
+       left join metrics m on m.metric_id = f.metric_id
       where f.fact_id = $1::uuid
         and f.entitlement_channels ? 'app'
         and (s.user_id is null or s.user_id = $2::uuid)`,
@@ -542,13 +551,12 @@ async function inspectFact(
   );
   const row = rows[0];
   if (!row) throw new EvidenceInspectionError(404, "fact not found");
-  const period = [row.period_kind, row.fiscal_year, row.fiscal_period].filter((part) => part !== null).join(" ");
   return Object.freeze({
     snapshot_id: snapshotId,
     ref: Object.freeze({ kind: "fact", id: factId }),
     kind: "fact",
-    title: `${row.value} ${row.unit}`.trim(),
-    subtitle: period,
+    title: factValueText(row),
+    subtitle: [row.metric_name, factPeriodText(row)].filter((part) => part).join(" · "),
     badges: Object.freeze([row.verification_status, row.freshness_class, row.coverage_level]),
     rows: Object.freeze([
       { label: "Value", value: row.value },
@@ -560,6 +568,47 @@ async function inspectFact(
     links: sourceLinks(row.canonical_url),
     related_refs: Object.freeze([{ kind: "source" as const, id: row.source_id, label: row.provider }]),
   });
+}
+
+// Worded as the answer words the figure: "$209.9B", "13.9%", "$4.12".
+function factValueText(row: { value: string; value_text: string | null; unit: string; currency: string | null }): string {
+  const value = Number(row.value);
+  if (row.value_text !== null || row.value === "" || !Number.isFinite(value)) return row.value;
+  const format = (options: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-US", options).format(value);
+  const money = row.currency === null ? {} : { style: "currency" as const, currency: row.currency };
+  switch (row.unit) {
+    case "currency":
+      return format({ ...money, notation: "compact", maximumFractionDigits: 1 });
+    case "currency_per_share":
+      return format({ ...money, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    case "percent":
+      return `${format({ maximumFractionDigits: 1 })}%`;
+    case "count":
+      return format({ notation: "compact", maximumFractionDigits: 1 });
+    case "shares":
+      return `${format({ notation: "compact", maximumFractionDigits: 1 })} shares`;
+    default:
+      return `${format({ maximumFractionDigits: 2 })} ${row.unit}`;
+  }
+}
+
+function factPeriodText(row: {
+  period_kind: string;
+  period_end: string | null;
+  fiscal_year: number | null;
+  fiscal_period: string | null;
+}): string {
+  const fiscalYear = row.fiscal_year === null ? null : `FY ${row.fiscal_year}`;
+  switch (row.period_kind) {
+    case "fiscal_y":
+      return fiscalYear ?? "";
+    case "fiscal_q":
+      return [row.fiscal_period, fiscalYear].filter((part) => part).join(" ");
+    case "ttm":
+      return row.period_end === null ? "TTM" : `TTM to ${row.period_end}`;
+    default:
+      return row.period_end ?? "";
+  }
 }
 
 const ADJUSTMENT_BASIS_LABELS: Readonly<Record<string, string>> = {

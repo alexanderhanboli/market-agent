@@ -319,6 +319,7 @@ test("loadEvidenceInspection returns artifact-safe fact details and related sour
           fact_id: FACT_ID,
           source_id: SOURCE_ID,
           value: "42",
+          value_text: null,
           unit: "%",
           period_kind: "fiscal_q",
           fiscal_year: 2026,
