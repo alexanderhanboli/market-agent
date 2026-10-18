@@ -23,6 +23,12 @@ export function financialMessageId(threadId: string, turnId: string): string {
   return stableUuid(`financial-message:${threadId}:${turnId}`);
 }
 
+// Looser than shared/src/subject-ref.ts isUuid (v4, lowercase only): ids from
+// clients and stored blocks may be any version, in either case.
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export function stableUuid(seed: string): string {
   const hex = createHash("sha256").update(seed).digest("hex");
   return [
