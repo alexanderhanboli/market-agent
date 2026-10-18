@@ -3,11 +3,10 @@
 // every value and attributed claim a sealed ref segment rather than free text.
 // An observation states only its figures (company, metric, value, period, from
 // the packet); a management attribution quotes its claim, dated; an unknown
-// cause says the figures do not show why; an inference and a data gap are
-// labelled. The model's own wording survives only in those two: an inference
-// the check has bound to the observations it rests on, and a data gap naming
-// what is missing, neither writing a figure, so every figure shown is a
-// template's value from the packet. A comparison states the high or low,
+// cause says the figures do not show why; an inference is labelled. The
+// model's own wording survives only there, in an inference the check has bound
+// to the observations it rests on, writing no figure, so every figure shown is
+// a template's value from the packet. A comparison states the high or low,
 // ranking or trend its check derived, never the model's wording of it, and an
 // inference resting on comparisons carries their checked results in its label.
 
@@ -130,9 +129,6 @@ function templateSegments(
       text(`> **Analyst inference${on}${label.length > 0 ? `** (${label.join("; ")}):` : ":**"} ${assertion.text}`);
       break;
     }
-    case "data_gap":
-      text(gapText([assertion]));
-      break;
   }
   return segments;
 }
@@ -273,13 +269,6 @@ export function calendarNote(assertions: ReadonlyArray<Assertion>, packet: Evide
   return named.length === 0
     ? undefined
     : `The periods compared end at different times, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
-}
-
-// What the data cannot show, under one label: an answer's several gaps read
-// as one paragraph.
-export function gapText(gaps: ReadonlyArray<Pick<Assertion, "text">>): string {
-  const sentences = gaps.map(({ text }) => text.trim()).map((text) => (/[.!?]$/.test(text) ? text : `${text}.`));
-  return `**What the data cannot show:** ${sentences.join(" ")}`;
 }
 
 // The text a rendered assertion reads as, for the narrative guard.

@@ -94,6 +94,13 @@ test("an inference rests on accepted observations and writes no figure, typed or
     { kind: "analyst_inference", text: "The Q4 momentum carries into next year.", evidence: [], supports: [0] },
   ]);
   assert.deepEqual(quarter.rejected.map((entry) => [entry.index, entry.reason]), [[1, "an inference rests on its supports; it writes no figure"]]);
+  // An article is a number only before a scale: "a billion dollars" is an amount, "a point" or "a dollar of revenue" is not.
+  const articles = check([
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1"] },
+    { kind: "analyst_inference", text: "It holds cash of a billion dollars more.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "At a point like this, it earns more per a dollar of revenue.", evidence: [], supports: [0] },
+  ]);
+  assert.deepEqual([articles.accepted.map((entry) => entry.index), articles.rejected.map((entry) => [entry.index, entry.reason])], [[0, 2], [[1, "an inference rests on its supports; it writes no figure"]]]);
 });
 
 test("a figure is written only as its own evidence's reference: the wrong figure, company or id, or a typed value, is rejected (#208)", () => {
@@ -605,43 +612,6 @@ test("an inference names its subject, a company its own evidence or its supports
   ], { ...PACKET, companies: ["NVDA"], figures: [{ ...PACKET.figures[0]!, company: undefined }] });
   assert.deepEqual(single.rejected, []);
   assert.deepEqual(single.accepted.map((entry) => [entry.index, entry.subject]), [[0, undefined], [1, "NVDA"]]);
-});
-
-test("what the data cannot show is a data gap: words only, citing nothing; across companies it names none, as an inference (#301)", () => {
-  const report = checkAssertions([
-    { kind: "data_gap", text: "No prior-year margins are shown, so the trend cannot be judged." },
-    // A metric no reader serves is what a gap names.
-    { kind: "data_gap", text: "Free cash flow is not shown for either company.", evidence: [] },
-    { kind: "data_gap", text: "No FY2024 revenue is shown." },
-    { kind: "data_gap", text: "Revenue before [[F4]] is not shown." },
-    { kind: "data_gap", text: "No margin under fifty percent is shown." },
-    { kind: "data_gap", text: "Revenue is not split by segment.", evidence: ["F4"] },
-    { kind: "data_gap", text: "No segment split is shown.", supports: [0] },
-    // Across companies a gap could rank them ("AMD's margin is higher than NVDA's"), so it names none.
-    { kind: "data_gap", text: "AMD's gross margin is higher than NVDA's, which the data cannot explain." },
-    // "a billion dollars" is an amount too.
-    { kind: "data_gap", text: "Cash of a billion dollars is not shown." },
-  ], { ...PACKET, unavailable_metrics: ["Free cash flow"] });
-  assert.deepEqual(report.accepted.map((entry) => [entry.index, entry.kind, entry.evidence]), [[0, "data_gap", []], [1, "data_gap", []]]);
-  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
-    [2, "a data gap writes no figure; it says in words what is not shown"],
-    [3, "a data gap writes no figure; it says in words what is not shown"],
-    [4, "a data gap writes no figure; it says in words what is not shown"],
-    [5, "a data gap cites nothing; it names what is not shown"],
-    [6, "only an analyst inference lists supports"],
-    [7, "a data gap names no company; the gap notes do"],
-    [8, "a data gap writes no figure; it says in words what is not shown"],
-  ]);
-  assert.deepEqual(report.rejected.map((entry) => rejectionCheck(entry.reason)), ["binding", "binding", "binding", "kind", "format", "binding", "binding"]);
-  // An article is a number only before a scale: "a point" or "a dollar of revenue" is no amount.
-  const idioms = checkAssertions([{ kind: "data_gap", text: "At a point like this, margin per a dollar of revenue is not shown." }], { ...PACKET, companies: ["NVDA"] });
-  assert.deepEqual(idioms.rejected, []);
-  // With one company, naming it ranks no one.
-  const single = checkAssertions([{ kind: "data_gap", text: "No segment revenue is shown for NVDA." }], { ...PACKET, companies: ["NVDA"] });
-  assert.deepEqual(single.rejected, []);
-  // With no figures shown, a gap is still checked.
-  const claimsOnly = checkAssertions([{ kind: "data_gap", text: "No segment revenue is shown." }], { ...PACKET, figures: [] });
-  assert.deepEqual([claimsOnly.accepted.map((entry) => entry.index), claimsOnly.rejected], [[0], []]);
 });
 
 test("an unknown cause's change is between periods of one kind, both fully covered (#302 review)", () => {

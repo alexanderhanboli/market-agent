@@ -918,7 +918,7 @@ function hang(t: { after(fn: () => void): void }): Promise<never> {
   return new Promise<never>(() => {});
 }
 
-test("an answer whose every sentence goes beside a gap note falls back without pointing to figures (#263)", async () => {
+test("an answer whose every sentence goes beside a gap note falls back to the note, without pointing to figures (#263, #302)", async () => {
   const gap = { kind: "rich_text", segments: [{ type: "text", text: "Free cash flow is not available for AMD in this data." }] };
   const blocks = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
@@ -928,7 +928,7 @@ test("an answer whose every sentence goes beside a gap note falls back without p
     factBlocks: [gap],
     createClient: () => async () => ({ text: "It fell due to heavy spending." }),
   });
-  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "No written answer is available for this question; try asking again.");
+  assert.equal((blocks[0].segments as Array<{ text: string }>)[0].text, "The data here does not answer this question; the note below says what is missing.");
 });
 
 test("with claims unreadable and nothing else on file, the gap never says there are no claims (#207)", () => {
@@ -1109,45 +1109,48 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
   assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** The leader's margin has doubled.", reason: "removed by the narrative guard" }]);
 });
 
-test("with rendering on, what the data cannot show renders under one label, with figures shown or claims alone (#301)", async () => {
+test("with rendering on, a data gap the model writes never reaches the answer: what is missing is the packet's to say (#302)", async () => {
   const { block, report } = await renderWithReply(withList([
-    { kind: "data_gap", text: "No prior-year margins are shown, so the trend cannot be judged." },
-    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
-    { kind: "data_gap", text: "No segment split is shown" },
+    { kind: "observation", text: "NVDA's revenue was [[F1]] and AMD's was [[F3]].", evidence: ["F1", "F3"] },
+    { kind: "data_gap", text: "No revenue is shown." },
   ]));
   assert.equal(
     (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
-    "**What the data cannot show:** No prior-year margins are shown, so the trend cannot be judged. No segment split is shown." +
-      "\n\nNVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).",
+    "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025).",
   );
-  assert.deepEqual([report.rendered, (report.accepted as Array<{ kind: string }>).map((entry) => entry.kind)], [true, ["data_gap", "observation", "data_gap"]]);
-  const composed = await composeAnalystBlocksWithLlm({
-    env: RENDERING_ENV,
-    context: { userIntent: "Break down A's revenue by segment", bundleId: "single_name" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [A_TOOL_CALL],
-    factBlocks: [],
-    createClient: () => async () => ({ text: withList([
-      { kind: "data_gap", text: "Revenue by segment is not shown." },
-      { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
-    ]) }),
-  });
-  assert.equal(
-    (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
-    "**What the data cannot show:** Revenue by segment is not shown.\n\nAccording to a source dated Feb 2026: Management raised its outlook.",
-  );
+  assert.deepEqual(report.rejected, [{ index: 1, text: "No revenue is shown.", reason: "unknown kind \"data_gap\"" }]);
 });
 
-test("an answer of data gaps alone is not rendered: the prose stands (#301 B2 review)", async () => {
-  const composed = await composeAnalystBlocksWithLlm({
-    env: RENDERING_ENV,
-    context: { userIntent: "What is A's price?", bundleId: "single_name" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [A_TOOL_CALL],
-    factBlocks: [],
-    createClient: () => async () => ({ text: `A's quote is the latest one shown.\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "data_gap", text: "No margins are shown." }])}\n\`\`\`` }),
-  });
-  assert.equal((composed[0].segments as Array<{ text: string }>)[0]!.text, "A's quote is the latest one shown.");
+test("with rendering on, a turn with no figure and only gap notes points to its notes, never the model's prose (#302)", async () => {
+  const gapNote = { id: "gap-fcf", kind: "rich_text", segments: [{ type: "text", text: "Free cash flow is not available for AMD in this data, so no other figure is shown in its place." }] };
+  const prose = "It shows no operating cash flow, no capital expenditure and no free cash flow for AMD.";
+  const shown = async (env: Record<string, string>, reply: string, toolCalls: ReadonlyArray<never> = []) => {
+    const answered: string[] = [];
+    const composed = await composeAnalystBlocksWithLlm({
+      env,
+      context: { userIntent: "What is AMD's free cash flow?", bundleId: "single_subject_analysis" },
+      blocks: [NARRATIVE_BLOCK],
+      toolCalls,
+      factBlocks: [gapNote],
+      availableData: false,
+      createClient: () => async () => ({ text: reply }),
+      onAnswered: (deployment) => answered.push(deployment),
+    });
+    return { segments: composed[0]!.segments, answered };
+  };
+  const pointer = { segments: [{ type: "text", text: "The data here does not answer this question; the note below says what is missing." }], answered: [] };
+  assert.deepEqual(await shown(RENDERING_ENV, prose), pointer);
+  assert.deepEqual(await shown(RENDERING_ENV, `${prose}\n\n\`\`\`assertions\n${JSON.stringify([{ kind: "data_gap", text: "No free cash flow is shown." }])}\n\`\`\``, [A_TOOL_CALL]), pointer);
+  // A claim the model attributes is an answer, rendered as such.
+  assert.deepEqual(
+    (await shown(RENDERING_ENV, withList([{ kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] }]), [A_TOOL_CALL])).segments,
+    [
+      { type: "text", text: "According to a source dated Feb 2026: " },
+      { type: "ref", ref_kind: "claim", ref_id: A_CLAIM, format: "Management raised its outlook." },
+    ],
+  );
+  // With rendering off, the guarded prose stands.
+  assert.deepEqual((await shown(SHADOW_ENV, prose)).segments, [{ type: "text", text: prose }]);
 });
 
 test("a reply citing a sealed figure renders a fact ref with its binding; an invented number or an unknown reference never reaches the answer", async () => {
