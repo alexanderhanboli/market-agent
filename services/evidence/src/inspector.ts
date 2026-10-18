@@ -3,6 +3,7 @@ import {
   sourceDisclosure,
   storagePolicyForDocument,
 } from "./source-disclosure.ts";
+import { formatCompactCurrency, formatCurrency, formatPercent } from "../../analyze/src/block-format.ts";
 
 export const EVIDENCE_INSPECTION_REF_KINDS = [
   "source",
@@ -497,8 +498,14 @@ async function inspectFact(
     fact_id: string;
     source_id: string;
     value: string;
+    value_text: string | null;
     unit: string;
+    currency: string | null;
+    metric_name: string | null;
+    metric_unit_class: string | null;
     period_kind: string;
+    period_start: string | null;
+    period_end: string | null;
     fiscal_year: number | null;
     fiscal_period: string | null;
     as_of: Date | string;
@@ -521,8 +528,14 @@ async function inspectFact(
     `select f.fact_id::text as fact_id,
             f.source_id::text as source_id,
             coalesce(f.value_text, (f.value_num * f.scale)::text, '') as value,
+            f.value_text,
             f.unit,
+            f.currency,
+            m.display_name as metric_name,
+            m.unit_class as metric_unit_class,
             f.period_kind,
+            f.period_start::text as period_start,
+            f.period_end::text as period_end,
             f.fiscal_year,
             f.fiscal_period,
             f.as_of,
@@ -535,6 +548,7 @@ async function inspectFact(
             s.canonical_url
        from facts f
        join sources s on s.source_id = f.source_id
+       left join metrics m on m.metric_id = f.metric_id
       where f.fact_id = $1::uuid
         and f.entitlement_channels ? 'app'
         and (s.user_id is null or s.user_id = $2::uuid)`,
@@ -542,13 +556,12 @@ async function inspectFact(
   );
   const row = rows[0];
   if (!row) throw new EvidenceInspectionError(404, "fact not found");
-  const period = [row.period_kind, row.fiscal_year, row.fiscal_period].filter((part) => part !== null).join(" ");
   return Object.freeze({
     snapshot_id: snapshotId,
     ref: Object.freeze({ kind: "fact", id: factId }),
     kind: "fact",
-    title: `${row.value} ${row.unit}`.trim(),
-    subtitle: period,
+    title: factValueText(row),
+    subtitle: [row.metric_name, factPeriodText({ ...row, as_of: isoString(row.as_of) })].filter((part) => part).join(" · "),
     badges: Object.freeze([row.verification_status, row.freshness_class, row.coverage_level]),
     rows: Object.freeze([
       { label: "Value", value: row.value },
@@ -560,6 +573,72 @@ async function inspectFact(
     links: sourceLinks(row.canonical_url),
     related_refs: Object.freeze([{ kind: "source" as const, id: row.source_id, label: row.provider }]),
   });
+}
+
+// Worded as the answer words the figure, with its formatters: "$209.9B", "$2.0M", "13.9%", "$4.12".
+function factValueText(row: {
+  value: string;
+  value_text: string | null;
+  unit: string;
+  currency: string | null;
+  metric_unit_class: string | null;
+}): string {
+  const value = Number(row.value);
+  if (row.value_text !== null || row.value === "" || !Number.isFinite(value)) return row.value;
+  // A percent metric derived as a fraction (a margin of 0.462) is stored as a ratio.
+  if (row.metric_unit_class === "percent" && (row.unit === "ratio" || row.unit === "pure")) return formatPercent(value);
+  const format = (options: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-US", options).format(value);
+  // Some sources name the currency in the unit itself ("USD").
+  const unitCode = currencyCode(row.unit);
+  const code = unitCode ?? currencyCode(row.currency);
+  switch (unitCode === null ? row.unit : "currency") {
+    case "currency":
+      return code === null
+        ? format({ notation: "compact", minimumFractionDigits: 1, maximumFractionDigits: 1 })
+        : formatCompactCurrency(value, code);
+    case "currency_per_share":
+      return code === null ? format({ minimumFractionDigits: 2, maximumFractionDigits: 2 }) : formatCurrency(value, code);
+    case "percent":
+    case "%":
+      return `${format({ maximumFractionDigits: 1 })}%`;
+    case "count":
+      return format({ notation: "compact", maximumFractionDigits: 1 });
+    case "shares":
+      return `${format({ notation: "compact", maximumFractionDigits: 1 })} shares`;
+    default:
+      return `${format({ maximumFractionDigits: 2 })} ${row.unit}`;
+  }
+}
+
+const CURRENCY_CODES = new Set(Intl.supportedValuesOf("currency"));
+
+// Intl throws on a code it does not know, and facts.currency is free text.
+function currencyCode(value: string | null): string | null {
+  const code = value?.toUpperCase() ?? null;
+  return code !== null && CURRENCY_CODES.has(code) ? code : null;
+}
+
+function factPeriodText(row: {
+  as_of: string;
+  period_kind: string;
+  period_start: string | null;
+  period_end: string | null;
+  fiscal_year: number | null;
+  fiscal_period: string | null;
+}): string {
+  const fiscalYear = row.fiscal_year === null ? null : `FY ${row.fiscal_year}`;
+  switch (row.period_kind) {
+    case "fiscal_y":
+      return fiscalYear ?? "";
+    case "fiscal_q":
+      return [row.fiscal_period, fiscalYear].filter((part) => part).join(" ");
+    case "ttm":
+      return row.period_end === null ? "TTM" : `TTM to ${row.period_end}`;
+    case "range":
+      return [row.period_start, row.period_end].filter((part) => part).join(" to ");
+    default:
+      return row.period_end ?? row.as_of.slice(0, 10);
+  }
 }
 
 const ADJUSTMENT_BASIS_LABELS: Readonly<Record<string, string>> = {
