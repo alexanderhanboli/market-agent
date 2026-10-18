@@ -218,7 +218,7 @@ test("an EXTRACTION_LITELLM_MODEL its channel doesn't list is an issue, and extr
   ]);
 });
 
-test("judge calls lead with JUDGE_LITELLM_MODEL, apart from extraction's lead", () => {
+test("judge calls go to JUDGE_LITELLM_MODEL alone, with no fallback; unset, they follow the primary order", () => {
   const settings = parseLlmEnv({
     ...ANTHROPIC_ENV,
     LLM_ANTHROPIC_MODELS: "claude-sonnet-5-5,claude-haiku-5-5,claude-opus-5-5",
@@ -227,7 +227,7 @@ test("judge calls lead with JUDGE_LITELLM_MODEL, apart from extraction's lead", 
   });
 
   assert.deepEqual(settings.issues, []);
-  assert.deepEqual(orderOf(buildLlmDeploymentOrder(settings, "judge")), ["anthropic/claude-opus-5-5", "opencode/qwen3.8-max"]);
+  assert.deepEqual(orderOf(buildLlmDeploymentOrder(settings, "judge")), ["anthropic/claude-opus-5-5"]);
   assert.deepEqual(orderOf(buildLlmDeploymentOrder(settings, "extraction")), ["anthropic/claude-haiku-5-5", "opencode/qwen3.8-max"]);
   assert.deepEqual(orderOf(buildLlmDeploymentOrder(parseLlmEnv(ANTHROPIC_ENV), "judge")), ["anthropic/claude-sonnet-5-5", "opencode/qwen3.8-max"]);
 });

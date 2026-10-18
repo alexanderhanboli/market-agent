@@ -4,14 +4,17 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import type { LlmChatClient, LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
+import { loadLlmSettingsFromEnv, type LlmChatClient, type LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
 import type { AssertionReport } from "./assertions.ts";
+import { judgeCases, judgeInferences, type InferenceVerdict, type JudgeOutcome } from "./inference-judge.ts";
 import {
   assertionRenderingEnabled,
   composeAnalystBlocksWithLlm,
   FACT_BLOCKS_FALLBACK_TEXT,
   NO_ANSWER_FALLBACK_TEXT,
+  turnPacket,
   type AnswerUsage,
+  type ModelDeadlines,
 } from "./llm-runtime.ts";
 
 export type AnswerTraceInput = Omit<
@@ -44,7 +47,12 @@ export type TurnTrace = {
   // The narrative guard's drops.
   removed: ReadonlyArray<string>;
   blocks: ReadonlyArray<Record<string, unknown>>;
+  // The shadow judge's verdicts on the inferences shown, added after the turn (#302).
+  judge?: JudgedAnswer;
 };
+
+// The judge's verdicts on an answer's accepted inferences, each with its text.
+export type JudgedAnswer = Omit<JudgeOutcome, "verdicts"> & { verdicts: Array<InferenceVerdict & { text: string }> };
 
 export type TracedAnswer = Pick<TurnTrace, "assertion_rendering" | "exchange" | "assertions" | "removed" | "blocks">;
 
@@ -73,6 +81,77 @@ export async function composeTraced(
     },
   });
   return { assertion_rendering: assertionRenderingEnabled(options.env), exchange, assertions, removed, blocks };
+}
+
+type TurnIds = Pick<TurnTrace, "thread_id" | "run_id" | "turn_id">;
+
+type JudgeOptions = {
+  env: LlmSettingsLoaderEnv & Record<string, string | undefined>;
+  createClient?: () => Promise<LlmChatClient> | LlmChatClient;
+  judgeDeadlines?: ModelDeadlines;
+};
+
+// A chat turn's answer, its trace, and the shadow judge. The judge starts once
+// the answer is composed and the turn never waits for it: judged settles after
+// its verdicts are logged and added to the trace, and never rejects.
+export async function answerTurn(
+  input: AnswerTraceInput,
+  turn: TurnIds & Pick<TurnTrace, "question">,
+  options: JudgeOptions & { onAnswered?: (deployment: string) => void; traceDir?: string },
+): Promise<TracedAnswer & { judged: Promise<JudgedAnswer | null> }> {
+  const answer = await composeTraced(input, {
+    env: options.env,
+    ...(options.createClient ? { createClient: options.createClient } : {}),
+    ...(options.onAnswered ? { onAnswered: options.onAnswered } : {}),
+  });
+  const trace: TurnTrace = { version: 1, ...turn, recorded_at: new Date().toISOString(), input, ...answer };
+  const judged = shadowJudge(input, answer.assertions, turn, options).then(async (judge) => {
+    if (judge) await writeTurnTrace(options.traceDir, { ...trace, judge });
+    return judge;
+  });
+  await writeTurnTrace(options.traceDir, trace);
+  return { ...answer, judged };
+}
+
+// Only with JUDGE_LITELLM_MODEL set: unset, judge calls fall back to the
+// primary model, which was not approved for every turn. CHAT_JUDGE_SHADOW=0
+// (or false, no, off) turns it off.
+export async function judgeShadowEnabled(env: LlmSettingsLoaderEnv & Record<string, string | undefined>): Promise<boolean> {
+  if (/^(?:0|false|no|off)$/i.test(env.CHAT_JUDGE_SHADOW?.trim() ?? "")) return false;
+  return (await loadLlmSettingsFromEnv(env)).judgeModel !== null;
+}
+
+// The inferences a rendered answer shows; with rendering off, or not rendered,
+// the reader sees prose, not inferences.
+async function shadowJudge(input: AnswerTraceInput, report: AssertionReport | null, turn: TurnIds, options: JudgeOptions): Promise<JudgedAnswer | null> {
+  try {
+    if (report?.rendered !== true || !(await judgeShadowEnabled(options.env))) return null;
+    const judged = await judgeAnswer(input, report, options);
+    if (judged.verdicts.length === 0) return null;
+    const count = (verdict: InferenceVerdict["verdict"]) => judged.verdicts.filter((entry) => entry.verdict === verdict).length;
+    console.info(`[chat] judge ${traceIds(turn)} on ${judged.deployment ?? "no deployment"}: ${count("entailed")} entailed, ${count("not_entailed")} not entailed, ${count("error")} errors`);
+    return judged;
+  } catch (error) {
+    console.warn(`[chat] judge not run: ${traceIds(turn)}`, error);
+    return null;
+  }
+}
+
+export async function judgeAnswer(input: AnswerTraceInput, report: AssertionReport | null, options: JudgeOptions): Promise<JudgedAnswer> {
+  const packet = turnPacket(input);
+  const cases = judgeCases(report?.accepted ?? [], packet, input.factBlocks ?? []);
+  const outcome = await judgeInferences({
+    cases,
+    companies: packet.companies,
+    env: options.env,
+    ...(options.createClient ? { createClient: options.createClient } : {}),
+    ...(options.judgeDeadlines ? { deadlines: options.judgeDeadlines } : {}),
+  });
+  return { ...outcome, verdicts: outcome.verdicts.map((verdict) => ({ ...verdict, text: cases.find((entry) => entry.index === verdict.index)!.text })) };
+}
+
+function traceIds(turn: TurnIds): string {
+  return `thread=${turn.thread_id} run=${turn.run_id}${turn.turn_id ? ` turn=${turn.turn_id}` : ""}`;
 }
 
 // A recorded turn's input through today's post-processing, the model's reply
@@ -111,11 +190,15 @@ export function renderingEnv(trace: Pick<TurnTrace, "assertion_rendering">): Rec
   return { CHAT_ASSERTION_RENDERING: trace.assertion_rendering ? "1" : "0" };
 }
 
+// Each path's last write: a trace rewritten with the judge's verdicts waits for
+// the turn's own write, so the two never share the partial file.
+const writing = new Map<string, Promise<void>>();
+
 // Written only when CHAT_TRACE_DIR is set; a failed write never fails the turn,
 // and a stalled one holds it at most waitMs (the write carries on behind it).
 export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, waitMs = 2_000): Promise<void> {
   if (!dir) return;
-  const ids = `thread=${trace.thread_id} run=${trace.run_id}${trace.turn_id ? ` turn=${trace.turn_id}` : ""}`;
+  const ids = traceIds(trace);
   // The ids come from the request; none may leave the trace directory.
   if (![trace.thread_id, trace.run_id, trace.turn_id ?? "-"].every((id) => /^[\w-]+$/.test(id))) {
     console.warn(`[chat] trace not written: ${ids} is not a safe file name`);
@@ -123,7 +206,7 @@ export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, 
   }
   // One run can carry several turns (coordinator.ts), each its own file.
   const path = join(dir, trace.thread_id, `${trace.run_id}${trace.turn_id ? `.${trace.turn_id}` : ""}.json`);
-  const write = (async () => {
+  const write = (writing.get(path) ?? Promise.resolve()).then(async () => {
     try {
       await mkdir(dirname(path), { recursive: true });
       // Written aside, then renamed: a reader never sees half a trace.
@@ -134,7 +217,11 @@ export async function writeTurnTrace(dir: string | undefined, trace: TurnTrace, 
     } catch (error) {
       console.warn(`[chat] trace not written: ${ids}`, error);
     }
-  })();
+  });
+  writing.set(path, write);
+  void write.then(() => {
+    if (writing.get(path) === write) writing.delete(path);
+  });
   let timer: NodeJS.Timeout | undefined;
   const late = new Promise<void>((resolve) => {
     timer = setTimeout(() => {

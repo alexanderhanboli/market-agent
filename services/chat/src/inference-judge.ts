@@ -7,8 +7,9 @@
 // checked "fell"). A second model reads each inference beside what it rests
 // on, as the reader sees it, and says whether that backs it.
 //
-// An eval metric for now (scripts/answer-lab.ts --judge): nothing in the turn
-// calls it, and its verdicts gate nothing.
+// An eval metric for now (scripts/answer-lab.ts --judge), also run in shadow on
+// chat turns when JUDGE_LITELLM_MODEL is set (answer-trace.ts answerTurn): its
+// verdicts are logged and traced, and gate nothing.
 
 import { createLlmRouterFromEnv, type LlmChatClient, type LlmChatMessage, type LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
 import type { Assertion } from "./assertions.ts";

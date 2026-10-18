@@ -99,10 +99,13 @@ export function buildLlmDeploymentOrder(
 ): ReadonlyArray<LlmDeployment> {
   const channelsByName = new Map(settings.channels.map((channel) => [channel.name, channel]));
   const lead = { default: null, extraction: settings.extractionModel, judge: settings.judgeModel }[purpose] ?? settings.primaryModel;
+  // A chosen judge has no fallback: verdicts from another model are another
+  // measurement, and judging every turn on a fallback was not approved.
+  const fallbacks = purpose === "judge" && settings.judgeModel ? [] : settings.fallbackModels;
   return Object.freeze(
     dedupeModelRefs([
       ...(lead ? [lead] : []),
-      ...settings.fallbackModels,
+      ...fallbacks,
     ]).flatMap((ref) => {
       const channel = channelsByName.get(ref.channel);
       const target = channel?.enabled && channel.models.length > 0 ? endpointOf(channel) : null;
