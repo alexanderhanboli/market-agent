@@ -3,8 +3,9 @@
 // Company, metric, period and value come from the cited packet entries, never
 // typed by the model, so a binding cannot name the wrong company or scale; the
 // check here is that every id exists, that each kind cites what it must, and
-// that the text writes each figure or claim only as its evidence's reference
-// ([[F3]], prose-refs.ts) and names only its evidence's periods and companies.
+// that each reference the text writes ([[F3]], prose-refs.ts) is its evidence's.
+// Only an analyst inference's text is shown: every other kind is rendered from
+// its evidence in a template (render-assertions.ts), so its words are not read.
 // An analyst inference writes no figure at all: it says in words what the
 // observations, comparisons and attributions it rests on mean, so every figure
 // a rendered answer shows is a template's value from the packet. What the data
@@ -15,9 +16,8 @@
 // when it is checked in shadow and the guarded prose is shown.
 
 import { checkComparison, comparablePeriods, type ComparisonOp } from "./comparisons.ts";
-import { statesCause } from "./narrative-guard.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
-import { REFERENCE, referenceTable, typedDigits, yearsOf, type ReferenceTable } from "./prose-refs.ts";
+import { REFERENCE } from "./prose-refs.ts";
 import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
@@ -61,7 +61,7 @@ export const MAX_ASSERTIONS = 12;
 // citation (binding) from a wrong ranking or trend (comparative), and so a
 // held-out mutation fails one named check (#221).
 export type RejectionCheck =
-  | "binding" | "comparative" | "reference" | "kind" | "cause" | "support" | "gap" | "limit" | "format" | "rendering";
+  | "binding" | "comparative" | "reference" | "kind" | "support" | "gap" | "limit" | "format" | "rendering";
 export type Rejection = { index: number; text?: string; check: RejectionCheck; reason: string };
 
 // The list closes the answer in a fenced block the reader never sees. Wherever
@@ -88,13 +88,7 @@ export function splitAssertions(text: string): { prose: string; list: unknown[] 
   }
 }
 
-// table: the turn's references and the names its text may write (prose-refs.ts);
-// from the packet alone, its names are the figures' metrics and segments.
-export function checkAssertions(
-  list: unknown[] | null | undefined,
-  packet: EvidencePacket,
-  table: ReferenceTable = referenceTable(packet, []),
-): AssertionReport {
+export function checkAssertions(list: unknown[] | null | undefined, packet: EvidencePacket): AssertionReport {
   if (packet.figures.length === 0 && packet.claims.length === 0) return { status: "skipped", accepted: [], rejected: [] };
   if (list === undefined) return { status: "missing", accepted: [], rejected: [] };
   if (list === null) return { status: "malformed", accepted: [], rejected: [] };
@@ -173,12 +167,6 @@ export function checkAssertions(
     }
     const figureIds = evidence.filter((id) => figures.has(id));
     const claimIds = evidence.filter((id) => claims.has(id));
-    // What figures show is not why: a cause is a cited claim's or unknown, on
-    // an answer with figures or without (#294 review).
-    if ((kind === "observation" || kind === "comparison") && statesCause(item.text)) {
-      reject(index, item, "cause", `an ${kind === "observation" ? "observation" : "comparison"} states no cause: give it as a management attribution or an unknown cause`);
-      continue;
-    }
     // A support that failed its own check is dropped; the inference stands on
     // the rest. A claim it relies on is a support too ("given the charge
     // management disclosed"), so the judge reads it beside the inference.
@@ -196,14 +184,10 @@ export function checkAssertions(
       reject(index, item, "kind", "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
     }
-    // A metric the question asked for that no reader serves is a named gap: no
-    // other figure stands in for it ("free cash flow" from net income).
     // Read with the question's own metric names, so "FCF" is free cash flow.
-    // A management attribution cites its claim, never a figure, so a claim
-    // about the missing metric may be attributed.
-    const gap = kind === "management_attribution"
-      ? undefined
-      : requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label;
+    const gap = kind === "analyst_inference"
+      ? requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label
+      : undefined;
     if (gap !== undefined) {
       reject(index, item, "gap", `${gap} is not in the evidence: it is a named gap`);
       continue;
@@ -212,7 +196,7 @@ export function checkAssertions(
     const cited = kind === "analyst_inference"
       ? [...evidence, ...accepted.filter((entry) => supports.includes(entry.index)).flatMap((entry) => entry.evidence)]
       : evidence;
-    const binding = bindingError(kind, item.text, cited, packet, table);
+    const binding = bindingError(kind, item.text, cited, packet);
     if (binding) {
       reject(index, item, binding.check, binding.reason);
       continue;
@@ -287,28 +271,14 @@ function shapeError(
   }
 }
 
-// The text names only what its evidence holds: each reference is one its
-// evidence cites; any digit it typed itself is a period label of its
-// evidence's years (prose-refs.ts), so a figure or a claim's number is written
-// only as its reference, and a year from elsewhere in the turn is not this
-// assertion's; and every company it names is its evidence's.
-function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket, table: ReferenceTable): Pick<Rejection, "check" | "reason"> | null {
+function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): Pick<Rejection, "check" | "reason"> | null {
   for (const [reference, id] of text.matchAll(REFERENCE)) {
-    if (!table.references.has(id!)) return { check: "reference", reason: `unknown reference ${reference}` };
+    if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return { check: "reference", reason: `unknown reference ${reference}` };
     if (!cited.includes(id!)) return { check: "binding", reason: `${reference} is not in its evidence` };
   }
-  const figures = packet.figures.filter((figure) => cited.includes(figure.id));
-  const claims = packet.claims.filter((claim) => cited.includes(claim.id));
-  // An attribution renders its claim's quote, never its own text, so a token
-  // the claim writes ("MI308", "$800", whole, not "$80" of it) may stand in
-  // that text too.
-  const quoted = new Set(kind === "management_attribution"
-    ? claims.flatMap((claim) => typedDigits(claim.text, { years: new Set(), words: new Set(), companies: [] }))
-    : []);
-  const [typed] = typedDigits(text, { ...table, years: yearsOf(figures, claims) }).filter((token) => !quoted.has(token));
-  if (typed !== undefined) return { check: "binding", reason: /^(?:FY)?\d{4}$/.test(typed) ? `${typed} is not a period of its evidence` : `types ${typed}; write its reference` };
+  if (kind !== "analyst_inference") return null;
   // A claim with no company is no company's (its record named none).
-  if (claims.some((claim) => claim.company === undefined)) return null;
+  if (packet.claims.some((claim) => cited.includes(claim.id) && claim.company === undefined)) return null;
   const own = companiesOf(cited, packet);
   // A one-letter ticker ("A") cannot be told from the article, as in the guard.
   const other = packet.companies.find((company) => company.length > 1 && !own.has(company) && mentions(text, company));

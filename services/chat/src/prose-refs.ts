@@ -66,7 +66,7 @@ export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray
 }
 
 // The years the figures' periods and the claims' dates name.
-export function yearsOf(figures: ReadonlyArray<PacketFigure>, claims: ReadonlyArray<PacketClaim>): Set<string> {
+function yearsOf(figures: ReadonlyArray<PacketFigure>, claims: ReadonlyArray<PacketClaim>): Set<string> {
   return new Set([
     ...figures.flatMap((figure) => [figure.period ? periodText(figure.period) : "", figure.period_end ?? ""]),
     ...claims.flatMap((claim) => [claim.effective_time ?? "", claim.published_at ?? ""]),

@@ -3346,6 +3346,36 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "NVDA FY2026 revenue was $209.9B with gross margin of 70.8% and net margin of 53.6%.",
+        "evidence": [
+          "F1",
+          "F2",
+          "F3"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "AMD FY2025 revenue was $34.7B with gross margin of 49.9% and net margin of 12.0%.",
+        "evidence": [
+          "F5",
+          "F6",
+          "F7"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "AAPL FY2025 revenue was $416.2B with gross margin of 46.9% and net margin of 26.9%.",
+        "evidence": [
+          "F9",
+          "F10",
+          "F11"
+        ]
+      },
+      {
         "index": 3,
         "kind": "comparison",
         "text": "NVDA has the highest gross margin among the three companies.",
@@ -3416,29 +3446,14 @@
     ],
     "rejected": [
       {
-        "index": 0,
-        "text": "NVDA FY2026 revenue was $209.9B with gross margin of 70.8% and net margin of 53.6%.",
-        "reason": "types $209.9B; write its reference"
-      },
-      {
-        "index": 1,
-        "text": "AMD FY2025 revenue was $34.7B with gross margin of 49.9% and net margin of 12.0%.",
-        "reason": "types $34.7B; write its reference"
-      },
-      {
-        "index": 2,
-        "text": "AAPL FY2025 revenue was $416.2B with gross margin of 46.9% and net margin of 26.9%.",
-        "reason": "types $416.2B; write its reference"
-      },
-      {
         "index": 9,
         "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
-        "reason": "an inference names no company; its supports do"
+        "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "AMD's net margin may have been depressed by the export-control charge management disclosed, which is a headwind specific to that fiscal year rather than a structural margin ceiling.",
-        "reason": "an inference names no company; its supports do"
+        "reason": "an inference names no company; its subject does"
       },
       {
         "index": 11,

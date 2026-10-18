@@ -1084,17 +1084,16 @@ test("with rendering on, the answer is written from its accepted assertions, val
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
   assert.equal(
     segments.map((segment) => segment.text ?? segment.format).join(""),
-    "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).",
+    "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).\n\nNVDA's revenue was $130.5B in FY2026 (ended Jan 2026).",
   );
-  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4)]);
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(1)]);
   assert.deepEqual(
     ((block.data_ref as { params: { fact_bindings: Array<{ fact_id: string }> } }).params.fact_bindings).map((binding) => binding.fact_id),
-    [FACT(2), FACT(4)],
+    [FACT(2), FACT(4), FACT(1)],
   );
   assert.deepEqual(block.source_refs, ["s-nvda", "s-amd"]);
   assert.equal(report.rendered, true);
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [1, "types $99B; write its reference"],
     [2, "an unknown cause cites a change: one company's metric, two periods, two values"],
   ]);
 });

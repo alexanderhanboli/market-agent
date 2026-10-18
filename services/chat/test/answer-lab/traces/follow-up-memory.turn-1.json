@@ -883,6 +883,33 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "Revenue was $62.1B in Q4 FY2026 (ending January 2026).",
+        "evidence": [
+          "F1"
+        ]
+      },
+      {
+        "index": 1,
+        "kind": "observation",
+        "text": "Gross margin was 74.4%, operating margin 64.9%, and net margin 57.0% in Q4 FY2026.",
+        "evidence": [
+          "F5",
+          "F6",
+          "F7"
+        ]
+      },
+      {
+        "index": 2,
+        "kind": "observation",
+        "text": "Revenue growth was 8.9% QoQ and 57.9% YoY in Q4 FY2026.",
+        "evidence": [
+          "F8",
+          "F9"
+        ]
+      },
+      {
         "index": 3,
         "kind": "comparison",
         "text": "Revenue rose every quarter across the eight quarters shown, from Q1 FY2025 through Q4 FY2026.",
@@ -905,6 +932,8 @@
         "text": "NVIDIA shows exceptionally high profitability and strong YoY growth, but single-digit sequential growth suggests the pace of incremental expansion is not accelerating.",
         "evidence": [],
         "supports": [
+          1,
+          2,
           3
         ]
       },
@@ -914,26 +943,12 @@
         "text": "The large YoY growth figure partly reflects a small year-ago base rather than a steepening current trajectory; if sequential growth stays at this level the YoY rate will compress.",
         "evidence": [],
         "supports": [
+          2,
           3
         ]
       }
     ],
     "rejected": [
-      {
-        "index": 0,
-        "text": "Revenue was $62.1B in Q4 FY2026 (ending January 2026).",
-        "reason": "types $62.1B; write its reference"
-      },
-      {
-        "index": 1,
-        "text": "Gross margin was 74.4%, operating margin 64.9%, and net margin 57.0% in Q4 FY2026.",
-        "reason": "types 74.4%; write its reference"
-      },
-      {
-        "index": 2,
-        "text": "Revenue growth was 8.9% QoQ and 57.9% YoY in Q4 FY2026.",
-        "reason": "types 8.9%; write its reference"
-      },
       {
         "index": 6,
         "text": "The data does not show why margins are at these levels or what is driving the revenue mix, because no segment breakdown or management attribution is provided.",

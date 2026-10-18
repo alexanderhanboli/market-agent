@@ -18,6 +18,7 @@ import type { ChatClarificationAnswer, ChatFinancialRuntime } from "./financial-
 import { withLlmConversation } from "../../llm/src/pi-adapter.ts";
 import type { ChatSseEvent } from "./sse.ts";
 import type { ChatSubjectPreResolver } from "./subjects.ts";
+import { isUuid } from "./chat-ids.ts";
 import { tryHandleThreadsRequest } from "./threads-http.ts";
 import {
   ChatThreadNotFoundError,
@@ -385,8 +386,6 @@ function nonEmptyQueryParam(value: string | null): string | null {
   return value && value.trim() !== "" ? value : null;
 }
 
-const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function readStreamAuthenticatedUserId(
   req: IncomingMessage,
   route: StreamRoute,
@@ -395,7 +394,7 @@ function readStreamAuthenticatedUserId(
   const headerUserId = readAuthenticatedUserId(req, auth);
   if (headerUserId !== null) return headerUserId;
   if (resolveAuthMode(auth) !== "dev_user_header") return null;
-  return route.userId !== null && USER_ID_PATTERN.test(route.userId) ? route.userId : null;
+  return route.userId !== null && isUuid(route.userId) ? route.userId : null;
 }
 
 function respondJson(res: ServerResponse, status: number, body: object) {

@@ -1873,6 +1873,14 @@
     "status": "checked",
     "accepted": [
       {
+        "index": 0,
+        "kind": "observation",
+        "text": "Gross margin was 60.5% in Q1 fiscal 2026 (quarter ending April 2025).",
+        "evidence": [
+          "F22"
+        ]
+      },
+      {
         "index": 2,
         "kind": "comparison",
         "text": "Q1 fiscal 2026 gross margin is the lowest in the eight-quarter window shown.",
@@ -1890,6 +1898,26 @@
         "result": "F22"
       },
       {
+        "index": 3,
+        "kind": "observation",
+        "text": "Revenue grew sequentially in Q1 fiscal 2026, with QoQ growth of 12.0% and YoY growth of 69.2%.",
+        "evidence": [
+          "F8",
+          "F9",
+          "F13",
+          "F14"
+        ]
+      },
+      {
+        "index": 4,
+        "kind": "observation",
+        "text": "Operating margin and net margin also hit their window lows in Q1 fiscal 2026 at 49.1% and 42.6% respectively.",
+        "evidence": [
+          "F30",
+          "F38"
+        ]
+      },
+      {
         "index": 5,
         "kind": "unknown_cause",
         "text": "The data does not show why gross margin fell sharply in Q1 fiscal 2026.",
@@ -1903,30 +1931,16 @@
         "text": "The margin compression appears to be a cost-side or mix event rather than a demand problem, because revenue continued to grow while margins dropped and then recovered.",
         "evidence": [],
         "supports": [
-          2
+          2,
+          3
         ]
       }
     ],
     "rejected": [
       {
-        "index": 0,
-        "text": "Gross margin was 60.5% in Q1 fiscal 2026 (quarter ending April 2025).",
-        "reason": "types 60.5%; write its reference"
-      },
-      {
         "index": 1,
         "text": "Gross margin fell from Q1 fiscal 2025 through Q1 fiscal 2026, then rose through Q4 fiscal 2026.",
         "reason": "comparison: gross margin did not fall in every period"
-      },
-      {
-        "index": 3,
-        "text": "Revenue grew sequentially in Q1 fiscal 2026, with QoQ growth of 12.0% and YoY growth of 69.2%.",
-        "reason": "types 12.0%; write its reference"
-      },
-      {
-        "index": 4,
-        "text": "Operating margin and net margin also hit their window lows in Q1 fiscal 2026 at 49.1% and 42.6% respectively.",
-        "reason": "types 49.1%; write its reference"
       },
       {
         "index": 7,

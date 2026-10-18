@@ -2,8 +2,9 @@
 // declaring what the turn must establish (companies, period or window, blocks or
 // a named gap, the ambiguity rule) and a known-good recorded answer whose
 // assertion list passes. Each mutation keeps the known-good answer but changes
-// one thing, and must fail one named check (a rejection's check, assertions.ts). No
-// model, provider or credential is involved: replies are recorded.
+// one thing, and must fail one named check (a rejection's check, assertions.ts)
+// or never reach the page. No model, provider or credential is involved: replies
+// are recorded.
 //
 // Expected values are written from the golden dataset (test/golden/dataset.ts)
 // by hand, not derived from the code under test. The suite is versioned: the
@@ -19,7 +20,7 @@
 
 import type { RejectionCheck } from "../../src/assertions.ts";
 
-export const HOLDOUT_VERSION = 4;
+export const HOLDOUT_VERSION = 5;
 
 type Assertion = Record<string, unknown>;
 
@@ -55,6 +56,7 @@ export type HoldoutCase = {
     | { name: string; list: ReadonlyArray<Assertion>; fails: { index: number; check: RejectionCheck } }
     // A prose mutation: a figure the data does not hold, which must never be shown.
     | { name: string; prose: string; never_shown: string }
+    | { name: string; list: ReadonlyArray<Assertion>; never_shown: string }
   >;
 };
 
@@ -75,12 +77,16 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     good: [
       cmp("highest", "F9", ["F1", "F5", "F9"]),
       cmp("lowest", "F7", ["F3", "F7", "F11"]),
-      obs("NVDA's revenue was [[F1]] in FY2026.", ["F1"]),
+      obs("NVDA's gross margin was [[F2]] in FY2026.", ["F2"]),
     ],
     mutations: [
       { name: "wrong winner", list: [cmp("highest", "F1", ["F1", "F5", "F9"])], fails: { index: 0, check: "comparative" } },
       { name: "dropped peer", list: [cmp("lowest", "F7", ["F3", "F7"])], fails: { index: 0, check: "comparative" } },
-      { name: "wrong company", list: [obs("AMD's revenue was [[F1]] in FY2026.", ["F1"])], fails: { index: 0, check: "binding" } },
+      {
+        name: "wrong company",
+        list: [cmp("highest", "F9", ["F1", "F5", "F9"]), cmp("lowest", "F7", ["F3", "F7", "F11"]), obs("AMD's gross margin was [[F2]] in FY2026.", ["F2"])],
+        never_shown: "AMD's gross margin was",
+      },
     ],
   },
   {
@@ -89,9 +95,9 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     turns: ["Compare NVDA's and AAPL's fiscal 2025 revenue."],
     expect: { companies: ["NVDA", "AAPL"], route: "comparison", fiscal_year: 2025, blocks: [{ kind: "metrics_comparison", title: "Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart" }] },
     prose: "NVDA's fiscal 2025 ended in January 2025, AAPL's in September 2025.",
-    good: [obs("NVDA's revenue was [[F1]] in FY2025.", ["F1"])],
+    good: [obs("NVDA's revenue was [[F1]] in FY2025.", ["F1"]), obs("AAPL's revenue was [[F5]] in FY2025.", ["F5"])],
     mutations: [
-      { name: "wrong fiscal year", list: [obs("NVDA's revenue was [[F1]] in FY2026.", ["F1"])], fails: { index: 0, check: "binding" } },
+      { name: "wrong fiscal year", list: [obs("NVDA's revenue was [[F1]] in FY2026.", ["F1"]), obs("AAPL's revenue was [[F5]] in FY2025.", ["F5"])], never_shown: "in FY2026" },
     ],
   },
   {
@@ -105,7 +111,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
       { kind: "unknown_cause", text: "The data does not show why NVDA's gross margin fell.", evidence: ["F22"] },
     ],
     mutations: [
-      { name: "stated cause", list: [obs("NVDA's gross margin fell to [[F22]] in Q1 2026, driven by inventory charges.", ["F22"])], fails: { index: 0, check: "cause" } },
+      { name: "stated cause", list: [obs("NVDA's gross margin fell to [[F22]] in Q1 2026, driven by inventory charges.", ["F22"])], never_shown: "inventory charges" },
       { name: "attribution without a claim", list: [{ kind: "management_attribution", text: "Management blamed inventory charges.", evidence: ["F22"] }], fails: { index: 0, check: "kind" } },
     ],
   },
@@ -127,7 +133,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     prose: "AAPL's revenue was $97.4B in its latest quarter.",
     good: [obs("AAPL's revenue was [[F1]] in Q3 2026.", ["F1"])],
     mutations: [
-      { name: "superseded value", list: [obs("AAPL's revenue was $97.1B in Q3 2026.", ["F1"])], fails: { index: 0, check: "binding" } },
+      { name: "superseded value", list: [obs("AAPL's revenue was $97.1B in Q3 2026.", ["F1"])], never_shown: "$97.1B" },
     ],
   },
   {
@@ -138,7 +144,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     prose: "Data Center is most of NVDA's revenue.",
     good: [obs("NVDA's Data Center revenue was [[F1]] in Q4 2026.", ["F1"])],
     mutations: [
-      { name: "obsolete segment definition", list: [obs("NVDA's Data Center revenue was $50.0B in Q4 2026.", ["F1"])], fails: { index: 0, check: "binding" } },
+      { name: "obsolete segment definition", list: [obs("NVDA's Data Center revenue was $50.0B in Q4 2026.", ["F1"])], never_shown: "$50.0B" },
     ],
   },
   {
@@ -213,7 +219,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     mutations: [
       { name: "missing claim reference", list: [{ kind: "management_attribution", text: MI308, evidence: [] }], fails: { index: 0, check: "kind" } },
       { name: "duplicate claim reference", list: [{ kind: "management_attribution", text: MI308, evidence: ["C1", "C1"] }], fails: { index: 0, check: "reference" } },
-      { name: "cause as an observation", list: [obs("AMD's revenue was [[F1]] in Q2 2026, driven by export controls.", ["F1"])], fails: { index: 0, check: "cause" } },
+      { name: "cause as an observation", list: [obs("AMD's revenue was [[F1]] in Q2 2026, driven by export controls.", ["F1"])], never_shown: "driven by export controls" },
     ],
   },
 ];
