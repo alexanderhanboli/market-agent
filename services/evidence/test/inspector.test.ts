@@ -360,6 +360,8 @@ function factRow(overrides: Record<string, unknown>) {
     value_text: null,
     currency: null,
     metric_name: null,
+    period_start: null,
+    period_end: null,
     as_of: "2026-09-01T00:00:00.000Z",
     verification_status: "authoritative",
     freshness_class: "filing_time",
@@ -405,6 +407,9 @@ test("a fact's title follows its unit, and its period reads in words", async () 
     [{ value: "24400000000", unit: "shares", metric_name: "Shares outstanding", period_kind: "point", fiscal_year: null, fiscal_period: null, period_end: "2026-06-30" }, "24.4B shares", "Shares outstanding · 2026-06-30"],
     [{ value: "45.2", unit: "ratio", metric_name: null, period_kind: "point", fiscal_year: null, fiscal_period: null, period_end: null }, "45.2 ratio", ""],
     [{ value: "Nasdaq", value_text: "Nasdaq", unit: "string", metric_name: "Exchange", period_kind: "point", fiscal_year: null, fiscal_period: null, period_end: null }, "Nasdaq", "Exchange"],
+    [{ value: "209911000000", unit: "currency", currency: "US", metric_name: "Revenue", period_kind: "fiscal_y", fiscal_year: 2026, fiscal_period: "FY" }, "209.9B", "Revenue · FY 2026"],
+    [{ value: "209911000000", unit: "USD", metric_name: "Revenue", period_kind: "fiscal_y", fiscal_year: 2026, fiscal_period: "FY" }, "$209.9B", "Revenue · FY 2026"],
+    [{ value: "13.9", unit: "%", metric_name: "Gross margin", period_kind: "range", fiscal_year: null, fiscal_period: null, period_start: "2026-01-01", period_end: "2026-06-30" }, "13.9%", "Gross margin · 2026-01-01 to 2026-06-30"],
   ];
   for (const [overrides, title, subtitle] of cases) {
     const result = await inspectFactRow(factRow(overrides));
