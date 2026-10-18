@@ -261,6 +261,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   // The deployment is reported only when some of its prose is shown: a fallback
   // sentence in its place was written by no model (#183).
   const answered = () => input.onAnswered?.(`${result.deployment.channel}/${result.deployment.model}`);
+  const rendering = assertionRenderingEnabled(input.env ?? process.env);
   // The assertion list is checked, never shown (#208).
   const { prose, list, open } = splitAssertions(result.text.trim());
   const report = checkAssertions(list, packet, table);
@@ -287,7 +288,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   // there is nothing to render, so the guarded prose stands, as with the flag
   // off.
   const renderAccepted = (drops: (text: string, kind: AssertionKind) => ReadonlyArray<string>) => {
-    if (!assertionRenderingEnabled(input.env ?? process.env) || report.status !== "checked" || report.accepted.length === 0) return null;
+    if (!rendering || report.status !== "checked" || report.accepted.length === 0) return null;
     const rendered = report.accepted.map((assertion) => ({
       ...renderAssertion(assertion, packet, factBlocks, report.accepted),
       kind: assertion.kind,
@@ -419,7 +420,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     const item = Array.isArray(list) ? list[entry.index] : undefined;
     return isRecord(item) && item.kind === "comparison";
   });
-  if (assertionRenderingEnabled(input.env ?? process.env) && rejectedComparison) {
+  if (rendering && rejectedComparison) {
     reportAssertions();
     return rewriteFirstRichTextBlock(input.blocks, fallback);
   }
@@ -427,11 +428,17 @@ export async function composeAnalystBlocksWithLlm(input: {
   // A named gap's turn gives the model no data (availableData false): any
   // digit it types is invented, a year included (#221). A claim's number
   // appears only by citing the claim, which renders it whole (#294 review).
-  const guarded = shown.length === 0 && input.availableData === false
-    ? withoutWordedAmounts(guard(text, undefined, { ...table, years: new Set() }))
+  const checked = shown.length === 0 && input.availableData === false
+    ? withoutSentences(guard(text, undefined, { ...table, years: new Set() }), WORDED_AMOUNT)
     : guard(text);
+  // With rendering on, only a rendered assertion states a figure's company,
+  // metric and period from the packet: in the prose a reference sits in words
+  // no check reads ("NVDA's revenue was [[F2]]" for AMD's margin, #301). A
+  // claim renders its words alone, without its company, so across companies
+  // its sentence goes too.
+  const guarded = rendering ? withoutSentences(checked, packet.companies.length > 1 ? /\[\[[FC]\d+\]\]/ : /\[\[F\d+\]\]/) : checked;
   if (guarded.removed.length > 0) {
-    console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) quoting figures not in the evidence packet`);
+    console.warn(`[chat] removed ${guarded.removed.length} narrative sentence(s) the evidence packet does not support`);
     input.onNarrativeRemoved?.(guarded.removed);
   }
   if (guarded.text) answered();
@@ -446,9 +453,9 @@ export async function composeAnalystBlocksWithLlm(input: {
 // and "a" are left out, as ordinary wording ("one of the metrics").
 const WORDED_AMOUNT = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|dozens?|hundreds?|thousands?|millions?|billions?|trillions?|percent|per cent|percentage points?|basis points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?)\b/i;
 
-// On a turn with no data, a sentence stating an amount in words goes as one
-// in digits does.
-function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { text: string; removed: string[] } {
+// The guarded text without each sentence the pattern matches, reported with
+// the guard's removals.
+function withoutSentences(guarded: { text: string; removed: string[] }, pattern: RegExp): { text: string; removed: string[] } {
   const removed = [...guarded.removed];
   // A line that lost every sentence is dropped (null), so a heading left with
   // nothing under it goes too, as in the guard (#294 review).
@@ -457,7 +464,7 @@ function withoutWordedAmounts(guarded: { text: string; removed: string[] }): { t
     // A list marker leads the line, not a sentence of it, as in the guard.
     const lead = line.match(LIST_MARKER)?.[0] ?? "";
     const kept = line.slice(lead.length).trim().split(SENTENCE_BREAK).filter((sentence) => {
-      if (!WORDED_AMOUNT.test(sentence)) return true;
+      if (!pattern.test(sentence)) return true;
       removed.push(sentence.trim());
       return false;
     });
