@@ -3,6 +3,7 @@ import {
   sourceDisclosure,
   storagePolicyForDocument,
 } from "./source-disclosure.ts";
+import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
 
 export const EVIDENCE_INSPECTION_REF_KINDS = [
   "source",
@@ -558,7 +559,7 @@ async function inspectFact(
     ref: Object.freeze({ kind: "fact", id: factId }),
     kind: "fact",
     title: factValueText(row),
-    subtitle: [row.metric_name, factPeriodText(row)].filter((part) => part).join(" · "),
+    subtitle: [row.metric_name, factPeriodText({ ...row, as_of: isoString(row.as_of) })].filter((part) => part).join(" · "),
     badges: Object.freeze([row.verification_status, row.freshness_class, row.coverage_level]),
     rows: Object.freeze([
       { label: "Value", value: row.value },
@@ -572,7 +573,7 @@ async function inspectFact(
   });
 }
 
-// Worded as the answer words the figure: "$209.9B", "13.9%", "$4.12".
+// Worded as the answer words the figure, with its formatters: "$209.9B", "$2.0M", "13.9%", "$4.12".
 function factValueText(row: { value: string; value_text: string | null; unit: string; currency: string | null }): string {
   const value = Number(row.value);
   if (row.value_text !== null || row.value === "" || !Number.isFinite(value)) return row.value;
@@ -580,13 +581,13 @@ function factValueText(row: { value: string; value_text: string | null; unit: st
   // Some sources name the currency in the unit itself ("USD").
   const unitCode = currencyCode(row.unit);
   const code = unitCode ?? currencyCode(row.currency);
-  const money = code === null ? {} : { style: "currency" as const, currency: code };
   switch (unitCode === null ? row.unit : "currency") {
     case "currency":
-      // Currency style defaults to two minimum digits, which some ICU versions keep ("$2.0M").
-      return format({ ...money, notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 });
+      return code === null
+        ? format({ notation: "compact", minimumFractionDigits: 1, maximumFractionDigits: 1 })
+        : formatCompactCurrency(value, code);
     case "currency_per_share":
-      return format({ ...money, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return code === null ? format({ minimumFractionDigits: 2, maximumFractionDigits: 2 }) : formatCurrency(value, code);
     case "percent":
     case "%":
       return `${format({ maximumFractionDigits: 1 })}%`;
@@ -608,6 +609,7 @@ function currencyCode(value: string | null): string | null {
 }
 
 function factPeriodText(row: {
+  as_of: string;
   period_kind: string;
   period_start: string | null;
   period_end: string | null;
@@ -625,7 +627,7 @@ function factPeriodText(row: {
     case "range":
       return [row.period_start, row.period_end].filter((part) => part).join(" to ");
     default:
-      return row.period_end ?? "";
+      return row.period_end ?? row.as_of.slice(0, 10);
   }
 }
 
