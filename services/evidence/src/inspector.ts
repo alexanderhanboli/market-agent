@@ -20,6 +20,10 @@ export type EvidenceInspectionRef = {
   id: string;
 };
 
+export type EvidenceInspectionRelatedRef = EvidenceInspectionRef & {
+  label?: string;
+};
+
 export type EvidenceInspectionRow = {
   label: string;
   value: string;
@@ -39,7 +43,7 @@ export type EvidenceInspection = {
   badges: ReadonlyArray<string>;
   rows: ReadonlyArray<EvidenceInspectionRow>;
   links: ReadonlyArray<EvidenceInspectionLink>;
-  related_refs: ReadonlyArray<EvidenceInspectionRef>;
+  related_refs: ReadonlyArray<EvidenceInspectionRelatedRef>;
 };
 
 export class EvidenceInspectionError extends Error {
@@ -361,7 +365,7 @@ async function inspectDocument(
       ...disclosureRows(row),
     ]),
     links: sourceLinks(row.canonical_url),
-    related_refs: Object.freeze([{ kind: "source" as const, id: row.source_id }]),
+    related_refs: Object.freeze([{ kind: "source" as const, id: row.source_id, label: row.provider }]),
   });
 }
 
@@ -385,6 +389,7 @@ async function inspectClaim(
     provider: string;
     license_class: string;
     canonical_url: string | null;
+    document_title: string | null;
   }>(
     `select c.claim_id::text as claim_id,
             c.document_id::text as document_id,
@@ -398,7 +403,8 @@ async function inspectClaim(
             c.status,
             s.provider,
             s.license_class,
-            s.canonical_url
+            s.canonical_url,
+            d.title as document_title
        from claims c
        join sources s on s.source_id = c.reported_by_source_id
        join documents d on d.document_id = c.document_id
@@ -427,8 +433,12 @@ async function inspectClaim(
     ]),
     links: sourceLinks(row.canonical_url),
     related_refs: Object.freeze([
-      { kind: "document" as const, id: row.document_id },
-      { kind: "source" as const, id: row.reported_by_source_id },
+      {
+        kind: "document" as const,
+        id: row.document_id,
+        ...(row.document_title == null ? {} : { label: row.document_title }),
+      },
+      { kind: "source" as const, id: row.reported_by_source_id, label: row.provider },
     ]),
   });
 }
@@ -548,7 +558,7 @@ async function inspectFact(
       { label: "Confidence", value: String(row.confidence) },
     ]),
     links: sourceLinks(row.canonical_url),
-    related_refs: Object.freeze([{ kind: "source" as const, id: row.source_id }]),
+    related_refs: Object.freeze([{ kind: "source" as const, id: row.source_id, label: row.provider }]),
   });
 }
 
@@ -579,10 +589,12 @@ async function inspectSeries(
     ticker: string;
     legal_name: string;
     canonical_url: string | null;
+    provider: string;
   }>(
     `select l.ticker,
             iss.legal_name,
-            s.canonical_url
+            s.canonical_url,
+            s.provider
        from listings l
        join instruments ins on ins.instrument_id = l.instrument_id
        join issuers iss on iss.issuer_id = ins.issuer_id
@@ -614,7 +626,7 @@ async function inspectSeries(
         : []),
     ]),
     links: sourceLinks(row.canonical_url),
-    related_refs: Object.freeze([{ kind: "source" as const, id: spec.source_id }]),
+    related_refs: Object.freeze([{ kind: "source" as const, id: spec.source_id, label: row.provider }]),
   });
 }
 

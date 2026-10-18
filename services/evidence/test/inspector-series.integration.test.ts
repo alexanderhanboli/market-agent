@@ -71,7 +71,7 @@ test("a chat owner inspects a sealed series ref against the real schema; a stran
   const inspection = await loadEvidenceInspection(db, { user_id: ownerId, snapshot_id: snapshotId, ref });
   assert.equal(inspection.title, "NVDA price series");
   assert.equal(inspection.subtitle, "NVIDIA Corporation");
-  assert.deepEqual(inspection.related_refs, [{ kind: "source", id: sourceId }]);
+  assert.deepEqual(inspection.related_refs, [{ kind: "source", id: sourceId, label: "polygon" }]);
   assert.deepEqual(inspection.links, [{ label: "Open source", href: "https://polygon.io/" }]);
 
   await assert.rejects(
