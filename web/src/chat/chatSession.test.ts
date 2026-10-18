@@ -650,3 +650,18 @@ test('a starter that reaches the server while the resend is still open marks the
   const dropped = reduceChatSession(reached, drop)
   assert.deepEqual([linkOf(dropped)?.kind, linkOf(dropped)?.attach, selectThreadView(dropped).needsLoad], ['reconnecting', true, { threadId: 'T1', gen: 2 }])
 })
+
+test('a load read before the followed run ended, listing it ahead of another run, follows the other run', () => {
+  const U2 = message('u2', 'user', 'Compare with AMD')
+  const R2 = { runId: 'run-2', turnId: 'u2' }
+  const both: ReadonlyArray<RunStatus> = [{ run: R1, status: 'in_flight' }, { run: R2, status: 'in_flight' }]
+  const ended = run(opened(), [
+    read(1, [U1, U2], both),
+    { type: 'history.requested' },
+    streamEvent(sse('turn.started', 1)),
+    streamEvent(sse('turn.completed', 2, { message_id: 'a1', message: A1_SEALED })),
+  ])
+  assert.equal(ended.turn.phase, 'idle')
+  const stale = reduceChatSession(ended, read(2, [U1, U2], both))
+  assert.deepEqual([wantedStream(stale)?.key, selectThreadView(stale).canAsk], ['T1|run-2|attach|0', false])
+})

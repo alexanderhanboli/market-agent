@@ -294,7 +294,8 @@ export function reduceChatSession(s: ChatSessionState, a: ChatSessionAction): Ch
       }
       const read: Read = { ids: loadedIds, runs: a.runs }
       const inFlight = a.runs.flatMap((entry) => (entry.status === 'in_flight' ? [entry.run] : []))
-      return adopt(reconcileReleased(settled({ ...s, history, inFlight }, read), read), a.activeRun)
+      // active_run may name a run the session already saw end; followUp moves on to the next one.
+      return followUp(adopt(reconcileReleased(settled({ ...s, history, inFlight }, read), read), a.activeRun))
     }
 
     case 'history.failed': {
