@@ -59,9 +59,9 @@ export const MAX_ASSERTIONS = 12;
 // The check a rejection failed (rejection-check.ts, #221).
 export { rejectionCheck, type RejectionCheck } from "./rejection-check.ts";
 
-// The list closes the answer in a fenced block the reader never sees, closed
-// or not (a reply cut off inside it). The first block is the one read, so a
-// second (a corrected list) is not.
+// The list closes the answer in a fenced block, closed or not (a reply cut
+// off inside it). The first block is the one read, so a second (a corrected
+// list) is not.
 const FENCE = /```assertions[ \t]*\r?\n([\s\S]*?)(?:```|$)/;
 
 // The answer's assertion list as written: undefined when there is none; null

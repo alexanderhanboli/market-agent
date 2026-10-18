@@ -129,10 +129,8 @@ const CAUSE_DATA_WORDS = new Set([
 const causeWords = (text: string) =>
   (text.toLowerCase().replace(/(?<![a-z0-9.,])\d[\d.,]*(?:bn|mn|tn|[bmktx])?\b/g, " ").match(/[a-z][a-z0-9'’-]*/g) ?? []).map((word) => word.replace(/['’]s$/, ""));
 
-// The sentences of a rendered assertion the evidence does not support.
 export function unsupportedSentences(
   text: string,
-  // The references the text may cite (prose-refs.ts).
   table: ReferenceTable,
   // The turn's displayed and cited text: the words a stated cause may use.
   supportingTexts: ReadonlyArray<string>,
@@ -178,7 +176,6 @@ export function causalSentences(text: string): string[] {
   });
 }
 
-// Each line's sentences: a line is a boundary too.
 function sentences(text: string): string[] {
   return text.split(/\r?\n/).flatMap((line) => (line.trim() === "" ? [] : line.trim().split(SENTENCE_BREAK)));
 }

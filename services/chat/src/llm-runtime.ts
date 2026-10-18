@@ -19,8 +19,7 @@ import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
 import { causalSentences, unsupportedSentences } from "./narrative-guard.ts";
 
-// Shown when no assertion renders: the model gave no list that parses, the
-// check rejected every assertion, or the guard removed every one it accepted.
+// Shown when no assertion renders.
 const FACT_BLOCKS_FALLBACK_TEXT =
   "The reported figures below come from the company's filings; select any value to see its source.";
 // The same case for an answer without figures to point to.
@@ -137,7 +136,6 @@ export async function composeAnalystBlocksWithLlm(input: {
   if (!router) return input.blocks;
   const packet = turnPacket(input);
   const factBlocks = input.factBlocks ?? [];
-  // The references a rendered assertion cites, for the guard (prose-refs.ts).
   const table = referenceTable(packet);
 
   const request: LlmChatRequest = {
@@ -205,7 +203,6 @@ export async function composeAnalystBlocksWithLlm(input: {
           "fact_recency.stale / a large fact_recency.age_days), explicitly note",
           "that the figure may be out of date and say how old it is.",
           "Return plain text suitable for a rich_text block.",
-          // The assertion list (#208): checked against the packet; the answer is rendered from it.
           "After the answer, list what it asserts in a fenced block that opens with ```assertions on its own line:",
           `a JSON array of at most ${MAX_ASSERTIONS} objects {"kind", "text", "evidence"}. kind is "observation" (what figures`,
           "show; evidence lists their F ids only), \"comparison\" (a high or low, a ranking, or a trend of exactly one metric, so one",
@@ -280,10 +277,9 @@ export async function composeAnalystBlocksWithLlm(input: {
     ...claimTextsFromToolCalls(input.toolCalls),
     ...shown.flatMap((figure) => (figure.period_end ? [monthYear(figure.period_end), shortMonthYear(figure.period_end)] : [])),
   ];
-  // The narrative guard, the backstop on each rendered assertion, reads it with
-  // its values as references (narrative-guard.ts). With no figure shown, no
-  // cause may be stated (#263); an attribution quotes its sourced claim word
-  // for word, so a cause the claim states is the claim's, not the model's.
+  // With no figure shown, no cause may be stated (#263); an attribution quotes
+  // its sourced claim word for word, so a cause the claim states is the
+  // claim's, not the model's.
   const drops = (text: string, kind: AssertionKind) =>
     (shown.length === 0 && kind !== "management_attribution" && causalSentences(text).length > 0) ||
     unsupportedSentences(text, table, supportingTexts).length > 0;
@@ -291,8 +287,6 @@ export async function composeAnalystBlocksWithLlm(input: {
   // answer was rendered, so evals see them either way.
   let renderRemovals: AssertionReport["rejected"] = [];
   let repeated: number[] = [];
-  // The answer written from the accepted assertions (#208). Null when nothing
-  // renders, and the fallback sentence is shown instead.
   const renderAccepted = (): Answer | null => {
     if (report.status !== "checked" || report.accepted.length === 0) return null;
     const rendered = report.accepted.map((assertion) => ({
@@ -608,9 +602,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// The narrative block as the answer: rendered assertions paragraph by
-// paragraph, with the fact bindings and sources their refs seal with, or the
-// fallback sentence.
 function withAnswer(blocks: ReadonlyArray<Record<string, unknown>>, answer: Answer): ReadonlyArray<Record<string, unknown>> {
   let rewritten = false;
   return Object.freeze(blocks.map((block) => {

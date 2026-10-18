@@ -73,7 +73,6 @@ export function createSealer(factBlocks: ReadonlyArray<Block>): Sealer {
   };
 }
 
-// A sentence with references as the user reads it: each its packet value.
 export function renderedText(text: string, table: ReferenceTable): string {
   return text.replace(REFERENCE, (written, id: string) => {
     const reference = table.get(id);
