@@ -1335,6 +1335,20 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
   assert.deepEqual(removed, [["> **Analyst inference:** A's margin has doubled."]]);
 });
 
+test("an inference resting on a management attribution renders (#302)", async () => {
+  const { text, report } = await renderA([
+    { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
+    { kind: "observation", text: "A's gross margin was [[F2]].", evidence: ["F2"] },
+    { kind: "analyst_inference", text: "The raised outlook signals confidence in demand.", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "The margin and the outlook point the same way.", evidence: [], supports: [0, 1] },
+  ]);
+  assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook." +
+    "\n\nA's gross margin was 74.6% in FY2026 (ended Jan 2026)." +
+    "\n\n> **Analyst inference:** The raised outlook signals confidence in demand." +
+    "\n\n> **Analyst inference:** The margin and the outlook point the same way.");
+  assert.deepEqual(report.rejected, []);
+});
+
 test("a rendered answer keeps a stale-data warning; a sourced causal claim renders with no figures shown (#208)", async () => {
   const stale = {
     tool_call_id: "tc-1",

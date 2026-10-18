@@ -1907,6 +1907,24 @@
           "F20",
           "F28"
         ]
+      },
+      {
+        "index": 8,
+        "kind": "analyst_inference",
+        "text": "The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
+        "evidence": [],
+        "supports": [
+          6
+        ]
+      },
+      {
+        "index": 10,
+        "kind": "analyst_inference",
+        "text": "The export-control charge is the stated cause of the margin decline, but the data alone cannot confirm the mechanism without a line-item breakdown.",
+        "evidence": [],
+        "supports": [
+          6
+        ]
       }
     ],
     "rejected": [
@@ -1941,18 +1959,8 @@
         "reason": "types 50s; write its reference"
       },
       {
-        "index": 8,
-        "text": "The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
-        "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
         "index": 9,
         "text": "Below-the-line items fully offset the operating loss, limiting the bottom-line impact despite the negative operating margin.",
-        "reason": "an inference binds the accepted observations it rests on"
-      },
-      {
-        "index": 10,
-        "text": "The export-control charge is the stated cause of the margin decline, but the data alone cannot confirm the mechanism without a line-item breakdown.",
         "reason": "an inference binds the accepted observations it rests on"
       }
     ]

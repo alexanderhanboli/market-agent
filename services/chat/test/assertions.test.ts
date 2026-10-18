@@ -394,6 +394,23 @@ test("a support that failed its check is dropped; an inference with none left is
   ]);
 });
 
+test("an inference may rest on a management attribution, so the claim it relies on is bound; never on an unknown cause (#302)", () => {
+  const report = check([
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1"] },
+    { kind: "management_attribution", text: "NVDA management said [[C1]]", evidence: ["C1"] },
+    { kind: "analyst_inference", text: "Its margin rests on a mix that may not repeat.", supports: [0, 1], subject: "NVDA" },
+    { kind: "analyst_inference", text: "A richer mix is the stated driver.", supports: [1], subject: "NVDA" },
+    { kind: "analyst_inference", text: "A richer mix is the stated driver.", supports: [1], subject: "AMD" },
+    { kind: "unknown_cause", text: "The figures do not show why NVDA's gross margin changed.", evidence: ["F1", "F2"] },
+    { kind: "analyst_inference", text: "The cause is unclear.", supports: [5] },
+  ]);
+  assert.deepEqual(report.accepted.filter((entry) => entry.kind === "analyst_inference").map((entry) => [entry.index, entry.supports]), [[2, [0, 1]], [3, [1]]]);
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
+    [4, "an inference's subject is a company its evidence covers"],
+    [6, "an inference binds the accepted observations it rests on"],
+  ]);
+});
+
 test("an evidence id listed twice is a duplicate reference (#221)", () => {
   assert.deepEqual(check([{ kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1", "F1"] }]).rejected.map((entry) => entry.reason),
     ['evidence lists "F1" twice']);

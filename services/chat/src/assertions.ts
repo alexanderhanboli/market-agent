@@ -6,9 +6,9 @@
 // that the text writes each figure or claim only as its evidence's reference
 // ([[F3]], prose-refs.ts) and names only its evidence's periods and companies.
 // An analyst inference writes no figure at all: it says in words what the
-// observations and comparisons it rests on mean, so every figure a rendered
-// answer shows is a template's value from the packet. What the data cannot
-// show is the packet's to say, in its gap notes, never the model's (#302).
+// observations, comparisons and attributions it rests on mean, so every figure
+// a rendered answer shows is a template's value from the packet. What the data
+// cannot show is the packet's to say, in its gap notes, never the model's (#302).
 //
 // The report goes to evals and logs; the answer is written from the accepted
 // assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
@@ -27,7 +27,8 @@ export type Assertion = {
   kind: AssertionKind;
   text: string;
   evidence: ReadonlyArray<string>;
-  // An inference's supporting observations and comparisons, by their index in the list.
+  // An inference's supporting observations, comparisons and management
+  // attributions, by their index in the list.
   supports?: ReadonlyArray<number>;
   // The company an inference is about, one its evidence covers: across
   // companies its text names none, so the label names it (#308).
@@ -174,9 +175,11 @@ export function checkAssertions(
       reject(index, item, `an ${kind === "observation" ? "observation" : "comparison"} states no cause: give it as a management attribution or an unknown cause`);
       continue;
     }
-    // A support that failed its own check is dropped; the inference stands on the rest.
+    // A support that failed its own check is dropped; the inference stands on
+    // the rest. A claim it relies on is a support too ("given the charge
+    // management disclosed"), so the judge reads it beside the inference.
     const supports = ((item.supports ?? []) as number[]).filter((n) =>
-      accepted.some((entry) => entry.index === n && (entry.kind === "observation" || entry.kind === "comparison"))
+      accepted.some((entry) => entry.index === n && SUPPORT_KINDS.has(entry.kind))
     );
     const shape = shapeError(kind, figureIds, claimIds, supports);
     if (shape) {
@@ -236,6 +239,8 @@ export function checkAssertions(
   return { status: "checked", accepted, rejected };
 }
 
+const SUPPORT_KINDS: ReadonlySet<AssertionKind> = new Set(["observation", "comparison", "management_attribution"]);
+
 // An amount in words: a number word, then a unit ("seventy percent", "a few
 // billion dollars"). An inference states none. A count ("three companies") or
 // a unit with no number ("per dollar of revenue") is not an amount.
@@ -260,7 +265,7 @@ function shapeError(
   kind: AssertionKind,
   figureIds: ReadonlyArray<string>,
   claimIds: ReadonlyArray<string>,
-  // An inference's accepted observations and comparisons.
+  // An inference's accepted supports.
   supports: ReadonlyArray<number>,
 ): string | null {
   switch (kind) {
