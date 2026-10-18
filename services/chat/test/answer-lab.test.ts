@@ -118,11 +118,11 @@ test("the judge's held-out set: every original and mutation passes the turn's ow
   const count = (key: (variant: (typeof variants)[number]) => string) =>
     Object.fromEntries([...new Set(variants.map(key))].map((value) => [value, variants.filter((variant) => key(variant) === value).length]));
   assert.deepEqual(count((variant) => variant.kind), {
-    original: 7,
+    original: 10,
     worded_amount: 5,
     unsupported_claim: 5,
-    contradicted_ranking: 3,
-    company_name: 4,
+    contradicted_ranking: 4,
+    hedged_valuation: 3,
     flipped_direction: 3,
   });
   // The judge reads a case on its trace's packet: the peer case's label is its comparisons' checked results.
@@ -138,7 +138,7 @@ test("a set inference the word rules already reject fails the set, rather than i
     trace: fileURLToPath(new URL("./answer-lab/traces/segment-drill-down.json", import.meta.url)),
     index: 6,
     supports: [5],
-    original: "Data Center dominates the top line.",
+    originals: ["Data Center dominates the top line."],
     mutations: [{ kind: "worded_amount", text: "Data Center brings in ninety percent of the top line." }],
   }] }));
   assert.throws(() => mutationVariants(file), {
@@ -152,19 +152,19 @@ test("the mutation summary counts catches by kind and false alarms on originals;
   assert.equal(mutationSummary([
     result("a", "original", "entailed"),
     result("a", "worded_amount", "not_entailed", "worded_amount: says tens of billions"),
-    result("a", "company_name", "entailed"),
+    result("a", "hedged_valuation", "entailed"),
     result("b", "original", "not_entailed", "unsupported: no figure shows it"),
     result("b", "flipped_direction", "error", "judge call failed: timeout"),
   ]), [
     "caught: 1 of 3 mutations (1 errors)",
     "  worded_amount          1 of 1",
-    "  company_name           0 of 1",
     "  unsupported_claim      0 of 0",
+    "  hedged_valuation       0 of 1",
     "  flipped_direction      0 of 1",
     "  contradicted_ranking   0 of 0",
     "false alarms: 1 of 2 originals (0 errors)",
     "misses, false alarms and errors:",
-    "  a company_name: entailed\n      a company_name",
+    "  a hedged_valuation: entailed\n      a hedged_valuation",
     "  b original: not_entailed (unsupported: no figure shows it)\n      b original",
     "  b flipped_direction: error (judge call failed: timeout)\n      b flipped_direction",
   ].join("\n"));
@@ -176,7 +176,7 @@ test("a judged run's summary counts verdicts, the judge's cost per answer, and l
   const summary = judgeSummary({
     labels: { a: "peer-two" },
     results: [
-      { trace: "a", sample: 1, judge: judge([{ index: 9, verdict: "entailed", text: "It leads." }, { index: 10, verdict: "not_entailed", reason: "other_company: names AMD.", text: "amd trails." }]) },
+      { trace: "a", sample: 1, judge: judge([{ index: 9, verdict: "entailed", text: "It leads." }, { index: 10, verdict: "not_entailed", reason: "contradicts_ranking: NVDA is highest.", text: "amd trails." }]) },
       { trace: "a", sample: 2, judge: { verdicts: [], deployment: null, latency_ms: 0 } },
       { trace: "b", sample: 0, error: "timeout" },
     ],
@@ -184,6 +184,6 @@ test("a judged run's summary counts verdicts, the judge's cost per answer, and l
   assert.equal(summary, [
     "judge: 1 entailed, 1 not entailed, 0 errors, of 2 inferences in 1 answers",
     "judge per answer: 2000 ms, 1000 in / 100 out tokens, on anthropic/claude-haiku-5-5",
-    "  not entailed  peer-two #1 [10] amd trails.\n      other_company: names AMD.",
+    "  not entailed  peer-two #1 [10] amd trails.\n      contradicts_ranking: NVDA is highest.",
   ].join("\n"));
 });

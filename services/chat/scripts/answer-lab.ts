@@ -343,7 +343,7 @@ export function judgeSummary(run: Pick<LiveRun, "results" | "labels">): string {
   ].join("\n");
 }
 
-export const MUTATION_KINDS = ["worded_amount", "company_name", "unsupported_claim", "flipped_direction", "contradicted_ranking"] as const;
+export const MUTATION_KINDS = ["worded_amount", "unsupported_claim", "hedged_valuation", "flipped_direction", "contradicted_ranking"] as const;
 type MutationKind = (typeof MUTATION_KINDS)[number];
 type MutationSet = {
   cases: Array<{
@@ -354,7 +354,8 @@ type MutationSet = {
     index: number;
     supports: number[];
     subject?: string;
-    original: string;
+    // Inferences its supports back.
+    originals: string[];
     mutations: Array<{ kind: MutationKind; text: string }>;
   }>;
 };
@@ -374,7 +375,7 @@ export function mutationVariants(file: string): MutationVariant[] {
     const factBlocks = trace.input.factBlocks ?? [];
     const list = splitAssertions(trace.exchange?.text ?? "").list;
     if (!Array.isArray(list) || entry.index >= list.length) throw new Error(`${entry.id}: ${entry.trace} has no assertion ${entry.index}`);
-    const variants = [{ kind: "original" as const, text: entry.original }, ...entry.mutations];
+    const variants = [...entry.originals.map((text) => ({ kind: "original" as const, text })), ...entry.mutations];
     return variants.map(({ kind, text }) => {
       if (kind !== "original" && !MUTATION_KINDS.includes(kind)) throw new Error(`${entry.id}: unknown mutation kind ${JSON.stringify(kind)}`);
       const inference = { kind: "analyst_inference", text, evidence: [], supports: entry.supports, ...(entry.subject ? { subject: entry.subject } : {}) };

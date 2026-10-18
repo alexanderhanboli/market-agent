@@ -146,8 +146,8 @@ test("a malformed reply is an error for every inference, never entailed; a bad v
   }
   // A reply that corrects itself is read by its last list.
   const corrected = [
-    '{"verdicts":[{"id":2,"verdict":"not_entailed","reason":"other_company: it says \\"its peer\\"."},{"id":3,"verdict":"entailed"}]}',
-    "Correction: no company is named. Final:",
+    '{"verdicts":[{"id":2,"verdict":"not_entailed","reason":"unsupported: no figure shows \\"its peer\\"."},{"id":3,"verdict":"entailed"}]}',
+    "Correction: the comparison shows its peer trails. Final:",
     '```json\n{"verdicts":[{"id":2,"verdict":"entailed"},{"id":3,"verdict":"not_entailed","reason":"contradicts_ranking: NVDA is highest."}]}\n```',
   ].join("\n\n");
   assert.deepEqual(parseVerdicts(corrected, two), [

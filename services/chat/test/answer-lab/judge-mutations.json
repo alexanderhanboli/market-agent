@@ -1,5 +1,5 @@
 {
-  "about": "Held-out set for the inference judge (src/inference-judge.ts, #302): inferences on real recorded turns, each original paired with mutations the word rules in assertions.ts pass but its supports do not back. A case stands in the place of its trace's assertion at index, resting on the accepted assertions in supports. source: trace (the trace's own accepted inference), edited (the trace's inference with a worded quantity cut), adapted (an inference the trace's checks rejected for naming companies, rewritten about its subject), written (a new inference on the trace's accepted supports, where the trace's own claims more than they show). Run: node --experimental-strip-types scripts/answer-lab.ts judge-mutations test/answer-lab/judge-mutations.json",
+  "about": "Held-out set for the inference judge (src/inference-judge.ts, #302): inferences on real recorded turns, each case's originals (which its supports back) paired with mutations the word rules in assertions.ts pass but its supports do not back. A case stands in the place of its trace's assertion at index, resting on the accepted assertions in supports. source: trace (the trace's own accepted inference), edited (the trace's inference with a worded quantity cut), adapted (an inference the trace's checks rejected for naming companies, rewritten about its subject), written (a new inference on the trace's accepted supports, where the trace's own claims more than they show). Naming a company by ticker, name or alias is no fault in itself (owner, 2026-10-18), so an original may name one when its supports back what it says; a hedged valuation or market reading the supports do not show is a mutation. Run: node --experimental-strip-types scripts/answer-lab.ts judge-mutations test/answer-lab/judge-mutations.json",
   "cases": [
     {
       "id": "segment-concentration",
@@ -9,7 +9,9 @@
         5
       ],
       "source": "trace",
-      "original": "NVIDIA's revenue is heavily concentrated in Data Center, creating significant single-segment exposure for the consolidated top line.",
+      "originals": [
+        "NVIDIA's revenue is heavily concentrated in Data Center, creating significant single-segment exposure for the consolidated top line."
+      ],
       "mutations": [
         {
           "kind": "worded_amount",
@@ -22,6 +24,10 @@
         {
           "kind": "contradicted_ranking",
           "text": "Gaming, not Data Center, is the largest contributor to NVIDIA's revenue, which limits single-segment exposure for the consolidated top line."
+        },
+        {
+          "kind": "hedged_valuation",
+          "text": "NVIDIA's revenue is heavily concentrated in Data Center, an exposure the market may already reflect in the valuation."
         }
       ]
     },
@@ -33,7 +39,9 @@
         5
       ],
       "source": "trace",
-      "original": "The other four segments provide limited diversification cushion relative to Data Center's dominance.",
+      "originals": [
+        "The other four segments provide limited diversification cushion relative to Data Center's dominance."
+      ],
       "mutations": [
         {
           "kind": "worded_amount",
@@ -54,12 +62,11 @@
         1
       ],
       "source": "edited",
-      "original": "The gap between fiscal year ends limits direct comparability of the two revenue figures.",
+      "originals": [
+        "The gap between fiscal year ends limits direct comparability of the two revenue figures.",
+        "The gap between Nvidia's January and Apple's September year ends limits direct comparability of the two revenue figures."
+      ],
       "mutations": [
-        {
-          "kind": "company_name",
-          "text": "The gap between Nvidia's January and Apple's September year ends limits direct comparability of the two revenue figures."
-        },
         {
           "kind": "worded_amount",
           "text": "The gap of two-thirds of a year between fiscal year ends limits direct comparability of the two revenue figures."
@@ -79,12 +86,11 @@
         1
       ],
       "source": "edited",
-      "original": "The offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability.",
+      "originals": [
+        "The offset between the two fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability.",
+        "The offset between nvda's and amd's fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability."
+      ],
       "mutations": [
-        {
-          "kind": "company_name",
-          "text": "The offset between nvda's and amd's fiscal-year end dates means the comparison is not on identical calendar periods, which limits direct comparability."
-        },
         {
           "kind": "unsupported_claim",
           "text": "The offset between the two fiscal-year end dates flatters the later reporter's growth, which explains most of the gap between them."
@@ -103,23 +109,26 @@
       ],
       "subject": "NVDA",
       "source": "adapted",
-      "original": "It leads on scale, profitability and growth in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+      "originals": [
+        "It leads on scale, profitability and growth in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+        "Nvidia leads Advanced Micro Devices on scale, profitability and growth in the latest fiscal year shown."
+      ],
       "mutations": [
         {
           "kind": "contradicted_ranking",
           "text": "It trails its peer on profitability and growth in the latest fiscal year shown, making it the weaker fundamental story on these metrics."
         },
         {
-          "kind": "company_name",
+          "kind": "contradicted_ranking",
           "text": "amd leads nvda on scale, profitability and growth in the latest fiscal year shown."
-        },
-        {
-          "kind": "company_name",
-          "text": "Nvidia leads Advanced Micro Devices on scale, profitability and growth in the latest fiscal year shown."
         },
         {
           "kind": "worded_amount",
           "text": "Its net margin is more than four times its peer's, making it the stronger fundamental story on these metrics."
+        },
+        {
+          "kind": "hedged_valuation",
+          "text": "It leads on scale, profitability and growth in the latest fiscal year shown, though the market may already have priced that lead in."
         }
       ]
     },
@@ -131,7 +140,9 @@
         2
       ],
       "source": "written",
-      "original": "The top line has expanded without interruption across the window shown.",
+      "originals": [
+        "The top line has expanded without interruption across the window shown."
+      ],
       "mutations": [
         {
           "kind": "flipped_direction",
@@ -144,6 +155,10 @@
         {
           "kind": "unsupported_claim",
           "text": "The top line has expanded without interruption across the window shown, driven by data center demand."
+        },
+        {
+          "kind": "hedged_valuation",
+          "text": "The top line has expanded without interruption across the window shown, and that growth may already be priced into the shares."
         }
       ]
     },
@@ -155,7 +170,9 @@
         2
       ],
       "source": "written",
-      "original": "Gross margin bottomed out in the quarter the comparison names and stood higher in every other period shown.",
+      "originals": [
+        "Gross margin bottomed out in the quarter the comparison names and stood higher in every other period shown."
+      ],
       "mutations": [
         {
           "kind": "flipped_direction",
