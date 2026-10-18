@@ -184,7 +184,7 @@ test("loadEvidenceInspection returns artifact-safe document details and related 
   assert.equal(result.kind, "document");
   assert.equal(result.title, "FY 2026 10-K");
   assert.ok(result.rows.length >= 2);
-  assert.deepEqual(result.related_refs, [{ kind: "source", id: SOURCE_ID }]);
+  assert.deepEqual(result.related_refs, [{ kind: "source", id: SOURCE_ID, label: "sec" }]);
   assertNoRawFields(result);
 });
 
@@ -247,6 +247,7 @@ test("loadEvidenceInspection returns artifact-safe claim details and related doc
           status: "corroborated",
           provider: "sec",
           canonical_url: "https://www.sec.gov/Archives/example",
+          document_title: "FY 2026 10-K",
           content_hash: "claim-hash-must-not-leak",
         },
       ];
@@ -265,8 +266,8 @@ test("loadEvidenceInspection returns artifact-safe claim details and related doc
   assert.equal(result.title, "revenue_growth");
   assert.ok(result.rows.length >= 2);
   assert.deepEqual(result.related_refs, [
-    { kind: "document", id: DOCUMENT_ID },
-    { kind: "source", id: SOURCE_ID },
+    { kind: "document", id: DOCUMENT_ID, label: "FY 2026 10-K" },
+    { kind: "source", id: SOURCE_ID, label: "sec" },
   ]);
   assertNoRawFields(result);
 });
@@ -347,7 +348,7 @@ test("loadEvidenceInspection returns artifact-safe fact details and related sour
   assert.equal(result.kind, "fact");
   assert.equal(result.title, "42 %");
   assert.ok(result.rows.length >= 2);
-  assert.deepEqual(result.related_refs, [{ kind: "source", id: SOURCE_ID }]);
+  assert.deepEqual(result.related_refs, [{ kind: "source", id: SOURCE_ID, label: "sec" }]);
   assertNoRawFields(result);
 });
 
@@ -387,12 +388,50 @@ test("loadEvidenceInspection filters related refs to the sealed snapshot manifes
   assert.equal(JSON.stringify(result.related_refs).includes(OUT_OF_SNAPSHOT_DOCUMENT_ID), false);
 });
 
+test("loadEvidenceInspection leaves an untitled document's related ref unlabeled", async () => {
+  const { db } = stubDb((text) => {
+    if (text.includes("from chat_messages")) return [{ visible: 1 }];
+    if (text.includes("from snapshots")) return [manifestRow()];
+    if (text.includes("from claims")) {
+      return [
+        {
+          claim_id: CLAIM_ID,
+          document_id: DOCUMENT_ID,
+          reported_by_source_id: SOURCE_ID,
+          predicate: "revenue_growth",
+          text_canonical: "Revenue grew 9% year over year.",
+          polarity: "positive",
+          modality: "asserted",
+          effective_time: null,
+          confidence: "0.87",
+          status: "extracted",
+          provider: "polygon",
+          canonical_url: null,
+          document_title: null,
+        },
+      ];
+    }
+    return [];
+  });
+
+  const result = await loadEvidenceInspection(db, {
+    user_id: USER_ID,
+    snapshot_id: SNAPSHOT_ID,
+    ref: { kind: "claim", id: CLAIM_ID },
+  });
+
+  assert.deepEqual(result.related_refs, [
+    { kind: "document", id: DOCUMENT_ID },
+    { kind: "source", id: SOURCE_ID, label: "polygon" },
+  ]);
+});
+
 function seriesDb(manifest = manifestRow({ series_specs: [SERIES_SPEC] })) {
   return stubDb((text, values) => {
     if (text.includes("from chat_messages")) return [{ visible: 1 }];
     if (text.includes("from snapshots")) return [manifest];
     if (text.includes("from listings") && values?.[0] === LISTING_ID && values?.[1] === SOURCE_ID) {
-      return [{ ticker: "NVDA", legal_name: "NVIDIA Corporation", canonical_url: "https://www.example.com/bars" }];
+      return [{ ticker: "NVDA", legal_name: "NVIDIA Corporation", canonical_url: "https://www.example.com/bars", provider: "polygon" }];
     }
     return [];
   });
@@ -424,7 +463,7 @@ test("loadEvidenceInspection renders a sealed YTD series spec with its listing a
       { label: "Bars digest", value: "sha256:3f9a1c0e7b2d" },
     ],
     links: [{ label: "Open source", href: "https://www.example.com/bars" }],
-    related_refs: [{ kind: "source", id: SOURCE_ID }],
+    related_refs: [{ kind: "source", id: SOURCE_ID, label: "polygon" }],
   });
   assert.deepEqual(calls.find((call) => call.text.includes("from listings"))?.values, [LISTING_ID, SOURCE_ID, USER_ID]);
 });

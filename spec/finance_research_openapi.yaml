@@ -3053,6 +3053,20 @@ components:
         id:
           type: string
           format: uuid
+    EvidenceInspectionRelatedRef:
+      type: object
+      required: [kind, id]
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [source, document, claim, event, fact, series]
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+          description: Readable name for the ref, such as a document title or source provider. Absent when the server has none.
     EvidenceInspectionRow:
       type: object
       required: [label, value]
@@ -3116,7 +3130,7 @@ components:
           type: array
           description: Navigation refs filtered to the same sealed snapshot.
           items:
-            $ref: '#/components/schemas/EvidenceInspectionRef'
+            $ref: '#/components/schemas/EvidenceInspectionRelatedRef'
     SnapshotManifest:
       type: object
       description: Snapshot manifests seal the exact fact, claim, event, and source references that support an answer or finding at a specific as_of.

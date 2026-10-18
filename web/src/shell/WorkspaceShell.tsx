@@ -1,4 +1,4 @@
-import { EvidenceInspectorProvider } from '../evidence/EvidenceInspectorProvider.tsx'
+import { EvidenceInspectorDock, EvidenceInspectorProvider } from '../evidence/EvidenceInspectorProvider.tsx'
 import { WatchlistProvider } from '../watchlists/WatchlistProvider'
 import { AuthInterrupt } from './AuthInterrupt'
 import { AuthInterruptProvider } from './AuthInterruptProvider'
@@ -21,6 +21,9 @@ import { useSearchHotkey } from './useSearchHotkey'
 //   │  · watchlist  │  Outlet (main canvas)        │  (optional)  │
 //   │  · user/theme │                              │              │
 //   └───────────────┴──────────────────────────────┴──────────────┘
+//
+// While the evidence inspector is open it docks in the RightRail column, and
+// the rail's content returns when it closes.
 //
 // Shell chrome is not auth-gated as a whole; public routes (Home, Screener,
 // Analyze-entry, entered symbol detail) render inside the same shell as
@@ -56,10 +59,10 @@ export function WorkspaceShell() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <TopBar />
                 <div className="flex min-h-0 flex-1">
-                  <main id="workspace-main" className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                  <main id="workspace-main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-hidden">
                     <RouteScopeGate />
                   </main>
-                  <RightRailSlot />
+                  <EvidenceInspectorDock fallback={<RightRailSlot />} />
                 </div>
               </div>
             </div>
