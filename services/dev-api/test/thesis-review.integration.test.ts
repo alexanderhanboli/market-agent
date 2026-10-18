@@ -65,7 +65,7 @@ test('point facts with no period end can be selected, assessed, sealed and inspe
   assert.equal(assessment.results[0].status, 'supported');
   assert.deepEqual(assessment.results[0].fact_refs, [factId]);
   const inspected = await loadEvidenceInspection(db, { user_id: USER, snapshot_id: assessment.snapshot_id, ref: { kind: 'fact', id: factId } });
-  assert.equal(inspected.title, '$200');
+  assert.equal(inspected.title, '$200.0');
 });
 
 test('unchanged facts expire at their exact freshness boundary within the same UTC day', options, async t => {

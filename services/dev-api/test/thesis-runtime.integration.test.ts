@@ -79,7 +79,7 @@ test('thesis monitoring persists, deduplicates, reassesses changed facts and pro
   const firstSnapshot = history.assessments[0].snapshot_id;
   const inspected = await loadEvidenceInspection(db,{user_id:USER,snapshot_id:firstSnapshot,ref:{kind:'fact',id:fact1}});
   assert.equal(inspected.ref.id,fact1);
-  assert.equal(inspected.title,'$2M');
+  assert.equal(inspected.title,'$2.0M');
   assert.deepEqual(inspected.rows.find(row=>row.label==='Value'),{label:'Value',value:'2000000'});
   await assert.rejects(loadEvidenceInspection(db,{user_id:OTHER,snapshot_id:firstSnapshot,ref:{kind:'fact',id:fact1}}),{status:404});
   await execute();
