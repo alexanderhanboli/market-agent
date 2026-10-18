@@ -92,6 +92,34 @@ test("a Settings save rewrites EXTRACTION_LITELLM_MODEL in place and reads it ba
   assert.equal(written.settings.primaryModel, "anthropic/claude-sonnet-5-5");
 });
 
+test("a Settings save rewrites JUDGE_LITELLM_MODEL in place, drops it when cleared, and reads it back", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "llm-settings-file-judge-"));
+  const file = join(dir, ".env.dev");
+  await writeFile(file, [
+    "LLM_CHANNELS=anthropic",
+    "LLM_ANTHROPIC_PROTOCOL=anthropic",
+    "LLM_ANTHROPIC_API_KEY=sk-ant",
+    "LLM_ANTHROPIC_MODELS=claude-sonnet-5-5,claude-haiku-5-5",
+    "LITELLM_MODEL=anthropic/claude-sonnet-5-5",
+    "JUDGE_LITELLM_MODEL=anthropic/claude-sonnet-5-5",
+    "",
+  ].join("\n"));
+  const channels = [{
+    name: "anthropic",
+    protocol: "anthropic",
+    apiKeys: [MASKED_LLM_SECRET],
+    models: ["claude-sonnet-5-5", "claude-haiku-5-5"],
+  }];
+
+  const written = await writeLlmSettingsEnvFile(file, { channels, primaryModel: "anthropic/claude-sonnet-5-5", judgeModel: "anthropic/claude-haiku-5-5" });
+  assert.deepEqual((await readFile(file, "utf8")).match(/^JUDGE_LITELLM_MODEL=.*$/gmu), ["JUDGE_LITELLM_MODEL=anthropic/claude-haiku-5-5"]);
+  assert.deepEqual([written.settings.judgeModel, written.settings.extractionModel], ["anthropic/claude-haiku-5-5", null]);
+
+  const cleared = await writeLlmSettingsEnvFile(file, { channels, primaryModel: "anthropic/claude-sonnet-5-5", judgeModel: null });
+  assert.equal((await readFile(file, "utf8")).match(/^JUDGE_LITELLM_MODEL=.*$/gmu), null);
+  assert.equal(cleared.settings.judgeModel, null);
+});
+
 test("writeLlmSettingsEnvFile rejects stale versions before writing", async () => {
   const dir = await mkdtemp(join(tmpdir(), "llm-settings-file-conflict-"));
   const file = join(dir, ".env.dev");
