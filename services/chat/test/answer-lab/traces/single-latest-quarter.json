@@ -938,11 +938,13 @@
       {
         "index": 5,
         "text": "The absolute revenue increase from Q2 to Q3 fiscal 2026 was larger than from Q3 to Q4 fiscal 2026, consistent with decelerating sequential growth on a larger base.",
+        "check": "binding",
         "reason": "an inference rests on its supports; it writes no figure"
       },
       {
         "index": 6,
         "text": "The data does not show why sequential growth decelerated; no segment breakdown or management commentary is available to explain the shift.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
     ],

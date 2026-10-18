@@ -1968,16 +1968,19 @@
       {
         "index": 4,
         "text": "Operating margin fell from the 10-11% range in Q3 2024 through Q1 2025 to -1.7% in Q2 2025, then recovered to 13-14% from Q3 2025 onward.",
+        "check": "comparative",
         "reason": "comparison: operating margin did not fall in every period"
       },
       {
         "index": 5,
         "text": "Gross margin dropped sharply in Q2 2025 relative to all other quarters shown, then recovered and stabilized in the low-to-mid 50s.",
+        "check": "comparative",
         "reason": "comparison: gross margin did not fall in every period"
       },
       {
         "index": 8,
         "text": "> **Analyst inference:** The negative operating margin was driven by a one-time charge rather than a revenue or demand problem, as revenue was stable while margins collapsed and then recovered.",
+        "check": "rendering",
         "reason": "removed by the narrative guard"
       }
     ],

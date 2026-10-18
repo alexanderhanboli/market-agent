@@ -1976,11 +1976,13 @@
       {
         "index": 1,
         "text": "Operating margin trended upward over the eight quarters, with the Q2 2025 dip as the sole decline and four consecutive quarters of improvement thereafter.",
+        "check": "comparative",
         "reason": "comparison: operating margin did not rise in every period"
       },
       {
         "index": 5,
         "text": "The Q2 2025 negative operating margin was a one-time event driven by export-control charges, not a structural deterioration, as margins rebounded immediately and continued rising.",
+        "check": "binding",
         "reason": "an inference rests on its supports; it writes no figure"
       }
     ],

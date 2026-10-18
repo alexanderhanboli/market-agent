@@ -2348,11 +2348,13 @@
       {
         "index": 4,
         "text": "NVDA's revenue, revenue growth, gross margin, and net margin were all higher than AMD's in their respective latest fiscal years.",
+        "check": "comparative",
         "reason": "comparison: a comparison is of one metric"
       },
       {
         "index": 6,
         "text": "NVIDIA is outperforming AMD both on YTD price return and on every fundamental metric shown, though AMD's results were weighed down by a disclosed export-control charge.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       }
     ],

@@ -1936,11 +1936,13 @@
       {
         "index": 1,
         "text": "Gross margin fell from Q1 fiscal 2025 through Q1 fiscal 2026, then rose through Q4 fiscal 2026.",
+        "check": "comparative",
         "reason": "comparison: gross margin did not fall in every period"
       },
       {
         "index": 7,
         "text": "The V-shaped recovery in gross margin suggests the Q1 fiscal 2026 dip was transitory rather than structural.",
+        "check": "binding",
         "reason": "an inference rests on its supports; it writes no figure"
       }
     ],

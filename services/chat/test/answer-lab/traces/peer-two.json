@@ -2535,16 +2535,19 @@
       {
         "index": 9,
         "text": "NVDA dominates AMD on scale, profitability, and growth rate in the latest fiscal year shown, making it the stronger fundamental story on these metrics.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "AMD's reported net margin may understate underlying profitability because of the export-control charge management disclosed.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 11,
         "text": "The data does not show why AMD's net margin is so much lower than NVDA's beyond the disclosed charge; segment mix and operating leverage are not visible.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
     ],

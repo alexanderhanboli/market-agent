@@ -938,11 +938,13 @@
       {
         "index": 5,
         "text": "> **Analyst inference** (NVDA's revenue rose in every period): The large YoY growth figure partly reflects a small year-ago base rather than a steepening current trajectory; if sequential growth stays at this level the YoY rate will compress.",
+        "check": "rendering",
         "reason": "removed by the narrative guard"
       },
       {
         "index": 6,
         "text": "The data does not show why margins are at these levels or what is driving the revenue mix, because no segment breakdown or management attribution is provided.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
     ],

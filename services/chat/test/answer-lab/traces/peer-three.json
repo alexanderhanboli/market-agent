@@ -3442,16 +3442,19 @@
       {
         "index": 9,
         "text": "NVDA's combination of the highest margins and fastest growth makes it the standout on profitability and momentum, while AMD's low net margin suggests it is still investing heavily relative to its revenue base.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "AMD's net margin may have been depressed by the export-control charge management disclosed, which is a headwind specific to that fiscal year rather than a structural margin ceiling.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 11,
         "text": "The data does not show why AMD's net margin is so far below its gross margin relative to peers; no operating expense breakdown is provided.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
     ],

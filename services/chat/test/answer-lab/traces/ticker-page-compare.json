@@ -2485,11 +2485,13 @@
       {
         "index": 9,
         "text": "NVDA shows superior profitability and growth, but AAPL has a larger revenue base; the similar price returns suggest the market may have already priced in NVDA's advantage or sees offsetting risks.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       },
       {
         "index": 10,
         "text": "The close price returns despite divergent fundamentals could reflect prior pricing of NVDA's growth or unshown risks.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       }
     ],

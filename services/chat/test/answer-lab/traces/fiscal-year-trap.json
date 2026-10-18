@@ -2459,11 +2459,13 @@
       {
         "index": 6,
         "text": "NVDA's year-over-year revenue growth rate is not shown, so the pace of NVDA's revenue change cannot be assessed.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       },
       {
         "index": 7,
         "text": "Despite lower absolute revenue, NVDA's substantially higher margins indicate stronger profitability per dollar of revenue compared to AAPL.",
+        "check": "binding",
         "reason": "an inference names no company; its subject does"
       }
     ],

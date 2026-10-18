@@ -726,6 +726,7 @@
       {
         "index": 8,
         "text": "The data does not show why Data Center revenue is so large relative to the other segments.",
+        "check": "kind",
         "reason": "an unknown cause cites a change: one company's metric, two periods, two values"
       }
     ],
