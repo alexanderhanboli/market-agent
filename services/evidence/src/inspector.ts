@@ -502,6 +502,7 @@ async function inspectFact(
     currency: string | null;
     metric_name: string | null;
     period_kind: string;
+    period_start: string | null;
     period_end: string | null;
     fiscal_year: number | null;
     fiscal_period: string | null;
@@ -530,6 +531,7 @@ async function inspectFact(
             f.currency,
             m.display_name as metric_name,
             f.period_kind,
+            f.period_start::text as period_start,
             f.period_end::text as period_end,
             f.fiscal_year,
             f.fiscal_period,
@@ -575,13 +577,16 @@ function factValueText(row: { value: string; value_text: string | null; unit: st
   const value = Number(row.value);
   if (row.value_text !== null || row.value === "" || !Number.isFinite(value)) return row.value;
   const format = (options: Intl.NumberFormatOptions) => new Intl.NumberFormat("en-US", options).format(value);
-  const money = row.currency === null ? {} : { style: "currency" as const, currency: row.currency };
-  switch (row.unit) {
+  // Some sources name the currency in the unit itself ("USD").
+  const code = currencyCode(row.currency) ?? currencyCode(row.unit);
+  const money = code === null ? {} : { style: "currency" as const, currency: code };
+  switch (code !== null && code === currencyCode(row.unit) ? "currency" : row.unit) {
     case "currency":
       return format({ ...money, notation: "compact", maximumFractionDigits: 1 });
     case "currency_per_share":
       return format({ ...money, minimumFractionDigits: 2, maximumFractionDigits: 2 });
     case "percent":
+    case "%":
       return `${format({ maximumFractionDigits: 1 })}%`;
     case "count":
       return format({ notation: "compact", maximumFractionDigits: 1 });
@@ -592,8 +597,17 @@ function factValueText(row: { value: string; value_text: string | null; unit: st
   }
 }
 
+const CURRENCY_CODES = new Set(Intl.supportedValuesOf("currency"));
+
+// Intl throws on a code it does not know, and facts.currency is free text.
+function currencyCode(value: string | null): string | null {
+  const code = value?.toUpperCase() ?? null;
+  return code !== null && CURRENCY_CODES.has(code) ? code : null;
+}
+
 function factPeriodText(row: {
   period_kind: string;
+  period_start: string | null;
   period_end: string | null;
   fiscal_year: number | null;
   fiscal_period: string | null;
@@ -606,6 +620,8 @@ function factPeriodText(row: {
       return [row.fiscal_period, fiscalYear].filter((part) => part).join(" ");
     case "ttm":
       return row.period_end === null ? "TTM" : `TTM to ${row.period_end}`;
+    case "range":
+      return [row.period_start, row.period_end].filter((part) => part).join(" to ");
     default:
       return row.period_end ?? "";
   }

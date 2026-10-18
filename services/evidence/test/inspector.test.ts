@@ -347,7 +347,7 @@ test("loadEvidenceInspection returns artifact-safe fact details and related sour
 
   assert.equal(calls.some((call) => call.text.includes("from chat_messages")), true);
   assert.equal(result.kind, "fact");
-  assert.equal(result.title, "42 %");
+  assert.equal(result.title, "42%");
   assert.ok(result.rows.length >= 2);
   assert.deepEqual(result.related_refs, [{ kind: "source", id: SOURCE_ID, label: "sec" }]);
   assertNoRawFields(result);
