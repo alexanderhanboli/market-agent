@@ -703,6 +703,22 @@ test("with no figures shown, an assertion about an available value is checked ag
   assert.equal((composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "AAPL's net income was $25.0B in Q1 2026 (partial period).");
 });
 
+test("beside blocks that show no figures (a gap note), the quote renders from its assertion, dated to the day (#181, #302, #329 review)", async () => {
+  const gap = { kind: "rich_text", segments: [{ type: "text", text: "Year-to-date price performance is not shown." }] };
+  const blocks = await composeAnalystBlocksWithLlm({
+    env: BASE_ENV,
+    context: { userIntent: "How is AAPL doing YTD?", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK],
+    toolCalls: [AVAILABLE_TOOL_CALL],
+    factBlocks: [gap],
+    createClient: () => async () => ({ text: withList([{ kind: "observation", text: "AAPL trades at [[F1]].", evidence: ["F1"] }]) }),
+  });
+  const segments = blocks[0]!.segments as Array<{ type: string; text?: string; format?: string }>;
+  assert.equal(segments.map((segment) => segment.text ?? segment.format).join(""), "Price was $231.60 as of Sep 1, 2026.");
+  // A quote is no stored fact, so its value is the packet's in plain text.
+  assert.deepEqual(segments.filter((segment) => segment.type === "ref"), []);
+});
+
 test("with no figures shown, an inference stating a cause goes; the figure it rests on stays (#263)", async () => {
   let removed: ReadonlyArray<string> = [];
   const blocks = await composeAnalystBlocksWithLlm({

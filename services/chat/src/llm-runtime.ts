@@ -138,7 +138,7 @@ export async function composeAnalystBlocksWithLlm(input: {
   const packet = turnPacket(input);
   const factBlocks = input.factBlocks ?? [];
   // The references a rendered assertion cites, for the guard (prose-refs.ts).
-  const table = referenceTable(packet, factBlocks);
+  const table = referenceTable(packet);
 
   const request: LlmChatRequest = {
     messages: [

@@ -7,9 +7,8 @@ import { referenceTable, type ReferenceTable } from "../src/prose-refs.ts";
 
 type Figure = Partial<PacketFigure> & Pick<PacketFigure, "value" | "metric">;
 
-// A table as a turn builds it: figures F1.. in order, claims C1.., the years of
-// their periods and of the block titles.
-function tableOf(figures: ReadonlyArray<Figure>, claims: ReadonlyArray<string> = [], titles: ReadonlyArray<string> = []): ReferenceTable {
+// A table as a turn builds it: figures F1.. in order, claims C1...
+function tableOf(figures: ReadonlyArray<Figure>, claims: ReadonlyArray<string> = []): ReferenceTable {
   const packet: EvidencePacket = {
     route: "test",
     cutoff: "2026-09-01T00:00:00.000Z",
@@ -23,7 +22,7 @@ function tableOf(figures: ReadonlyArray<Figure>, claims: ReadonlyArray<string> =
     claims_status: claims.length > 0 ? "available" : "none",
     claims_truncated: false,
   };
-  return referenceTable(packet, titles.map((title) => ({ kind: "metric_row", title })));
+  return referenceTable(packet);
 }
 
 // A sentence written with references: each displayed value in it replaced by
@@ -34,7 +33,7 @@ function refs(sentence: string, figures: ReadonlyArray<Figure>): string {
 
 const QUARTER: Figure[] = [{ metric: "Revenue", period: "Q42026", value: "$62.1B" }];
 const DISPLAYED = ["Revenue", "Quarterly revenue (Q1 2025 to Q4 2026)"];
-const TABLE = tableOf(QUARTER, [], ["Latest quarter (Q4 2026)", "Quarterly revenue (Q1 2025 to Q4 2026)"]);
+const TABLE = tableOf(QUARTER);
 
 test("a sentence passes when each reference it cites is in the table; one citing an unknown id fails", () => {
   assert.deepEqual(unsupportedSentences("Revenue reached [[F1]] in Q4 2026. It rose every quarter.", TABLE, DISPLAYED), []);
@@ -50,29 +49,7 @@ test("an initialism does not end a sentence: a failing sentence is read whole", 
 });
 
 test("a sentence after an initialism still ends when the next one starts with a capital", () => {
-  assert.deepEqual(unsupportedSentences("Revenue is concentrated in the U.S. Revenue grew 38%.", TABLE, DISPLAYED), ["Revenue grew 38%."]);
-});
-
-test("a digit the model typed itself goes unless it is a period label: an allowed year, or a quarter or half after Q or H", () => {
-  for (const kept of [
-    "Revenue reached [[F1]] in Q4 2026.",
-    "Revenue rose in fiscal 2026, from Q1 2025, and in H1 2026.",
-    "Eight quarters are shown, through FY2026.",
-    "Revenue grew over 2025-2026.",
-  ]) {
-    assert.deepEqual(unsupportedSentences(kept, TABLE, DISPLAYED), [], kept);
-  }
-  for (const dropped of [
-    "That is 38% growth year over year.",
-    "Revenue reached $62.1B in Q4 2026.",
-    "Revenue was 62.1 billion dollars.",
-    "Eight quarters are shown, 8 in all.",
-    "Revenue has grown since 2019.",
-    "The quarter ended January 25, 2026.",
-    "Revenue reached [[F1]], up 1.5x.",
-  ]) {
-    assert.deepEqual(unsupportedSentences(dropped, TABLE, DISPLAYED), [dropped], dropped);
-  }
+  assert.deepEqual(unsupportedSentences("Revenue is concentrated in the U.S. Revenue doubled.", TABLE, DISPLAYED), ["Revenue doubled."]);
 });
 
 test("which company a reference belongs to is not checked: the reference renders as the packet credits it", () => {
@@ -82,25 +59,23 @@ test("which company a reference belongs to is not checked: the reference renders
   assert.deepEqual(unsupportedSentences(swapped, compared, []), []);
 });
 
-test("a claim's reference renders its text: its numbers are the claim's, and its cause is grounded in the claim's own words", () => {
+test("a claim's reference renders its text, and its cause is grounded in the claim's own words", () => {
   const claim = "Export controls led to approximately $800 million in inventory and related charges.";
   const cited = tableOf([], [claim]);
   const text = "Management attributed the charge to export controls: [[C1]]";
   assert.deepEqual(unsupportedSentences(text, cited, [claim]), []);
-  // The same words typed by the model are a figure and a cause of its own.
-  assert.deepEqual(unsupportedSentences(`Management said: ${claim}`, cited, [claim]), [`Management said: ${claim}`]);
 });
 
 test("each line is judged on its own, as a sentence ends there", () => {
   assert.deepEqual(
-    unsupportedSentences("Revenue reached [[F1]] in Q4 2026\nGrew 38% year over year\n\nMargins held up", TABLE, DISPLAYED),
-    ["Grew 38% year over year"],
+    unsupportedSentences("Revenue reached [[F1]] in Q4 2026\nRevenue doubled year over year\n\nMargins held up", TABLE, DISPLAYED),
+    ["Revenue doubled year over year"],
   );
 });
 
 test("sentences separated by a no-break space are still split", () => {
   for (const space of [" ", " "]) {
-    assert.deepEqual(unsupportedSentences(`NVDA led.${space}Growth was 38%.`, TABLE, DISPLAYED), ["Growth was 38%."], JSON.stringify(space));
+    assert.deepEqual(unsupportedSentences(`NVDA led.${space}Revenue doubled.`, TABLE, DISPLAYED), ["Revenue doubled."], JSON.stringify(space));
   }
 });
 

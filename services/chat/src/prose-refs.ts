@@ -6,7 +6,6 @@
 // a value or a claim into a segment.
 
 import type { EvidencePacket, PacketClaim, PacketFigure } from "./evidence-packet.ts";
-import { periodText } from "./comparisons.ts";
 
 type Block = Record<string, unknown>;
 
@@ -18,111 +17,23 @@ export type Reference =
   | { kind: "fact"; id: string; figure: PacketFigure }
   | { kind: "claim"; id: string; claim: PacketClaim };
 
-export type ReferenceTable = {
-  references: ReadonlyMap<string, Reference>;
-  // The four-digit years the prose may write as a period: those of the
-  // packet's periods, dates, bounds and cutoff, and of the blocks' titles.
-  years: ReadonlySet<string>;
-  // Names with digits the prose may write: those in the metric, segment and
-  // block names. A name only a claim writes ("MI308") reaches the answer by
-  // citing the claim, which renders its words.
-  words: ReadonlySet<string>;
-  // The companies' labels, which pass whole, digits and all ("700", "0700.HK").
-  companies: ReadonlyArray<string>;
-};
+// The references a turn allows, by packet id.
+export type ReferenceTable = ReadonlyMap<string, Reference>;
 
-// The only syntax read out of the model's prose: a packet id in double brackets.
+// The only syntax read out of the model's text: a packet id in double brackets.
 export const REFERENCE = /\[\[([FC]\d+)\]\]/g;
-const YEAR = /(?<!\d)\d{4}(?!\d)/g;
-// A run of letters and digits with a digit in it, in any script: what the digit
-// rule judges.
-const DIGIT_WORD = /[\p{L}\p{N}]*\p{N}[\p{L}\p{N}]*/gu;
-// A unit written right after a reference: dropped when the value carries it
-// ("[[F5]]%"), a typed figure when it does not ("[[F2]]x" for a margin).
-const REFERENCE_SUFFIX = /^(?:[%‰×]|[xBMKT](?![A-Za-z]))/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function referenceTable(packet: EvidencePacket, factBlocks: ReadonlyArray<Block>): ReferenceTable {
-  const references = new Map<string, Reference>([
+export function referenceTable(packet: EvidencePacket): ReferenceTable {
+  return new Map<string, Reference>([
     ...packet.figures.map((figure): [string, Reference] => [figure.id, { kind: "fact", id: figure.id, figure }]),
     ...packet.claims.map((claim): [string, Reference] => [claim.id, { kind: "claim", id: claim.id, claim }]),
   ]);
-  const dated = [
-    packet.cutoff,
-    ...Object.values(packet.query_bounds),
-    ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
-  ];
-  const names = [
-    ...packet.figures.flatMap((figure) => [figure.metric, figure.segment ?? ""]),
-    ...factBlocks.flatMap((block) => (typeof block.title === "string" ? [block.title] : [])),
-  ];
-  return {
-    references,
-    years: new Set([...yearsOf(packet.figures, packet.claims), ...dated.flatMap((text) => text.match(YEAR) ?? [])]),
-    words: new Set(names.flatMap(namesIn)),
-    companies: packet.companies,
-  };
-}
-
-// The years the figures' periods and the claims' dates name.
-function yearsOf(figures: ReadonlyArray<PacketFigure>, claims: ReadonlyArray<PacketClaim>): Set<string> {
-  return new Set([
-    ...figures.flatMap((figure) => [figure.period ? periodText(figure.period) : "", figure.period_end ?? ""]),
-    ...claims.flatMap((claim) => [claim.effective_time ?? "", claim.published_at ?? ""]),
-  ].flatMap((text) => text.match(YEAR) ?? []));
-}
-
-// A period label's shape: judged by the period rule alone, never as a name.
-const PERIOD_SHAPE = /^(?:\d+|FY\d+|[QH]\d)$/;
-
-// The names in a text: ASCII words that start with letters and hold a digit
-// ("MI308"), not a period's shape. A word led by digits ("800M") is a figure,
-// and so is one with an amount's unit after its digits ("USD800M").
-export function namesIn(text: string): string[] {
-  return (text.match(DIGIT_WORD) ?? []).filter((word) =>
-    /^[A-Za-z]+[0-9]+[A-Za-z0-9]*$/.test(word) && !PERIOD_SHAPE.test(word) && !/[0-9](?:[KMBT]|bn|mn)$/.test(word)
-  );
 }
 
 // What a reference reads as: the figure's displayed value or the claim's text.
 export function displayOf(reference: Reference): string {
   return reference.kind === "fact" ? reference.figure.value : reference.claim.text;
-}
-
-// What the text typed itself: each run of non-space text holding a word with a
-// digit, outside a reference, that is neither a period label (an allowed year,
-// FY and one, Q1-Q4, H1-H2) nor a name the turn's names write. None: the text
-// passes the digit rule.
-export function typedDigits(text: string, allowed: Pick<ReferenceTable, "years" | "words" | "companies"> & Partial<Pick<ReferenceTable, "references">>): string[] {
-  // A unit or currency touching a number makes it a figure: "2026%" is no year,
-  // "700%" no company label, "[[F1]]%" a unit its value does not carry.
-  const unitAfter = (rest: string) => /^[%‰×]/u.test(rest);
-  const currencyBefore = (head: string) => /\p{Sc}$/u.test(head);
-  const units = [...text.matchAll(REFERENCE)].flatMap((match) => {
-    const reference = allowed.references?.get(match[1]!);
-    if (!reference) return [];
-    // Only a figure's value carries a unit the renderer de-duplicates; a claim
-    // renders its whole text, so anything touching it was typed.
-    const value = reference.kind === "fact" ? reference.figure.value : "";
-    const before = text.slice(0, match.index).match(/\p{Sc}$/u)?.[0];
-    const after = text.slice(match.index + match[0].length).match(REFERENCE_SUFFIX)?.[0];
-    return [
-      ...(before && !(value && value.replace(/^[-−]/, "").startsWith(before)) ? [`${before}${match[0]}`] : []),
-      ...(after && !(value && value.endsWith(after)) ? [`${match[0]}${after}`] : []),
-    ];
-  });
-  const bare = allowed.companies.reduce(
-    (masked, company) => masked.replace(new RegExp(`(?<![\\p{L}\\p{N}.\\p{Sc}])${escapeRegExp(company)}(?![\\p{L}\\p{N}%‰×]|\\.\\p{N})`, "gu"), " "),
-    text.replace(REFERENCE, (reference) => " ".repeat(reference.length)),
-  );
-  const typed = [...bare.matchAll(DIGIT_WORD)].filter(({ 0: word, index }) =>
-    unitAfter(bare.slice(index + word.length)) || currencyBefore(bare.slice(0, index)) ||
-    !(PERIOD_SHAPE.test(word)
-      ? allowed.years.has(word) || /^(?:Q[1-4]|H[12])$/.test(word) || allowed.years.has(/^FY(\d{4})$/.exec(word)?.[1] ?? "")
-      : allowed.words.has(word))
-  ).map((match) => `${/\S*$/.exec(bare.slice(0, match.index))![0]}${/^\S*/.exec(bare.slice(match.index))![0]}`
-    .replace(/^[("'“‘]+|[)"'”’.,;:!?]+$/gu, ""));
-  return [...new Set([...units, ...typed])];
 }
 
 export type Sealer = {
@@ -165,7 +76,7 @@ export function createSealer(factBlocks: ReadonlyArray<Block>): Sealer {
 // A sentence with references as the user reads it: each its packet value.
 export function renderedText(text: string, table: ReferenceTable): string {
   return text.replace(REFERENCE, (written, id: string) => {
-    const reference = table.references.get(id);
+    const reference = table.get(id);
     return reference ? displayOf(reference) : written;
   });
 }
@@ -180,8 +91,4 @@ function bindingsByFact(blocks: ReadonlyArray<Block>): Map<string, Record<string
         : []
     );
   }));
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
