@@ -61,7 +61,7 @@ const BALANCE_ITEMS = [
   ["cash_and_equivalents", "Cash and equivalents"],
   ["total_assets", "Total assets"],
   ["total_liabilities", "Total liabilities"],
-  ["total_equity", "Total equity"],
+  ["total_equity", "Stockholders' equity"],
 ] as const;
 const PERIOD_ORDER: Readonly<Record<string, number>> = { Q1: 1, Q2: 2, Q3: 3, Q4: 4, FY: 5 };
 

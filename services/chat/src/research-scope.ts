@@ -225,7 +225,7 @@ const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
   { metric_key: "total_liabilities", label: "Total liabilities", available: true, pattern: /\btotal liabilities\b/gi },
   {
     metric_key: "total_equity",
-    label: "Total equity",
+    label: "Stockholders' equity",
     available: true,
     pattern: /\b(?:total|(?:shareholders|stockholders)['’]?) equity\b|\bbook value\b/gi,
   },
@@ -255,11 +255,11 @@ export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<stri
   operating_cash_flow: ["Operating cash flow"],
   capex: ["Capital expenditures"],
   free_cash_flow: ["Free cash flow"],
-  balance_sheet: ["Cash and equivalents", "Total assets", "Total liabilities", "Total equity"],
+  balance_sheet: ["Cash and equivalents", "Total assets", "Total liabilities", "Stockholders' equity"],
   cash_and_equivalents: ["Cash and equivalents"],
   total_assets: ["Total assets"],
   total_liabilities: ["Total liabilities"],
-  total_equity: ["Total equity"],
+  total_equity: ["Stockholders' equity"],
   eps_diluted: ["EPS (diluted)"],
   eps_basic: ["EPS (basic)"],
 };
