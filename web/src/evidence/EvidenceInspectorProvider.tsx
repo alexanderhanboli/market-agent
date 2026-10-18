@@ -85,13 +85,13 @@ export function EvidenceInspectorProvider({ children }: { children: ReactNode })
       target?.focus()
     }
 
-    function openEvidence(navigation: Navigation, { snapshotId, ref }: { snapshotId: string; ref: EvidenceInspectionRef }) {
+    function openEvidence(navigation: Navigation, { snapshotId, ref, shownAs }: { snapshotId: string; ref: EvidenceInspectionRef; shownAs?: string }) {
       const request = nextRequest()
       if (!session) {
-        show(navigation, { kind: 'evidence', request, snapshotId, ref, load: { kind: 'error', message: 'Sign in to inspect evidence.' } })
+        show(navigation, { kind: 'evidence', request, snapshotId, ref, shownAs, load: { kind: 'error', message: 'Sign in to inspect evidence.' } })
         return
       }
-      show(navigation, { kind: 'evidence', request, snapshotId, ref, load: { kind: 'loading' } })
+      show(navigation, { kind: 'evidence', request, snapshotId, ref, shownAs, load: { kind: 'loading' } })
       fetchEvidenceInspection({ userId: session.userId, snapshotId, ref })
         .then((inspection) => {
           dispatch({ type: 'settled', request, settlement: { kind: 'evidence', load: { kind: 'ready', inspection } } })

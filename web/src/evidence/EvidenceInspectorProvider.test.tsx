@@ -462,6 +462,23 @@ test("closing returns focus to the main content when the opener is gone", async 
   }
 });
 
+test("the panel heads with the text the user clicked, and with the server title when there is none", async () => {
+  const app = await mountDockedInspector(async (ref) =>
+    jsonResponse(ref.kind === "fact" ? { ...FACT_INSPECTION, title: "30 multiple" } : SOURCE_INSPECTION));
+  try {
+    await app.click(app.opener("P/E"));
+    assert.equal(app.heading(), "30.0×");
+
+    await app.click(app.relatedRef("sec"));
+    assert.deepEqual(app.breadcrumb(), ["30.0×", "sec filing"]);
+
+    await app.click(app.opener("Revenue"));
+    assert.equal(app.heading(), "30 multiple");
+  } finally {
+    await app.unmount();
+  }
+});
+
 async function mountDockedInspector(respond: (ref: { kind: string; id: string }) => Promise<Response>) {
   const dom = new JSDOM("<!doctype html><html><body><div id=\"root\"></div></body></html>");
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window);
@@ -500,6 +517,12 @@ async function mountDockedInspector(respond: (ref: { kind: string; id: string })
           onClick={() => inspector?.openInspection({ snapshotId: SNAPSHOT_ID, ref: { kind: "source", id: SOURCE_ID } })}
         >
           Filing
+        </button>
+        <button
+          type="button"
+          onClick={() => inspector?.openInspection({ snapshotId: SNAPSHOT_ID, ref: { kind: "fact", id: FACT_ID }, shownAs: "30.0×" })}
+        >
+          P/E
         </button>
       </>
     );

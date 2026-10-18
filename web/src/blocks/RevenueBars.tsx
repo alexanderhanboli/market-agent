@@ -55,6 +55,7 @@ function RevenueBarColumn({ blockId, snapshotId, index, bar }: RevenueBarColumnP
       <InspectableRef
         snapshotId={snapshotId}
         inspectionRef={{ kind: 'fact', id: bar.value_ref }}
+        shownAs={bar.format || undefined}
         className="num text-xs text-fg underline decoration-dotted underline-offset-2"
       >
         {bar.format ?? '—'}

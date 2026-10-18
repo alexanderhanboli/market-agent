@@ -103,6 +103,7 @@ function ComparisonCell({
       <InspectableRef
         snapshotId={snapshotId}
         inspectionRef={{ kind: 'fact', id: cell.value_ref }}
+        shownAs={cell.format || undefined}
         className="underline decoration-dotted underline-offset-2"
       >
         {cell.format ?? '—'}

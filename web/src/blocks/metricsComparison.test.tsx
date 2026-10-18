@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { JSDOM } from 'jsdom'
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import { installDomGlobals } from '../analyst-grids/testDom.ts'
+import { EvidenceInspectorContext, type EvidenceInspectorContextValue } from '../evidence/evidenceInspectorContext.ts'
 import { MetricsComparison } from './MetricsComparison.tsx'
 import { emittedMetricsComparisonFixture, metricsComparisonFixture } from './fixtures.ts'
 import { validateBlock } from './BlockValidator.ts'
@@ -107,4 +112,46 @@ test('MetricsComparison labels rows with subject_labels, falling back to the ref
   assert.match(html, />NVDA</)
   // No label for the second row: the short reference is shown instead.
   assert.match(html, new RegExp(`>${second.kind}:${second.id.slice(0, 8)}<`))
+})
+
+test('clicking a cell opens its fact with the text the cell shows', async () => {
+  const opened: Array<Parameters<EvidenceInspectorContextValue['openInspection']>[0]> = []
+  const inspector: EvidenceInspectorContextValue = {
+    openInspection(input) { opened.push(input) },
+    openBlockInspection() {},
+    closeInspection() {},
+  }
+  const block: MetricsComparisonBlock = {
+    id: 'mc-click',
+    kind: 'metrics_comparison',
+    snapshot_id: '11111111-1111-4111-9111-111111111111',
+    data_ref: { kind: 'metrics_comparison', id: 'mc-click' },
+    source_refs: [],
+    as_of: '2024-09-30T00:00:00.000Z',
+    subjects: [{ kind: 'issuer', id: '99999999-9999-4999-9999-999999999991' }],
+    metrics: ['P/E'],
+    cells: [[{ value_ref: '22222222-2222-4222-9222-000000000002', format: '30.0×' }]],
+  }
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  try {
+    const root = createRoot(dom.window.document.getElementById('root')!)
+    await act(async () => {
+      root.render(
+        <EvidenceInspectorContext.Provider value={inspector}>
+          <MetricsComparison block={block} />
+        </EvidenceInspectorContext.Provider>,
+      )
+    })
+    const cell = dom.window.document.querySelector<HTMLElement>('button[data-inspection-kind="fact"]')!
+    await act(async () => cell.click())
+    assert.deepEqual(opened, [{
+      snapshotId: '11111111-1111-4111-9111-111111111111',
+      ref: { kind: 'fact', id: '22222222-2222-4222-9222-000000000002' },
+      shownAs: '30.0×',
+    }])
+    await act(async () => root.unmount())
+  } finally {
+    restoreGlobals()
+  }
 })

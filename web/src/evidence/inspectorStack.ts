@@ -7,7 +7,7 @@ export type EvidenceLoad =
   | { kind: 'error'; message: string }
 
 export type InspectorPage =
-  | { kind: 'evidence'; request: number; snapshotId: string; ref: EvidenceInspectionRef; load: EvidenceLoad }
+  | { kind: 'evidence'; request: number; snapshotId: string; ref: EvidenceInspectionRef; shownAs?: string; load: EvidenceLoad }
   | { kind: 'block'; inspection: EvidenceBlockInspection }
   | { kind: 'financial'; request: number; load: FinancialInspectorLoad }
 
