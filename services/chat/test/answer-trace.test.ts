@@ -22,7 +22,7 @@ const TRACE: TurnTrace = {
     latency_ms: 41_200,
     usage: { input_tokens: 9000, output_tokens: 700 },
   },
-  assertions: { status: "checked", accepted: [], rejected: [{ index: 0, reason: "cites no figure" }] },
+  assertions: { status: "checked", accepted: [], rejected: [{ index: 0, check: "kind", reason: "cites no figure" }] },
   removed: ["NVDA grew 12% in FY2024."],
   blocks: [
     {

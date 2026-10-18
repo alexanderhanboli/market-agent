@@ -1108,7 +1108,7 @@ test("turn.completed reports the narrative sentences the guard dropped, only whe
 });
 
 test("turn.completed reports the shadow assertion check when the answer had one (#208)", async () => {
-  const report = { status: "checked" as const, accepted: [], rejected: [{ index: 0, reason: 'unknown evidence id "F9"' }] };
+  const report = { status: "checked" as const, accepted: [], rejected: [{ index: 0, check: "reference" as const, reason: 'unknown evidence id "F9"' }] };
   const checked = createChatCoordinator({
     analystToolRuntime: async (context) => ({ ...(await successfulRuntime(context)), assertion_report: report }),
   });

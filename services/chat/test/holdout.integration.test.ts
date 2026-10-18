@@ -14,7 +14,7 @@ import type { Client } from "pg";
 
 import { bootstrapDatabase, connectedClient, dockerAvailable, registerLifoCleanup } from "../../../db/test/docker-pg.ts";
 import { createFact } from "../../evidence/src/fact-repo.ts";
-import { checkAssertions, rejectionCheck } from "../src/assertions.ts";
+import { checkAssertions, type Rejection } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 import { closeLocalRuntimePoolForTests } from "../src/local-runtime.ts";
 import {
@@ -62,7 +62,7 @@ test("synthetic comparative traps: ties, negatives, rounding and missing interva
   };
   for (const { name, assertion, outcome } of SYNTHETIC_CASES) {
     const report = checkAssertions([assertion], packet);
-    const got = report.accepted.length === 1 ? "accepted" : rejectionCheck(report.rejected[0]!.reason);
+    const got = report.accepted.length === 1 ? "accepted" : report.rejected[0]!.check;
     assert.equal(got, outcome, `${name}: ${JSON.stringify(report.rejected)}`);
   }
 });
@@ -117,10 +117,10 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
       for (const mutation of holdout.mutations ?? []) {
         if ("list" in mutation) {
           const { completed: mutated } = await converse(holdout, withList(holdout.prose, mutation.list));
-          const report = mutated.data.assertion_report as { rejected: Array<{ index: number; reason: string }> };
+          const report = mutated.data.assertion_report as { rejected: Rejection[] };
           const failed = report.rejected.find((entry) => entry.index === mutation.fails.index);
           assert.ok(failed, `${mutation.name}: not rejected (${JSON.stringify(mutated.data.assertion_report)})`);
-          assert.equal(rejectionCheck(failed.reason), mutation.fails.check, `${mutation.name}: ${failed.reason}`);
+          assert.equal(failed.check, mutation.fails.check, `${mutation.name}: ${failed.reason}`);
         } else {
           const { answer: mutated } = await converse(holdout, mutation.prose);
           assert.doesNotMatch(JSON.stringify(mutated.blocks), new RegExp(mutation.never_shown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), mutation.name);
