@@ -58,9 +58,9 @@ Each case declares what the turn must establish (companies, period or window, bl
 instead of answering) and is checked against the persisted answer, its research scope and the turn's assertion report.
 Its known-good recorded answer passes in full. Each mutation changes one thing (another company's figure, the wrong
 year, a dropped or duplicated reference, a stated cause, a superseded value, a wrong winner, an endpoint passed off as
-the low) and must fail one named check (`rejectionCheck` in `services/chat/src/assertions.ts`). The cases' digest is
-pinned with their version, so changing a case means a new version. Causal quality stays with the owner's scoring: no
-LLM judge or machine prose score.
+the low) and must fail one named check (the rejection's `check`, typed in `services/chat/src/assertions.ts`). The
+cases' digest is pinned with their version, so changing a case means a new version. Causal quality stays with the
+owner's scoring: no LLM judge or machine prose score.
 
 Rejected assertions in the reports above are counted by the check they failed, so a wrong number or citation
 (`binding`) reads apart from a wrong ranking or trend (`comparative`).

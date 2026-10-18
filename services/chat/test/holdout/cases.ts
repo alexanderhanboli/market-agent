@@ -2,8 +2,8 @@
 // declaring what the turn must establish (companies, period or window, blocks or
 // a named gap, the ambiguity rule) and a known-good recorded answer whose
 // assertion list passes. Each mutation keeps the known-good answer but changes
-// one thing, and must fail one named check (assertions.ts rejectionCheck) or
-// never reach the page. No model, provider or credential is involved: replies
+// one thing, and must fail one named check (a rejection's check, assertions.ts)
+// or never reach the page. No model, provider or credential is involved: replies
 // are recorded.
 //
 // Expected values are written from the golden dataset (test/golden/dataset.ts)

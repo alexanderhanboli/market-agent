@@ -324,6 +324,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     renderRemovals = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
+      check: "rendering",
       reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
     // The guard removed every assertion: an inference never stays without a support.
