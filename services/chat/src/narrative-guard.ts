@@ -102,15 +102,6 @@ const CAUSAL = new RegExp(
   String.raw`\b${CONNECTIVE}\s+((?:(?!\b(?:although|though|but|while|whereas|yet|however|${CONNECTIVE})\b)[^,;:.])+)`,
   "gi",
 );
-// Whether an assertion states a cause: an observation or comparison may not
-// (assertions.ts, #221). Only unambiguous connectives: "reflects" and "results
-// from" also describe ("the table reflects the reported figures", "the results
-// from FY2025"), so they are left to the guard's wider check on prose.
-// Active verbs too ("charges caused", "led to", "drove", "resulted in", and
-// financial causatives "lifted", "boosted", "pressured", "weighed on", #294
-// review): unlike "reflects", these only ever say why.
-// ponytail: a vocabulary, not a parser; checked takeaways and causes are #288.
-const STRICT_CAUSAL = /\b(?:driven by|due to|because of|owing to|attributable to|as a result of|thanks to|on the back of|fuell?ed by|stemming from|caused by|resulted from|caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?:ove|iving)|result(?:ed|ing) in|contribut(?:e|es|ed|ing) to|stem(?:s|med)? from|lift(?:ed|ing)|boost(?:ed|ing)|pressur(?:ed|ing)|weigh(?:s|ed|ing)? on|dragg?(?:s|ed|ing)? (?:on|down)|(?:could|may|might|would|will|can|should|to)\s+(?:lift|boost|pressure|drive|cause|lead to|weigh on|drag (?:on|down)|contribute to|result in))\b/i;
 // An active causal verb in prose ("AI demand lifted revenue"): its cause is
 // the few words before it, held to the same grounding as a connective's
 // (#294 review). Not a passive "caused by", which CAUSAL reads.
@@ -124,10 +115,6 @@ const ACTIVE_VERB = String.raw`(?:caus(?:ed|ing)|l(?:ed|ead|eads|eading) to|dr(?
 // Base forms ("could lift", "may drive", #294 review) count only after a modal
 // or "to": bare "pressure" and "drive" are as often nouns.
 const ACTIVE_CAUSAL = new RegExp(String.raw`((?:[^\s,;:.]+\s+)+?)${ACTIVE_VERB}\b(?!\s+by\b)`, "gi");
-
-export function statesCause(text: string): boolean {
-  return STRICT_CAUSAL.test(text);
-}
 
 // A cause the data does not show is allowed only as a labelled hypothesis (#261):
 // a blockquote item with its confidence in words and one explanation, resting on

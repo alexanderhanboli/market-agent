@@ -2469,7 +2469,7 @@
       {
         "index": 7,
         "text": "Despite lower absolute revenue, NVDA's substantially higher margins indicate stronger profitability per dollar of revenue compared to AAPL.",
-        "reason": "an inference names no company; its supports do"
+        "reason": "an inference names no company; its subject does"
       }
     ]
   },

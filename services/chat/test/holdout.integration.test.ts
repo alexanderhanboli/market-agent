@@ -2,8 +2,8 @@
 // chat turns on the frozen golden dataset with a recorded answer, and is checked
 // against the persisted answer, its research scope and the turn's assertion
 // report, never report prose. Each mutation reruns the case with one change to
-// the known-good answer and must fail its named check. No model or provider
-// is called.
+// the known-good answer and must fail its named check or never reach the
+// page. No model or provider is called.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -38,7 +38,7 @@ import { HOLDOUT_CASES, HOLDOUT_VERSION, SYNTHETIC_CASES, SYNTHETIC_FIGURES, typ
 
 // The suite's identity: its version and the digest of every case, pinned so a
 // changed case is a new version, not a quiet edit (#221).
-const HOLDOUT_DIGEST = "sha256:606ab9def95d2baa54044c01b9559fc5713823175054571d91df8d2a3ba4eea3";
+const HOLDOUT_DIGEST = "sha256:1b18809b7b612e3b907ed8894de90135ff842fb0f2ee9db3f755e479e783b833";
 
 test("the held-out suite is a fixed, versioned set of 10-12 cases (#221)", () => {
   assert.ok(HOLDOUT_CASES.length + 1 >= 10 && HOLDOUT_CASES.length + 1 <= 12, "10-12 cases, the synthetic set counted as one");
@@ -115,15 +115,19 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
         assert.equal(report.accepted.length, holdout.good.length);
       }
       for (const mutation of holdout.mutations ?? []) {
-        if ("list" in mutation) {
+        if ("fails" in mutation) {
           const { completed: mutated } = await converse(holdout, withList(holdout.prose, mutation.list));
           const report = mutated.data.assertion_report as { rejected: Array<{ index: number; reason: string }> };
           const failed = report.rejected.find((entry) => entry.index === mutation.fails.index);
           assert.ok(failed, `${mutation.name}: not rejected (${JSON.stringify(mutated.data.assertion_report)})`);
           assert.equal(rejectionCheck(failed.reason), mutation.fails.check, `${mutation.name}: ${failed.reason}`);
         } else {
-          const { answer: mutated } = await converse(holdout, mutation.prose);
-          assert.doesNotMatch(JSON.stringify(mutated.blocks), new RegExp(mutation.never_shown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), mutation.name);
+          const { completed: mutated, answer } = await converse(holdout, "list" in mutation ? withList(holdout.prose, mutation.list) : mutation.prose);
+          if ("list" in mutation) {
+            const report = mutated.data.assertion_report as { rendered?: boolean; rejected: unknown[]; repeated?: unknown[] };
+            assert.deepEqual([report.rendered, report.rejected, report.repeated ?? []], [true, [], []], `${mutation.name}: rendered in full from its assertions`);
+          }
+          assert.doesNotMatch(JSON.stringify(answer.blocks), new RegExp(mutation.never_shown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), mutation.name);
         }
       }
     });
