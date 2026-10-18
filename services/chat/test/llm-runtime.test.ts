@@ -730,8 +730,8 @@ test("with no figures shown, an inference stating a cause goes; the figure it re
       { kind: "observation", text: "Net income was [[F4]].", evidence: ["F4"] },
       { kind: "analyst_inference", text: "The result could reflect a one-time charge.", supports: [0] },
     ]) }),
-    onNarrativeRemoved: (sentences) => {
-      removed = sentences;
+    onNarrativeRemoved: (dropped) => {
+      removed = dropped;
     },
   });
   assert.equal((blocks[0]!.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "Net income was $25.0B in Q1 2026 (partial period).");
@@ -880,7 +880,7 @@ async function renderA(list: unknown[]) {
     factBlocks: A_BLOCKS,
     createClient: () => async () => ({ text: withList(list) }),
     onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
-    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+    onNarrativeRemoved: (dropped) => removed.push([...dropped]),
   });
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   return { text, report: reports[0]!, removed };
@@ -1043,7 +1043,7 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
     factBlocks: [],
     createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Demand doubled.", evidence: ["C1"] }]) }),
     onAssertions: (report) => reports.push(report),
-    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+    onNarrativeRemoved: (dropped) => removed.push([...dropped]),
   });
   assert.deepEqual({ segments: blocks[0]!.segments, rejected: reports[0]!.rejected, removed }, {
     segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }],
@@ -1251,7 +1251,7 @@ test("a rendered comparison covers every company it shows figures for, and warns
   // An inference shows no figure, so its evidence covers no company: AMD still has none on the page.
   const inferred = await renderWithReply(withList([
     { kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] },
-    { kind: "analyst_inference", text: "It keeps more of each sale.", subject: "NVDA", evidence: [], supports: [0] },
+    { kind: "analyst_inference", text: "It keeps more of each sale.", subject: "NVDA", evidence: ["F4"], supports: [0] },
   ]));
   assert.deepEqual(
     { segments: inferred.block.segments, rendered: inferred.report.rendered, rejected: inferred.report.rejected },
@@ -1272,7 +1272,7 @@ test("a rendered comparison covers every company it shows figures for, and warns
       tool_call_id: "tc-1",
       tool_name: "research_lookup",
       status: "ok",
-      result: { evidence: { claims: [{ claim_id: A_CLAIM, source_id: "s-a", text_canonical: "Data center demand doubled.", predicate: "kpi.commentary", polarity: "positive" }] } },
+      result: { evidence: { claims: [{ claim_id: A_CLAIM, source_id: "s-a", text_canonical: "Data center demand doubled.", predicate: "kpi.commentary", polarity: "positive", subject_id: "issuer-amd" }] } },
     } as never],
     factBlocks: RENDER_BLOCKS,
     createClient: () => async () => ({ text: withList([
@@ -1280,9 +1280,9 @@ test("a rendered comparison covers every company it shows figures for, and warns
       { kind: "management_attribution", text: "Demand doubled.", evidence: ["C1"] },
     ]) }),
     onAssertions: (report) => reports.push(report),
-    onNarrativeRemoved: (sentences) => removed.push([...sentences]),
+    onNarrativeRemoved: (dropped) => removed.push([...dropped]),
   });
-  const attribution = "According to a source: Data center demand doubled.";
+  const attribution = "According to a source on AMD: Data center demand doubled.";
   assert.deepEqual({ segments: guardedSide[0]!.segments, rejected: reports[0]!.rejected, removed }, {
     segments: [{ type: "text", text: FIGURES_FALLBACK }],
     rejected: [nvdaMargin, { index: 1, text: attribution, reason: "removed by the narrative guard" }],
