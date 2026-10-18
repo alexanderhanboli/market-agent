@@ -79,6 +79,7 @@ test("runtime config loads assistant persistence from configured module", async 
 
   assert.equal(typeof options.persistAssistantMessage, "function");
   assert.deepEqual(await options.persistAssistantMessage!({
+    message_id: "44444444-4444-4444-a444-444444444444",
     threadId: "thread-1",
     runId: "run-1",
     turnId: "turn-1",
@@ -111,6 +112,7 @@ test("runtime config resolves relative persistence modules from the process cwd"
 
   assert.equal(typeof options.persistAssistantMessage, "function");
   assert.deepEqual(await options.persistAssistantMessage!({
+    message_id: "44444444-4444-4444-a444-444444444444",
     threadId: "thread-1",
     runId: "run-1",
     turnId: "turn-1",

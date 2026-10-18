@@ -7,6 +7,22 @@ export function contentHashForText(text: string): string {
   return `sha256:${createHash("sha256").update(text).digest("hex")}`;
 }
 
+/**
+ * The one assistant message a turn saves, so a read of the thread can tell
+ * that a turn's answer is saved before the turn ends.
+ */
+export function answerMessageId(threadId: string, runId: string, turnId: string): string {
+  return stableUuid(`answer-message:${threadId}:${runId}:${turnId}`);
+}
+
+/**
+ * The financial lane's published answer. It differs from answerMessageId,
+ * which an in-progress notice of the same turn may already hold.
+ */
+export function financialMessageId(threadId: string, turnId: string): string {
+  return stableUuid(`financial-message:${threadId}:${turnId}`);
+}
+
 export function stableUuid(seed: string): string {
   const hex = createHash("sha256").update(seed).digest("hex");
   return [

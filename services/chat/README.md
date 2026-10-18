@@ -47,12 +47,13 @@ Endpoints (all require an `x-user-id` UUID header; threads are user-scoped):
   `{ "messages": ChatReadMessage[], "active_run": { "run_id", "turn_id" } | null, "runs": RunStatus[] }`.
   Each `runs` entry is `{ "run_id", "turn_id", "status" }`, oldest first, with
   `status` `in_flight` (queued or running), `completed` (with the saved
-  answer's `message_id` when the turn.completed named one) or `failed`
+  answer's `message_id` when the turn.completed named one, or when
+  `messages` hold the turn's saved answer) or `failed`
   (turn.error, or no terminal event). A run that ended more than
   `completedTurnRetentionMs` ago (5 minutes by default) is not listed.
   A turn counts while it is queued or running, until it emits `turn.completed`
-  or `turn.error`. A turn whose `turn.completed` names a message in
-  `messages` is never reported. One that ended during the read is reported
+  or `turn.error`. A turn whose saved answer is in `messages` is never
+  reported, though it has not yet emitted `turn.completed`. One that ended during the read is reported
   only when `messages` lack its answer, so the client attaches and the replay
   shows the outcome. Turns live in this process's memory (see Resume
   Retention), so a restart reports none. Attach with
@@ -70,7 +71,9 @@ mounted and other handlers (e.g., the SSE stream) are unaffected.
 
 `CHAT_PERSISTENCE_MODULE` may be a package specifier, absolute path, file URL,
 or path relative to the process working directory. The module must export
-`persistAssistantMessage(input)`. It resolves only after a snapshot has sealed
+`persistAssistantMessage(input)`. It saves the message under `input.message_id`,
+the turn's one answer id, so a messages read can tell the turn is answered
+before its stream ends. It resolves only after a snapshot has sealed
 and the chat message row has been committed, and it resolves to that message
 as the thread's messages GET returns it (`ChatReadMessage` in
 `src/messages.ts`: the row plus its `block_proofs`). `turn.completed` carries

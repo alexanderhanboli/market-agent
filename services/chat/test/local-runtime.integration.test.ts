@@ -139,6 +139,7 @@ test("default local chat runtime persists a verifier-valid assistant message fro
   assert.equal(runtimeToolCallIds.every((id) => typeof id === "string" && id.length > 0), true);
 
   const persisted = await persistAssistantMessage({
+    message_id: "44444444-4444-4444-a444-444444444444",
     threadId: thread.thread_id,
     runId: RUN_ID,
     turnId: TURN_ID,
@@ -176,6 +177,21 @@ test("default local chat runtime persists a verifier-valid assistant message fro
     [persisted.message_id],
   )).rows;
   assert.equal(messageRows.length, 1);
+  assert.equal(persisted.message_id, "44444444-4444-4444-a444-444444444444");
+
+  const rerunBlocks = result.blocks.map((block) => ({ ...block, snapshot_id: "55555555-5555-4555-a555-555555555555" }));
+  const again = await persistAssistantMessage({
+    message_id: persisted.message_id,
+    threadId: thread.thread_id,
+    runId: RUN_ID,
+    turnId: TURN_ID,
+    role: "assistant",
+    blocks: rerunBlocks,
+    content_hash: contentHash(JSON.stringify(rerunBlocks)),
+  });
+  assert.equal(again.snapshot_id, persisted.snapshot_id);
+  assert.equal(again.message_id, persisted.message_id);
+  assert.equal((await client.query(`select 1 from chat_messages where thread_id = $1::uuid`, [thread.thread_id])).rows.length, 1);
 
   const toolRows = (await client.query<{ result_hash: string | null }>(
     `select result_hash
@@ -263,6 +279,7 @@ test("chat snapshot cites fundamentals fact_refs and their source for a resolved
   assert.ok((result.blocks[0]?.source_refs as unknown[]).includes(sourceId));
 
   const persisted = await persistAssistantMessage({
+    message_id: "44444444-4444-4444-a444-444444444444",
     threadId: thread.thread_id,
     runId: RUN_ID,
     turnId: TURN_ID,

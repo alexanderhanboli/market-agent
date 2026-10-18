@@ -1,4 +1,4 @@
-import { contentHashForText, stableUuid } from "./chat-ids.ts";
+import { answerMessageId, contentHashForText, financialMessageId, stableUuid } from "./chat-ids.ts";
 import { DEFAULT_BUNDLE_ID, chooseBundleIdForSubjectKind } from "./bundle-routing.ts";
 import { COMPARATIVE, companyKey, extractSubjectMentions } from "./subject-extraction.ts";
 import {
@@ -165,6 +165,8 @@ export type ChatSubjectClarificationRenderer = (
 ) => Promise<ChatSubjectClarificationRenderResult> | ChatSubjectClarificationRenderResult;
 
 export type ChatAssistantMessagePersistenceInput = {
+  // Saves the message under this id (answerMessageId).
+  message_id: string;
   threadId: string;
   runId: string;
   turnId: string;
@@ -180,7 +182,9 @@ export type ChatAssistantMessagePersistence = (
   input: ChatAssistantMessagePersistenceInput,
 ) => Promise<ChatReadMessage>;
 
-export type ChatAssistantMessageCommit = (input: ChatAssistantMessagePersistenceInput) => Promise<ChatCommittedMessage>;
+export type ChatAssistantMessageCommit = (
+  input: Omit<ChatAssistantMessagePersistenceInput, "message_id">,
+) => Promise<ChatCommittedMessage>;
 
 export class ChatPersistenceContractError extends Error {
   constructor(message: string) {
@@ -193,7 +197,7 @@ function committing(persist: ChatAssistantMessagePersistence): ChatAssistantMess
   return async (input) => {
     let message: ChatReadMessage;
     try {
-      message = await persist(input);
+      message = await persist({ ...input, message_id: answerMessageId(input.threadId, input.runId, input.turnId) });
     } catch (error) {
       if (!(error instanceof ChatMessageUnreadError)) throw error;
       logUnreadMessage(error.message_id, error.cause);
@@ -246,7 +250,9 @@ export type ChatCoordinator = {
    * with the oldest of them still in flight: queued or running, with no
    * turn.completed or turn.error. A turn that ended during the read is reported
    * in flight only when the read lacks its answer, since the read may predate
-   * the answer's commit; attaching replays its outcome.
+   * the answer's commit; attaching replays its outcome. A turn whose saved answer
+   * (answerMessageId or financialMessageId) the read holds is reported completed, though its runner
+   * has not yet emitted turn.completed.
    */
   readThread<M extends { message_id: string }>(
     scope: { userId: string; threadId: string },
@@ -479,12 +485,12 @@ export function createChatCoordinator(
       if (messages === null) return null;
       pruneCompletedTurns();
       const after = retained();
-      const runs = after.map(runStatus);
       const readIds = new Set(messages.map((message) => message.message_id));
+      const runs = after.map((record) => runStatus(record, readIds));
       for (const record of new Set([...before, ...after.filter((r) => r.completedAt === null && r.handle.terminal === null)])) {
-        const terminal = record.handle.terminal;
-        const answered = terminal?.type === "turn.completed" && readIds.has(terminal.message_id as string);
-        if (answered || (terminal === null && record.completedAt !== null)) continue;
+        const status = runStatus(record, readIds);
+        const answered = status.status === "completed" && readIds.has(status.messageId as string);
+        if (answered || (record.handle.terminal === null && record.completedAt !== null)) continue;
         const { runId, turnId } = record.handle.input as NormalizedChatTurnInput;
         return { messages, activeRun: { runId, turnId }, runs };
       }
@@ -508,9 +514,13 @@ export function createChatCoordinator(
   };
 }
 
-function runStatus(record: TurnRecord): ChatRunStatus {
-  const { runId, turnId } = record.handle.input as NormalizedChatTurnInput;
+// A run whose saved answer is in the read is completed, even before its runner
+// emits turn.completed.
+function runStatus(record: TurnRecord, readIds: ReadonlySet<string>): ChatRunStatus {
+  const { threadId, runId, turnId } = record.handle.input as NormalizedChatTurnInput;
   const terminal = record.handle.terminal;
+  const answerId = [financialMessageId(threadId, turnId), answerMessageId(threadId, runId, turnId)].find((id) => readIds.has(id));
+  if (terminal === null && answerId !== undefined) return { runId, turnId, status: "completed", messageId: answerId };
   if (terminal?.type === "turn.completed") {
     return typeof terminal.message_id === "string"
       ? { runId, turnId, status: "completed", messageId: terminal.message_id }

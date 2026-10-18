@@ -107,6 +107,7 @@ export type ChatThreadMessagesResult = {
 };
 
 export type PersistChatMessageAfterSnapshotSealInput = {
+  message_id?: string;
   thread_id: string;
   role: ChatRole;
   blocks: JsonValue;
@@ -192,6 +193,7 @@ export function createChatMessagePersistence(
 ): ChatAssistantMessagePersistence {
   return async (message) => {
     const result = await persistChatMessageAfterSnapshotSealWithPool(input.pool, {
+      message_id: message.message_id,
       thread_id: message.threadId,
       role: message.role,
       blocks: message.blocks as JsonValue,
@@ -563,8 +565,9 @@ async function persistSealedChatMessage(
   try {
     const { rows } = await db.query<{ message_id: string }>(
       `insert into chat_messages
-         (thread_id, role, snapshot_id, blocks, content_hash, answered_by, research_scope)
-       values ($1::uuid, $2::chat_role, $3::uuid, $4::jsonb, $5, $6, $7::jsonb)
+         (message_id, thread_id, role, snapshot_id, blocks, content_hash, answered_by, research_scope)
+       values ($8::uuid, $1::uuid, $2::chat_role, $3::uuid, $4::jsonb, $5, $6, $7::jsonb)
+       on conflict (message_id) do nothing
        returning message_id::text as message_id`,
       [
         input.thread_id,
@@ -574,21 +577,26 @@ async function persistSealedChatMessage(
         input.content_hash,
         input.answered_by ?? null,
         input.research_scope === undefined ? null : serializeJsonValue(input.research_scope),
+        input.message_id ?? randomUUID(),
       ],
     );
     const inserted = rows[0];
     if (inserted === undefined) {
-      throw new Error("persistChatMessageAfterSnapshotSeal: chat message insert returned no row");
+      if (input.message_id === undefined) {
+        throw new Error("persistChatMessageAfterSnapshotSeal: chat message insert returned no row");
+      }
+      // A turn re-run after a restart keeps the answer its first attempt saved.
+      messageId = input.message_id;
+    } else {
+      messageId = inserted.message_id;
+      await db.query(
+        `update chat_threads
+            set latest_snapshot_id = $2::uuid,
+                updated_at = now()
+          where thread_id = $1::uuid`,
+        [input.thread_id, snapshotId],
+      );
     }
-    messageId = inserted.message_id;
-
-    await db.query(
-      `update chat_threads
-          set latest_snapshot_id = $2::uuid,
-              updated_at = now()
-        where thread_id = $1::uuid`,
-      [input.thread_id, snapshotId],
-    );
     await db.query("commit");
   } catch (error) {
     try {
