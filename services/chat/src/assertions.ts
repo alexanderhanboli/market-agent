@@ -43,7 +43,7 @@ export type AssertionReport = {
   // skipped: no figures or claims, so there was nothing to bind.
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: ReadonlyArray<Assertion & { index: number }>;
-  rejected: ReadonlyArray<{ index: number; text?: string; reason: string }>;
+  rejected: ReadonlyArray<Rejection>;
   // The answer was written from the accepted assertions (controlled rendering).
   rendered?: boolean;
   // Accepted observations the rendered answer leaves out, since a comparison
@@ -56,8 +56,12 @@ export type AssertionReport = {
 // counterpoint; at 8, counterpoints fell past the cap (2026-10-13 eval).
 export const MAX_ASSERTIONS = 12;
 
-// The check a rejection failed (rejection-check.ts, #221).
-export { rejectionCheck, type RejectionCheck } from "./rejection-check.ts";
+// The check a rejection failed, named so a report can tell a wrong number or
+// citation (binding) from a wrong ranking or trend (comparative), and so a
+// held-out mutation fails one named check (#221).
+export type RejectionCheck =
+  | "binding" | "comparative" | "reference" | "kind" | "support" | "gap" | "limit" | "format" | "rendering";
+export type Rejection = { index: number; text?: string; check: RejectionCheck; reason: string };
 
 // The list closes the answer in a fenced block, closed or not (a reply cut
 // off inside it). The first block is the one read, so a second (a corrected
@@ -84,65 +88,65 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
   const figures = new Map(packet.figures.map((figure) => [figure.id, figure]));
   const claims = new Map(packet.claims.map((claim) => [claim.id, claim]));
   const accepted: Array<Assertion & { index: number }> = [];
-  const rejected: Array<{ index: number; text?: string; reason: string }> = [];
-  const reject = (index: number, item: unknown, reason: string) =>
-    rejected.push({ index, ...(isRecord(item) && typeof item.text === "string" ? { text: item.text } : {}), reason });
+  const rejected: Rejection[] = [];
+  const reject = (index: number, item: unknown, check: RejectionCheck, reason: string) =>
+    rejected.push({ index, ...(isRecord(item) && typeof item.text === "string" ? { text: item.text } : {}), check, reason });
 
   // Inferences last, so the observations they rest on are already checked.
   const order = list.map((item, index) => ({ item, index }))
     .sort((a, b) => Number(kindOf(a.item) === "analyst_inference") - Number(kindOf(b.item) === "analyst_inference"));
   for (const { item, index } of order) {
     if (index >= MAX_ASSERTIONS) {
-      reject(index, item, `more than ${MAX_ASSERTIONS} assertions`);
+      reject(index, item, "limit", `more than ${MAX_ASSERTIONS} assertions`);
       continue;
     }
     if (!isRecord(item) || typeof item.text !== "string" || item.text.trim() === "") {
-      reject(index, item, "not an assertion with text");
+      reject(index, item, "format", "not an assertion with text");
       continue;
     }
     const kind = kindOf(item);
     if (kind === undefined) {
-      reject(index, item, `unknown kind ${JSON.stringify(item.kind)}`);
+      reject(index, item, "format", `unknown kind ${JSON.stringify(item.kind)}`);
       continue;
     }
     // A malformed list is the model's error to report, never cleaned up. An
     // inference cites through its supports, so its evidence may be left out.
     const listed = item.evidence === undefined && kind === "analyst_inference" ? [] : item.evidence;
     if (!Array.isArray(listed) || !listed.every((id) => typeof id === "string")) {
-      reject(index, item, "evidence is not a list of packet ids");
+      reject(index, item, "reference", "evidence is not a list of packet ids");
       continue;
     }
     if (item.supports !== undefined && kind !== "analyst_inference") {
-      reject(index, item, "only an analyst inference lists supports");
+      reject(index, item, "format", "only an analyst inference lists supports");
       continue;
     }
     if (item.subject !== undefined && kind !== "analyst_inference") {
-      reject(index, item, "only an analyst inference has a subject");
+      reject(index, item, "format", "only an analyst inference has a subject");
       continue;
     }
     if ((item.op !== undefined || item.result !== undefined) && kind !== "comparison") {
-      reject(index, item, "only a comparison has an op and a result");
+      reject(index, item, "format", "only a comparison has an op and a result");
       continue;
     }
     if (item.supports !== undefined && (!Array.isArray(item.supports) || !item.supports.every((n) => Number.isInteger(n)))) {
-      reject(index, item, "supports is not a list of assertion indexes");
+      reject(index, item, "format", "supports is not a list of assertion indexes");
       continue;
     }
     const evidence = listed as string[];
     const twice = evidence.find((id, i) => evidence.indexOf(id) !== i);
     if (twice !== undefined) {
-      reject(index, item, `evidence lists ${JSON.stringify(twice)} twice`);
+      reject(index, item, "reference", `evidence lists ${JSON.stringify(twice)} twice`);
       continue;
     }
     const unknown = evidence.find((id) => !figures.has(id) && !claims.has(id));
     if (unknown !== undefined) {
-      reject(index, item, `unknown evidence id ${JSON.stringify(unknown)}`);
+      reject(index, item, "reference", `unknown evidence id ${JSON.stringify(unknown)}`);
       continue;
     }
     // An inference writes no digit at all, a period's included: the periods
     // are its supports', rendered from the packet beside it.
     if (kind === "analyst_inference" && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
-      reject(index, item, "an inference rests on its supports; it writes no figure");
+      reject(index, item, "binding", "an inference rests on its supports; it writes no figure");
       continue;
     }
     // Across companies, who leads or trails is its comparisons' checked
@@ -151,7 +155,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     // A one-letter ticker ("A") cannot be told from the article, as in the guard.
     if (kind === "analyst_inference" && packet.companies.length > 1 &&
       packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
-      reject(index, item, "an inference names no company; its subject does");
+      reject(index, item, "binding", "an inference names no company; its subject does");
       continue;
     }
     const figureIds = evidence.filter((id) => figures.has(id));
@@ -164,13 +168,13 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     );
     const shape = shapeError(kind, figureIds, claimIds, supports);
     if (shape) {
-      reject(index, item, shape);
+      reject(index, item, shape.check, shape.reason);
       continue;
     }
     // An unknown cause is a change's: each figure it cites has its company's
     // same metric in another period with a different value beside it.
     if (kind === "unknown_cause" && !showsChange(figureIds.map((id) => figures.get(id)!), packet.figures)) {
-      reject(index, item, "an unknown cause cites a change: one company's metric, two periods, two values");
+      reject(index, item, "kind", "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
     }
     // Read with the question's own metric names, so "FCF" is free cash flow.
@@ -178,7 +182,7 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       ? requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label
       : undefined;
     if (gap !== undefined) {
-      reject(index, item, `${gap} is not in the evidence: it is a named gap`);
+      reject(index, item, "gap", `${gap} is not in the evidence: it is a named gap`);
       continue;
     }
     // An inference's evidence is its own plus that of the observations it rests on.
@@ -187,19 +191,19 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       : evidence;
     const binding = bindingError(kind, item.text, cited, packet);
     if (binding) {
-      reject(index, item, binding);
+      reject(index, item, binding.check, binding.reason);
       continue;
     }
     if (item.subject !== undefined &&
       (typeof item.subject !== "string" || !packet.companies.includes(item.subject) || !companiesOf(cited, packet).has(item.subject))) {
-      reject(index, item, "an inference's subject is a company its evidence covers");
+      reject(index, item, "binding", "an inference's subject is a company its evidence covers");
       continue;
     }
     // A comparison's claimed result is derived from its complete eligible
     // evidence before it may stand (comparisons.ts).
     const comparison = kind === "comparison" ? checkComparison(item, figureIds, packet) : undefined;
     if (comparison && "error" in comparison) {
-      reject(index, item, comparison.error);
+      reject(index, item, "comparative", comparison.error);
       continue;
     }
     accepted.push({
@@ -244,25 +248,26 @@ function shapeError(
   claimIds: ReadonlyArray<string>,
   // An inference's accepted supports.
   supports: ReadonlyArray<number>,
-): string | null {
+): Pick<Rejection, "check" | "reason"> | null {
+  const cites = (reason: string) => ({ check: "kind" as const, reason });
   switch (kind) {
     case "observation":
-      return figureIds.length === 0 || claimIds.length > 0 ? "an observation cites figures, and only figures" : null;
+      return figureIds.length === 0 || claimIds.length > 0 ? cites("an observation cites figures, and only figures") : null;
     case "comparison":
-      return figureIds.length < 2 || claimIds.length > 0 ? "a comparison cites two or more figures, and only figures" : null;
+      return figureIds.length < 2 || claimIds.length > 0 ? cites("a comparison cites two or more figures, and only figures") : null;
     case "unknown_cause":
-      return figureIds.length === 0 || claimIds.length > 0 ? "an unknown cause cites the figures that changed, and no claim" : null;
+      return figureIds.length === 0 || claimIds.length > 0 ? cites("an unknown cause cites the figures that changed, and no claim") : null;
     case "management_attribution":
-      return claimIds.length === 0 || figureIds.length > 0 ? "a management attribution cites the claim that makes it, and only claims" : null;
+      return claimIds.length === 0 || figureIds.length > 0 ? cites("a management attribution cites the claim that makes it, and only claims") : null;
     case "analyst_inference":
-      return supports.length === 0 ? "an inference binds the accepted observations it rests on" : null;
+      return supports.length === 0 ? { check: "support", reason: "an inference binds the accepted observations it rests on" } : null;
   }
 }
 
-function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): string | null {
+function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): Pick<Rejection, "check" | "reason"> | null {
   for (const [reference, id] of text.matchAll(REFERENCE)) {
-    if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return `unknown reference ${reference}`;
-    if (!cited.includes(id!)) return `${reference} is not in its evidence`;
+    if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return { check: "reference", reason: `unknown reference ${reference}` };
+    if (!cited.includes(id!)) return { check: "binding", reason: `${reference} is not in its evidence` };
   }
   if (kind !== "analyst_inference") return null;
   // A claim with no company is no company's (its record named none).
@@ -270,7 +275,7 @@ function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<st
   const own = companiesOf(cited, packet);
   // A one-letter ticker ("A") cannot be told from the article, as in the guard.
   const other = packet.companies.find((company) => company.length > 1 && !own.has(company) && mentions(text, company));
-  return other === undefined ? null : `names ${other}, which its evidence does not`;
+  return other === undefined ? null : { check: "binding", reason: `names ${other}, which its evidence does not` };
 }
 
 // The companies cited figures and claims are about; a figure with no company

@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { rejectionCheck } from "../services/chat/src/rejection-check.ts";
+import type { Rejection } from "../services/chat/src/assertions.ts";
 import { api, runTurn } from "../services/chat/scripts/golden-live-check.ts";
 import { QUESTIONS, RUBRIC, type CriterionId, type EvalQuestion } from "./research-quality-questions.ts";
 
@@ -42,7 +42,7 @@ export type AnsweredQuestion = {
 type AssertionReport = {
   status: "missing" | "malformed" | "checked" | "skipped";
   accepted: Array<{ kind: string; text: string; evidence: string[] }>;
-  rejected: Array<{ index: number; text?: string; reason: string }>;
+  rejected: Rejection[];
   // The answer was written from the accepted assertions; otherwise it is the fallback sentence.
   rendered?: boolean;
 };
@@ -141,7 +141,7 @@ function renderAssertions(report: AssertionReport): string[] {
     `_Assertions (${report.rendered ? "rendered" : "fallback"}): ${report.accepted.length} accepted, ${report.rejected.length} rejected:_`,
     "",
     ...report.accepted.map((entry) => `- ✓ ${entry.kind} [${entry.evidence.join(", ")}]${entry.kind === "analyst_inference" && report.rendered ? "" : " (text not shown)"}: ${entry.text}`),
-    ...report.rejected.map((entry) => `- ✗ [${rejectionCheck(entry.reason)}] ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
+    ...report.rejected.map((entry) => `- ✗ [${entry.check}] ${entry.reason}${entry.text ? `: ${entry.text}` : ""}`),
   ];
 }
 
@@ -159,8 +159,7 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   // reads apart from a wrong ranking or trend (comparative) (#221).
   const checks = new Map<string, number>();
   for (const entry of reports.flatMap((report) => report.rejected)) {
-    const check = rejectionCheck(entry.reason);
-    checks.set(check, (checks.get(check) ?? 0) + 1);
+    checks.set(entry.check, (checks.get(entry.check) ?? 0) + 1);
   }
   const byCheck = checks.size > 0 ? ` (${[...checks].sort(([a], [b]) => a.localeCompare(b)).map(([check, n]) => `${check} ${n}`).join(", ")})` : "";
   return `${accepted} accepted, ${rejected} rejected${byCheck} over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;

@@ -24,6 +24,7 @@ import {
   readAuthenticatedUserId,
   type RequestAuthConfig,
 } from "../../shared/src/request-auth.ts";
+import { isUuid } from "./chat-ids.ts";
 
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 const ROUTE_PREFIX = "/v1/chat/threads";
@@ -316,8 +317,6 @@ type UserMessageInputParseResult =
   | { kind: "ok"; value: { content: string; message_id?: string; snapshot_id?: string } }
   | { kind: "error"; message: string };
 
-const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-
 function parseUserMessageInput(body: object): UserMessageInputParseResult {
   const candidate = body as Record<string, unknown>;
   const content = typeof candidate.content === "string" ? candidate.content.trim() : "";
@@ -341,7 +340,7 @@ function parseOptionalUuid(value: unknown): { kind: "ok"; value?: string } | { k
   if (typeof value !== "string") return { kind: "error" };
   const trimmed = value.trim();
   if (trimmed === "") return { kind: "ok" };
-  if (!UUID_PATTERN.test(trimmed)) return { kind: "error" };
+  if (!isUuid(trimmed)) return { kind: "error" };
   return { kind: "ok", value: trimmed };
 }
 

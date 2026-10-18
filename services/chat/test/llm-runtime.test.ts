@@ -12,7 +12,7 @@ import {
   TITLE_DEADLINES,
   createLlmThreadTitleModel,
 } from "../src/llm-runtime.ts";
-import type { AssertionReport } from "../src/assertions.ts";
+import type { AssertionReport, Rejection } from "../src/assertions.ts";
 import { mayOfferOtherFacts, scopeGapBlocks } from "../src/fact-blocks.ts";
 import { resolveResearchScope } from "../src/research-scope.ts";
 
@@ -697,7 +697,7 @@ test("with no figures shown, an assertion about an available value is checked ag
   assert.deepEqual(reports, [{
     status: "checked",
     accepted: [{ index: 0, kind: "observation", text: "Net income was [[F4]].", evidence: ["F4"] }],
-    rejected: [{ index: 1, text: "Revenue was [[F4]].", reason: "[[F4]] is not in its evidence" }],
+    rejected: [{ index: 1, text: "Revenue was [[F4]].", check: "binding", reason: "[[F4]] is not in its evidence" }],
     rendered: true,
   }]);
   assert.equal((composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "AAPL's net income was $25.0B in Q1 2026 (partial period).");
@@ -919,7 +919,7 @@ test("rendering keeps the narrative guard as its backstop, assertion by assertio
   const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
   assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
   assert.equal(report.rendered, true);
-  assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** The leader's margin has doubled.", reason: "removed by the narrative guard" }]);
+  assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** The leader's margin has doubled.", check: "rendering", reason: "removed by the narrative guard" }]);
 });
 
 test("a data gap the model writes never reaches the answer: what is missing is the packet's to say (#302)", async () => {
@@ -931,7 +931,7 @@ test("a data gap the model writes never reaches the answer: what is missing is t
     (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""),
     "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025).",
   );
-  assert.deepEqual(report.rejected, [{ index: 1, text: "No revenue is shown.", reason: "unknown kind \"data_gap\"" }]);
+  assert.deepEqual(report.rejected, [{ index: 1, text: "No revenue is shown.", check: "format", reason: "unknown kind \"data_gap\"" }]);
 });
 
 const AMD = [{ issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" }];
@@ -1047,7 +1047,7 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
   });
   assert.deepEqual({ segments: blocks[0]!.segments, rejected: reports[0]!.rejected, removed }, {
     segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }],
-    rejected: [{ index: 0, text: "According to a source: Data center demand doubled.", reason: "removed by the narrative guard" }],
+    rejected: [{ index: 0, text: "According to a source: Data center demand doubled.", check: "rendering", reason: "removed by the narrative guard" }],
     removed: [["According to a source: Data center demand doubled."]],
   });
 });
@@ -1241,7 +1241,7 @@ test("a rendered answer keeps the other side of a stored disagreement (#208)", a
 
 test("a rendered comparison covers every company it shows figures for, and warns of calendars across observations (#208)", async () => {
   const leftOut = "left out: the answer would show only some of the companies shown";
-  const nvdaMargin = { index: 0, text: "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).", reason: leftOut };
+  const nvdaMargin = { index: 0, text: "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).", check: "rendering", reason: leftOut };
   // An answer about one of the two companies shown falls back, and the report says why.
   const oneSided = await renderWithReply(withList([{ kind: "observation", text: "NVDA's gross margin was [[F2]].", evidence: ["F2"] }]));
   assert.deepEqual(
@@ -1258,7 +1258,7 @@ test("a rendered comparison covers every company it shows figures for, and warns
     {
       segments: [{ type: "text", text: FIGURES_FALLBACK }],
       rendered: undefined,
-      rejected: [nvdaMargin, { index: 1, text: "> **Analyst inference on NVDA:** It keeps more of each sale.", reason: leftOut }],
+      rejected: [nvdaMargin, { index: 1, text: "> **Analyst inference on NVDA:** It keeps more of each sale.", check: "rendering", reason: leftOut }],
     },
   );
   // One-sided once the guard removed AMD's side: both are on the report, and the guard's drop is a narrative removal.
@@ -1285,7 +1285,7 @@ test("a rendered comparison covers every company it shows figures for, and warns
   const attribution = "According to a source on AMD: Data center demand doubled.";
   assert.deepEqual({ segments: guardedSide[0]!.segments, rejected: reports[0]!.rejected, removed }, {
     segments: [{ type: "text", text: FIGURES_FALLBACK }],
-    rejected: [nvdaMargin, { index: 1, text: attribution, reason: "removed by the narrative guard" }],
+    rejected: [nvdaMargin, { index: 1, text: attribution, check: "rendering", reason: "removed by the narrative guard" }],
     removed: [[attribution]],
   });
 
@@ -1509,9 +1509,9 @@ test("an inference goes only when the guard removed every assertion it rests on 
   assert.equal(text,
     "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025)." +
     "\n\n> **Analyst inference:** Scale leaves room to invest.");
-  assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [0, "removed by the narrative guard"],
-    [2, "rests on an observation the narrative guard removed"],
+  assert.deepEqual((reports[0]!.rejected as Rejection[]).map((entry) => [entry.index, entry.check, entry.reason]), [
+    [0, "rendering", "removed by the narrative guard"],
+    [2, "rendering", "rests on an observation the narrative guard removed"],
   ]);
 });
 

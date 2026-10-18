@@ -329,6 +329,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     const omitted = rendered.filter((entry) => !kept.includes(entry)).map((entry) => ({
       index: entry.index,
       text: plainText(entry.segments),
+      check: "rendering" as const,
       reason: guarded.has(entry.index) ? "removed by the narrative guard" : "rests on an observation the narrative guard removed",
     }));
     // The guard's own drops; an inference removed with its observation is on the report.
@@ -346,7 +347,7 @@ export async function composeAnalystBlocksWithLlm(input: {
       ...keptAssertions.flatMap((assertion) => packet.claims.filter((claim) => assertion.evidence.includes(claim.id)).map((claim) => claim.company)),
     ]);
     if (packet.companies.length > 1 && packet.coverage.some((entry) => entry.status === "shown" && !covered.has(entry.company))) {
-      const oneSided = kept.map((entry) => ({ index: entry.index, text: plainText(entry.segments), reason: "left out: the answer would show only some of the companies shown" }));
+      const oneSided = kept.map((entry) => ({ index: entry.index, text: plainText(entry.segments), check: "rendering" as const, reason: "left out: the answer would show only some of the companies shown" }));
       return { answer: null, report: reported([...omitted, ...oneSided]), dropped };
     }
     // An observation whose every figure a kept comparison writes is not said

@@ -11,6 +11,7 @@ import type {
   ChatAssistantMessagePersistence,
   ChatAssistantMessagePersistenceInput,
 } from "./coordinator.ts";
+import { isUuid } from "./chat-ids.ts";
 
 export type ChatMessagePersistenceDb = {
   query<R extends Record<string, unknown> = Record<string, unknown>>(
@@ -296,8 +297,6 @@ function blockProofs(row: ChatMessageRow, snapshots: ReadonlyMap<string, SealedS
   return proofs;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 // Each sealed snapshot's manifest and the financial certificates recorded for it.
 async function loadSealedSnapshots(
   db: ChatMessagePersistenceDb,
@@ -305,7 +304,7 @@ async function loadSealedSnapshots(
 ): Promise<Map<string, SealedSnapshotRecord>> {
   // Only well-formed ids reach the uuid[] cast: a malformed one in a stored
   // block has no sealed snapshot, and must not fail the whole read.
-  const ids = [...new Set(snapshotIds.filter((id): id is string => typeof id === "string" && UUID.test(id)))];
+  const ids = [...new Set(snapshotIds.filter((id): id is string => typeof id === "string" && isUuid(id)))];
   if (ids.length === 0) return new Map();
   const [manifests, certificates] = await Promise.all([
     db.query<{

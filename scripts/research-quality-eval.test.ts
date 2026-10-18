@@ -206,7 +206,7 @@ test("the report shows each turn's assertion check and the run's totals (#208)",
       assertions: {
         status: "checked" as const,
         accepted: [{ kind: "observation", text: "NVDA's margin was 75.0%.", evidence: ["F1"] }],
-        rejected: [{ index: 1, text: "Mix lifted margins.", reason: "a management attribution cites the claim that makes it" }],
+        rejected: [{ index: 1, text: "Mix lifted margins.", check: "kind" as const, reason: "a management attribution cites the claim that makes it" }],
       },
     }] },
     { question: second, threadId: "t2", turns: [

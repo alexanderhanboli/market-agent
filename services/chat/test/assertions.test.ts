@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { assertionList, checkAssertions, rejectionCheck } from "../src/assertions.ts";
+import { assertionList, checkAssertions } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const PACKET: EvidencePacket = {
@@ -177,7 +177,7 @@ test("with claims but no figures, an assertion about figures binds nothing and i
   assert.deepEqual(report, {
     status: "checked",
     accepted: [{ index: 1, kind: "management_attribution", text: "AMD management expects [[C2]]", evidence: ["C2"] }],
-    rejected: [{ index: 0, text: "ACME trades at $12.", reason: "an observation cites figures, and only figures" }],
+    rejected: [{ index: 0, text: "ACME trades at $12.", check: "kind", reason: "an observation cites figures, and only figures" }],
   });
 });
 
@@ -268,10 +268,10 @@ test("a requested metric no reader serves is a named gap an inference does not s
     { kind: "analyst_inference", text: "Its EBITDA funds buybacks.", supports: [0] },
     { kind: "analyst_inference", text: "Its gross margin funds buybacks.", supports: [0] },
   ], { ...PACKET, unavailable_metrics: ["Free cash flow margin", "EBITDA"] });
-  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.reason]), [
-    [1, "Free cash flow margin is not in the evidence: it is a named gap"],
-    [2, "Free cash flow margin is not in the evidence: it is a named gap"],
-    [3, "EBITDA is not in the evidence: it is a named gap"],
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.check, entry.reason]), [
+    [1, "gap", "Free cash flow margin is not in the evidence: it is a named gap"],
+    [2, "gap", "Free cash flow margin is not in the evidence: it is a named gap"],
+    [3, "gap", "EBITDA is not in the evidence: it is a named gap"],
   ]);
   assert.deepEqual(report.accepted.map((entry) => entry.index), [0, 4]);
 });
@@ -418,28 +418,33 @@ test("an inference's text is shown, so it still types no figure and names no com
 });
 
 test("each rejection names the check that failed, so binding and comparative failures are told apart (#221)", () => {
-  const cases: Array<[string, string]> = [
-    ["types 99%; write its reference", "binding"],
-    ["FY2026 is not a period of its evidence", "binding"],
-    ["[[F4]] is not in its evidence", "binding"],
-    ["names AMD, which its evidence does not", "binding"],
-    ["unknown reference [[F9]]", "reference"],
-    ["comparison: F2 (74.6%) is higher than F4 (49.2%)", "comparative"],
-    ["comparison: leaves out AAPL, which shows gross margin too", "comparative"],
-    ['unknown evidence id "F99"', "reference"],
-    ['evidence lists "C1" twice', "reference"],
-    ["an observation cites figures, and only figures", "kind"],
-    ["an unknown cause cites a change: one company's metric, two periods, two values", "kind"],
-    ["an observation states no cause: give it as a management attribution or an unknown cause", "cause"],
-    ["an inference binds the accepted observations it rests on", "support"],
-    ["Free cash flow is not in the evidence: it is a named gap", "gap"],
-    ["more than 12 assertions", "limit"],
-    ['unknown kind "guess"', "format"],
-    ["removed by the narrative guard", "rendering"],
-    ["rests on an observation the narrative guard removed", "rendering"],
-    ["an inference rests on its supports; it writes no figure", "binding"],
-  ];
-  for (const [reason, check] of cases) assert.equal(rejectionCheck(reason), check, reason);
+  const report = checkAssertions([
+    { kind: "observation" },
+    { kind: "guess", text: "Margins will rise.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1", "F1"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F99"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F9]] in FY2026.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F2]] in FY2025.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's gross margin was 75% in FY2026.", evidence: ["F1"] },
+    { kind: "observation", text: "Management credited a richer mix.", evidence: ["C1"] },
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026, driven by a richer mix.", evidence: ["F1"] },
+    { kind: "observation", text: "NVDA's free cash flow was [[F1]] in FY2026.", evidence: ["F1"] },
+    { kind: "comparison", text: "AMD's gross margin of [[F3]] is above NVDA's [[F2]] in FY2025.", evidence: ["F2", "F3"], op: "highest", result: "F3" },
+    { kind: "analyst_inference", text: "The leader keeps more of each sale.", supports: [] },
+    { kind: "observation", text: "NVDA's gross margin was [[F1]] in FY2026.", evidence: ["F1"] },
+  ], { ...PACKET, unavailable_metrics: ["Free cash flow"] });
+  assert.deepEqual(report.rejected.map((entry) => [entry.index, entry.check, entry.reason]), [
+    [0, "format", "not an assertion with text"],
+    [1, "format", 'unknown kind "guess"'],
+    [2, "reference", 'evidence lists "F1" twice'],
+    [3, "reference", 'unknown evidence id "F99"'],
+    [4, "reference", "unknown reference [[F9]]"],
+    [5, "binding", "[[F2]] is not in its evidence"],
+    [7, "kind", "an observation cites figures, and only figures"],
+    [10, "comparative", "comparison: F2 (72.7%) is higher than F3 (49.4%)"],
+    [11, "support", "an inference binds the accepted observations it rests on"],
+    [12, "limit", "more than 12 assertions"],
+  ]);
 });
 
 test("a packet reference in the text is checked by membership, never read as a number (prose-refs)", () => {
@@ -520,7 +525,7 @@ test("an inference names its subject, a company its own evidence or its supports
     [7, "an inference names no company; its subject does"],
     [8, "only an analyst inference has a subject"],
   ]);
-  assert.equal(rejectionCheck("an inference's subject is a company its evidence covers"), "binding");
+  assert.equal(report.rejected[0]?.check, "binding");
   // With one company, a figure with no company is its own.
   const single = checkAssertions([
     { kind: "observation", text: "Gross margin was [[F1]].", evidence: ["F1"] },

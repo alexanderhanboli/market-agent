@@ -24,7 +24,7 @@ const TRACE: TurnTrace = {
   assertions: {
     status: "checked",
     accepted: [{ index: 0, kind: "observation", text: "NVDA revenue rose to [[F1]].", evidence: ["F1"] }],
-    rejected: [{ index: 1, reason: "cites no figure" }],
+    rejected: [{ index: 1, check: "kind", reason: "cites no figure" }],
     rendered: true,
   },
   removed: ["NVDA grew 12% in FY2024."],

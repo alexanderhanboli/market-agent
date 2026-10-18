@@ -29,6 +29,7 @@ import {
   type ChatThreadTitleGenerator,
 } from "./coordinator.ts";
 import { answerTurn, type AnswerTraceInput } from "./answer-trace.ts";
+import { isUuid } from "./chat-ids.ts";
 import { claimSelection } from "./evidence-packet.ts";
 import {
   companyListings,
@@ -902,10 +903,6 @@ function isSnapshotSubjectKind(value: unknown): value is SnapshotSubjectRef["kin
     value === "macro_topic" ||
     value === "portfolio" ||
     value === "screen";
-}
-
-function isUuid(value: string): boolean {
-  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
 }
 
 function isJsonObject(value: unknown): value is Record<string, JsonValue> {
