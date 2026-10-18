@@ -28,7 +28,7 @@ import {
   type ChatPriorSubjectsLoader,
   type ChatThreadTitleGenerator,
 } from "./coordinator.ts";
-import { composeTraced, writeTurnTrace, type AnswerTraceInput } from "./answer-trace.ts";
+import { answerTurn, type AnswerTraceInput } from "./answer-trace.ts";
 import { claimSelection } from "./evidence-packet.ts";
 import {
   companyListings,
@@ -247,21 +247,19 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     scope: await withCompanyLabels(scope, asOf),
     cutoff: asOf,
   };
-  const answer = await composeTraced(answerInput, {
-    env: process.env,
-    onAnswered: (deployment) => {
-      answeredBy = deployment;
-    },
-  });
-  await writeTurnTrace(process.env.CHAT_TRACE_DIR?.trim(), {
-    version: 1,
+  // The shadow judge's verdicts (answer.judged) land in the trace and the log
+  // later; the turn does not wait for them.
+  const answer = await answerTurn(answerInput, {
     thread_id: context.threadId,
     run_id: context.runId,
     ...(context.turnId ? { turn_id: context.turnId } : {}),
     question: context.userIntent ?? "",
-    recorded_at: new Date().toISOString(),
-    input: answerInput,
-    ...answer,
+  }, {
+    env: process.env,
+    traceDir: process.env.CHAT_TRACE_DIR?.trim(),
+    onAnswered: (deployment) => {
+      answeredBy = deployment;
+    },
   });
   const { blocks: llmBlocks, removed: narrativeRemoved, assertions: assertionReport } = answer;
   const answerUsage = answer.exchange?.usage;

@@ -28,14 +28,15 @@ import { isDeepStrictEqual, parseArgs } from "node:util";
 
 import { LlmRouterError } from "../../llm/src/index.ts";
 import type { LlmReplayFixture } from "../../llm/src/replay-client.ts";
-import { checkAssertions, splitAssertions, type AssertionKind, type AssertionReport } from "../src/assertions.ts";
+import { checkAssertions, splitAssertions, type AssertionKind } from "../src/assertions.ts";
 import {
   answerMetrics,
   composeTraced,
+  judgeAnswer,
   renderingEnv,
   replayRecorded,
   type AnswerMetrics,
-  type AnswerTraceInput,
+  type JudgedAnswer,
   type TurnTrace,
 } from "../src/answer-trace.ts";
 import { judgeCases, judgeInferences, type InferenceVerdict, type JudgeCase, type JudgeOutcome } from "../src/inference-judge.ts";
@@ -147,7 +148,7 @@ async function recorded(
   for (const { key, label, file, trace } of traces) {
     const replayed = await replayRecorded(trace);
     if (update) writeFileSync(file, `${JSON.stringify(replayed, null, 2)}\n`);
-    const judged = judge ? await judgeAnswer(trace.input, replayed.assertions, liveEnv()) : undefined;
+    const judged = judge ? await judgeAnswer(trace.input, replayed.assertions, { env: liveEnv() }) : undefined;
     results.push({
       key,
       label,
@@ -162,19 +163,6 @@ async function recorded(
 // The stack's LLM settings, as dev-shell sets them.
 function liveEnv(): Record<string, string | undefined> {
   return { ...process.env, LLM_SETTINGS_ENV_FILE: process.env.LLM_SETTINGS_ENV_FILE ?? join(ROOT, ".env.dev") };
-}
-
-// The judge's verdicts on an answer's accepted inferences, each with its text.
-type JudgedAnswer = Omit<JudgeOutcome, "verdicts"> & { verdicts: Array<InferenceVerdict & { text: string }> };
-
-async function judgeAnswer(input: AnswerTraceInput, report: AssertionReport | null, env: Record<string, string | undefined>): Promise<JudgedAnswer> {
-  const packet = turnPacket(input);
-  const cases = judgeCases(report?.accepted ?? [], packet, input.factBlocks ?? []);
-  return withTexts(await judgeInferences({ cases, companies: packet.companies, env }), cases);
-}
-
-function withTexts(outcome: JudgeOutcome, cases: ReadonlyArray<JudgeCase>): JudgedAnswer {
-  return { ...outcome, verdicts: outcome.verdicts.map((verdict) => ({ ...verdict, text: cases.find((entry) => entry.index === verdict.index)!.text })) };
 }
 
 function judgeCounts(verdicts: ReadonlyArray<InferenceVerdict>): JudgeCounts {
@@ -245,7 +233,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
         const answer = await composeTraced(trace.input, { env });
         // No deployment configured: the placeholder came back and no model answered.
         if (answer.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
-        const judged = judge ? await judgeAnswer(trace.input, answer.assertions, env) : undefined;
+        const judged = judge ? await judgeAnswer(trace.input, answer.assertions, { env }) : undefined;
         results.push({
           trace: key,
           sample,
