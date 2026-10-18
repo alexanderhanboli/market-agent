@@ -53,7 +53,6 @@ import {
   NO_STRUCTURED_REFS,
   structuredEvidenceStatus,
   structuredRefsFromHandoff,
-  subjectLabelsFromHandoff,
 } from "./local-runtime-structured.ts";
 import { createChatFinancialRuntime, type ChatFinancialRuntime } from "./financial-runtime.ts";
 import { createChatMessagePersistence } from "./messages.ts";
@@ -239,7 +238,6 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     blocks: result.blocks,
     toolCalls,
     factBlocks,
-    subjectLabels: covered.flatMap((subject) => subjectLabelsFromHandoff(subject.handoff)),
     conversation,
     availableData: mayOfferOtherFacts(scope, shownBlocks),
     // Auto-selected peers named for the packet; the saved scope keeps them

@@ -1415,7 +1415,6 @@ test("a single company's checked trend and low render through the guard (#208)",
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [],
     factBlocks: [trendRow],
-    subjectLabels: ["AMD"],
     createClient: () => async () => ({ text: withList([
       { kind: "comparison", op: "trend", result: "rebounded", text: "AMD's operating margin rebounded.", evidence: ["F1", "F2", "F3", "F4"] },
       { kind: "comparison", op: "lowest", result: "F2", text: "Q2 2025 was the low.", evidence: ["F1", "F2", "F3", "F4"] },

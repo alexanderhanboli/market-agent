@@ -11,13 +11,13 @@ import type {
 } from "./coordinator.ts";
 import { displayedFigures, displayTextsForBlocks, requestIsNamedGap } from "./fact-blocks.ts";
 import { buildEvidencePacket, packetForModel, type AvailableFigure, type ClaimEvidence, type ClaimRecord, type EvidencePacket } from "./evidence-packet.ts";
-import { checkAssertions, companiesOf, MAX_ASSERTIONS, splitAssertions, type AssertionKind, type AssertionReport } from "./assertions.ts";
+import { assertionList, checkAssertions, companiesOf, MAX_ASSERTIONS, type AssertionKind, type AssertionReport } from "./assertions.ts";
 import { formatCompactCurrency, formatCurrency } from "../../analyze/src/block-format.ts";
 import { calendarNote, plainText, renderAssertion, type RenderedAssertion } from "./render-assertions.ts";
 import { referenceTable } from "./prose-refs.ts";
 import type { ResearchScope } from "./research-scope.ts";
 import type { ModelExchange } from "./answer-trace.ts";
-import { keepSupportedSentences, keepUncausedSentences } from "./narrative-guard.ts";
+import { causalSentences, unsupportedSentences } from "./narrative-guard.ts";
 
 // Shown when no assertion renders: the model gave no list that parses, the
 // check rejected every assertion, or the guard removed every one it accepted.
@@ -110,8 +110,6 @@ export async function composeAnalystBlocksWithLlm(input: {
   // Deterministic chart/table blocks shown with the answer, whose figures its
   // assertions cite.
   factBlocks?: ReadonlyArray<Record<string, unknown>>;
-  // The turn's subjects as labelled ("NVDA"), for the guard (2026-10-08 eval).
-  subjectLabels?: ReadonlyArray<string>;
   // Recent thread messages, oldest first, so the answer reads as a reply.
   conversation?: ReadonlyArray<{ role: string; text: string }>;
   // False when the turn asks only for metrics no reader serves (#206): the
@@ -267,7 +265,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     ...(usage ? { usage } : {}),
   });
   if (usage) input.onUsage?.(usage);
-  const report = checkAssertions(splitAssertions(result.text).list, packet);
+  const report = checkAssertions(assertionList(result.text), packet);
   if (report.status !== "checked" || report.rejected.length > 0) {
     console.info(`[chat] assertions ${report.status}: ${report.accepted.length} accepted, ${report.rejected.length} rejected`);
   }
@@ -287,8 +285,8 @@ export async function composeAnalystBlocksWithLlm(input: {
   // cause may be stated (#263); an attribution quotes its sourced claim word
   // for word, so a cause the claim states is the claim's, not the model's.
   const drops = (text: string, kind: AssertionKind) =>
-    (shown.length === 0 && kind !== "management_attribution" && keepUncausedSentences(text).removed.length > 0) ||
-    keepSupportedSentences(text, table, supportingTexts, input.subjectLabels ?? []).removed.length > 0;
+    (shown.length === 0 && kind !== "management_attribution" && causalSentences(text).length > 0) ||
+    unsupportedSentences(text, table, supportingTexts).length > 0;
   // Assertions rendering left out, with why: on the report whether or not the
   // answer was rendered, so evals see them either way.
   let renderRemovals: AssertionReport["rejected"] = [];

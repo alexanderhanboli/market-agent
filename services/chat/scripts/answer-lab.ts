@@ -28,7 +28,7 @@ import { isDeepStrictEqual, parseArgs } from "node:util";
 
 import { LlmRouterError } from "../../llm/src/index.ts";
 import type { LlmReplayFixture } from "../../llm/src/replay-client.ts";
-import { checkAssertions, splitAssertions, type AssertionKind } from "../src/assertions.ts";
+import { assertionList, checkAssertions, type AssertionKind } from "../src/assertions.ts";
 import {
   answerMetrics,
   composeTraced,
@@ -354,7 +354,7 @@ export function mutationVariants(file: string): MutationVariant[] {
     const trace = JSON.parse(readFileSync(resolve(dirname(file), entry.trace), "utf8")) as TurnTrace;
     const packet = turnPacket(trace.input);
     const factBlocks = trace.input.factBlocks ?? [];
-    const list = splitAssertions(trace.exchange?.text ?? "").list;
+    const list = assertionList(trace.exchange?.text ?? "");
     if (!Array.isArray(list) || entry.index >= list.length) throw new Error(`${entry.id}: ${entry.trace} has no assertion ${entry.index}`);
     const variants = [...entry.originals.map((text) => ({ kind: "original" as const, text })), ...entry.mutations];
     return variants.map(({ kind, text }) => {

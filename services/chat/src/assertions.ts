@@ -1,5 +1,5 @@
-// Evidence-bound assertions (#208), in shadow: the answer model lists what its
-// prose asserts, each classified and citing evidence_packet ids ("F2", "C1").
+// Evidence-bound assertions (#208): the answer model lists what its answer
+// asserts, each classified and citing evidence_packet ids ("F2", "C1").
 // Company, metric, period and value come from the cited packet entries, never
 // typed by the model, so a binding cannot name the wrong company or scale; the
 // check here is that every id exists, that each kind cites what it must, and
@@ -11,9 +11,8 @@
 // a rendered answer shows is a template's value from the packet. What the data
 // cannot show is the packet's to say, in its gap notes, never the model's (#302).
 //
-// The report goes to evals and logs; the answer is written from the accepted
-// assertions (render-assertions.ts) unless CHAT_ASSERTION_RENDERING is off,
-// when it is checked in shadow and the guarded prose is shown.
+// The answer is written from the accepted assertions (render-assertions.ts),
+// and the report goes to evals and logs.
 
 import { checkComparison, comparablePeriods, type ComparisonOp } from "./comparisons.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
@@ -60,27 +59,21 @@ export const MAX_ASSERTIONS = 12;
 // The check a rejection failed (rejection-check.ts, #221).
 export { rejectionCheck, type RejectionCheck } from "./rejection-check.ts";
 
-// The list closes the answer in a fenced block the reader never sees. Wherever
-// it is, and closed or not, it is cut from the prose. open: the list never
-// closed, so an answer cut off at the token limit inside it kept its prose
-// whole (a cut after a closed list fell in the prose).
-const FENCES = /[ \t]*```assertions[ \t]*\r?\n([\s\S]*?)(?:(```)|$)[ \t]*/g;
+// The list closes the answer in a fenced block the reader never sees, closed
+// or not (a reply cut off inside it). The first block is the one read, so a
+// second (a corrected list) is not.
+const FENCE = /```assertions[ \t]*\r?\n([\s\S]*?)(?:```|$)/;
 
-// The prose without its assertion list, and the list as written (undefined when
-// there is none; null when it does not parse).
-export function splitAssertions(text: string): { prose: string; list: unknown[] | null | undefined; open: boolean } {
-  const matches = [...text.matchAll(FENCES)];
-  if (matches.length === 0) return { prose: text, list: undefined, open: false };
-  // Every block is cut, so a second (a corrected list) never shows; the first
-  // is the one checked.
-  const prose = text.replace(FENCES, "\n\n").replace(/(?:\r?\n){3,}/g, "\n\n").trim();
-  // Closed when its closing fence matched, whatever spaces follow it.
-  const open = matches.at(-1)![2] === undefined;
+// The answer's assertion list as written: undefined when there is none; null
+// when it does not parse.
+export function assertionList(text: string): unknown[] | null | undefined {
+  const written = FENCE.exec(text)?.[1];
+  if (written === undefined) return undefined;
   try {
-    const parsed: unknown = JSON.parse(matches[0]![1]!);
-    return { prose, list: Array.isArray(parsed) ? parsed : null, open };
+    const parsed: unknown = JSON.parse(written);
+    return Array.isArray(parsed) ? parsed : null;
   } catch {
-    return { prose, list: null, open };
+    return null;
   }
 }
 

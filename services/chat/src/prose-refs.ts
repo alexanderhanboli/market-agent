@@ -2,9 +2,8 @@
 // for a figure or [[C2]] for a claim, and the server renders the reference as
 // the packet's own value, sealed to its fact or claim where one can seal
 // (2026-10-14 review, idea 1). This module owns that grammar: the table of
-// references a turn allows, the one regex that reads them, the sealing of a
-// value or a claim into a segment, and the conversion of kept prose into the
-// rich_text segments the user sees.
+// references a turn allows, the one regex that reads them, and the sealing of
+// a value or a claim into a segment.
 
 import type { EvidencePacket, PacketClaim, PacketFigure } from "./evidence-packet.ts";
 import { periodText } from "./comparisons.ts";
@@ -163,58 +162,12 @@ export function createSealer(factBlocks: ReadonlyArray<Block>): Sealer {
   };
 }
 
-export type ProseSegments = {
-  segments: ReadonlyArray<Segment>;
-  fact_bindings: ReadonlyArray<Record<string, unknown>>;
-  source_refs: ReadonlyArray<string>;
-};
-
-// The kept prose as segments: each reference its packet value, sealed where it
-// can be, and the text between as written. A unit the model repeats beside a
-// figure's reference ("$[[F1]]", "[[F5]]%") is dropped when the value already
-// carries it; nothing else about the text changes.
-export function proseSegments(text: string, table: ReferenceTable, factBlocks: ReadonlyArray<Block>): ProseSegments {
-  const seal = createSealer(factBlocks);
-  const segments = referenceSegments(text, table.references, seal);
-  const { fact_bindings, source_refs } = seal.sealed();
-  return { segments, fact_bindings, source_refs };
-}
-
-// The text as segments, each reference sealed by `seal`.
-export function referenceSegments(text: string, references: ReferenceTable["references"], seal: Sealer): Segment[] {
-  const segments: Segment[] = [];
-  let from = 0;
-  // Adjacent text, a figure's unsealed value included, is one segment.
-  const push = (segment: Segment) => {
-    const last = segments.at(-1);
-    if (segment.type === "text" && last?.type === "text") last.text += segment.text;
-    else if (segment.type !== "text" || segment.text.length > 0) segments.push(segment);
-  };
-  const write = (value: string) => push({ type: "text", text: value });
-  for (const match of text.matchAll(REFERENCE)) {
-    const reference = references.get(match[1]!);
-    if (!reference) continue;
-    const at = match.index;
-    let before = text.slice(from, at);
-    from = at + match[0].length;
-    if (reference.kind === "fact") {
-      const value = reference.figure.value;
-      const prefix = before.match(/\p{Sc}$/u)?.[0];
-      if (prefix && value.replace(/^[-−]/, "").startsWith(prefix)) before = before.slice(0, -prefix.length);
-      const suffix = text.slice(from).match(REFERENCE_SUFFIX)?.[0];
-      if (suffix && value.endsWith(suffix)) from += suffix.length;
-    }
-    write(before);
-    push(reference.kind === "fact" ? seal.value(reference.figure) : seal.quote(reference.claim));
-  }
-  write(text.slice(from));
-  return segments;
-}
-
-// A sentence with references as the user reads it: each its packet value, a
-// unit typed beside it dropped as proseSegments drops it.
+// A sentence with references as the user reads it: each its packet value.
 export function renderedText(text: string, table: ReferenceTable): string {
-  return proseSegments(text, table, []).segments.map((segment) => (segment.type === "text" ? segment.text : segment.format)).join("");
+  return text.replace(REFERENCE, (written, id: string) => {
+    const reference = table.references.get(id);
+    return reference ? displayOf(reference) : written;
+  });
 }
 
 function bindingsByFact(blocks: ReadonlyArray<Block>): Map<string, Record<string, unknown>> {

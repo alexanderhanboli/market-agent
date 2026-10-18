@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { EvidencePacket } from "../src/evidence-packet.ts";
-import { displayOf, proseSegments, referenceTable, typedDigits } from "../src/prose-refs.ts";
+import { displayOf, referenceTable, renderedText, typedDigits } from "../src/prose-refs.ts";
 
 const NVDA_REVENUE = "a1000000-0000-4000-8000-000000000001";
 const AMD_MARGIN = "a1000000-0000-4000-8000-000000000002";
@@ -111,36 +111,12 @@ test("digits outside a reference pass only as a period: an allowed year, or a qu
   assert.deepEqual(typedDigits("Revenue in Q4.", { years: new Set(), words: new Set(), companies: [] }), []);
 });
 
-test("prose converts to segments: a sealed fact ref, a claim ref, a series ref for a price return, and plain text for a figure with neither fact nor series to seal", () => {
-  const unsealed = { id: "F9", company: "AMD", metric: "Price return", value: "3.58%", source_ids: [] };
-  const table = referenceTable({ ...PACKET, figures: [...PACKET.figures, unsealed] }, BLOCKS);
-  const converted = proseSegments("NVDA's revenue was [[F1]] versus AMD's margin of [[F2]]; management said: [[C1]] Its return was [[F3]], AMD's [[F9]] and P/E [[F4]].", table, BLOCKS);
-  assert.deepEqual(converted.segments, [
-    { type: "text", text: "NVDA's revenue was " },
-    { type: "ref", ref_kind: "fact", ref_id: NVDA_REVENUE, format: "$209.9B" },
-    { type: "text", text: " versus AMD's margin of " },
-    { type: "ref", ref_kind: "fact", ref_id: AMD_MARGIN, format: "49.9%" },
-    { type: "text", text: "; management said: " },
-    { type: "ref", ref_kind: "claim", ref_id: CLAIM, format: "These restrictions on MI308 GPUs led to approximately $800 million in charges." },
-    { type: "text", text: " Its return was " },
-    { type: "ref", ref_kind: "series", ref_id: NVDA_LINE, format: "6.6%" },
-    { type: "text", text: ", AMD's 3.58% and P/E 52.3x." },
-  ]);
-  assert.deepEqual(converted.fact_bindings.map((entry) => entry.fact_id), [NVDA_REVENUE, AMD_MARGIN]);
-  assert.deepEqual(converted.source_refs, ["s-nvda", "s-amd", "s-claim", "s-px"]);
-});
-
-test("a unit the model repeats beside a reference is dropped only when the value already carries it", () => {
-  const text = (prose: string) => proseSegments(prose, TABLE, BLOCKS).segments.map((segment) => (segment.type === "text" ? segment.text : segment.format)).join("");
-  assert.equal(text("Revenue of $[[F1]] and a margin of [[F2]]%, at [[F4]]x."), "Revenue of $209.9B and a margin of 49.9%, at 52.3x.");
-  assert.equal(text("Revenue of [[F1]]B."), "Revenue of $209.9B.");
-  // A unit the value does not carry, or a word, stays as written.
-  assert.equal(text("Revenue of [[F1]]% and €[[F1]] and [[F1]]Billion."), "Revenue of $209.9B% and €$209.9B and $209.9BBillion.");
-});
-
-test("a reference the table does not hold stays as written, and text with no reference is one segment", () => {
-  assert.deepEqual(proseSegments("See [[F9]] and [[X1]].", TABLE, BLOCKS).segments, [{ type: "text", text: "See [[F9]] and [[X1]]." }]);
-  assert.deepEqual(proseSegments("Margins held up.", TABLE, BLOCKS), { segments: [{ type: "text", text: "Margins held up." }], fact_bindings: [], source_refs: [] });
+test("a sentence reads with each reference its packet value; one the table does not hold stays as written", () => {
+  assert.equal(
+    renderedText("NVDA's revenue was [[F1]] and its return [[F3]]; management said: [[C1]]", TABLE),
+    "NVDA's revenue was $209.9B and its return 6.6%; management said: These restrictions on MI308 GPUs led to approximately $800 million in charges.",
+  );
+  assert.equal(renderedText("See [[F9]] and [[X1]].", TABLE), "See [[F9]] and [[X1]].");
 });
 
 test("a number touching a unit or a currency is a figure: never a period, a company label or a reference's unit", () => {

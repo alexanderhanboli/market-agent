@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkAssertions, rejectionCheck, splitAssertions } from "../src/assertions.ts";
+import { assertionList, checkAssertions, rejectionCheck } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 
 const PACKET: EvidencePacket = {
@@ -28,12 +28,13 @@ const PACKET: EvidencePacket = {
 
 const check = (list: unknown[]) => checkAssertions(list, PACKET);
 
-test("the assertion list is cut from the prose wherever it is, and a broken one is malformed (#208)", () => {
+test("the assertion list is read wherever it is, and a broken one is malformed (#208)", () => {
   const list = '[{"kind":"observation","text":"x","evidence":["F1"]}]';
-  assert.deepEqual(splitAssertions(`NVDA leads.\n\n\`\`\`assertions\n${list}\n\`\`\``), { prose: "NVDA leads.", list: JSON.parse(list), open: false });
-  assert.deepEqual(splitAssertions(`NVDA leads.\n\`\`\`assertions\n${list}\n\`\`\`\nAMD trails.`).prose, "NVDA leads.\n\nAMD trails.");
-  assert.deepEqual(splitAssertions("NVDA leads.\n```assertions\n[{\"kind\":"), { prose: "NVDA leads.", list: null, open: true });
-  assert.deepEqual(splitAssertions("NVDA leads."), { prose: "NVDA leads.", list: undefined, open: false });
+  assert.deepEqual(assertionList(`NVDA leads.\n\n\`\`\`assertions\n${list}\n\`\`\``), JSON.parse(list));
+  assert.deepEqual(assertionList(`NVDA leads.\n\`\`\`assertions\n${list}\n\`\`\`\nAMD trails.`), JSON.parse(list));
+  assert.equal(assertionList("NVDA leads.\n```assertions\n[{\"kind\":"), null);
+  assert.equal(assertionList("NVDA leads.\n```assertions\n{\"kind\": \"observation\"}\n```"), null);
+  assert.equal(assertionList("NVDA leads."), undefined);
   assert.equal(checkAssertions(undefined, PACKET).status, "missing");
   assert.equal(checkAssertions(null, PACKET).status, "malformed");
 });
@@ -237,14 +238,13 @@ test("on the no-figures path, an inference resting on a rejected observation is 
   assert.deepEqual(report.rejected.map((entry) => entry.index), [0, 1]);
 });
 
-test("every assertion block is cut from the prose (#208)", () => {
-  const block = '```assertions\n[]\n```';
-  assert.equal(splitAssertions(`NVDA leads.\n${block}\nAMD trails.\n${block}`).prose, "NVDA leads.\n\nAMD trails.");
+test("the first assertion block is the one read (#208)", () => {
+  assert.deepEqual(assertionList("NVDA leads.\n```assertions\n[]\n```\nAMD trails.\n```assertions\n[{\"kind\":\"observation\"}]\n```"), []);
 });
 
-test("a closing fence with trailing spaces is closed (#208)", () => {
-  assert.equal(splitAssertions("NVDA leads.\n```assertions\n[]\n```   \nAMD trai").open, false);
-  assert.equal(splitAssertions("NVDA leads.\n```assertions\n[{").open, true);
+test("a list cut off before its closing fence is read as far as it was written (#208)", () => {
+  assert.deepEqual(assertionList("NVDA leads.\n```assertions\n[]"), []);
+  assert.deepEqual(assertionList("NVDA leads.\n```assertions\n[]\n```   \nAMD trai"), []);
 });
 
 test("only an inference has supports (#208)", () => {
@@ -256,8 +256,8 @@ test("only an inference has supports (#208)", () => {
   ]);
 });
 
-test("a block with CRLF line endings is cut from the prose too (#208)", () => {
-  assert.deepEqual(splitAssertions("NVDA leads.\r\n```assertions\r\n[]\r\n```\r\n"), { prose: "NVDA leads.", list: [], open: false });
+test("a block with CRLF line endings is read too (#208)", () => {
+  assert.deepEqual(assertionList("NVDA leads.\r\n```assertions\r\n[]\r\n```\r\n"), []);
 });
 
 test("a requested metric no reader serves is a named gap an inference does not speak for; an observation's template writes only its figure (#208)", () => {
