@@ -12,8 +12,14 @@ export function contentHashForText(text: string): string {
  * that a turn's answer is saved before the turn ends.
  */
 export function answerMessageId(threadId: string, turnId: string): string {
-  // The financial lane named this id first; its seed keeps a financial turn
-  // retried across a deploy on the row its first attempt saved.
+  return stableUuid(`financial-message:${threadId}:${turnId}`);
+}
+
+/**
+ * The financial lane's published answer. It differs from answerMessageId,
+ * which an in-progress notice of the same turn may already hold.
+ */
+export function financialMessageId(threadId: string, turnId: string): string {
   return stableUuid(`financial-message:${threadId}:${turnId}`);
 }
 

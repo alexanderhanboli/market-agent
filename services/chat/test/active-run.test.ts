@@ -5,6 +5,7 @@ import test, { type TestContext } from "node:test";
 
 import { createChatCoordinator, type ChatCoordinator, type ChatTurnRunner } from "../src/coordinator.ts";
 import type { ChatReadMessage } from "../src/messages.ts";
+import { financialMessageId } from "../src/chat-ids.ts";
 import { deferred, parseSseEvents, startChatTestServer } from "./sse-helpers.ts";
 import { buildRow, fakeDb, THREAD_ID, USER_ID } from "./threads-fixtures.ts";
 
@@ -199,6 +200,27 @@ test("readThread reports a run completed once the read holds its saved answer, b
   commit.resolve();
   await turn.completed;
   assert.equal(turn.events.at(-1)?.message_id, saved[0].message_id);
+});
+
+test("a financial turn's in-progress notice is not saved under the id its published answer takes", async () => {
+  const saved: string[] = [];
+  const coordinator = createChatCoordinator({
+    allowSyntheticAnalystFallback: true,
+    financialRuntime: {
+      mode: "enforce",
+      answers: () => true,
+      run: async () => ({ kind: "gap", reason_code: "run_in_progress", text: "This calculation is already running." }),
+      assertReady: async () => {},
+    },
+    persistAssistantMessage: async (input) => {
+      saved.push(input.message_id);
+      return { message_id: input.message_id, thread_id: input.threadId, role: "assistant", snapshot_id: "s-1", blocks: [] } as unknown as ChatReadMessage;
+    },
+  });
+  await coordinator.getOrCreateTurn({ threadId: "thread-1", runId: "run-1", userId: U1, userIntent: "NVDA free cash flow" }).completed;
+
+  assert.equal(saved.length, 1);
+  assert.notEqual(saved[0], financialMessageId("thread-1", "run-1"));
 });
 
 test("readThread lists no run once its retention has passed and it is tombstoned", async () => {
