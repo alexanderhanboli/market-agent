@@ -2334,10 +2334,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "AAPL",
-      "NVDA"
-    ],
     "conversation": [
       {
         "role": "user",

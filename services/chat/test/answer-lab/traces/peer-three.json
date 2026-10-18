@@ -3269,11 +3269,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA",
-      "AMD",
-      "AAPL"
-    ],
     "conversation": [
       {
         "role": "user",

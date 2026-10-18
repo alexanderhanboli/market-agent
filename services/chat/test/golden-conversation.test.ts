@@ -95,6 +95,17 @@ test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 1
     assert.equal(assistant.answered_by, "fixture/recorded");
   });
 
+  await t.test("the rendered answer passes strict verification, each value a fact the snapshot cites (#208)", async () => {
+    const completed = events.find((event) => event.event === "turn.completed")!;
+    assert.equal(completed.data.unverified, undefined, `the rendered answer failed verification: ${JSON.stringify(completed.data.unverified)}`);
+    assert.equal((completed.data.assertion_report as { rendered?: boolean } | undefined)?.rendered, true);
+    const segments = (assistant!.blocks.find((block) => block.kind === "rich_text")?.segments ?? []) as Array<{ type: string; ref_kind?: string; ref_id?: string }>;
+    const factRefs = segments.filter((segment) => segment.type === "ref" && segment.ref_kind === "fact").map((segment) => segment.ref_id!);
+    assert.equal(factRefs.length, 2);
+    const { rows } = await client.query<{ fact_refs: string[] }>(`select fact_refs from snapshots where snapshot_id = $1::uuid`, [assistant!.snapshot_id]);
+    for (const ref of factRefs) assert.ok((rows[0]?.fact_refs ?? []).includes(ref), `the rendered value ${ref} is not a fact the snapshot cites`);
+  });
+
   await t.test("reload returns the streamed blocks", () => {
     const streamedIds = events
       .filter((event) => event.event === "block.completed")
@@ -710,39 +721,6 @@ function withEnv(t: TestContext, values: Record<string, string>): void {
     }
   });
 }
-
-test("golden conversation: a rendered answer seals under strict verification (#208)", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
-  const { databaseUrl } = await bootstrapDatabase(t, "chat-golden-rendered");
-  withEnv(t, {
-    ...GOLDEN_ENV,
-    CHAT_DATABASE_URL: databaseUrl,
-    LLM_REPLAY_FILE: join(import.meta.dirname, "golden", "llm-replies-rendered.json"),
-  });
-  registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
-  const client = await connectedClient(t, databaseUrl);
-  await client.query(`insert into users (user_id, email) values ($1::uuid, 'golden@chat.example.test')`, [USER_ID]);
-  await seedGoldenDataset(client);
-  const base = await startGoldenServer(t, databaseUrl);
-  const thread = await api<{ thread_id: string }>(base, "POST", "/v1/chat/threads", { title: "Golden" });
-  const events = await runTurn(base, thread.thread_id, "Analyze NVDA");
-
-  const error = events.find((event) => event.event === "turn.error");
-  assert.equal(error, undefined, `turn.error: ${JSON.stringify(error?.data)}`);
-  const completed = events.find((event) => event.event === "turn.completed");
-  assert.ok(completed, `no turn.completed; events: ${events.map((event) => event.event).join(", ")}`);
-  assert.equal(completed.data.unverified, undefined, `the rendered answer failed verification: ${JSON.stringify(completed.data.unverified)}`);
-  assert.equal((completed.data.assertion_report as { rendered?: boolean } | undefined)?.rendered, true);
-
-  const answer = await latestAssistantMessage(base, thread.thread_id);
-  const narrative = answer.blocks.find((block) => block.kind === "rich_text");
-  const segments = (narrative?.segments ?? []) as Array<{ type: string; ref_kind?: string; ref_id?: string; text?: string; format?: string }>;
-  const factRef = segments.find((segment) => segment.type === "ref" && segment.ref_kind === "fact");
-  assert.ok(factRef, `the narrative has no fact ref: ${JSON.stringify(segments)}`);
-  assert.match(segments.map((segment) => segment.text ?? segment.format).join(""), /^NVDA's revenue was \$[\d.]+B in Q\d \d{4} \(ended [A-Z][a-z]{2} \d{4}\)\.$/);
-  // The value is a fact the snapshot cites.
-  const { rows } = await client.query<{ fact_refs: string[] }>(`select fact_refs from snapshots where snapshot_id = $1::uuid`, [answer.snapshot_id]);
-  assert.ok((rows[0]?.fact_refs ?? []).includes(factRef.ref_id!), "the rendered value's fact is not in the snapshot");
-});
 
 // An AMD claim published a month after the golden cutoff (#282).
 async function seedLateClaim(client: Client, issuerId: string): Promise<string> {

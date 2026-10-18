@@ -1803,9 +1803,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA"
-    ],
     "conversation": [
       {
         "role": "user",

@@ -2379,10 +2379,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "NVDA",
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",

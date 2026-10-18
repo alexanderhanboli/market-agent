@@ -1848,9 +1848,6 @@
         ]
       }
     ],
-    "subjectLabels": [
-      "AMD"
-    ],
     "conversation": [
       {
         "role": "user",
