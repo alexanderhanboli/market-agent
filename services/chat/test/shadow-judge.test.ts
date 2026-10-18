@@ -12,7 +12,7 @@ const trace = async (name: string): Promise<TurnTrace> =>
   JSON.parse(await readFile(fileURLToPath(new URL(`./answer-lab/traces/${name}`, import.meta.url)), "utf8")) as TurnTrace;
 
 const SEGMENTS = await trace("segment-drill-down.json");
-const NO_INFERENCE = await trace("cause-in-evidence.json");
+const NO_INFERENCE = await trace("peer-two.json");
 
 const ENV = {
   LLM_CHANNELS: "anthropic",
