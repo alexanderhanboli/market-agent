@@ -519,7 +519,7 @@ export function createChatCoordinator(
 function runStatus(record: TurnRecord, readIds: ReadonlySet<string>): ChatRunStatus {
   const { threadId, runId, turnId } = record.handle.input as NormalizedChatTurnInput;
   const terminal = record.handle.terminal;
-  const answerId = [answerMessageId(threadId, turnId), financialMessageId(threadId, turnId)].find((id) => readIds.has(id));
+  const answerId = [financialMessageId(threadId, turnId), answerMessageId(threadId, turnId)].find((id) => readIds.has(id));
   if (terminal === null && answerId !== undefined) return { runId, turnId, status: "completed", messageId: answerId };
   if (terminal?.type === "turn.completed") {
     return typeof terminal.message_id === "string"
