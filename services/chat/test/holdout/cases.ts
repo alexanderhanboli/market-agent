@@ -56,7 +56,6 @@ export type HoldoutCase = {
     | { name: string; list: ReadonlyArray<Assertion>; fails: { index: number; check: RejectionCheck } }
     // A prose mutation: a figure the data does not hold, which must never be shown.
     | { name: string; prose: string; never_shown: string }
-    // Words in an assertion's text, which its template never shows.
     | { name: string; list: ReadonlyArray<Assertion>; never_shown: string }
   >;
 };
@@ -78,12 +77,16 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     good: [
       cmp("highest", "F9", ["F1", "F5", "F9"]),
       cmp("lowest", "F7", ["F3", "F7", "F11"]),
-      obs("NVDA's revenue was [[F1]] in FY2026.", ["F1"]),
+      obs("NVDA's gross margin was [[F2]] in FY2026.", ["F2"]),
     ],
     mutations: [
       { name: "wrong winner", list: [cmp("highest", "F1", ["F1", "F5", "F9"])], fails: { index: 0, check: "comparative" } },
       { name: "dropped peer", list: [cmp("lowest", "F7", ["F3", "F7"])], fails: { index: 0, check: "comparative" } },
-      { name: "wrong company", list: [obs("AMD's revenue was [[F1]] in FY2026.", ["F1"])], never_shown: "AMD's revenue was" },
+      {
+        name: "wrong company",
+        list: [cmp("highest", "F9", ["F1", "F5", "F9"]), cmp("lowest", "F7", ["F3", "F7", "F11"]), obs("AMD's gross margin was [[F2]] in FY2026.", ["F2"])],
+        never_shown: "AMD's gross margin was",
+      },
     ],
   },
   {
@@ -92,9 +95,9 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     turns: ["Compare NVDA's and AAPL's fiscal 2025 revenue."],
     expect: { companies: ["NVDA", "AAPL"], route: "comparison", fiscal_year: 2025, blocks: [{ kind: "metrics_comparison", title: "Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart" }] },
     prose: "NVDA's fiscal 2025 ended in January 2025, AAPL's in September 2025.",
-    good: [obs("NVDA's revenue was [[F1]] in FY2025.", ["F1"])],
+    good: [obs("NVDA's revenue was [[F1]] in FY2025.", ["F1"]), obs("AAPL's revenue was [[F5]] in FY2025.", ["F5"])],
     mutations: [
-      { name: "wrong fiscal year", list: [obs("NVDA's revenue was [[F1]] in FY2026.", ["F1"])], never_shown: "in FY2026" },
+      { name: "wrong fiscal year", list: [obs("NVDA's revenue was [[F1]] in FY2026.", ["F1"]), obs("AAPL's revenue was [[F5]] in FY2025.", ["F5"])], never_shown: "in FY2026" },
     ],
   },
   {
