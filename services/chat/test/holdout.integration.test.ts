@@ -124,8 +124,8 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
         } else {
           const { completed: mutated, answer } = await converse(holdout, "list" in mutation ? withList(holdout.prose, mutation.list) : mutation.prose);
           if ("list" in mutation) {
-            const report = mutated.data.assertion_report as { rendered?: boolean; rejected: unknown[] };
-            assert.deepEqual([report.rendered, report.rejected], [true, []], `${mutation.name}: rendered in full from its assertions`);
+            const report = mutated.data.assertion_report as { rendered?: boolean; rejected: unknown[]; repeated?: unknown[] };
+            assert.deepEqual([report.rendered, report.rejected, report.repeated ?? []], [true, [], []], `${mutation.name}: rendered in full from its assertions`);
           }
           assert.doesNotMatch(JSON.stringify(answer.blocks), new RegExp(mutation.never_shown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), mutation.name);
         }

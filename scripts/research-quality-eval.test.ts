@@ -235,4 +235,9 @@ test("an accepted assertion's text is marked not shown unless it is an inference
     ] },
   }] }]);
   assert.match(report, /- ✓ observation \[F1\] \(text not shown\): NVDA's revenue was \$99B\.\n- ✓ analyst_inference \[\]: Scale funds research\./);
+  const shadow = renderReport("r", "a/m", "http://app", [{ question: QUESTIONS[0], threadId: "t1", turns: [{
+    message: "q1", outcome: "turn.completed", blocks: [],
+    assertions: { status: "checked" as const, rejected: [], accepted: [{ kind: "analyst_inference", text: "Scale funds research.", evidence: [] }] },
+  }] }]);
+  assert.match(shadow, /- ✓ analyst_inference \[\] \(text not shown\): Scale funds research\./);
 });
