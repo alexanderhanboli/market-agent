@@ -58,17 +58,17 @@ test('quoteRowView produces identical output on repeated calls (shared-render co
 test('quoteRowView returns a loading view while a listing has not resolved yet', () => {
   const view = quoteRowView({ status: 'loading' }, APPLE_LISTING_REF)
   assert.equal(view.primary, 'Loading…')
-  assert.equal(view.secondary, 'listing')
+  assert.equal(view.secondary, '')
   assert.equal(view.price, null)
 })
 
-test('quoteRowView falls back to a truncated id when the listing is unavailable', () => {
+test('quoteRowView names an unavailable quote without its id or kind', () => {
   const view = quoteRowView(
     { status: 'unavailable', reason: 'listing mismatch', retry: () => {} },
     APPLE_LISTING_REF,
   )
-  assert.equal(view.primary, '11111111…')
-  assert.equal(view.secondary, 'listing')
+  assert.equal(view.primary, 'Unknown symbol')
+  assert.equal(view.secondary, 'Quote unavailable')
   assert.equal(view.price, null)
 })
 
@@ -77,7 +77,7 @@ test('quoteRowView shows an idle view for non-listing subjects (no fetch keyed)'
   // holdings whose subject_ref is instrument-kind (HOLDING_SUBJECT_KINDS
   // in services/portfolio/src/holdings.ts).
   const view = quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF)
-  assert.equal(view.primary, '44444444…')
-  assert.equal(view.secondary, 'instrument')
+  assert.equal(view.primary, 'Unknown symbol')
+  assert.equal(view.secondary, 'Quote unavailable')
   assert.equal(view.price, null)
 })

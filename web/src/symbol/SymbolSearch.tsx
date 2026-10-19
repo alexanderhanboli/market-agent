@@ -71,7 +71,7 @@ export function SymbolSearch({
           setTypeahead(createSymbolTypeaheadState(response.subjects))
           setMessage(
             response.subjects.length === 0
-              ? `No subject found for ${response.unresolved[0] ?? trimmedQuery}`
+              ? `No match for "${response.unresolved[0] ?? trimmedQuery}".`
               : null,
           )
         })
@@ -145,7 +145,7 @@ export function SymbolSearch({
       }
 
       setTypeahead(createSymbolTypeaheadState([]))
-      setMessage(`No subject found for ${plan.unresolved || trimmedQuery}`)
+      setMessage(`No match for "${plan.unresolved || trimmedQuery}".`)
     } catch (error) {
       if (controller.signal.aborted || requestSeq.current !== seq) return
       setMessage(error instanceof Error ? error.message : 'Subject resolve failed')

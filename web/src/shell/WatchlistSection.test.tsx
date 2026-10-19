@@ -130,6 +130,9 @@ test('a failed watchlist load keeps its notice and Retry after a symbol is added
     await rail.add()
     assert.equal(rail.section().querySelectorAll('ul[aria-label="Watchlist members"] > li').length, 1)
     assert.match(rail.section().textContent ?? '', /Couldn't load your watchlist\.RetryDetailslist watchlist members failed with HTTP 502/)
+    const row = rail.section().querySelector('ul[aria-label="Watchlist members"] > li')!
+    assert.equal(row.textContent, 'Unknown symbolQuote unavailable—×')
+    assert.equal(row.querySelector('button')?.getAttribute('aria-label'), 'Remove from watchlist')
   } finally {
     await rail.cleanup()
   }

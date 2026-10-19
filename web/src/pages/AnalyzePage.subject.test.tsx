@@ -105,7 +105,7 @@ test('a failed hydration says so with Retry, names the subject neutrally, and Re
   try {
     await page.settle()
     assert.equal(page.heading().textContent, 'Selected symbol')
-    assert.equal(page.back(), 'Back to Selected symbol')
+    assert.equal(page.back(), 'Back to the selected symbol')
     assert.match(page.text(), /Memo canvasSelected symbol · /)
     assert.match(page.carriedText(), /Couldn't load this symbol\.RetryDetails/)
     assert.doesNotMatch(page.text(), /Unknown symbol/)

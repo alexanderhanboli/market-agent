@@ -8,6 +8,7 @@ import {
   formatQuotePrice,
   formatSignedPercent,
   quoteDirection,
+  UNKNOWN_SYMBOL,
   type QuoteDirection,
   type QuoteSnapshot,
 } from './quote.ts'
@@ -41,18 +42,10 @@ export function quoteRowView(state: QuoteRowState, subjectRef: SubjectRef): Quot
     }
   }
 
-  return {
-    href,
-    primary: state.status === 'loading' ? 'Loading…' : truncateId(subjectRef.id),
-    secondary: subjectRef.kind,
-    price: null,
-  }
+  if (state.status === 'loading') return { href, primary: 'Loading…', secondary: '', price: null }
+  return { href, primary: UNKNOWN_SYMBOL, secondary: 'Quote unavailable', price: null }
 }
 
 function freshnessLabel(quote: QuoteSnapshot): string {
   return `${quote.session_state.replaceAll('_', ' ')} · ${quote.delay_class.replaceAll('_', ' ')} · ${quote.as_of}`
-}
-
-function truncateId(id: string): string {
-  return id.length <= 10 ? id : `${id.slice(0, 8)}…`
 }

@@ -329,10 +329,10 @@ function LegacySubjectChoice({
               state={{ subject: candidate }}
               className={`flex items-center justify-between ${PANEL_CLASS} px-3 py-2 text-sm text-fg transition-colors hover:border-line-strong hover:bg-surface-hover`}
             >
-              <span>{subjectDisplayName(candidate) ?? candidateListingLabel(candidate)}</span>
-              <span className="text-xs text-muted">
-                {candidate.subject_ref.kind}
-              </span>
+              <span>{subjectDisplayName(candidate) ?? candidateListingLabel(candidate) ?? UNKNOWN_SYMBOL}</span>
+              {candidate.display_labels?.mic && (
+                <span className="text-xs text-muted">{candidate.display_labels.mic}</span>
+              )}
             </Link>
           </li>
         ))}

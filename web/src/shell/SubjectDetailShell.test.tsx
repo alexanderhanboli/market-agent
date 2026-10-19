@@ -76,6 +76,12 @@ const AMBIGUOUS_LISTING: ResolvedSubject = {
   },
 }
 
+const UNLABELLED_LISTING: ResolvedSubject = {
+  subject_ref: { kind: 'listing', id: '99999999-9999-4999-a999-999999999999' },
+  confidence: 0.4,
+  identity_level: 'listing',
+}
+
 function SubjectIssuerProbe() {
   const { subject } = useSubjectDetailContext()
   return <div data-testid="issuer-id">{issuerIdFromSubject(subject) ?? 'missing'}</div>
@@ -459,7 +465,7 @@ test('SubjectDetailShell renders an explicit choice state for ambiguous legacy t
       const url = String(input)
       if (url === '/v1/subjects/resolve') {
         return new Response(
-          JSON.stringify({ subjects: [HYDRATED_LISTING, AMBIGUOUS_LISTING], unresolved: [] }),
+          JSON.stringify({ subjects: [HYDRATED_LISTING, AMBIGUOUS_LISTING, UNLABELLED_LISTING], unresolved: [] }),
           {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -498,8 +504,10 @@ test('SubjectDetailShell renders an explicit choice state for ambiguous legacy t
     }
 
     assert.match(dom.window.document.body.innerHTML, /Choose a listing to continue/)
-    assert.match(dom.window.document.body.innerHTML, /AAPL/)
-    assert.match(dom.window.document.body.innerHTML, /APC/)
+    assert.deepEqual(
+      [...dom.window.document.querySelectorAll('li a')].map((link) => [...link.children].map((span) => span.textContent)),
+      [['AAPL · XNAS — Apple Inc.', 'XNAS'], ['APC · XFRA — Apple Inc.', 'XFRA'], ['Unknown symbol']],
+    )
     assert.doesNotMatch(dom.window.document.body.innerHTML, /child-mounted/)
     await act(async () => root.unmount())
   } finally {

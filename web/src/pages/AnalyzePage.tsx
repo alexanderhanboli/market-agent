@@ -637,7 +637,7 @@ function CarriedSubjectContext({
           data-testid="analyze-back-to-symbol"
           className="inline-flex items-center gap-1 text-xs font-medium text-muted underline-offset-2 hover:text-fg hover:underline"
         >
-          Back to {name ?? <Skeleton className="h-3 w-16" />}
+          Back to {failure ? 'the selected symbol' : name ?? <Skeleton className="h-3 w-16" />}
         </Link>
       </div>
       {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} /> : null}

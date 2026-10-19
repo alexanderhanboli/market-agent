@@ -50,7 +50,7 @@ export function ManualWatchlist({ members, load, editError, onRemove, onRetry, s
                 <button
                   type="button"
                   onClick={() => onRemove(member.subject_ref)}
-                  aria-label={`Remove ${member.subject_ref.kind} from watchlist`}
+                  aria-label="Remove from watchlist"
                   className="shrink-0 px-2 text-xs text-faint hover:text-negative"
                 >
                   ×
