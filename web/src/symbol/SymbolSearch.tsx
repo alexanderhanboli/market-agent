@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { announce } from '../ui/announcer.ts'
+import { candidateName } from './quote.ts'
 import {
   candidateListingLabel,
   clearSymbolTypeaheadForQueryChange,
@@ -24,6 +26,7 @@ type SymbolSearchProps = {
 type SearchStatus = 'idle' | 'loading' | 'resolving' | 'error'
 
 const DEBOUNCE_MS = 150
+const SEARCH_FAILED = "Couldn't search. Try again."
 
 export function SymbolSearch({
   placement = 'topbar',
@@ -42,6 +45,9 @@ export function SymbolSearch({
   const requestSeq = useRef(0)
   const resolveControllerRef = useRef<AbortController | null>(null)
   const trimmedQuery = query.trim()
+
+  // Withdrawn when the message changes first, so a reader hears only the search that stood.
+  useEffect(() => (message ? announce(message) : undefined), [message])
 
   useEffect(() => {
     return () => {
@@ -75,10 +81,10 @@ export function SymbolSearch({
               : null,
           )
         })
-        .catch((error) => {
+        .catch(() => {
           if (controller.signal.aborted || requestSeq.current !== seq) return
           setStatus('error')
-          setMessage(error instanceof Error ? error.message : 'Subject resolve failed')
+          setMessage(SEARCH_FAILED)
         })
     }, DEBOUNCE_MS)
 
@@ -146,9 +152,9 @@ export function SymbolSearch({
 
       setTypeahead(createSymbolTypeaheadState([]))
       setMessage(`No match for "${plan.unresolved || trimmedQuery}".`)
-    } catch (error) {
+    } catch {
       if (controller.signal.aborted || requestSeq.current !== seq) return
-      setMessage(error instanceof Error ? error.message : 'Subject resolve failed')
+      setMessage(SEARCH_FAILED)
       setStatus('error')
       return
     } finally {
@@ -238,7 +244,7 @@ export function SymbolSearch({
             >
               <span className="min-w-0">
                 <span className="block truncate font-medium">
-                  {candidate.display_labels?.primary ?? candidate.display_name}
+                  {candidateName(candidate, index)}
                 </span>
                 <span className="block truncate text-xs text-muted">
                   {candidateListingLabel(candidate)}
