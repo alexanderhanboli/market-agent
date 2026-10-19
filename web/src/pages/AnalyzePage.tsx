@@ -30,7 +30,7 @@ import { BlockView, type Block } from '../blocks'
 import { FinancialSections } from '../analyze/FinancialSections.tsx'
 import { useResource } from '../fetch/resource.ts'
 import { authenticatedJson } from '../http/authFetch.ts'
-import { subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
+import { subjectDisplayName, UNKNOWN_SYMBOL, UNNAMED_SYMBOL } from '../symbol/quote'
 import { subjectHydration, symbolDetailPathForSubject, type ResolvedSubject } from '../symbol/search'
 import { useAuth } from '../shell/useAuth.ts'
 import { FailureNotice } from '../ui/FailureNotice.tsx'
@@ -94,7 +94,7 @@ export function AnalyzePage() {
   // says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
   const subjectName = hydration.status === 'loading' || subject === null
     ? null
-    : subjectDisplayName(subject) ?? (hydration.status === 'unavailable' ? 'Selected symbol' : UNKNOWN_SYMBOL)
+    : subjectDisplayName(subject) ?? (hydration.status === 'unavailable' ? UNNAMED_SYMBOL : UNKNOWN_SYMBOL)
   const researchSummary = researchSummaryFromAnalyzeEntry(location.state)
 
   return (

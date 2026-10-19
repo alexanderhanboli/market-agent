@@ -105,9 +105,9 @@ test('a failed hydration says so with Retry, names the subject neutrally, and Re
     : { status: 200, body: { subject: { subject_ref: ISSUER_REF, display_name: 'Apple Inc.', confidence: 1 } } })
   try {
     await page.settle()
-    assert.equal(page.heading().textContent, 'Selected symbol')
+    assert.equal(page.heading().textContent, 'Symbol')
     assert.equal(page.back(), 'Back to the selected symbol')
-    assert.match(page.text(), /Memo canvasSelected symbol · /)
+    assert.match(page.text(), /Memo canvasSymbol · /)
     assert.match(page.carriedText(), /Couldn't load this symbol\.RetryDetails/)
     assert.doesNotMatch(page.text(), /Unknown symbol/)
 
