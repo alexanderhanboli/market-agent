@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { quoteRowView, type QuoteRowState, type QuoteRowView } from './quoteRowView.ts'
 import type { QuoteSnapshot } from './quote.ts'
-import type { SubjectRef } from './search.ts'
+import type { ResolvedSubject, SubjectRef } from './search.ts'
+import type { VisibleFetchState } from '../fetch/resource.ts'
 
 const APPLE_LISTING_ID = '11111111-1111-4111-a111-111111111111'
 const APPLE_INSTRUMENT_ID = '44444444-4444-4444-a444-444444444444'
@@ -44,40 +45,43 @@ const APPLE_READY_VIEW: QuoteRowView = {
   },
 }
 
+const UNNAMED: VisibleFetchState<ResolvedSubject> = { status: 'idle' }
+
+function named(subject: Omit<ResolvedSubject, 'subject_ref' | 'confidence'>): VisibleFetchState<ResolvedSubject> {
+  return { status: 'ready', data: { subject_ref: APPLE_INSTRUMENT_REF, confidence: 1, ...subject }, refreshing: false, refreshError: null }
+}
+
+const UNAVAILABLE_QUOTE: QuoteRowState = { status: 'unavailable', reason: 'listing mismatch', retry: () => {} }
+
 test('quoteRowView projects a ready quote for a listing-kind subject', () => {
-  assert.deepStrictEqual(quoteRowView(READY_STATE, APPLE_LISTING_REF), APPLE_READY_VIEW)
+  assert.deepStrictEqual(quoteRowView(READY_STATE, APPLE_LISTING_REF, UNNAMED), APPLE_READY_VIEW)
 })
 
-test('quoteRowView produces identical output on repeated calls (shared-render contract)', () => {
-  const first = quoteRowView(READY_STATE, APPLE_LISTING_REF)
-  const second = quoteRowView(READY_STATE, APPLE_LISTING_REF)
-  assert.deepStrictEqual(first, second)
-  assert.deepStrictEqual(first, APPLE_READY_VIEW)
+test('quoteRowView blanks the name while the quote loads', () => {
+  const view = quoteRowView({ status: 'loading' }, APPLE_LISTING_REF, UNNAMED)
+  assert.deepStrictEqual([view.primary, view.secondary, view.price], [null, '', null])
 })
 
-test('quoteRowView returns a loading view while a listing has not resolved yet', () => {
-  const view = quoteRowView({ status: 'loading' }, APPLE_LISTING_REF)
-  assert.equal(view.primary, 'Loading…')
-  assert.equal(view.secondary, '')
-  assert.equal(view.price, null)
+test('a row whose quote failed is named by its subject and says the quote is unavailable', () => {
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary: 'AAPL' } }))
+  assert.deepStrictEqual([view.primary, view.secondary, view.price], ['AAPL', 'Quote unavailable', null])
 })
 
-test('quoteRowView names an unavailable quote without its id or kind', () => {
-  const view = quoteRowView(
-    { status: 'unavailable', reason: 'listing mismatch', retry: () => {} },
-    APPLE_LISTING_REF,
-  )
-  assert.equal(view.primary, 'Unknown symbol')
-  assert.equal(view.secondary, 'Quote unavailable')
-  assert.equal(view.price, null)
+test('a row with no quote to fetch is named by its subject and says it has no quote', () => {
+  const view = quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, named({ display_name: 'Apple Inc.' }))
+  assert.deepStrictEqual([view.primary, view.secondary, view.price], ['Apple Inc.', 'No quote', null])
 })
 
-test('quoteRowView shows an idle view for non-listing subjects (no fetch keyed)', () => {
-  // useResource returns 'idle' when its params are null — the case for held
-  // holdings whose subject_ref is instrument-kind (HOLDING_SUBJECT_KINDS
-  // in services/portfolio/src/holdings.ts).
-  const view = quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF)
-  assert.equal(view.primary, 'Unknown symbol')
-  assert.equal(view.secondary, 'Quote unavailable')
-  assert.equal(view.price, null)
+test('a row whose name is still loading shows no name, not "Unknown symbol"', () => {
+  assert.equal(quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, { status: 'loading' }).primary, null)
+  assert.equal(quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, { status: 'loading' }).primary, null)
+})
+
+test('a row whose name lookup failed gets the neutral "Symbol"', () => {
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, { status: 'unavailable', reason: 'HTTP 503', retry: () => {} })
+  assert.deepStrictEqual([view.primary, view.secondary], ['Symbol', 'Quote unavailable'])
+})
+
+test('only a subject that hydrates without any name is "Unknown symbol"', () => {
+  assert.equal(quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, named({})).primary, 'Unknown symbol')
 })

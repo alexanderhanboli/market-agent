@@ -18,7 +18,7 @@ type ManualWatchlistProps = {
 // Each row hydrates its own quote through the shared QuoteRow component
 // (cw0.10.1) so watchlist members and held holdings render identically
 // for the same subject. Members whose subject_ref is not listing-kind
-// surface a quote-unavailable state — the rule from fra-6al.6.2.
+// have no quote and are named by subject hydration — the rule from fra-6al.6.2.
 export function ManualWatchlist({ members, load, editError, onRemove, onRetry, sparklines }: ManualWatchlistProps) {
   if (load.status === 'loading' && members.length === 0) {
     return (
@@ -46,16 +46,16 @@ export function ManualWatchlist({ members, load, editError, onRemove, onRetry, s
                   ? sparklines?.get(member.subject_ref.id)
                   : undefined
               }
-              trailing={
+              trailing={(name) => (
                 <button
                   type="button"
                   onClick={() => onRemove(member.subject_ref)}
-                  aria-label="Remove from watchlist"
+                  aria-label={name === null ? 'Remove from watchlist' : `Remove ${name} from watchlist`}
                   className="shrink-0 px-2 text-xs text-faint hover:text-negative"
                 >
                   ×
                 </button>
-              }
+              )}
             />
           ))}
         </ul>

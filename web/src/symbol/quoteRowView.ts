@@ -8,23 +8,30 @@ import {
   formatQuotePrice,
   formatSignedPercent,
   quoteDirection,
+  subjectDisplayName,
   UNKNOWN_SYMBOL,
   type QuoteDirection,
   type QuoteSnapshot,
 } from './quote.ts'
-import { symbolDetailPathForSubject, type SubjectRef } from './search.ts'
+import { symbolDetailPathForSubject, type ResolvedSubject, type SubjectRef } from './search.ts'
 import type { VisibleFetchState } from '../fetch/resource.ts'
 
 export type QuoteRowState = VisibleFetchState<QuoteSnapshot>
 
 export type QuoteRowView = {
   href: string
-  primary: string
+  // Null while the name is still loading.
+  primary: string | null
   secondary: string
   price: { text: string; direction: QuoteDirection; percent: string; freshness: string } | null
 }
 
-export function quoteRowView(state: QuoteRowState, subjectRef: SubjectRef): QuoteRowView {
+// `subject` names a row that has no ready quote to take its ticker from.
+export function quoteRowView(
+  state: QuoteRowState,
+  subjectRef: SubjectRef,
+  subject: VisibleFetchState<ResolvedSubject>,
+): QuoteRowView {
   const href = symbolDetailPathForSubject(subjectRef)
 
   if (state.status === 'ready') {
@@ -42,8 +49,19 @@ export function quoteRowView(state: QuoteRowState, subjectRef: SubjectRef): Quot
     }
   }
 
-  if (state.status === 'loading') return { href, primary: 'Loading…', secondary: '', price: null }
-  return { href, primary: UNKNOWN_SYMBOL, secondary: 'Quote unavailable', price: null }
+  if (state.status === 'loading') return { href, primary: null, secondary: '', price: null }
+  return {
+    href,
+    primary: rowName(subject),
+    secondary: state.status === 'idle' ? 'No quote' : 'Quote unavailable',
+    price: null,
+  }
+}
+
+// A failed lookup says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
+function rowName(subject: VisibleFetchState<ResolvedSubject>): string | null {
+  if (subject.status === 'ready') return subjectDisplayName(subject.data) ?? UNKNOWN_SYMBOL
+  return subject.status === 'unavailable' ? 'Symbol' : null
 }
 
 function freshnessLabel(quote: QuoteSnapshot): string {
