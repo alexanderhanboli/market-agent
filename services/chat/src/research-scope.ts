@@ -286,6 +286,11 @@ export function resolveResearchScope(input: {
   const segments = flag("segments", prior?.segments);
   const benchmark = flag("benchmark", prior?.benchmark);
   const marginAsked = asks.has("margins") || asks.has("margin_trend");
+  // With no proposal a follow-up asks nothing new: it keeps the previous
+  // answer's scope unchanged, its margins and the items it named included
+  // (#378 review). Not the engine's turn, which is routed as its answer.
+  const unchanged = input.proposal === null && !input.served ? prior : null;
+  const margins = unchanged?.margins ?? marginAsked;
   const margin_trend = flag("margin_trend", prior?.margin_trend);
   // A metric the turn turns off ("drop capex") is not asked for, even if the
   // model also named it. The whole balance sheet takes its items with it,
@@ -351,24 +356,23 @@ export function resolveResearchScope(input: {
   const readable = (metric: RequestedMetric) =>
     metric.available && !(comparing && named.length > 0 && metric.metric_key in STATEMENT_METRIC_LABELS);
   const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !readable(metric)) &&
-    (asked === null || input.companies.length < 2) && !asks.has("peers") && !asks.has("segments") && !marginAsked;
+    (asked === null || input.companies.length < 2) && !asks.has("peers") && !asks.has("segments") && !margins;
   // Only cash flow, balance sheet or EPS (and any named gaps beside them): the
   // statement figures alone, as a segment request reads segments alone.
   const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
     metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
-    !asks.has("segments") && !marginAsked;
+    !asks.has("segments") && !margins;
   // The items named now; else the previous answer's, where this turn re-reads
   // it (an evidence follow-up) or keeps the metrics it named them for ("Why?").
-  const incomeItems = evidence || (namedItems.length === 0 && inherited.includes("metrics"))
+  const incomeItems = evidence || unchanged !== null || (namedItems.length === 0 && inherited.includes("metrics"))
     ? prior?.income_items ?? []
     : namedItems;
-  // With no proposal a follow-up asks nothing new, so it reads what the
-  // previous answer read (#378 review): not the engine's answer, which no
-  // reader here re-reads, nor one that compared where this turn covers one
-  // company, or the reverse. Those are routed by what they keep.
-  const reread = input.proposal === null && prior !== null && !input.served && prior.reads !== "financial_answer" &&
-      comparing === (prior.companies.length > 1 || prior.peers)
-    ? prior
+  // Unchanged, it reads what the previous answer read: not the engine's
+  // answer, which no reader here re-reads, nor one that compared where this
+  // turn covers one company, or the reverse. Those are routed by what they keep.
+  const reread = unchanged !== null && unchanged.reads !== "financial_answer" &&
+      comparing === (unchanged.companies.length > 1 || unchanged.peers)
+    ? unchanged
     : null;
   const reads = evidence && prior !== null
     ? prior.reads
@@ -376,7 +380,7 @@ export function resolveResearchScope(input: {
     ? "financial_answer"
     : reread
     ? reread.reads
-    : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable, onlyStatements });
+    : routeOf(input.companies.length, { peers, segments, margin_trend, margins, onlyUnavailable, onlyStatements });
   // Guidance and a cause are asked this turn, or kept from an earlier one as
   // the other facets are, unless this one turns them off.
   const keeps = (facet: "guidance" | "explains", kept: true | undefined) =>
@@ -389,7 +393,7 @@ export function resolveResearchScope(input: {
     peers,
     segments,
     margin_trend,
-    margins: reread?.margins ?? (marginAsked || margin_trend),
+    margins: margins || margin_trend,
     metrics,
     fiscal_year,
     fiscal_quarter,
@@ -427,7 +431,7 @@ function routeOf(
     peers: boolean;
     segments: boolean;
     margin_trend: boolean;
-    marginAsked: boolean;
+    margins: boolean;
     onlyUnavailable: boolean;
     onlyStatements: boolean;
   },
@@ -438,7 +442,7 @@ function routeOf(
   if (facets.segments) return "segments";
   if (facets.onlyStatements) return "statements";
   if (facets.margin_trend) return "trend";
-  if (facets.marginAsked) return "derived_margin";
+  if (facets.margins) return "derived_margin";
   return "latest_quarter";
 }
 

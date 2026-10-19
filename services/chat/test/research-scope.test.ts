@@ -282,6 +282,27 @@ test("with no proposal, a follow-up reads what the previous answer read (#378 re
   assert.deepEqual([followUp("And then?", null, engine).route, followUp("And then?", null, engine).reads], ["statements", "statements"]);
 });
 
+test("with no proposal, a follow-up keeps the margins, and a company added routes them as a comparison (#378 review)", () => {
+  const margin = fresh("What is NVDA's gross margin?", proposal({ asks: ["margins"], metrics: ["income_statement"] }));
+  assert.deepEqual(followUp("Add AMD", null, margin, [NVDA, AMD]), {
+    ...margin,
+    route: "comparison",
+    reads: "comparison",
+    companies: [NVDA, AMD],
+    inherited: ["metrics"],
+  });
+  // Routed by the margins kept, as margins asked on a comparison are: not as the gap alone.
+  const ebitda = fresh("NVDA's margins and EBITDA", proposal({ asks: ["margins"], metrics: ["ebitda"] }));
+  assert.equal(fresh("NVDA and AMD's margins and EBITDA", proposal({ asks: ["margins"], metrics: ["ebitda"] }), [NVDA, AMD]).route, "comparison");
+  assert.deepEqual(
+    [followUp("Add AMD", null, ebitda, [NVDA, AMD]).route, followUp("Add AMD", null, ebitda, [NVDA, AMD]).margins],
+    ["comparison", true],
+  );
+  // The items it named are kept with it, metrics or none.
+  const why = fresh("What drove NVDA's revenue?", proposal({ asks: ["explains"], items: ["revenue"] }));
+  assert.deepEqual(followUp("And then?", null, why), { ...why, inherited: [] });
+});
+
 test("with no proposal, a fresh question gets the plain answer for its companies and period tokens", () => {
   assert.deepEqual(fresh("How does NVDA stack up against AMD on margins and segments?", null, [NVDA, AMD]), {
     route: "comparison",
