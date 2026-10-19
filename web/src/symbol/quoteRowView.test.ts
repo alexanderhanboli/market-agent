@@ -105,3 +105,9 @@ test('a row with no quote labels its control with the exchange its subject is li
   const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary: 'AAPL', ticker: 'AAPL', mic: 'XNAS' } }))
   assert.deepStrictEqual([view.primary, view.label], ['AAPL', 'AAPL (XNAS)'])
 })
+
+test('a row whose name already carries its exchange does not repeat it in the label', () => {
+  const primary = 'AAPL · XNAS — Apple Inc.'
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary, ticker: 'AAPL', mic: 'XNAS' } }))
+  assert.deepStrictEqual([view.primary, view.label], [primary, primary])
+})

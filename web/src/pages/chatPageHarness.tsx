@@ -147,7 +147,7 @@ export class FakeServer {
     const body = init?.body === undefined ? '' : String(init.body)
     this.log.push([method, path, body])
     const reply = await Promise.race([this.route(method, path, body), rejectOnAbort(init?.signal)])
-    if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError')
+    if (init?.signal?.aborted) throw init.signal.reason
     return new Response(JSON.stringify(reply.body), { status: reply.status ?? 200, headers: { 'content-type': 'application/json' } })
   }
 
@@ -171,7 +171,7 @@ export class FakeServer {
 // Like a real fetch, an abort rejects a request whose reply never comes.
 function rejectOnAbort(signal: AbortSignal | null | undefined): Promise<never> {
   return new Promise((_resolve, reject) => {
-    signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+    signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
   })
 }
 

@@ -60,7 +60,8 @@ export function quoteRowView(
     href,
     primary: name ?? placeholderName(subject),
     secondary: state.status === 'idle' ? 'No quote' : 'Quote unavailable',
-    label: name !== null && mic ? `${name} (${mic})` : name,
+    // The resolver's listing name already reads "TICKER · MIC — Name".
+    label: name !== null && mic && !name.includes(mic) ? `${name} (${mic})` : name,
     price: null,
   }
 }

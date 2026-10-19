@@ -550,6 +550,7 @@ test('a DELETE that never answers is checked once it times out, and fails if the
     assert.equal(server.gets('/v1/chat/threads'), reads + 1, 'the store re-reads the list once to check')
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
     assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+    assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsTimed out\.Chats/)
   } finally {
     await h.cleanup()
   }

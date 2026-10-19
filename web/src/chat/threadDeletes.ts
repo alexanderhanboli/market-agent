@@ -114,7 +114,7 @@ function threadIsListed({ userId, threadId }: PendingDelete): Promise<boolean> {
 async function withTimeout<T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> {
   // A timer rather than AbortSignal.timeout, which test clocks can't advance.
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), DELETE_REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(new Error('Timed out.')), DELETE_REQUEST_TIMEOUT_MS)
   try {
     return await request(controller.signal)
   } finally {

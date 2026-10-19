@@ -186,7 +186,7 @@ test('Remove buttons stay distinct for same-ticker listings, quoted or not, and 
     if (path === '/v1/subjects/hydrate') {
       const { subject_ref } = JSON.parse(body) as { subject_ref: { id: string } }
       const mic = unquotedMics[subject_ref.id]
-      if (mic) return new Response(JSON.stringify({ subject: { subject_ref, display_labels: { primary: 'AAPL', ticker: 'AAPL', mic }, confidence: 1 } }), { status: 200 })
+      if (mic) return new Response(JSON.stringify({ subject: { subject_ref, display_labels: { primary: `AAPL · ${mic} — Apple Inc.`, ticker: 'AAPL', mic }, confidence: 1 } }), { status: 200 })
     }
     const id = new URL(path, 'http://localhost').searchParams.get('subject_id')
     const quote = id === null ? undefined : quotes[id]
@@ -217,8 +217,8 @@ test('Remove buttons stay distinct for same-ticker listings, quoted or not, and 
       'Remove AAPL (XLON, GBP) from watchlist',
       'Remove symbol 3 from watchlist',
       'Remove symbol 4 from watchlist',
-      'Remove AAPL (XNAS) from watchlist',
-      'Remove AAPL (XLON) from watchlist',
+      'Remove AAPL · XNAS — Apple Inc. from watchlist',
+      'Remove AAPL · XLON — Apple Inc. from watchlist',
     ])
   } finally {
     await rail.cleanup()
