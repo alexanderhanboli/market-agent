@@ -159,13 +159,19 @@ test('ThesisPanel keeps suggested conditions editable without saving them automa
   }
 })
 
-test('ThesisPanel exposes failed requests as actionable panel state', async () => {
+test('ThesisPanel says the conditions could not load, keeps the reason behind Details, and Retry reloads them', async () => {
+  let calls = 0
   const harness = await mountPanel({
-    fetchImpl: async () => json({ error: 'thesis runtime unavailable' }, 503),
+    fetchImpl: async () => ++calls === 1 ? json({ error: 'thesis runtime unavailable' }, 503) : json(currentHistory()),
   })
+  const panel = () => harness.document.querySelector('section[aria-labelledby="thesis-panel-heading"]')!
   try {
-    assert.match(harness.document.body.textContent ?? '', /Thesis conditions are unavailable/i)
-    assert.match(harness.document.body.textContent ?? '', /thesis runtime unavailable/i)
+    assert.match(panel().textContent ?? '', /review horizons\.Couldn't load the thesis conditions\.Couldn't load the thesis conditions\.RetryDetailsthesis runtime unavailable$/)
+
+    await clickButton(harness.document, 'Retry')
+    assert.equal(calls, 2)
+    assert.doesNotMatch(panel().textContent ?? '', /Couldn't load/)
+    assert.equal(harness.document.querySelectorAll('textarea[name$="-statement"]').length, 1)
   } finally {
     await harness.unmount()
   }
@@ -190,7 +196,7 @@ test('ThesisPanel aborts and ignores stale responses when the user and agent swi
     await harness.render({ userId: USER_B, agentId: AGENT_B, initialThesis: 'Second agent base thesis.' })
     const newKey = `${USER_B}:/v1/agents/${AGENT_B}/thesis`
     assert.equal(signals.get(oldKey)?.aborted, true)
-    assert.match(harness.document.body.textContent ?? '', /Loading thesis conditions/i)
+    assert.deepEqual([...harness.document.querySelectorAll('[role="status"]')].map((node) => node.textContent), ['', 'Loading thesis conditions'])
 
     await act(async () => pending.get(newKey)?.resolve(json({
       thesis: { ...currentHistory().thesis!, agent_id: AGENT_B, thesis: 'Second agent current thesis.' },
@@ -328,7 +334,28 @@ test('ThesisPanel retains editable conditions if a background history refresh fa
     fail = true
     await harness.render({ refreshKey: 1 })
     assert.equal(harness.document.querySelectorAll('textarea[name$="-statement"]').length, 2)
-    assert.match(harness.document.body.textContent ?? '', /History refresh failed/)
+    assert.match(harness.document.body.textContent ?? '', /review horizons\.Couldn't refresh the assessment history\.Couldn't refresh the assessment history\.RetryDetailsHistory refresh failed/)
+  } finally {
+    await harness.unmount()
+  }
+})
+
+test('ThesisPanel speaks a history refresh failure through its standing status region, without Retry or Details', async () => {
+  let fail = false
+  const harness = await mountPanel({ fetchImpl: async () => fail ? json({ error: 'History refresh failed' }, 503) : json(currentHistory()) })
+  const region = () => harness.document.querySelector('section[aria-labelledby="thesis-panel-heading"] > p[role="status"]')
+  try {
+    const before = region()
+    assert.equal(before?.textContent, '')
+
+    fail = true
+    await harness.render({ refreshKey: 1 })
+    assert.ok(region() === before, 'the same region announces')
+    assert.equal(region()?.textContent, "Couldn't refresh the assessment history.")
+
+    fail = false
+    await clickButton(harness.document, 'Retry')
+    assert.equal(region()?.textContent, '')
   } finally {
     await harness.unmount()
   }

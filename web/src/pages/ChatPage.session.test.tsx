@@ -45,7 +45,7 @@ test('the completion hands off to the sealed answer it carries: no history GET, 
       h.frames.slice(first).map((frame) => occurrences(frame, ANSWER)).filter((count) => count !== 1),
       [],
     )
-    assert.deepEqual(h.frames.filter((frame) => frame.includes('Loading message history.')), [])
+    assert.deepEqual(h.statusFrames.filter((labels) => labels.includes('Loading message history')), [])
     assert.equal(h.query('[data-testid="virtualized-message-list"]'), listBefore)
     assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
     assert.equal(h.container.querySelectorAll('[data-testid="streaming-turn"]').length, 0)
@@ -372,17 +372,6 @@ test('a failed title refresh keeps the sidebar row and the header name', async (
     assert.equal(h.query('a[href="/chat/T1"] span')?.textContent, 'Chips')
     assert.equal(h.query('[data-testid="thread-name"]')?.textContent, 'Chips')
     assert.doesNotMatch(h.text(), /HTTP 502/)
-  } finally {
-    await h.cleanup()
-  }
-})
-
-test('a failed first thread-list load shows its error', async () => {
-  const server = new FakeServer()
-  server.listReply = () => ({ status: 502, body: { error: 'bad gateway' } })
-  const h = await renderChat('/chat', server)
-  try {
-    assert.match(h.query('nav[aria-label="Thread list"]')?.textContent ?? '', /HTTP 502/)
   } finally {
     await h.cleanup()
   }

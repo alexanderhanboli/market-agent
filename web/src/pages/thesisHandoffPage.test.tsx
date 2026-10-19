@@ -45,7 +45,7 @@ test('Analyze Monitor this thesis carries the opened historical run subject to A
         name: 'Historical memo monitor',
       },
     })
-    assert.equal(calls.some((call) => call.method !== 'GET'), false)
+    assert.deepEqual(calls.filter((call) => call.method !== 'GET'), [{ url: '/v1/subjects/hydrate', method: 'POST' }])
   } finally {
     await harness.unmount()
   }

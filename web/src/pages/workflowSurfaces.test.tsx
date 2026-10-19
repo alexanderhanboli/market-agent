@@ -82,7 +82,7 @@ test('Chat surface renders thread list and composer workflow copy without phase 
     </MemoryRouter>,
   )
 
-  assert.match(html, /Thread list/)
+  assert.match(html, /<nav aria-label="Chats"/)
   assert.match(html, /Start research/)
   assert.doesNotMatch(html, /ships with P2\.1/i)
 })

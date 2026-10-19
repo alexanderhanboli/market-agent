@@ -1,5 +1,4 @@
 import {
-  displaySubjectRef,
   isCanonicalResolvedSubject,
   isSubjectRef,
   type IssuerContext,
@@ -232,13 +231,11 @@ export function issuerProfileFromSubject(
   }
 }
 
-export function subjectDisplayName(subject: ResolvedSubject | RouteResolvedSubject): string {
-  return (
-    subject.display_labels?.primary ??
-    subject.display_label ??
-    subject.display_name ??
-    (isSubjectRef(subject.subject_ref) ? displaySubjectRef(subject.subject_ref) : subject.subject_ref.ticker.toUpperCase())
-  )
+export const UNKNOWN_SYMBOL = 'Unknown symbol'
+
+// Null until hydration names a subject that was built from a bare ref.
+export function subjectDisplayName(subject: ResolvedSubject | RouteResolvedSubject): string | null {
+  return subject.display_labels?.primary ?? subject.display_label ?? subject.display_name ?? null
 }
 
 // Re-export so callers don't need to import from search.ts when they're

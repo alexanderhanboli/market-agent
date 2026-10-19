@@ -28,6 +28,8 @@ import type { FindingSeverity } from '../blocks/types.ts'
 import { severityFillClass } from '../blocks/severityTone.ts'
 import { StackedBar, StackedBarLegend, type StackedSegment } from '../symbol/StackedBar.tsx'
 import { useAuth } from '../shell/useAuth.ts'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { useRightRail } from '../shell/useRightRail'
 
 type HomeRunActivityStage = 'reading' | 'investigating' | 'found' | 'dismissed'
@@ -49,7 +51,7 @@ const EMPTY_HOME_ACTIVITIES: ReadonlyArray<HomeRunActivity> = []
 
 export type LoadState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; retry: () => void }
   | { kind: 'ready'; summary: HomeSummary }
 
 export function HomePage() {
@@ -130,9 +132,14 @@ export function UserHomeContent({
   fetchImpl?: typeof fetch
 }) {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
+    const retry = () => {
+      setState({ kind: 'loading' })
+      setAttempt((current) => current + 1)
+    }
     fetchHomeSummary({ userId, signal: controller.signal, fetchImpl })
       .then((summary) => {
         if (controller.signal.aborted) return
@@ -140,17 +147,17 @@ export function UserHomeContent({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
-        setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
+        setState({ kind: 'error', message: error instanceof Error ? error.message : String(error), retry })
       })
     return () => controller.abort()
-  }, [userId, fetchImpl])
+  }, [userId, fetchImpl, attempt])
 
   return <UserHomeView state={state} />
 }
 
 export function UserHomeView({ state }: { state: LoadState }) {
   if (state.kind === 'loading') return <LoadingHint />
-  if (state.kind === 'error') return <ErrorHint message={state.message} />
+  if (state.kind === 'error') return <FailureNotice message="Couldn't load Home." detail={state.message} onRetry={state.retry} />
   return <SummaryView summary={state.summary} />
 }
 
@@ -166,17 +173,10 @@ function SignInHint() {
 
 function LoadingHint() {
   return (
-    <Section title="Loading Home...">
-      <p className="text-sm text-muted">Fetching your latest findings and market sections.</p>
-    </Section>
-  )
-}
-
-function ErrorHint({ message }: { message: string }) {
-  return (
-    <Section title="Home is unavailable">
-      <p className="text-sm text-negative">{message}</p>
-    </Section>
+    <div className="flex flex-col gap-4">
+      <Skeleton label="Loading Home" className="h-32" />
+      <Skeleton className="h-48" />
+    </div>
   )
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { HttpJsonError, readJsonBody } from '../http/authFetch.ts'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { diagnosticMessage, testMessage, type TestChannelResponse } from './settingsMessages.ts'
 
 export type LlmChannelSettings = {
@@ -157,7 +158,7 @@ export function SettingsView({
     ? uniqueStrings([...modelOptions, ...state.settings.fallbackModels])
     : []
   if (state.kind === 'loading') {
-    return <div className="p-6 text-sm text-fg-soft">Loading settings...</div>
+    return <div className="p-6"><Skeleton label="Loading settings" className="h-64 max-w-2xl" /></div>
   }
   if (state.kind === 'error') {
     return (

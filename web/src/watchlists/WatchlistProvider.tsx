@@ -15,10 +15,10 @@ export function WatchlistProvider({
   userId: string | null
   children: ReactNode
 }) {
-  const { members, status, message, addSubject, removeSubject } = useManualWatchlist(userId)
+  const { members, load, editError, addSubject, removeSubject, reload } = useManualWatchlist(userId)
   const value = useMemo<ManualWatchlistState>(
-    () => ({ members, status, message, addSubject, removeSubject }),
-    [members, status, message, addSubject, removeSubject],
+    () => ({ members, load, editError, addSubject, removeSubject, reload }),
+    [members, load, editError, addSubject, removeSubject, reload],
   )
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>
 }

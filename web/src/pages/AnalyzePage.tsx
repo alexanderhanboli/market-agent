@@ -28,10 +28,13 @@ import { shareAnalyzeRunToChat, type AnalyzeRun } from '../analyze/shareToChat.t
 import { analyzeThesisHandoff } from '../analyze/thesisHandoff.ts'
 import { BlockView, type Block } from '../blocks'
 import { FinancialSections } from '../analyze/FinancialSections.tsx'
+import { useResource } from '../fetch/resource.ts'
 import { authenticatedJson } from '../http/authFetch.ts'
-import { subjectDisplayName } from '../symbol/quote'
-import { symbolDetailPathForSubject, type ResolvedSubject } from '../symbol/search'
+import { subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
+import { subjectHydration, symbolDetailPathForSubject, type ResolvedSubject } from '../symbol/search'
 import { useAuth } from '../shell/useAuth.ts'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 
 type AnalyzeTemplate = {
   template_id: string
@@ -81,7 +84,17 @@ export function AnalyzePage() {
   const [searchParams] = useSearchParams()
   const location = useLocation()
   const query = parseAnalyzeQuery(searchParams)
-  const subject = subjectFromAnalyzeEntry(query, location.state)
+  const entrySubject = subjectFromAnalyzeEntry(query, location.state)
+  const hydration = useResource(
+    subjectHydration,
+    entrySubject !== null && subjectDisplayName(entrySubject) === null ? entrySubject.subject_ref : null,
+  )
+  const subject = hydration.status === 'ready' ? hydration.data : entrySubject
+  // Null while a deep-linked subject is still being named. A failed lookup
+  // says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
+  const subjectName = hydration.status === 'loading' || subject === null
+    ? null
+    : subjectDisplayName(subject) ?? (hydration.status === 'unavailable' ? 'Selected symbol' : UNKNOWN_SYMBOL)
   const researchSummary = researchSummaryFromAnalyzeEntry(location.state)
 
   return (
@@ -93,9 +106,16 @@ export function AnalyzePage() {
           chat handoff.
         </p>
       </header>
-      {subject ? <CarriedSubjectContext subject={subject} intent={query.intent} /> : null}
+      {subject ? (
+        <CarriedSubjectContext
+          subject={subject}
+          name={subjectName}
+          intent={query.intent}
+          failure={hydration.status === 'unavailable' ? hydration : null}
+        />
+      ) : null}
       {researchSummary ? <CarriedResearchSummary summary={researchSummary} /> : null}
-      <AnalyzeWorkspace subject={subject} />
+      <AnalyzeWorkspace subject={subject} subjectName={subjectName} />
     </div>
   )
 }
@@ -115,7 +135,7 @@ function CarriedResearchSummary({ summary }: { summary: ResearchSummary }) {
   )
 }
 
-function AnalyzeWorkspace({ subject }: { subject: ResolvedSubject | null }) {
+function AnalyzeWorkspace({ subject, subjectName }: { subject: ResolvedSubject | null; subjectName: string | null }) {
   const { session } = useAuth()
   const navigate = useNavigate()
   const [templates, setTemplates] = useState<ReadonlyArray<AnalyzeTemplate>>(DEFAULT_TEMPLATES)
@@ -236,7 +256,7 @@ function AnalyzeWorkspace({ subject }: { subject: ResolvedSubject | null }) {
     }
     const run = memoRun ?? (await generateMemo())
     if (!run) return
-    const titleSubject = subject ? subjectDisplayName(subject) : 'Research memo'
+    const titleSubject = (subject && subjectDisplayName(subject)) ?? 'Research memo'
     try {
       setStatus('Persisting memo in chat')
       const result = await shareAnalyzeRunToChat({
@@ -384,8 +404,8 @@ function AnalyzeWorkspace({ subject }: { subject: ResolvedSubject | null }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-fg">Memo canvas</h2>
-            <p className="mt-1 text-sm text-muted">
-              {subject ? subjectDisplayName(subject) : 'No subject selected'} · {[...sources].join(', ') || 'no sources'}
+            <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-muted">
+              {subject ? (subjectName ?? <Skeleton className="h-4 w-24" />) : 'No subject selected'} · {[...sources].join(', ') || 'no sources'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -579,12 +599,15 @@ function RunDiffView({
 
 function CarriedSubjectContext({
   subject,
+  name,
   intent,
+  failure,
 }: {
   subject: ResolvedSubject
+  name: string | null
   intent: AnalyzeIntent | null
+  failure: { reason: string; retry: () => void } | null
 }) {
-  const displayName = subjectDisplayName(subject)
   return (
     <section
       data-testid="analyze-carried-subject"
@@ -595,7 +618,7 @@ function CarriedSubjectContext({
         <div className="flex flex-col gap-1">
           <span className="text-xs uppercase text-muted">Carried subject</span>
           <h2 id="analyze-carried-subject-heading" className="text-lg font-semibold text-fg">
-            {displayName}
+            {name ?? <Skeleton label="Loading subject name" className="h-7 w-40" />}
           </h2>
           <span data-testid="analyze-carried-subject-ref" className="font-mono text-xs text-muted">
             {subject.subject_ref.kind}:{subject.subject_ref.id}
@@ -614,9 +637,11 @@ function CarriedSubjectContext({
           data-testid="analyze-back-to-symbol"
           className="inline-flex items-center gap-1 text-xs font-medium text-muted underline-offset-2 hover:text-fg hover:underline"
         >
-          Back to {displayName}
+          Back to {name ?? <Skeleton className="h-3 w-16" />}
         </Link>
       </div>
+      <p role="status" className="sr-only">{failure ? "Couldn't load this symbol." : ''}</p>
+      {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} announced /> : null}
     </section>
   )
 }

@@ -26,7 +26,7 @@ export function WatchlistSection() {
     sparkWindow,
   )
 
-  // addSubject swallows rejections into watchlist.message, which ManualWatchlist
+  // addSubject swallows rejections into watchlist.editError, which ManualWatchlist
   // already renders — no extra error path needed here.
   useResumedProtectedAction(ProtectedActionType.SaveToWatchlist, (action) => {
     void watchlist.addSubject(action.payload.subject_ref)
@@ -63,9 +63,10 @@ export function WatchlistSection() {
         {userId ? (
           <ManualWatchlist
             members={watchlist.members}
-            status={watchlist.status}
-            message={watchlist.message}
+            load={watchlist.load}
+            editError={watchlist.editError}
             onRemove={(ref) => void watchlist.removeSubject(ref)}
+            onRetry={watchlist.reload}
             sparklines={sparklines}
           />
         ) : (

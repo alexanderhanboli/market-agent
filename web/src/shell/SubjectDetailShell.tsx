@@ -4,9 +4,10 @@ import { analyzeEntryFromSubject } from '../analyze/analyzeEntry'
 import { issuerIdFromSubject } from '../symbol/profile.ts'
 import { QuoteSnapshot } from '../symbol/QuoteSnapshot'
 import { useResource } from '../fetch/resource.ts'
-import { listingIdForQuote, listingQuote, subjectDisplayName } from '../symbol/quote'
+import { listingIdForQuote, listingQuote, subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
 import { PANEL_CLASS } from '../symbol/surfaceStyles.ts'
 import {
+  candidateListingLabel,
   fetchSubjectHydration,
   isCanonicalResolvedSubject,
   isSymbolDetailTab,
@@ -23,6 +24,8 @@ import { SubjectMembershipBadges } from '../watchlists/SubjectMembershipBadges'
 import { useAuth } from './useAuth'
 import { ProtectedActionType } from './authInterruptState'
 import { SubjectNewsRail } from './SubjectNewsRail.tsx'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import type { SubjectDetailOutletContext } from './subjectDetailOutletContext'
 import { useRequestProtectedAction } from './useAuthInterrupt'
 import { useRightRailContent } from './useRightRailContent.ts'
@@ -89,6 +92,7 @@ export function SubjectDetailShell() {
   })
   const [hydratedSubject, setHydratedSubject] = useState<ResolvedSubject | null>(null)
   const [hydrationState, setHydrationState] = useState<HydrationState>({ status: 'idle' })
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const canonicalBaseSubject = isCanonicalResolvedSubject(baseSubject) ? baseSubject : null
   const canonicalBaseSubjectKey =
     canonicalBaseSubject === null ? null : subjectKey(canonicalBaseSubject)
@@ -109,6 +113,8 @@ export function SubjectDetailShell() {
     hydrationState.status === 'error' && hydrationState.key === canonicalBaseSubjectKey
       ? hydrationState.message
       : null
+  const title =
+    subjectDisplayName(subject) ?? (shouldBlockForHydration && hydrationError === null ? null : UNKNOWN_SYMBOL)
   const visibleLegacyResolution =
     legacyTicker !== null &&
     legacyResolution.status !== 'idle' &&
@@ -155,7 +161,7 @@ export function SubjectDetailShell() {
         setLegacyResolution({
           status: 'not_found',
           ticker,
-          message: `No subject found for ${plan.unresolved || ticker}.`,
+          message: `No symbol matches ${plan.unresolved || ticker}.`,
         })
       })
       .catch((error: unknown) => {
@@ -168,7 +174,7 @@ export function SubjectDetailShell() {
       })
 
     return () => controller.abort()
-  }, [currentTab, legacyTicker, navigate])
+  }, [currentTab, legacyTicker, navigate, loadAttempt])
 
   useEffect(() => {
     if (!needsHydration || canonicalBaseSubject === null || canonicalBaseSubjectKey === null) {
@@ -196,7 +202,13 @@ export function SubjectDetailShell() {
       })
 
     return () => controller.abort()
-  }, [canonicalBaseSubject, canonicalBaseSubjectKey, needsHydration])
+  }, [canonicalBaseSubject, canonicalBaseSubjectKey, needsHydration, loadAttempt])
+
+  const retryLoad = () => {
+    setLegacyResolution({ status: 'idle' })
+    setHydrationState({ status: 'idle' })
+    setLoadAttempt((attempt) => attempt + 1)
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -206,7 +218,7 @@ export function SubjectDetailShell() {
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <QuoteSnapshot subject={subject} quoteState={quoteState} />
+            <QuoteSnapshot subject={subject} title={title} quoteState={quoteState} />
             {userId !== null && canonicalSubject !== null ? (
               <SubjectMembershipBadges subjectRef={canonicalSubject.subject_ref} userId={userId} />
             ) : null}
@@ -247,12 +259,14 @@ export function SubjectDetailShell() {
             ticker={legacyTicker}
             state={visibleLegacyResolution}
             currentTab={currentTab}
+            onRetry={retryLoad}
           />
         ) : shouldBlockForHydration ? (
-          <SubjectContextNotice
-            title={hydrationError ? 'Subject context unavailable' : 'Loading subject context'}
-            message={hydrationError ?? 'Loading issuer context for this subject.'}
-          />
+          hydrationError ? (
+            <SubjectLoadFailure detail={hydrationError} onRetry={retryLoad} />
+          ) : (
+            <SubjectContextSkeleton />
+          )
         ) : (
           <Outlet context={{ subject, quote } satisfies SubjectDetailOutletContext} />
         )}
@@ -265,32 +279,27 @@ function LegacyRouteResolutionView({
   ticker,
   state,
   currentTab,
+  onRetry,
 }: {
   ticker: string
   state: LegacyRouteResolutionState
   currentTab: SymbolDetailTab
+  onRetry: () => void
 }) {
   const normalizedTicker = ticker.trim()
   if (!normalizedTicker) {
-    return (
-      <SubjectContextNotice
-        title="Subject context unavailable"
-        message="No subject found for this route."
-      />
-    )
+    return <SymbolNotFoundNotice message="No symbol matches this link." />
   }
   if (state.status === 'ambiguous') {
     return <LegacySubjectChoice state={state} currentTab={currentTab} />
   }
-  if (state.status === 'not_found' || state.status === 'error') {
-    return <SubjectContextNotice title="Subject context unavailable" message={state.message} />
+  if (state.status === 'not_found') {
+    return <SymbolNotFoundNotice message={state.message} />
   }
-  return (
-    <SubjectContextNotice
-      title="Loading subject context"
-      message={`Resolving ${normalizedTicker} before loading this section.`}
-    />
-  )
+  if (state.status === 'error') {
+    return <SubjectLoadFailure detail={state.message} onRetry={onRetry} />
+  }
+  return <SubjectContextSkeleton />
 }
 
 function LegacySubjectChoice({
@@ -320,7 +329,7 @@ function LegacySubjectChoice({
               state={{ subject: candidate }}
               className={`flex items-center justify-between ${PANEL_CLASS} px-3 py-2 text-sm text-fg transition-colors hover:border-line-strong hover:bg-surface-hover`}
             >
-              <span>{subjectDisplayName(candidate)}</span>
+              <span>{subjectDisplayName(candidate) ?? candidateListingLabel(candidate)}</span>
               <span className="text-xs text-muted">
                 {candidate.subject_ref.kind}
               </span>
@@ -332,17 +341,27 @@ function LegacySubjectChoice({
   )
 }
 
-function SubjectContextNotice({
-  title,
-  message,
-}: {
-  title: string
-  message: string
-}) {
+function SubjectContextSkeleton() {
+  return (
+    <section className="w-full p-8">
+      <Skeleton label="Loading symbol" className="h-40" />
+    </section>
+  )
+}
+
+function SymbolNotFoundNotice({ message }: { message: string }) {
   return (
     <section className="flex w-full flex-col gap-2 p-8">
-      <h2 className="text-base font-semibold text-fg">{title}</h2>
+      <h2 className="text-base font-semibold text-fg">Symbol not found</h2>
       <p className="text-sm text-muted">{message}</p>
+    </section>
+  )
+}
+
+function SubjectLoadFailure({ detail, onRetry }: { detail: string; onRetry: () => void }) {
+  return (
+    <section className="w-full p-8">
+      <FailureNotice message="Couldn't load this symbol." detail={detail} onRetry={onRetry} />
     </section>
   )
 }
@@ -371,12 +390,12 @@ function SaveToWatchlistButton({ subject }: { subject: ResolvedSubject }) {
   const handleClick = () => {
     requestProtectedAction({
       title: 'Sign in to save to watchlist',
-      description: `Saving ${displayName} to your watchlist requires sign-in. We'll bring you right back here.`,
+      description: `Saving ${displayName ?? 'this symbol'} to your watchlist requires sign-in. We'll bring you right back here.`,
       action: {
         actionType: ProtectedActionType.SaveToWatchlist,
         payload: {
           subject_ref: subject.subject_ref,
-          display_name: displayName,
+          display_name: displayName ?? undefined,
         },
       },
     })
@@ -408,7 +427,7 @@ function AnalyzeThisSubjectButton({ subject }: { subject: ResolvedSubject }) {
       data-testid="analyze-this-subject"
       to={entry.to}
       state={entry.state}
-      aria-label={`Analyze ${displayName}`}
+      aria-label={`Analyze ${displayName ?? 'this symbol'}`}
       className={HEADER_ACTION_CLASS}
     >
       Analyze

@@ -82,8 +82,9 @@ export function OverviewSection() {
       >
         <FetchStateView
           state={series}
-          noun="series"
-          idleMessage="No listing context for this subject."
+          noun="price history"
+          skeletonClassName="h-48"
+          idleMessage="Price history isn't available for this company."
         >
           {({ bars }) =>
             bars.length < 2 ? (
@@ -104,8 +105,8 @@ export function OverviewSection() {
         <Card testId="overview-profile" headingId="overview-profile-heading" heading="Company profile">
           <FetchStateView
             state={profile}
-            noun="profile"
-            idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load the company profile."
+            noun="company profile"
+            skeletonClassName="h-24"
           >
             {(data) => <ProfileBody profile={data} />}
           </FetchStateView>
@@ -117,8 +118,8 @@ export function OverviewSection() {
         >
           <FetchStateView
             state={consensus}
-            noun="consensus"
-            idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load consensus."
+            noun="analyst consensus"
+            skeletonClassName="h-32"
           >
             {(envelope) => <ConsensusBody envelope={envelope} />}
           </FetchStateView>
@@ -132,7 +133,7 @@ export function OverviewSection() {
         <FetchStateView
           state={consensus}
           noun="price target"
-          idleMessage="Issuer context unavailable for this entry."
+          skeletonClassName="h-24"
         >
           {(envelope) =>
             envelope.price_target ? (

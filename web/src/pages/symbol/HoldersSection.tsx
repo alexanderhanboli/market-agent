@@ -55,7 +55,7 @@ export function HoldersSection() {
         <FetchStateView
           state={institutional}
           noun="institutional holders"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load holders."
+          skeletonClassName="h-40"
         >
           {(envelope) => <OwnershipBars view={topOwnership(envelope.holders, TOP_OWNERS)} />}
         </FetchStateView>
@@ -68,7 +68,6 @@ export function HoldersSection() {
         <FetchStateView
           state={insider}
           noun="insider transactions"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load insider activity."
         >
           {(envelope) => <InsiderFlow flow={insiderNetFlow(envelope.holders)} />}
         </FetchStateView>
@@ -81,7 +80,7 @@ export function HoldersSection() {
         <FetchStateView
           state={institutional}
           noun="institutional holders"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load holders."
+          skeletonClassName="h-40"
         >
           {(envelope) => <InstitutionalTable envelope={envelope} />}
         </FetchStateView>
@@ -94,7 +93,7 @@ export function HoldersSection() {
         <FetchStateView
           state={insider}
           noun="insider transactions"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load insider activity."
+          skeletonClassName="h-40"
         >
           {(envelope) => <InsiderTable envelope={envelope} />}
         </FetchStateView>

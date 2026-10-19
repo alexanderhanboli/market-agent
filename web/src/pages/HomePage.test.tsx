@@ -106,13 +106,12 @@ function installDomGlobals(domWindow: Window): () => void {
 
 test('UserHomeView renders the loading hint when state.kind is loading', () => {
   const html = renderToString(<UserHomeView state={{ kind: 'loading' }} />)
-  assert.match(html, /Loading Home/)
+  assert.match(html, /<span role="status"[^>]*><span class="sr-only">Loading Home<\/span><\/span>/)
 })
 
-test('UserHomeView renders the error message when state.kind is error', () => {
-  const html = renderToString(<UserHomeView state={{ kind: 'error', message: 'boom' }} />)
-  assert.match(html, /Home is unavailable/)
-  assert.match(html, /boom/)
+test('UserHomeView says Home could not load and keeps the reason behind Details', () => {
+  const doc = new JSDOM(renderToString(<UserHomeView state={{ kind: 'error', message: 'boom', retry: () => {} }} />)).window.document
+  assert.equal(doc.body.textContent, "Couldn't load Home.RetryDetailsboom")
 })
 
 test('UserHomeView renders all five sections when state.kind is ready', () => {
@@ -205,9 +204,35 @@ test('UserHomeContent renders the error state when fetch returns non-200', async
     await act(async () => {
       root.render(<UserHomeContent userId={USER_ID_A} fetchImpl={fakeFetchFail(500)} />)
     })
-    const html = container.innerHTML
-    assert.match(html, /Home is unavailable/)
-    assert.match(html, /HTTP 500/)
+    assert.equal(container.textContent, "Couldn't load Home.RetryDetailsfetch home summary failed with HTTP 500")
+    await act(async () => root.unmount())
+  } finally {
+    restoreGlobals()
+  }
+})
+
+test('UserHomeContent Retry shows loading and then the summary', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const container = dom.window.document.getElementById('root')!
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  let calls = 0
+  const fail = fakeFetchFail(503)
+  const ok = fakeFetchOk(EMPTY_SUMMARY)
+  const second = fakeFetchHanging()
+  const fetchImpl: typeof fetch = (input, init) => [fail, second.fetch, ok][calls++](input, init)
+  try {
+    const root = createRoot(container)
+    await act(async () => {
+      root.render(<UserHomeContent userId={USER_ID_A} fetchImpl={fetchImpl} />)
+    })
+    assert.equal(container.textContent, "Couldn't load Home.RetryDetailsfetch home summary failed with HTTP 503")
+
+    await act(async () => container.querySelector('button')!.click())
+    assert.equal(container.textContent, 'Loading Home')
+
+    await act(async () => second.resolve(new Response(JSON.stringify(EMPTY_SUMMARY), { status: 200 })))
+    assert.match(container.textContent ?? '', /^Findings/)
+    assert.equal(calls, 2)
     await act(async () => root.unmount())
   } finally {
     restoreGlobals()
@@ -227,7 +252,7 @@ test('UserHomeContent ignores a stale fetch resolution that lands after an abort
     await act(async () => {
       root.render(<UserHomeContent userId={USER_ID_A} fetchImpl={hanging.fetch} />)
     })
-    assert.match(container.innerHTML, /Loading Home/)
+    assert.match(container.textContent ?? '', /Loading Home/)
 
     // Switch to userId B; the previous A-fetch is now aborted.
     await act(async () => {
@@ -246,7 +271,7 @@ test('UserHomeContent ignores a stale fetch resolution that lands after an abort
       )
     })
     assert.match(container.innerHTML, /Findings/)
-    assert.doesNotMatch(container.innerHTML, /Loading Home/)
+    assert.doesNotMatch(container.textContent ?? '', /Loading Home/)
 
     await act(async () => root.unmount())
   } finally {

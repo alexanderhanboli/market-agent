@@ -1,13 +1,16 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useMatch, useNavigate } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 
 import { PRIMARY_BUTTON_CLASS } from '../shell/buttonStyles.ts'
 import { VirtualizedMessageList } from '../chat'
 import { ChatComposer } from '../chat/ChatComposer.tsx'
 import { PendingTurnView } from '../chat/PendingTurnView.tsx'
 import { ThreadColumn } from '../chat/turnLayout.tsx'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { useAuth } from '../shell/useAuth.ts'
-import { deleteThread } from '../chat/threadActions.ts'
+import { cancelThreadDelete, startThreadDelete, useThreadDeletes } from '../chat/threadDeletes.ts'
 import { threadDisplayName } from '../chat/threadName.ts'
 import { useChatSession, type ChatSession } from '../chat/useChatSession.ts'
 import { useThreadList, useTitleFollowUp, type ThreadListState } from '../chat/useThreadList.ts'
@@ -20,6 +23,15 @@ export function ChatLayout() {
   const navigate = useNavigate()
   const routeThreadId = useMatch('/chat/:threadId')?.params.threadId ?? null
   const threads = useThreadList(userId)
+  const { sent } = useThreadDeletes()
+  useEffect(() => {
+    if (routeThreadId !== null && sent.has(routeThreadId)) navigate('/chat', { replace: true })
+  }, [routeThreadId, sent, navigate])
+  // Route changes only, never `sent`: a store change can render before a delete's navigation
+  // away lands, and re-running here would cancel the delete just started.
+  useEffect(() => {
+    if (routeThreadId !== null) cancelThreadDelete(routeThreadId)
+  }, [routeThreadId])
   const chat = useChatSession({ userId, threadId: routeThreadId, navigate, onThreadCreated: threads.refresh })
   const activeThreadId = chat.view.threadId
   const activeThread = threads.state.kind === 'ready'
@@ -46,7 +58,7 @@ export function ChatLayout() {
               state={threads.state}
               activeThreadId={activeThreadId}
               activeName={threadName}
-              onChanged={threads.refresh}
+              refresh={threads.refresh}
             />
           </aside>
         )}
@@ -114,19 +126,15 @@ function ChatThreadView({ chat, threadName, collapsed, setCollapsed }: ChatThrea
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
         {view.history === 'loading' ? (
           <ThreadColumn>
-            <p className="text-sm text-muted">Loading message history.</p>
+            <div className="flex flex-col gap-3">
+              <Skeleton label="Loading message history" className="ml-auto h-10 w-2/3" />
+              <Skeleton className="h-24" />
+            </div>
           </ThreadColumn>
         ) : null}
         {view.history === 'error' ? (
-          <ThreadColumn className="flex items-center gap-3 text-sm">
-            <p className="text-negative">Message history unavailable: {view.historyError}</p>
-            <button
-              type="button"
-              onClick={chat.reload}
-              className="rounded-md border border-negative px-3 py-1.5 text-xs font-medium text-negative"
-            >
-              Retry
-            </button>
+          <ThreadColumn>
+            <FailureNotice message="Couldn't load this chat." detail={view.historyError ?? ''} onRetry={chat.reload} />
           </ThreadColumn>
         ) : null}
         {view.listMounted ? (
@@ -148,45 +156,100 @@ function ThreadList({
   state,
   activeThreadId,
   activeName,
-  onChanged,
+  refresh,
 }: {
   userId: string
   state: ThreadListState
   activeThreadId: string | null
   activeName: string
-  onChanged: () => void
+  refresh: () => void
 }) {
   const navigate = useNavigate()
-  const [actionError, setActionError] = useState<string | null>(null)
+  const { pending, error: deleteError } = useThreadDeletes()
+  // An error from before this mount was already announced.
+  const [errorAtMount] = useState(deleteError)
+  const freshError = deleteError === errorAtMount ? null : deleteError
   const rows = state.kind === 'ready' ? state.threads : []
+  const undoButton = useRef<HTMLButtonElement>(null)
+  // Only the delete click moves focus; coming back to a pending delete doesn't.
+  const focusUndo = useRef(false)
+  useEffect(() => {
+    if (!focusUndo.current) return
+    focusUndo.current = false
+    undoButton.current?.focus()
+  }, [pending])
+  const newChatButton = useRef<HTMLButtonElement>(null)
+  const undoLostFocus = useRef<{ button: HTMLButtonElement; row: Element | null; neighbour: Element | null } | null>(null)
+  // React detaches the ref before it removes the button, so focus can still be read here.
+  const undoRef = useCallback((button: HTMLButtonElement) => {
+    undoButton.current = button
+    return () => {
+      undoButton.current = null
+      if (button.ownerDocument.activeElement !== button) return
+      const row = button.closest('li')
+      undoLostFocus.current = { button, row, neighbour: row?.nextElementSibling ?? row?.previousElementSibling ?? null }
+    }
+  }, [])
+  useEffect(() => {
+    const lost = undoLostFocus.current
+    if (lost === null) return
+    undoLostFocus.current = null
+    // Restore only if focus fell to the page or stayed on the node React reused as Delete;
+    // the [pending] effect may already have focused a new Undo.
+    const { activeElement, body } = lost.button.ownerDocument
+    if (activeElement !== null && activeElement !== body && activeElement !== lost.button) return
+    const link = [lost.row, lost.neighbour].find((row) => row?.isConnected)?.querySelector('a')
+    ;(link ?? newChatButton.current)?.focus()
+  })
 
   return (
-    <nav aria-label="Thread list" className="flex min-h-0 flex-col gap-3">
+    <nav aria-label="Chats" className="flex min-h-0 flex-col gap-3">
       <button
+        ref={newChatButton}
         type="button"
         onClick={() => navigate('/chat')}
         className={`${PRIMARY_BUTTON_CLASS} w-full justify-center`}
       >
         + New chat
       </button>
-      {actionError ? (
-        <p className="text-xs text-negative">{actionError}</p>
-      ) : null}
-      <div>
-        <h2 className="text-sm font-semibold text-fg">Thread list</h2>
-        <p className="mt-1 text-xs text-muted">
-          Persistent research threads scoped to your session.
-        </p>
-      </div>
-      {state.kind === 'error' ? (
-        <p className="text-xs text-negative">{state.message}</p>
+      <p role="status" className="sr-only">{pending ? 'Chat deleted.' : ''}</p>
+      <p role="alert" className="sr-only">{freshError ? "Couldn't delete the chat." : ''}</p>
+      {deleteError ? <FailureNotice message="Couldn't delete the chat." detail={deleteError.message} announced={freshError !== null} /> : null}
+      <h2 className="text-sm font-semibold text-fg">Chats</h2>
+      {state.kind === 'loading' ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton label="Loading chats" className="h-14" />
+          <Skeleton className="h-14" />
+          <Skeleton className="h-14" />
+        </div>
+      ) : state.kind === 'error' ? (
+        <FailureNotice message="Couldn't load your chats." detail={state.message} onRetry={refresh} />
       ) : rows.length === 0 ? (
         <p className="rounded-md border border-dashed border-line-strong p-3 text-xs text-muted">
-          No threads yet.
+          No chats yet.
         </p>
       ) : (
         <ul className="flex min-h-0 flex-col gap-2 overflow-auto">
           {rows.map((thread) => {
+            if (thread.thread_id === pending?.threadId) {
+              return (
+                <li
+                  key={thread.thread_id}
+                  className="flex items-center justify-between rounded-md border border-dashed border-line-strong p-3 text-xs text-muted"
+                >
+                  <span aria-hidden="true">Chat deleted.</span>
+                  <button
+                    ref={undoRef}
+                    type="button"
+                    aria-label={`Undo deleting ${pending.name}`}
+                    onClick={() => cancelThreadDelete(pending.threadId)}
+                    className="font-medium text-fg hover:underline"
+                  >
+                    Undo
+                  </button>
+                </li>
+              )
+            }
             const active = thread.thread_id === activeThreadId
             const name = active ? activeName : threadDisplayName(thread, null)
             return (
@@ -204,20 +267,15 @@ function ThreadList({
                 <button
                   type="button"
                   aria-label={`Delete ${name}`}
-                  className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 text-muted hover:text-negative"
+                  className="absolute right-2 top-2 rounded p-1 text-muted opacity-0 transition hover:text-negative focus-visible:opacity-100 group-hover:opacity-100"
                   onClick={(e) => {
                     e.preventDefault()
-                    if (!window.confirm('Delete this chat? This cannot be undone.')) return
-                    setActionError(null)
-                    void deleteThread(userId, thread.thread_id)
-                      .then(() => {
-                        onChanged()
-                        if (active) navigate('/chat')
-                      })
-                      .catch((e) => setActionError(e instanceof Error ? e.message : String(e)))
+                    focusUndo.current = true
+                    startThreadDelete(userId, thread.thread_id, name)
+                    if (active) navigate('/chat')
                   }}
                 >
-                  🗑
+                  <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
                 </button>
               </li>
             )

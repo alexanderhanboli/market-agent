@@ -336,21 +336,20 @@ for (const tab of ['earnings', 'holders', 'signals'] as const) {
   })
 }
 
-test('SubjectDetailShell blocks issuer-scoped child sections when canonical hydration fails', async () => {
+test('a failed hydration says "Couldn\'t load this symbol.", blocks child sections, and Retry hydrates again', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
   const originalFetch = globalThis.fetch
-  const originalWarn = console.warn
+  let hydrations = 0
 
   try {
-    console.warn = () => undefined
     globalThis.fetch = async (input) => {
       const url = String(input)
       if (url === '/v1/subjects/hydrate') {
-        return new Response(JSON.stringify({ error: 'missing subject' }), {
-          status: 404,
-          headers: { 'content-type': 'application/json' },
-        })
+        hydrations += 1
+        return hydrations === 1
+          ? new Response(JSON.stringify({ error: 'bad gateway' }), { status: 502 })
+          : new Response(JSON.stringify({ subject: HYDRATED_LISTING }), { status: 200 })
       }
       return new Response(JSON.stringify({ unavailable: { detail: 'test quote unavailable' } }), {
         status: 404,
@@ -372,22 +371,79 @@ test('SubjectDetailShell blocks issuer-scoped child sections when canonical hydr
         ),
       )
     })
+    const settle = async (done: () => boolean) => {
+      for (let attempt = 0; attempt < 5 && !done(); attempt += 1) {
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        })
+      }
+    }
+    const body = dom.window.document.body
+    const canvas = () => body.querySelector('nav[aria-label="Subject sections"]')!.nextElementSibling!
 
-    for (
-      let attempt = 0;
-      attempt < 5 && !dom.window.document.body.innerHTML.includes('Subject context unavailable');
-      attempt += 1
-    ) {
+    await settle(() => canvas().querySelector('details') !== null)
+    assert.equal(canvas().querySelector('p')?.textContent, "Couldn't load this symbol.")
+    assert.equal(canvas().querySelector('details')?.textContent, 'Detailssubject hydrate failed with HTTP 502')
+    assert.doesNotMatch(body.innerHTML, /child-mounted/)
+
+    const retry = [...canvas().querySelectorAll('button')].find((button) => button.textContent === 'Retry')!
+    await act(async () => retry.click())
+    await settle(() => body.innerHTML.includes('child-mounted'))
+    assert.equal(hydrations, 2)
+    assert.equal(canvas().textContent, 'child-mounted')
+    await act(async () => root.unmount())
+  } finally {
+    globalThis.fetch = originalFetch
+    restoreGlobals()
+  }
+})
+
+test('an issuer route titles the header with a skeleton while hydrating and "Unknown symbol" once hydration fails', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  const originalFetch = globalThis.fetch
+  let failHydration: () => void = () => undefined
+
+  try {
+    globalThis.fetch = async (input) => {
+      if (String(input) === '/v1/subjects/hydrate') {
+        await new Promise<void>((resolve) => {
+          failHydration = resolve
+        })
+        return new Response(JSON.stringify({ error: 'bad gateway' }), { status: 502 })
+      }
+      return new Response('{}', { status: 404 })
+    }
+
+    const root = createRoot(dom.window.document.getElementById('root')!)
+    await act(async () => {
+      root.render(
+        wrapShell(
+          <MemoryRouter initialEntries={[`/symbol/issuer%3A${ISSUER_ID}/overview`]}>
+            <Routes>
+              <Route path="/symbol/:subjectRef" element={<SubjectDetailShell />}>
+                <Route path="overview" element={<ChildMountedProbe />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>,
+        ),
+      )
+    })
+    const header = dom.window.document.querySelector('[data-testid="subject-header"]')!
+
+    assert.equal(header.querySelector('h1 [role="status"]')?.textContent, 'Loading symbol name')
+    assert.doesNotMatch(header.textContent ?? '', /subject/i)
+
+    await act(async () => failHydration())
+    for (let attempt = 0; attempt < 5 && header.querySelector('h1 [role="status"]') !== null; attempt += 1) {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
     }
-
-    assert.match(dom.window.document.body.innerHTML, /Subject context unavailable/)
-    assert.doesNotMatch(dom.window.document.body.innerHTML, /child-mounted/)
+    assert.equal(header.querySelector('h1')?.textContent, 'Unknown symbol')
+    assert.equal(header.querySelector('h1 [role="status"]'), null)
     await act(async () => root.unmount())
   } finally {
-    console.warn = originalWarn
     globalThis.fetch = originalFetch
     restoreGlobals()
   }

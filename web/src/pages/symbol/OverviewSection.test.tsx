@@ -163,7 +163,7 @@ test('Overview price card toggles 1M to 6M and back, rendering the cached 1M cha
     })
     const doc = dom.window.document
     assert.ok(doc.querySelector('[data-testid="overview-hero-chart"]'), 'cached 1M chart renders on return')
-    assert.equal(doc.body.textContent?.includes('Loading series…'), false)
+    assert.doesNotMatch(doc.body.textContent ?? '', /Loading price history/)
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0))

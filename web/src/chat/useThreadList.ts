@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { authenticatedFetch } from '../http/authFetch.ts'
 import type { ChatThread } from './threadActions.ts'
+import { beginThreadListRead, useThreadDeletes } from './threadDeletes.ts'
 
 export type ThreadListState =
   | { kind: 'loading' }
@@ -13,17 +14,22 @@ export type ThreadList = { state: ThreadListState; refresh: () => void }
 export function useThreadList(userId: string): ThreadList {
   const [state, setState] = useState<ThreadListState>({ kind: 'loading' })
   const [refreshKey, setRefreshKey] = useState(0)
+  const { sent, settled } = useThreadDeletes()
 
   useEffect(() => {
     if (!userId) return
     const controller = new AbortController()
+    const readSucceeded = beginThreadListRead()
     authenticatedFetch('/v1/chat/threads', { userId, signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return (await response.json()) as { threads: ChatThread[] }
       })
       .then(
-        (body) => setState({ kind: 'ready', threads: body.threads }),
+        (body) => {
+          setState({ kind: 'ready', threads: body.threads })
+          readSucceeded()
+        },
         (error: unknown) => {
           if (controller.signal.aborted) return
           // A failed refresh, such as a title poll, keeps the last good list.
@@ -33,10 +39,17 @@ export function useThreadList(userId: string): ThreadList {
         },
       )
     return () => controller.abort()
-  }, [userId, refreshKey])
+  }, [userId, refreshKey, settled])
 
-  const refresh = useCallback(() => setRefreshKey((key) => key + 1), [])
-  return { state, refresh }
+  const refresh = useCallback(() => {
+    setState((current) => current.kind === 'ready' ? current : { kind: 'loading' })
+    setRefreshKey((key) => key + 1)
+  }, [])
+  const visible = useMemo<ThreadListState>(
+    () => state.kind === 'ready' ? { kind: 'ready', threads: state.threads.filter((thread) => !sent.has(thread.thread_id)) } : state,
+    [state, sent],
+  )
+  return { state: visible, refresh }
 }
 
 // The server titles a thread after the turn completes and sends no event for

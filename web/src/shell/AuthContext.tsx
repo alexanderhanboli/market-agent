@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { forgetThreadDeletes } from '../chat/threadDeletes.ts'
 import { forgetUserData } from '../fetch/resource.ts'
 import { AuthContext, DEFAULT_MOCK_SESSION, type AuthContextValue, type AuthSession } from './authTypes'
 
@@ -16,11 +17,13 @@ export function AuthProvider({
 
   const signIn = useCallback((next?: AuthSession) => {
     forgetUserData()
+    forgetThreadDeletes()
     setSession(next ?? DEFAULT_MOCK_SESSION)
   }, [])
 
   const signOut = useCallback(() => {
     forgetUserData()
+    forgetThreadDeletes()
     setSession(null)
   }, [])
 

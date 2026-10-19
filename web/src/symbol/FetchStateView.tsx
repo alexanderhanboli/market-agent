@@ -1,29 +1,30 @@
 import type { ReactNode } from 'react'
 import type { VisibleFetchState } from '../fetch/resource.ts'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 
 type FetchStateViewProps<T> = {
   state: VisibleFetchState<T>
   noun: string
-  idleMessage: string
+  idleMessage?: string
+  skeletonClassName?: string
   children: (data: T) => ReactNode
 }
 
-const PLACEHOLDER_CLASS = 'text-sm text-muted'
+export const ISSUER_NOT_LINKED_MESSAGE =
+  "Company data isn't linked to this listing yet. Search for the symbol to load it."
 
 export function FetchStateView<T>({
   state,
   noun,
-  idleMessage,
+  idleMessage = ISSUER_NOT_LINKED_MESSAGE,
+  skeletonClassName = 'h-16',
   children,
 }: FetchStateViewProps<T>) {
-  if (state.status === 'idle') return <p className={PLACEHOLDER_CLASS}>{idleMessage}</p>
-  if (state.status === 'loading') return <p className={PLACEHOLDER_CLASS}>Loading {noun}…</p>
+  if (state.status === 'idle') return <p className="text-sm text-muted">{idleMessage}</p>
+  if (state.status === 'loading') return <Skeleton label={`Loading ${noun}`} className={skeletonClassName} />
   if (state.status === 'unavailable') {
-    return (
-      <p className={PLACEHOLDER_CLASS}>
-        {capitalize(noun)} unavailable: {state.reason}
-      </p>
-    )
+    return <FailureNotice message={`Couldn't load the ${noun}.`} detail={state.reason} onRetry={state.retry} />
   }
   return (
     <>
@@ -35,12 +36,8 @@ export function FetchStateView<T>({
 
 export function RefreshFailedNote({ noun, error }: { noun: string; error: string }) {
   return (
-    <p className="text-xs text-faint">
-      Showing earlier {noun}; refresh failed: {error}
+    <p className="text-xs text-faint" title={error}>
+      Showing earlier {noun}. Couldn't refresh.
     </p>
   )
-}
-
-function capitalize(value: string): string {
-  return value.length === 0 ? value : value[0].toUpperCase() + value.slice(1)
 }

@@ -4,9 +4,10 @@ import assert from 'node:assert/strict'
 import { JSDOM } from 'jsdom'
 import { act, Profiler, StrictMode, useEffect, type ReactElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createMemoryRouter, createRoutesFromElements, Outlet, Route, RouterProvider, useLocation, useNavigate } from 'react-router-dom'
+import { createMemoryRouter, createRoutesFromElements, Outlet, Route, RouterProvider, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom'
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
+import { forgetThreadDeletes } from '../chat/threadDeletes.ts'
 import type { ChatMessage } from '../chat/messageTypes.ts'
 import { AuthContext } from '../shell/authTypes.ts'
 import { ChatLayout } from './ChatPage.tsx'
@@ -115,6 +116,10 @@ export class FakeServer {
   createReply: () => Reply = () => ({ status: 201, body: this.createThread() })
   listReply: () => Reply = () => ({ body: { threads: this.threads } })
   postReply: (message: ChatMessage) => Reply = (message) => ({ status: 201, body: { message } })
+  deleteReply: (threadId: string) => Reply = (threadId) => {
+    this.threads = this.threads.filter((thread) => thread.thread_id !== threadId)
+    return { body: {} }
+  }
 
   createThread() {
     const thread = { thread_id: this.createdThreadId, title: null, updated_at: '2026-05-06T00:00:00.000Z' }
@@ -155,6 +160,8 @@ export class FakeServer {
       return this.postReply(message)
     }
     if (match && method === 'GET') return this.history(match[1])
+    const thread = /^\/v1\/chat\/threads\/([^/]+)$/.exec(path)
+    if (thread && method === 'DELETE') return this.deleteReply(thread[1])
     throw new Error(`unexpected request ${method} ${path}`)
   }
 }
@@ -167,7 +174,7 @@ export function deferred<T>() {
   return { promise, resolve }
 }
 
-function LocationProbe({ onPath, onNavigate }: { onPath: (path: string) => void; onNavigate: (navigate: (to: string) => void) => void }) {
+function LocationProbe({ onPath, onNavigate }: { onPath: (path: string) => void; onNavigate: (navigate: NavigateFunction) => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   useEffect(() => onPath(location.pathname), [location.pathname, onPath])
@@ -180,8 +187,10 @@ export type Harness = {
   container: HTMLElement
   server: FakeServer
   frames: string[]
+  statusFrames: string[][]
   path: () => string
   navigate: (to: string) => Promise<void>
+  back: () => Promise<void>
   text: () => string
   query: (selector: string) => Element | null
   button: (name: string) => HTMLButtonElement
@@ -217,12 +226,13 @@ export async function renderChat(initialPath: string, server: FakeServer, option
 
   const container = dom.window.document.getElementById('root')!
   const frames: string[] = []
+  const statusFrames: string[][] = []
   let currentPath = initialPath
   const onPath = (path: string) => {
     currentPath = path
   }
-  let routerNavigate: (to: string) => void = () => assert.fail('router not mounted')
-  const onNavigate = (navigate: (to: string) => void) => {
+  let routerNavigate: NavigateFunction = () => assert.fail('router not mounted')
+  const onNavigate = (navigate: NavigateFunction) => {
     routerNavigate = navigate
   }
   const threadRoute = options.threadRoute
@@ -235,7 +245,13 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     </Route>,
   ), { initialEntries: [initialPath] })
   const tree: ReactElement = (
-    <Profiler id="chat" onRender={() => frames.push(container.textContent ?? '')}>
+    <Profiler
+      id="chat"
+      onRender={() => {
+        frames.push(container.textContent ?? '')
+        statusFrames.push([...container.querySelectorAll('[role="status"]')].map((node) => node.textContent ?? ''))
+      }}
+    >
       <AuthContext.Provider value={{ session: { userId: USER_ID, displayName: 'Test User' }, signIn: () => undefined, signOut: () => undefined }}>
         <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
           <RouterProvider router={router} />
@@ -261,9 +277,14 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     container,
     server,
     frames,
+    statusFrames,
     path: () => currentPath,
     navigate: async (to) => {
       await act(async () => routerNavigate(to))
+      await flush()
+    },
+    back: async () => {
+      await act(async () => routerNavigate(-1))
       await flush()
     },
     text: () => container.textContent ?? '',
@@ -296,6 +317,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     unmount,
     cleanup: async () => {
       await unmount()
+      forgetThreadDeletes()
       for (const [key, value] of Object.entries(saved)) {
         if (value === undefined) delete globals[key]
         else globals[key] = value
