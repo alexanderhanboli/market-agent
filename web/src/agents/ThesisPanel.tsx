@@ -3,6 +3,7 @@ import type { FetchImpl } from '../http/authFetch.ts'
 import { fetchThesisHistory } from './thesisClient.ts'
 import { ThesisEditor } from './ThesisEditor.tsx'
 import { AssessmentHistory, VersionHistory } from './ThesisHistory.tsx'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
 import { Skeleton } from '../ui/Skeleton.tsx'
 import type { ThesisHistoryResponse, ThesisVersion } from '../../../services/agents/src/thesis-types.ts'
 
@@ -23,6 +24,7 @@ export function ThesisPanel(props: ThesisPanelProps) {
 function ThesisPanelContent({ userId, agentId, initialThesis, refreshKey, fetchImpl, onSaved, onStructuredChange }: ThesisPanelProps) {
   const [history, setHistory] = useState<ThesisHistoryResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const request = useRef<AbortController | null>(null)
   useEffect(() => {
     const controller = new AbortController()
@@ -38,7 +40,12 @@ function ThesisPanelContent({ userId, agentId, initialThesis, refreshKey, fetchI
         setError(error instanceof Error ? error.message : String(error))
       })
     return () => controller.abort()
-  }, [userId, agentId, refreshKey, fetchImpl])
+  }, [userId, agentId, refreshKey, fetchImpl, attempt])
+
+  function retry() {
+    setError(null)
+    setAttempt((current) => current + 1)
+  }
 
   const hasStructuredThesis = history === null ? null : history.thesis !== null
   useEffect(() => {
@@ -59,7 +66,15 @@ function ThesisPanelContent({ userId, agentId, initialThesis, refreshKey, fetchI
 
   return (
     <PanelFrame>
-      {error ? <p role="status" className="mt-2 text-sm text-negative">{history === null ? 'Thesis conditions are unavailable. ' : 'Assessment history could not be refreshed. '}{error}</p> : null}
+      {error ? (
+        <div className="mt-2">
+          <FailureNotice
+            message={history === null ? "Couldn't load the thesis conditions." : "Couldn't refresh the assessment history."}
+            detail={error}
+            onRetry={retry}
+          />
+        </div>
+      ) : null}
       {history === null ? (
         !error && <Skeleton label="Loading thesis conditions" className="h-40" />
       ) : (
