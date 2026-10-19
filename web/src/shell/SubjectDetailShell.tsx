@@ -4,10 +4,9 @@ import { analyzeEntryFromSubject } from '../analyze/analyzeEntry'
 import { issuerIdFromSubject } from '../symbol/profile.ts'
 import { QuoteSnapshot } from '../symbol/QuoteSnapshot'
 import { useResource } from '../fetch/resource.ts'
-import { listingIdForQuote, listingQuote, subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
+import { candidateName, listingIdForQuote, listingQuote, subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
 import { PANEL_CLASS } from '../symbol/surfaceStyles.ts'
 import {
-  candidateListingLabel,
   fetchSubjectHydration,
   isCanonicalResolvedSubject,
   isSymbolDetailTab,
@@ -321,7 +320,7 @@ function LegacySubjectChoice({
         </p>
       </div>
       <ul className="grid gap-2 sm:max-w-xl">
-        {state.candidates.map((candidate) => (
+        {state.candidates.map((candidate, index) => (
           <li key={`${candidate.subject_ref.kind}:${candidate.subject_ref.id}`}>
             <Link
               replace
@@ -329,10 +328,7 @@ function LegacySubjectChoice({
               state={{ subject: candidate }}
               className={`flex items-center justify-between ${PANEL_CLASS} px-3 py-2 text-sm text-fg transition-colors hover:border-line-strong hover:bg-surface-hover`}
             >
-              <span>{subjectDisplayName(candidate) ?? candidateListingLabel(candidate) ?? UNKNOWN_SYMBOL}</span>
-              {candidate.display_labels?.mic && (
-                <span className="text-xs text-muted">{candidate.display_labels.mic}</span>
-              )}
+              <span>{candidateName(candidate, index)}</span>
             </Link>
           </li>
         ))}

@@ -347,5 +347,5 @@ export function candidateListingLabel(subject: ResolvedSubject): string | null {
   const mic = labels?.mic
 
   if (ticker && mic) return `${ticker} · ${mic}`
-  return ticker || null
+  return ticker || mic || null
 }

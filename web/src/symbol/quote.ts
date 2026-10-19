@@ -1,4 +1,5 @@
 import {
+  candidateListingLabel,
   isCanonicalResolvedSubject,
   isSubjectRef,
   type IssuerContext,
@@ -233,9 +234,14 @@ export function issuerProfileFromSubject(
 
 export const UNKNOWN_SYMBOL = 'Unknown symbol'
 
-// Null until hydration names a subject that was built from a bare ref.
+// Null until hydration names a subject that was built from a bare ref. An empty label is no name.
 export function subjectDisplayName(subject: ResolvedSubject | RouteResolvedSubject): string | null {
-  return subject.display_labels?.primary ?? subject.display_label ?? subject.display_name ?? null
+  return subject.display_labels?.primary || subject.display_label || subject.display_name || null
+}
+
+// Candidates offered together must read differently, so one with no name or listing is numbered.
+export function candidateName(candidate: ResolvedSubject, index: number): string {
+  return subjectDisplayName(candidate) ?? candidateListingLabel(candidate) ?? `Symbol ${index + 1}`
 }
 
 // Re-export so callers don't need to import from search.ts when they're
