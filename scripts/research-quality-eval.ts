@@ -33,9 +33,8 @@ export type AnsweredQuestion = {
   traces?: string[];
   // answeredBy: the deployment that wrote the turn's answer, as chat recorded it (#183).
   // usage: the answer call's tokens, from turn.completed (#181).
-  // removed: the rendered assertions the narrative guard dropped, from turn.completed (#144).
   // assertions: the check of the answer's assertion list, which the answer is rendered from (#208).
-  turns: Array<{ message: string; outcome: string; blocks: Block[]; answeredBy?: string | null; usage?: AnswerUsage | null; removed?: string[]; assertions?: AssertionReport | null }>;
+  turns: Array<{ message: string; outcome: string; blocks: Block[]; answeredBy?: string | null; usage?: AnswerUsage | null; assertions?: AssertionReport | null }>;
 };
 
 // As chat reports it on turn.completed (services/chat/src/assertions.ts).
@@ -99,8 +98,6 @@ export function renderReport(run: string, model: string, base: string, answered:
     "",
     `Answer tokens: ${usageSummary(answered)}.`,
     "",
-    `Guard drops: ${removedSummary(answered)}.`,
-    "",
     `Assertions: ${assertionSummary(answered)}.`,
     "",
     `Model: \`${model}\`. Data: frozen golden dataset. Score each question in \`${run}.scores.json\` (rubric below),`,
@@ -123,9 +120,6 @@ export function renderReport(run: string, model: string, base: string, answered:
       else if (turn.outcome !== "turn.completed") lines.push(`**Turn ended with ${turn.outcome}.**`, "");
       const tokens = turn.usage ? `${turn.usage.input_tokens} input / ${turn.usage.output_tokens} output tokens${turn.usage.reasoning_tokens === undefined ? "" : ` (${turn.usage.reasoning_tokens} reasoning)`}` : null;
       if (turn.answeredBy || tokens) lines.push(`_${[turn.answeredBy ? `Answered by \`${turn.answeredBy}\`` : null, tokens].filter(Boolean).join("; ")}._`, "");
-      if (turn.removed?.length) {
-        lines.push(`_Guard dropped ${turn.removed.length} assertion${turn.removed.length === 1 ? "" : "s"}:_`, "", ...turn.removed.map((assertion) => `> ~~${assertion}~~`), "");
-      }
       if (turn.assertions) lines.push(...renderAssertions(turn.assertions), "");
       lines.push(...turn.blocks.flatMap((block) => [renderBlock(block), ""]));
     }
@@ -163,14 +157,6 @@ export function assertionSummary(answered: ReadonlyArray<AnsweredQuestion>): str
   }
   const byCheck = checks.size > 0 ? ` (${[...checks].sort(([a], [b]) => a.localeCompare(b)).map(([check, n]) => `${check} ${n}`).join(", ")})` : "";
   return `${accepted} accepted, ${rejected} rejected${byCheck} over ${turns.length} answered turns; ${count("missing")} missing, ${count("malformed")} malformed, ${count("skipped")} with no figures; ${rendered} rendered`;
-}
-
-// Rendered assertions the narrative guard dropped, in total and per answered turn.
-export function removedSummary(answered: ReadonlyArray<AnsweredQuestion>): string {
-  const turns = answered.flatMap((question) => question.turns).filter((turn) => turn.outcome === "turn.completed");
-  const removed = turns.reduce((sum, turn) => sum + (turn.removed?.length ?? 0), 0);
-  const hit = turns.filter((turn) => turn.removed?.length).length;
-  return `${removed} assertion${removed === 1 ? "" : "s"} in ${hit} of ${turns.length} answered turn${turns.length === 1 ? "" : "s"}`;
 }
 
 // Each answering model with its turn count; turns whose answer recorded none (no model
@@ -321,11 +307,9 @@ async function run(base: string): Promise<void> {
       }
       const startedAt = Date.now();
       let usage: AnswerUsage | null = null;
-      let removed: string[] = [];
       let assertions: AssertionReport | null = null;
       const outcome = await runTurn(base, threadId, turn.message, 180_000, turn.subjectText, (data) => {
         usage = (data.answer_usage as AnswerUsage | undefined) ?? null;
-        removed = Array.isArray(data.narrative_removed) ? data.narrative_removed as string[] : [];
         assertions = (data.assertion_report as AssertionReport | undefined) ?? null;
       });
       console.log(`${outcome === "turn.completed" ? "done" : outcome}  ${question.id}: ${turn.message}  (${((Date.now() - startedAt) / 1000).toFixed(1)}s)`);
@@ -333,7 +317,7 @@ async function run(base: string): Promise<void> {
       const answers = messages.filter((m) => m.role === "assistant");
       // A failed turn may have saved no answer: show none rather than the previous one.
       const answer = answers.length > answersSoFar ? answers.at(-1)! : null;
-      turns.push({ message: turn.message, outcome, blocks: answer?.blocks ?? [], answeredBy: answer?.answered_by ?? null, usage, removed, assertions });
+      turns.push({ message: turn.message, outcome, blocks: answer?.blocks ?? [], answeredBy: answer?.answered_by ?? null, usage, assertions });
       answersSoFar = answers.length;
     }
     answered.push({ question, threadId, turns, traces: threadTraces(TRACE_DIR, threadId, ROOT) });

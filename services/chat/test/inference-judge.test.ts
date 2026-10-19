@@ -4,7 +4,7 @@ import test from "node:test";
 import type { LlmChatRequest } from "../../llm/src/index.ts";
 import { checkAssertions, type Assertion } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
-import { judgeCases, judgeInferences, parseVerdicts, type JudgeCase } from "../src/inference-judge.ts";
+import { judgeCases, judgeInferences, judgeMessages, parseVerdicts, verdictsOf, type JudgeCase } from "../src/inference-judge.ts";
 
 const ENV = {
   LLM_CHANNELS: "anthropic",
@@ -90,25 +90,31 @@ test("an inference resting on a management attribution reaches the judge with th
   ]]);
 });
 
-test("one judge call per answer, on JUDGE_LITELLM_MODEL, carries every inference with its supports' text; its verdicts are read per inference", async () => {
+test("one judge call per answer, on JUDGE_LITELLM_MODEL, carries every inference with its supports' text; its reply is kept raw and read per inference", async () => {
   const requests: Array<{ model: string; request: LlmChatRequest }> = [];
-  const outcome = await judgeInferences({
+  const reply = 'Here you go:\n{"verdicts":[{"id":3,"verdict":"entailed"},{"id":2,"verdict":"not_entailed","reason":"unsupported: no figure shows what it keeps of a sale."}]}';
+  const record = await judgeInferences({
     cases: CASES,
     companies: PACKET.companies,
     env: ENV,
     createClient: () => async (deployment, request) => {
       requests.push({ model: `${deployment.channel}/${deployment.model}`, request });
-      return {
-        text: 'Here you go:\n{"verdicts":[{"id":3,"verdict":"entailed"},{"id":2,"verdict":"not_entailed","reason":"unsupported: no figure shows what it keeps of a sale."}]}',
-        usage: { inputTokens: 900, outputTokens: 60, totalTokens: 960 },
-      };
+      return { text: reply, usage: { inputTokens: 900, outputTokens: 60, totalTokens: 960 } };
     },
   });
-  assert.deepEqual(outcome.verdicts, [
+  assert.equal(record.outcome, "replied");
+  assert.deepEqual(record.outcome === "replied" && { ...record.exchange, latency_ms: typeof record.exchange.latency_ms }, {
+    messages: judgeMessages(CASES, PACKET.companies),
+    text: reply,
+    truncated: false,
+    deployment: "anthropic/claude-haiku-5-5",
+    latency_ms: "number",
+    usage: { input_tokens: 900, output_tokens: 60 },
+  });
+  assert.deepEqual(verdictsOf(CASES, record), [
     { index: 2, verdict: "not_entailed", reason: "unsupported: no figure shows what it keeps of a sale." },
     { index: 3, verdict: "entailed" },
   ]);
-  assert.deepEqual([outcome.deployment, outcome.usage], ["anthropic/claude-haiku-5-5", { input_tokens: 900, output_tokens: 60 }]);
   assert.deepEqual(requests.map(({ model }) => model), ["anthropic/claude-haiku-5-5"]);
   const [{ request }] = requests as [typeof requests[number]];
   assert.deepEqual([request.temperature, request.reasoning, request.messages.map((message) => message.role)], [undefined, "low", ["system", "user"]]);
@@ -174,15 +180,16 @@ test("a failed or cut-off judge call is an error for every inference; with no in
       throw new Error("provider down");
     },
   });
-  assert.deepEqual([thrown.deployment, thrown.verdicts.map(({ verdict }) => verdict)], [null, ["error", "error"]]);
-  assert.match(thrown.verdicts[0]!.reason!, /^judge call failed: /);
+  assert.equal(thrown.outcome, "failed");
+  assert.deepEqual(verdictsOf(CASES, thrown).map(({ verdict }) => verdict), ["error", "error"]);
+  assert.match(verdictsOf(CASES, thrown)[0]!.reason!, /^judge call failed: /);
   const cut = await judgeInferences({
     cases: CASES.slice(0, 1),
     companies: PACKET.companies,
     env: ENV,
     createClient: () => async () => ({ text: '{"verdicts":[{"id":2,"verdict":"entailed"}]}', truncated: true }),
   });
-  assert.deepEqual(cut.verdicts, [{ index: 2, verdict: "error", reason: "the judge's reply was cut off" }]);
+  assert.deepEqual(verdictsOf(CASES.slice(0, 1), cut), [{ index: 2, verdict: "error", reason: "the judge's reply was cut off" }]);
   const unbuilt = await judgeInferences({
     cases: CASES.slice(0, 1),
     companies: PACKET.companies,
@@ -191,9 +198,9 @@ test("a failed or cut-off judge call is an error for every inference; with no in
       throw new Error("no such replay file");
     },
   });
-  assert.deepEqual(unbuilt.verdicts, [{ index: 2, verdict: "error", reason: "judge model could not be configured: no such replay file" }]);
+  assert.deepEqual(verdictsOf(CASES.slice(0, 1), unbuilt), [{ index: 2, verdict: "error", reason: "judge model could not be configured: no such replay file" }]);
   const unconfigured = await judgeInferences({ cases: CASES.slice(0, 1), companies: PACKET.companies, env: {} });
-  assert.deepEqual(unconfigured.verdicts, [{ index: 2, verdict: "error", reason: "no judge model is configured" }]);
+  assert.deepEqual(verdictsOf(CASES.slice(0, 1), unconfigured), [{ index: 2, verdict: "error", reason: "no judge model is configured" }]);
   let called = false;
   const none = await judgeInferences({
     cases: [],
@@ -204,5 +211,5 @@ test("a failed or cut-off judge call is an error for every inference; with no in
       return { text: "" };
     },
   });
-  assert.deepEqual([none, called], [{ verdicts: [], deployment: null, latency_ms: 0 }, false]);
+  assert.deepEqual([none, called], [{ outcome: "not_called", reason: "no inference to judge" }, false]);
 });

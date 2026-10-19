@@ -119,24 +119,16 @@ fixed rule, not a tool loop.
   `buildFactBackedSealInput`, which seals per block. `normalizeAssistantBlock` keeps `data_ref.params`, and fact
   blocks don't inherit the narrative's default claim/document refs, because the verifier would then demand those
   sources on the chart.
-- **Narrative guard** (`narrative-guard.ts`): when fact blocks are shown, the model is given the displayed figures
-  and told not to compute new ones. Any sentence whose numbers don't appear in the displayed figures or in a cited
-  claim is dropped. If nothing survives, a fixed pointer to the figures is shown instead. Numbers are compared by
-  value only, not unit (see the `ponytail:` note in the file). A magnitude comparison in words ("more than double",
-  "thirteen times", "sixfold", "half as large") is dropped too, always: the model quotes a displayed figure instead (#228).
-- The displayed figures reach the model as rows (`displayedFigures`, `fact-blocks.ts`): `{company, metric, value}`
-  for comparison cells, `{metric, value}` / `{metric, period, value}` for single-company blocks. A comparison figure
-  must also be credited to its company **in the same sentence**, even when a claim repeats the number; nothing carries
-  across sentences ("NVDA leads. Its margin is 74.6%." drops the second sentence). Within a sentence, the companies
-  named since the previous figure must own it; else the first one named after it when for/at/in ties them (unless a
-  pronoun is the subject); else the previous figure's company. A company introduced as a comparison ("compared
-  with", "unlike") owns a figure only when directly attached to it ("versus AMD's 49.2%", "compared with AMD at
-  49.2%") or naming it by its metric through its possessive ("versus AMD's FY2025 net margin of 12.0%", #240); "Unlike AMD, the
-  company achieved 49.2%" credits nobody. A figure's sign carries across the currency
-  prefix the formatter writes ("-CN¥3.1B", "-CHF 3.1B"). Anything ambiguous (two companies before a figure,
-  "respectively", no company) is dropped, so a real figure quoted for the wrong company never survives; the cost is
-  some valid sentences dropped (#144). Companies are recognized by their displayed ticker, case-sensitively, never by
-  a one-letter ticker; digits inside a label are not figures.
+- **Judge gate** (`inference-judge.ts`, `answer-trace.ts`): the answer is rendered from its checked assertions, each
+  figure a packet value in a template; an analyst inference is the model's words, with no digit or reference. A
+  second model (`JUDGE_LITELLM_MODEL`) reads each inference beside the assertions it rests on. The answer is sealed
+  and shown at once with a line in each inference's place (`answer.shown`), and saved once the judge is done with
+  the inferences it found entailed; the save may differ from the seal only in text segments, which neither the
+  seal nor a block proof reads (`messages.ts`). No judge configured, a failed or late call, or no verdict: the
+  inference is not shown. The judge replaced the word-list narrative guard (#302).
+- The displayed figures reach the model in its evidence packet (`displayedFigures`, `fact-blocks.ts`;
+  `evidence-packet.ts`), each with an id and the company and metric it belongs to. The model cites a figure only by
+  its id (`[[F3]]`); the answer renders the packet's value in a template, so no figure is the model's words.
 - A failure while building fact blocks degrades to a narrative-only answer; it never costs the user the answer.
 
 ## Cash flow, balance sheet and EPS (#205)

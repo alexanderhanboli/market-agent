@@ -162,6 +162,70 @@ test("chat message persistence with pool pins insert transaction to one client",
   assert.equal(pool.releasedWith, undefined);
 });
 
+test("a reveal runs once, after a verified seal and before the save, with the sealed blocks' proofs and no client held; the blocks it returns are saved", async () => {
+  const steps: string[] = [];
+  const client = recordingDb(steps);
+  client.release = () => {
+    steps.push("release");
+  };
+  const ref = { type: "ref", ref_kind: "fact", ref_id: "f1", format: "$55.2B" };
+  const shown = [{ id: "b1", kind: "rich_text", segments: [{ type: "text", text: "Revenue was " }, ref, { type: "text", text: "\n\n> _Checking an analyst inference…_" }] }];
+  const saved = [{ id: "b1", kind: "rich_text", segments: [{ type: "text", text: "Revenue was " }, ref, { type: "text", text: "\n\n> **Analyst inference:** It is concentrated." }] }];
+  const sealed: unknown[] = [];
+  const result = await persistChatMessageAfterSnapshotSealWithPool({ connect: async () => client }, {
+    thread_id: "11111111-1111-4111-a111-111111111111",
+    role: "assistant",
+    blocks: shown,
+    content_hash: "sha256:shown",
+    sealSnapshot: async () => {
+      steps.push("seal");
+      return successfulSealResult();
+    },
+    reveal: async (seal) => {
+      steps.push("reveal");
+      sealed.push(seal);
+      return { blocks: saved, content_hash: "sha256:saved" };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(steps, [
+    "seal", "select-snapshots", "select-certificates", "release", "reveal",
+    "begin", "insert", "update-thread", "commit", "select-message", "select-snapshots", "select-certificates", "release",
+  ]);
+  assert.ok(result.ok);
+  // The proofs shown with the sealed answer are those its saved message reads with.
+  assert.deepEqual(JSON.parse(JSON.stringify(sealed)), [{ snapshot_id: "22222222-2222-4222-a222-222222222222", block_proofs: JSON.parse(JSON.stringify(result.message.block_proofs)) }]);
+  assert.deepEqual([result.message.blocks, result.message.content_hash], [saved, "sha256:saved"]);
+});
+
+test("revealed blocks that differ from the sealed ones in more than their text are not saved", async () => {
+  const steps: string[] = [];
+  const client = recordingDb(steps);
+  client.release = () => {
+    steps.push("release");
+  };
+  const ref = (format: string) => ({ type: "ref", ref_kind: "fact", ref_id: "f1", format });
+  const shown = [{ id: "b1", kind: "rich_text", segments: [{ type: "text", text: "Revenue was " }, ref("$55.2B")] }];
+  for (const revealed of [
+    [{ id: "b1", kind: "rich_text", segments: [{ type: "text", text: "Revenue was " }, ref("$55.2B"), { type: "text", text: " or " }, ref("$60.0B")] }],
+    [{ id: "b1", kind: "rich_text", segments: [{ type: "text", text: "Revenue was " }, ref("$60.0B")] }],
+    [{ id: "b1", kind: "rich_text", segments: [{ type: "text", text: "Revenue was " }, ref("$55.2B")], source_refs: ["another"] }],
+    [...shown, { id: "b2", kind: "rich_text", segments: [{ type: "text", text: "More." }] }],
+  ]) {
+    steps.length = 0;
+    await assert.rejects(persistChatMessageAfterSnapshotSealWithPool({ connect: async () => client }, {
+      thread_id: "11111111-1111-4111-a111-111111111111",
+      role: "assistant",
+      blocks: shown,
+      content_hash: "sha256:shown",
+      sealSnapshot: async () => successfulSealResult(),
+      reveal: async () => ({ blocks: revealed, content_hash: "sha256:revealed" }),
+    }), /a revealed answer may differ from the sealed one only in its text; it was not saved/);
+    assert.deepEqual(steps, ["select-snapshots", "select-certificates", "release"], JSON.stringify(revealed));
+  }
+});
+
 test("a committed message that cannot be read back fails the write, and the client is still released", async () => {
   const steps: string[] = [];
   const client = recordingDb(steps, { readBack: "finds_nothing" });

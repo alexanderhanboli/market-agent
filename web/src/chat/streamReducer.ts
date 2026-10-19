@@ -1,5 +1,5 @@
 import { REF_SEGMENT_KINDS, type Block, type RefSegmentKind, type RichTextSegment } from '../blocks/types.ts'
-import { parseSealedMessage, type SealedChatMessage } from './messageTypes.ts'
+import { parseSealedMessage, parseShownAnswer, type SealedChatMessage, type ShownAnswer } from './messageTypes.ts'
 import type { ChatSseEvent } from './sseEventTypes.ts'
 import {
   markPlanStepDone,
@@ -51,6 +51,10 @@ export type StreamState = {
   // Captured from turn.error.
   error: string | null
   unverified?: UnverifiedTurn | null
+  // The sealed answer shown while the judge reads its inferences
+  // (answer.shown); the saved message replaces it on turn.completed. A failed
+  // turn saved nothing, so it drops it.
+  shown?: ShownAnswer | null
 } & (
   | { turn_status: 'idle' | 'started' | 'error' | 'unverified' }
   | { turn_status: 'completed'; sealed: SealedChatMessage }
@@ -80,7 +84,13 @@ export function applyChatStreamEvent(state: StreamState, event: ChatSseEvent): S
         plan_steps: planStepsForTurnStarted(event),
         error: null,
         unverified: null,
+        shown: null,
       }
+
+    case 'answer.shown': {
+      const shown = parseShownAnswer(event)
+      return shown === null ? state : { ...state, shown }
+    }
 
     case 'turn.completed': {
       const unverified = readUnverified(event.unverified)
@@ -92,6 +102,7 @@ export function applyChatStreamEvent(state: StreamState, event: ChatSseEvent): S
           block_order: [],
           error: null,
           unverified,
+          shown: null,
         }
       }
       const sealed = parseSealedMessage(event.message, { threadId: event.thread_id, messageId: event.message_id })
@@ -112,6 +123,7 @@ export function applyChatStreamEvent(state: StreamState, event: ChatSseEvent): S
     case 'turn.error':
       return {
         ...state,
+        shown: null,
         turn_status: 'error',
         plan_steps: markRunningPlanStepsError(state.plan_steps),
         error: readString(event.error) ?? readString(event.message) ?? 'unknown stream error',

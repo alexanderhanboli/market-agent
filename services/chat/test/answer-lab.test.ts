@@ -77,7 +77,7 @@ test("a live sample's answer reads as the user sees it: text as written, each re
 });
 
 test("a live run's summary counts rendered answers, accepted kinds, repeated observations and rejections by reason", () => {
-  const metrics = { figure_refs: 0, plain_numbers: 0, removed: 0, fallback: false, accepted: 0, rejected: 0, output_tokens: 0, latency_ms: 0 };
+  const metrics = { figure_refs: 0, plain_numbers: 0, fallback: false, accepted: 0, rejected: 0, inferences_shown: 0, inferences_hidden: 0, output_tokens: 0, latency_ms: 0 };
   const summary = assertionSummary({
     results: [
       { trace: "a", sample: 0, metrics, assertions: { rendered: true, accepted: ["observation", "analyst_inference", "observation"], rejected: ["x", "y"], repeated: 2 } },
@@ -132,7 +132,7 @@ test("the judge's held-out set: every original and mutation passes the turn's ow
   assert.deepEqual([peer.judged.subject, peer.judged.checked, peer.companies], ["NVDA", ["NVDA highest on revenue, gross margin, net margin, and revenue growth (YoY)"], ["NVDA", "AMD"]]);
 });
 
-test("a set inference the word rules already reject fails the set, rather than inflate the catch rate", () => {
+test("a set inference the turn's checks already reject fails the set, rather than inflate the catch rate", () => {
   const dir = mkdtempSync(join(tmpdir(), "judge-mutations-"));
   const file = join(dir, "set.json");
   writeFileSync(file, JSON.stringify({ cases: [{
@@ -141,7 +141,7 @@ test("a set inference the word rules already reject fails the set, rather than i
     index: 6,
     supports: [5],
     originals: ["Data Center dominates the top line."],
-    mutations: [{ kind: "worded_amount", text: "Data Center brings in ninety percent of the top line." }],
+    mutations: [{ kind: "worded_amount", text: "Data Center brings in 90% of the top line." }],
   }] }));
   assert.throws(() => mutationVariants(file), {
     message: "typed worded_amount: the turn's checks reject it (an inference rests on its supports; it writes no figure); the set holds only inferences they pass",
@@ -172,43 +172,50 @@ test("the mutation summary counts catches by kind and false alarms on originals;
   ].join("\n"));
 });
 
-test("a judged run's summary counts verdicts, the judge's cost per answer, and lists each inference it did not find entailed", () => {
-  const judge = (verdicts: Array<{ index: number; verdict: "entailed" | "not_entailed" | "error"; reason?: string; text: string }>) =>
-    ({ verdicts, deployment: "anthropic/claude-haiku-5-5", latency_ms: 2000, usage: { input_tokens: 1000, output_tokens: 100 } }) as never;
+test("a judged run's summary counts the inferences shown and hidden, what the judge did per answer, its cost per reply, and each inference it left out", () => {
+  const metrics = (shown: number, hidden: number) =>
+    ({ figure_refs: 0, plain_numbers: 0, fallback: false, accepted: 0, rejected: 0, inferences_shown: shown, inferences_hidden: hidden, output_tokens: 0, latency_ms: 0 });
+  const replied = {
+    outcome: "replied" as const,
+    exchange: { messages: [], text: "{}", truncated: false, deployment: "anthropic/claude-haiku-5-5", latency_ms: 2000, usage: { input_tokens: 1000, output_tokens: 100 } },
+  };
   const summary = judgeSummary({
     labels: { a: "peer-two" },
     results: [
-      { trace: "a", sample: 1, judge: judge([{ index: 9, verdict: "entailed", text: "It leads." }, { index: 10, verdict: "not_entailed", reason: "contradicts_ranking: NVDA is highest.", text: "amd trails." }]) },
-      { trace: "a", sample: 2, judge: { verdicts: [], deployment: null, latency_ms: 0 } },
-      { trace: "b", sample: 0, error: "timeout" },
+      { trace: "a", sample: 1, metrics: metrics(1, 1), judge: { record: replied, hidden: [{ index: 10, text: "amd trails.", reason: "not_entailed: contradicts_ranking: NVDA is highest." }] } },
+      { trace: "a", sample: 2, metrics: metrics(0, 1), judge: { record: { outcome: "failed", reason: "judge call failed: timeout", latency_ms: 8000 }, hidden: [{ index: 3, text: "It leads.", reason: "error: judge call failed: timeout" }] } },
+      { trace: "b", sample: 0 },
     ],
   });
   assert.equal(summary, [
-    "judge: 1 entailed, 1 not entailed, 0 errors, of 2 inferences in 1 answers",
-    "judge per answer: 2000 ms, 1000 in / 100 out tokens, on anthropic/claude-haiku-5-5",
-    "  not entailed  peer-two #1 [10] amd trails.\n      contradicts_ranking: NVDA is highest.",
+    "judge: 1 shown, 2 hidden, in 2 answers (1 replied, 1 failed, 0 not called)",
+    "judge per reply: 2000 ms, 1000 in / 100 out tokens, on anthropic/claude-haiku-5-5",
+    "  hidden  peer-two #1 [10] amd trails.\n      not_entailed: contradicts_ranking: NVDA is highest.",
+    "  hidden  peer-two #2 [3] It leads.\n      error: judge call failed: timeout",
   ].join("\n"));
 });
 
-test("recorded summarizes the verdicts the shadow judge recorded on a trace's turn", async () => {
+test("recorded replays each trace with the judge reply it recorded, and summarizes what that showed and hid", async () => {
   const { trace } = TRACES.find(({ label }) => label === "segment-drill-down")!;
   const judge = {
-    deployment: "anthropic/claude-haiku-5-5",
-    latency_ms: 4657,
-    usage: { input_tokens: 1055, output_tokens: 465 },
-    verdicts: [
-      { index: 6, verdict: "entailed", text: "NVIDIA's revenue is heavily concentrated in Data Center." },
-      { index: 7, verdict: "not_entailed", reason: "unsupported: no support measures diversification.", text: "The other four segments provide limited diversification." },
-    ],
+    outcome: "replied",
+    exchange: {
+      messages: [],
+      text: '{"verdicts":[{"id":6,"verdict":"entailed"},{"id":7,"verdict":"not_entailed","reason":"unsupported: no support measures diversification."}]}',
+      truncated: false,
+      deployment: "anthropic/claude-haiku-5-5",
+      latency_ms: 4657,
+      usage: { input_tokens: 1055, output_tokens: 465 },
+    },
   };
-  const root = traceFiles({ "judged.json": { ...trace, judge }, "plain.json": TRACES.find(({ label }) => label === "peer-two")!.trace });
+  const root = traceFiles({ "judged.json": { ...trace, judge }, "missing-cash-flow.json": TRACES.find(({ label }) => label === "missing-cash-flow")!.trace });
   const script = fileURLToPath(new URL("../scripts/answer-lab.ts", import.meta.url));
   const { stdout } = await promisify(execFile)(process.execPath, ["--experimental-strip-types", script, "recorded", root]);
-  assert.equal(stdout.slice(stdout.indexOf("recorded in shadow")), [
-    "recorded in shadow, judge: 1 entailed, 1 not entailed, 0 errors, of 2 inferences in 1 answers",
-    "judge per answer: 4657 ms, 1055 in / 465 out tokens, on anthropic/claude-haiku-5-5",
-    "  not entailed  judged #0 [7] The other four segments provide limited diversification.",
-    "      unsupported: no support measures diversification.",
+  assert.equal(stdout.slice(stdout.indexOf("as recorded")), [
+    "as recorded, judge: 1 shown, 1 hidden, in 1 answers (1 replied, 0 failed, 0 not called)",
+    "judge per reply: 4657 ms, 1055 in / 465 out tokens, on anthropic/claude-haiku-5-5",
+    "  hidden  judged #0 [7] The other four segments provide limited diversification cushion relative to Data Center's dominance.",
+    "      not_entailed: unsupported: no support measures diversification.",
     "",
   ].join("\n"));
 });

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "thread_id": "c83e8bdb-6b3a-403c-a60b-1c27523bf708",
   "run_id": "71537500-901a-4e22-a7a9-f0d55ae4c193",
   "turn_id": "eb8ade91-9722-4778-94c5-41ba0ddc7868",
@@ -2407,8 +2407,8 @@
       {
         "index": 11,
         "text": "NVIDIA leads AMD on every metric shown, with the widest gap in net margin, though AMD's one-time export-control charge may overstate the profitability gap.",
-        "check": "binding",
-        "reason": "an inference names no company; its subject does"
+        "check": "judge",
+        "reason": "not_entailed: unsupported: the supports never call AMD's export-control charge one-time or show that it affected AMD's FY2025 net margin, so the claim that it may overstate the profitability gap has no support."
       }
     ],
     "rendered": true,
@@ -2734,5 +2734,28 @@
         }
       ]
     }
-  ]
+  ],
+  "judge": {
+    "outcome": "replied",
+    "exchange": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You check the analyst inferences in a financial research answer. The reader sees each inference beside\nwhat it rests on: its supports (the observations, comparisons and management attributions it cites, each\nfigure as the data gives it, each claim as its source words it), the checked results of the comparisons among\nthem, and its subject, the company it is about. companies lists every company the answer covers. Judge each\ninference only against its own subject, checked results and supports; no outside knowledge, and nothing from\nanother inference. A company may be named by ticker, name or alias, in any case (\"nvda\", \"Nvidia\",\n\"Advanced Micro Devices\"): naming one is fine, but what the inference says about it must be backed like anything else.\n\nAn inference is entailed when its supports state or clearly imply what it says. Qualitative words that\nsummarise the supports' figures (large, concentrated, higher, slowing) are fine when the figures bear them\nout, and so is a count of the things the supports list (\"the two companies\", \"four segments\").\nIt is not_entailed when any of these hold; the reason starts with its code:\n- unsupported: it claims something the supports neither state nor imply, such as a cause, a forecast, a\n  trend, or a metric, segment or period they do not show. A hedge does not make it supported: a valuation or\n  market reading such as \"may be priced in\" or \"the market may already reflect\" is unsupported unless the\n  supports show it.\n- worded_amount: it states an amount or quantity in words, whether or not the supports bear it out:\n  money, a percentage, a growth rate, a multiple or fraction (\"doubled\", \"four times\", \"two-thirds\"),\n  or a span of time (\"an eight-month gap\"), e.g. \"hundreds of millions of dollars\", \"a quarter\n  billion dollars\", \"one and a half percent\", \"single-digit growth\".\n- contradicts_ranking: who leads, trails, is highest or lowest, or the order it states disagrees with\n  the checked results or the supports' figures.\n- contradicts_trend: a direction it states (rising, falling, expanding, recovering) disagrees with a\n  checked trend or the supports' figures.\n\nReply with JSON only, one verdict per inference id; if you correct yourself, the last JSON in the reply is read:\n{\"verdicts\":[{\"id\":<id>,\"verdict\":\"entailed\"|\"not_entailed\",\"reason\":\"<code>: <one short sentence>\"}]}\nGive a reason for every not_entailed verdict; for entailed, leave it out."
+        },
+        {
+          "role": "user",
+          "content": "{\"companies\":[\"NVDA\",\"AMD\"],\"inferences\":[{\"id\":11,\"subject\":null,\"text\":\"NVIDIA leads AMD on every metric shown, with the widest gap in net margin, though AMD's one-time export-control charge may overstate the profitability gap.\",\"checked_results\":[\"NVDA highest on revenue, revenue growth (YoY), gross margin, net margin, and price return\"],\"supports\":[\"NVDA's revenue was $209.9B in FY2026 (ended Jan 2026); AMD's revenue was $34.7B in FY2025 (ended Dec 2025).\",\"NVDA's gross margin was 70.8% in FY2026 (ended Jan 2026); AMD's gross margin was 49.9% in FY2025 (ended Dec 2025).\",\"NVDA's net margin was 53.6% in FY2026 (ended Jan 2026); AMD's net margin was 12.0% in FY2025 (ended Dec 2025).\",\"NVDA's revenue growth (YoY) was 60.9% in FY2026 (ended Jan 2026); AMD's revenue growth (YoY) was 34.5% in FY2025 (ended Dec 2025).\",\"NVDA's price return was 5.81% in YTD 2026: Dec 2025 close to Aug 2026 close; AMD's price return was 3.17% in YTD 2026: Dec 2025 close to Aug 2026 close.\",\"Of NVDA and AMD, NVDA's revenue was highest: NVDA $209.9B (FY2026, ended Jan 2026), AMD $34.7B (FY2025, ended Dec 2025).\",\"Of NVDA and AMD, NVDA's revenue growth (YoY) was highest: NVDA 60.9% (FY2026, ended Jan 2026), AMD 34.5% (FY2025, ended Dec 2025).\",\"Of NVDA and AMD, NVDA's gross margin was highest: NVDA 70.8% (FY2026, ended Jan 2026), AMD 49.9% (FY2025, ended Dec 2025).\",\"Of NVDA and AMD, NVDA's net margin was highest: NVDA 53.6% (FY2026, ended Jan 2026), AMD 12.0% (FY2025, ended Dec 2025).\",\"Of NVDA and AMD, NVDA's price return was highest: NVDA 5.81%, AMD 3.17% (YTD 2026: Dec 2025 close to Aug 2026 close).\",\"According to a source dated Aug 2025, effective Jun 2025 on AMD: As previously announced, our second quarter results were impacted by the U.S. Government's export control on our AMD Instinct MI308 data center GPU products. For the quarter, these restrictions led to approximately $800 million in inventory and related charges.\"]}]}"
+        }
+      ],
+      "text": "{\"verdicts\":[{\"id\":11,\"verdict\":\"not_entailed\",\"reason\":\"unsupported: the supports never call AMD's export-control charge one-time or show that it affected AMD's FY2025 net margin, so the claim that it may overstate the profitability gap has no support.\"}]}",
+      "truncated": false,
+      "deployment": "anthropic/claude-haiku-5-5",
+      "latency_ms": 4737,
+      "usage": {
+        "input_tokens": 1748,
+        "output_tokens": 661
+      }
+    }
+  }
 }

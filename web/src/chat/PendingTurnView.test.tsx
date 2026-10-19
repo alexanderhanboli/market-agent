@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
 import type { RunOrigin, StreamLink, TurnIds } from './chatSession.ts'
+import { AssistantBlocks } from './MessageItem.tsx'
 import { PendingTurnView } from './PendingTurnView.tsx'
 import type { StreamState } from './streamReducer.ts'
 
@@ -162,4 +163,48 @@ test('an adopted run shows its plan and its link state, never streamed blocks; a
   assert.deepEqual(notices, [[true, false, false], [false, true, false], [false, false, true]])
   assert.match(render(LINK, OWN), /NVIDIA&#x27;s revenue rose/)
   assert.match(render({ ...LINK, attach: true }, OWN), /NVIDIA&#x27;s revenue rose/)
+})
+
+test('a sealed answer shown while the judge reads its inferences renders as the saved message it becomes, with its proofs, for any reader of the run', () => {
+  const answer = {
+    id: 'b-answer',
+    kind: 'rich_text',
+    snapshot_id: '11111111-1111-4111-a111-111111111111',
+    data_ref: { kind: 'rich_text', id: 'b-answer' },
+    source_refs: ['s-1'],
+    as_of: '2026-05-06T00:00:00.000Z',
+    segments: [
+      { type: 'text', text: 'Data Center revenue was ' },
+      { type: 'ref', ref_kind: 'fact', ref_id: 'f-1', format: '$55.2B' },
+      { type: 'text', text: '.\n\n> _Checking an analyst inference against the figures it rests on…_' },
+    ],
+  }
+  const proofs = { 'b-answer': { evidence: 'linked', calculation: 'not_verified', public_by_cutoff: 'unknown' } } as const
+  const stream: StreamState = {
+    turn_status: 'started',
+    blocks_by_id: new Map(),
+    block_order: [],
+    plan_steps: [{ step_id: 'planner', label: 'Planner', detail: 'Planning.', status: 'done' }],
+    error: null,
+    shown: { message_id: 'a1', snapshot_id: '22222222-2222-4222-a222-222222222222', blocks: [answer], block_proofs: proofs },
+  }
+  const registry = createDefaultBlockRegistry()
+  const render = (origin: RunOrigin) => renderToStaticMarkup(
+    <BlockRegistryProvider registry={registry}>
+      <PendingTurnView turn={{ phase: 'streaming', run: RUN, origin, stream, link: LINK }} {...handlers} />
+    </BlockRegistryProvider>,
+  )
+  const saved = renderToStaticMarkup(
+    <BlockRegistryProvider registry={registry}>
+      <AssistantBlocks blocks={[answer]} proofs={proofs} />
+    </BlockRegistryProvider>,
+  )
+
+  for (const origin of [OWN, ADOPTED]) {
+    const html = render(origin)
+    assert.ok(html.includes(saved), 'the saved message\'s own tree, proof labels included')
+    assert.match(html, /Source-linked narrative/)
+    assert.match(html, /Checking an analyst inference against the figures it rests on/)
+    assert.doesNotMatch(html, /Agent plan/)
+  }
 })

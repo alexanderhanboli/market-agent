@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 
 import { BlockView } from '../blocks/BlockView.tsx'
 import { AgentPlanPanel } from './AgentPlanPanel.tsx'
+import { AssistantBlocks } from './MessageItem.tsx'
 import type { StreamLink, TurnState } from './chatSession.ts'
 import { StreamingBlockView } from './StreamingBlockView.tsx'
 import type { StreamState, UnverifiedTurn } from './streamReducer.ts'
@@ -81,6 +82,18 @@ function LinkNotice({ link, onReconnect }: { link: StreamLink; onReconnect: () =
 }
 
 function StreamedTurn({ phase, stream, blocks, children }: { phase: TurnState['phase']; stream: StreamState; blocks: boolean; children?: ReactNode }): ReactElement {
+  // A sealed answer, shown while the judge reads its inferences: it renders as
+  // the saved message it becomes, in MessageItem's own wrapper and with no plan
+  // above it, so the hand-off changes only the lines the judge resolves. Any
+  // reader of the run may see it: it holds only what the seal verified.
+  if (stream.shown) {
+    return (
+      <div data-testid="streaming-turn" data-turn-status={phase} aria-live="polite" className="flex flex-col items-start py-2">
+        <AssistantBlocks blocks={stream.shown.blocks} proofs={stream.shown.block_proofs} />
+        {children}
+      </div>
+    )
+  }
   return (
     <div
       data-testid="streaming-turn"

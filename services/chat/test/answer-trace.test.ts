@@ -7,7 +7,7 @@ import test from "node:test";
 import { answerMetrics, writeTurnTrace, type TurnTrace } from "../src/answer-trace.ts";
 
 const TRACE: TurnTrace = {
-  version: 1,
+  version: 2,
   thread_id: "thread-1",
   run_id: "run-1",
   question: "How did NVDA's revenue change?",
@@ -27,7 +27,6 @@ const TRACE: TurnTrace = {
     rejected: [{ index: 1, check: "kind", reason: "cites no figure" }],
     rendered: true,
   },
-  removed: ["NVDA grew 12% in FY2024."],
   blocks: [
     {
       kind: "rich_text",
@@ -87,10 +86,11 @@ test("answerMetrics counts the answer's sealed figures, a price return's series 
   assert.deepEqual(answerMetrics(TRACE), {
     figure_refs: 2,
     plain_numbers: 3,
-    removed: 1,
     fallback: false,
     accepted: 1,
     rejected: 1,
+    inferences_shown: 0,
+    inferences_hidden: 0,
     output_tokens: 700,
     latency_ms: 41_200,
   });
@@ -100,18 +100,37 @@ test("answerMetrics reads an answer no assertion rendered as the fallback; with 
   const fallback = {
     ...TRACE,
     assertions: { status: "missing" as const, accepted: [], rejected: [] },
-    removed: [],
     blocks: [{ kind: "rich_text", segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }] }],
   };
   assert.deepEqual(answerMetrics(fallback), {
     figure_refs: 0,
     plain_numbers: 0,
-    removed: 0,
     fallback: true,
     accepted: 0,
     rejected: 0,
+    inferences_shown: 0,
+    inferences_hidden: 0,
     output_tokens: 700,
     latency_ms: 41_200,
   });
   assert.equal(answerMetrics({ ...fallback, exchange: null, assertions: null }).fallback, false);
+});
+
+test("answerMetrics counts the inferences shown, and those the judge left out", () => {
+  const judged = {
+    ...TRACE,
+    assertions: {
+      status: "checked" as const,
+      accepted: [
+        { index: 0, kind: "observation" as const, text: "NVDA revenue rose to [[F1]].", evidence: ["F1"] },
+        { index: 1, kind: "analyst_inference" as const, text: "Demand held up.", evidence: [], supports: [0] },
+      ],
+      rejected: [
+        { index: 2, text: "It will keep growing.", check: "judge" as const, reason: "not_entailed: unsupported: a forecast." },
+        { index: 3, text: "Its margin doubled.", check: "binding" as const, reason: "an inference rests on its supports; it writes no figure" },
+      ],
+      rendered: true,
+    },
+  };
+  assert.deepEqual([answerMetrics(judged).inferences_shown, answerMetrics(judged).inferences_hidden], [1, 1]);
 });

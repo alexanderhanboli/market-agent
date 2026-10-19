@@ -1039,7 +1039,7 @@ export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[
     }
     if (block.kind === "perf_comparison") {
       // Each line's return over the window drawn (its last point), credited to
-      // its company, so the answer can discuss the chart and the guard checks it.
+      // its company, so the answer can cite it as a figure of the chart.
       const series = (block.series ?? []) as ReadonlyArray<{ name?: string; points?: ReadonlyArray<{ y?: number }> }>;
       const seriesRefs = (block.data_ref as { params?: { series_refs?: unknown } } | undefined)?.params?.series_refs;
       const period = typeof block.default_range === "string" ? { period: block.default_range } : {};
@@ -1055,25 +1055,3 @@ export function displayedFigures(blocks: ReadonlyArray<Block>): DisplayedFigure[
     return [];
   });
 }
-
-// The human-readable text of fact blocks (titles, labels, formatted values):
-// what the user sees, and so what the narrative may quote without naming a
-// company. Comparison cells are left out: each belongs to one company, and the
-// guard checks those through displayedFigures instead.
-export function displayTextsForBlocks(blocks: ReadonlyArray<Block>): string[] {
-  const texts: string[] = [];
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-    } else if (value !== null && typeof value === "object") {
-      for (const [key, child] of Object.entries(value)) {
-        if (DISPLAY_KEYS.has(key) && typeof child === "string") texts.push(child);
-        else if (key !== "data_ref") visit(child);
-      }
-    }
-  };
-  blocks.forEach((block) => visit(block.kind === "metrics_comparison" ? { ...block, cells: undefined } : block));
-  return texts;
-}
-
-const DISPLAY_KEYS = new Set(["title", "label", "format", "default_range"]);

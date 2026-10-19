@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "thread_id": "416e6cc2-fdae-44c4-89ca-35eb25c7eaf7",
   "run_id": "3d2be9bc-3184-49bc-b9f0-83a163183d88",
   "turn_id": "246e6772-ffe8-48c1-b484-5b02dc7a8231",
@@ -2255,5 +2255,28 @@
         }
       ]
     }
-  ]
+  ],
+  "judge": {
+    "outcome": "replied",
+    "exchange": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "You check the analyst inferences in a financial research answer. The reader sees each inference beside\nwhat it rests on: its supports (the observations, comparisons and management attributions it cites, each\nfigure as the data gives it, each claim as its source words it), the checked results of the comparisons among\nthem, and its subject, the company it is about. companies lists every company the answer covers. Judge each\ninference only against its own subject, checked results and supports; no outside knowledge, and nothing from\nanother inference. A company may be named by ticker, name or alias, in any case (\"nvda\", \"Nvidia\",\n\"Advanced Micro Devices\"): naming one is fine, but what the inference says about it must be backed like anything else.\n\nAn inference is entailed when its supports state or clearly imply what it says. Qualitative words that\nsummarise the supports' figures (large, concentrated, higher, slowing) are fine when the figures bear them\nout, and so is a count of the things the supports list (\"the two companies\", \"four segments\").\nIt is not_entailed when any of these hold; the reason starts with its code:\n- unsupported: it claims something the supports neither state nor imply, such as a cause, a forecast, a\n  trend, or a metric, segment or period they do not show. A hedge does not make it supported: a valuation or\n  market reading such as \"may be priced in\" or \"the market may already reflect\" is unsupported unless the\n  supports show it.\n- worded_amount: it states an amount or quantity in words, whether or not the supports bear it out:\n  money, a percentage, a growth rate, a multiple or fraction (\"doubled\", \"four times\", \"two-thirds\"),\n  or a span of time (\"an eight-month gap\"), e.g. \"hundreds of millions of dollars\", \"a quarter\n  billion dollars\", \"one and a half percent\", \"single-digit growth\".\n- contradicts_ranking: who leads, trails, is highest or lowest, or the order it states disagrees with\n  the checked results or the supports' figures.\n- contradicts_trend: a direction it states (rising, falling, expanding, recovering) disagrees with a\n  checked trend or the supports' figures.\n\nReply with JSON only, one verdict per inference id; if you correct yourself, the last JSON in the reply is read:\n{\"verdicts\":[{\"id\":<id>,\"verdict\":\"entailed\"|\"not_entailed\",\"reason\":\"<code>: <one short sentence>\"}]}\nGive a reason for every not_entailed verdict; for entailed, leave it out."
+        },
+        {
+          "role": "user",
+          "content": "{\"companies\":[\"AMD\"],\"inferences\":[{\"id\":4,\"subject\":\"AMD\",\"text\":\"AMD's operating profitability has recovered to its strongest level in the eight-quarter window and is trending higher, though the pace of improvement has been incremental since the initial rebound.\",\"checked_results\":[\"AMD's operating margin highest in Q2 2026\"],\"supports\":[\"AMD's operating margin was 10.6% in Q3 2024 (ended Sep 2024); AMD's operating margin was 11.4% in Q4 2024 (ended Dec 2024); AMD's operating margin was 10.8% in Q1 2025 (ended Mar 2025); AMD's operating margin was -1.7% in Q2 2025 (ended Jun 2025); AMD's operating margin was 13.7% in Q3 2025 (ended Sep 2025); AMD's operating margin was 14.1% in Q4 2025 (ended Dec 2025); AMD's operating margin was 14.2% in Q1 2026 (ended Mar 2026); AMD's operating margin was 14.4% in Q2 2026 (ended Jun 2026).\",\"AMD's operating margin was highest in Q2 2026, at 14.4%, of the periods from Q3 2024 to Q2 2026.\"]}]}"
+        }
+      ],
+      "text": "{\"verdicts\":[{\"id\":4,\"verdict\":\"entailed\"}]}",
+      "truncated": false,
+      "deployment": "anthropic/claude-haiku-5-5",
+      "latency_ms": 3725,
+      "usage": {
+        "input_tokens": 1239,
+        "output_tokens": 221
+      }
+    }
+  }
 }

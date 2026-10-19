@@ -9,15 +9,17 @@
 //
 // replies writes the traces' model replies as an LLM_REPLAY_FILE fixture, so the
 // no-keys stack (DEV_NO_KEYS=traces) answers each traced question as recorded;
-// recorded is deterministic and offline; --check exits 1 when a replay's blocks
-// differ from the recorded ones; --update writes each replay over its trace
-// (blocks, removals, assertions), for a deliberate change to post-processing. live uses the stack's LLM settings
+// recorded is deterministic and offline: each trace's answer reply and judge
+// reply as recorded; --check exits 1 when a replay's blocks differ from the
+// recorded ones; --update writes each replay over its trace (blocks,
+// assertions, judge), for a deliberate change to post-processing. live uses the stack's LLM settings
 // (LLM_SETTINGS_ENV_FILE, default .env.dev, as dev-shell sets it) and writes
 // docs/eval-runs/answer-lab/<stamp>.json. --judge has the judge model
 // (JUDGE_LITELLM_MODEL, src/inference-judge.ts) read each answer's accepted
-// inferences against what they rest on, and adds
-// its verdicts to the table and the run. recorded also summarizes the verdicts
-// the shadow judge recorded on the traces' turns, when any did. judge-mutations
+// inferences against what they rest on, as chat does: in recorded mode in place
+// of the recorded reply (with --update, recording its reply), in live mode in
+// place of none, which shows no inference. Each run summarizes what the judge
+// showed and hid. judge-mutations
 // judges a held-out set of inferences and their mutations
 // (test/answer-lab/judge-mutations.json) and reports how many mutations it
 // catches and how many originals it flags.
@@ -32,13 +34,15 @@ import { assertionList, checkAssertions, type AssertionKind } from "../src/asser
 import {
   answerMetrics,
   composeTraced,
+  inferenceCases,
   judgeAnswer,
+  judgedAnswer,
   replayRecorded,
   type AnswerMetrics,
-  type JudgedAnswer,
+  type ModelExchange,
   type TurnTrace,
 } from "../src/answer-trace.ts";
-import { judgeCases, judgeInferences, type InferenceVerdict, type JudgeCase, type JudgeOutcome } from "../src/inference-judge.ts";
+import { judgeCases, judgeInferences, verdictsOf, type InferenceVerdict, type JudgeCase, type JudgeRecord } from "../src/inference-judge.ts";
 import { turnPacket } from "../src/llm-runtime.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -75,27 +79,20 @@ export function readTraces(paths: ReadonlyArray<string>): LabeledTrace[] {
   });
 }
 
-// An answer's metrics, with the judge's verdict counts when it was judged.
-type JudgeCounts = { entailed: number; not_entailed: number; judge_error: number };
-type SampleMetrics = AnswerMetrics & Partial<JudgeCounts>;
-type Column = keyof AnswerMetrics | keyof JudgeCounts;
+type SampleMetrics = AnswerMetrics;
+type Column = keyof AnswerMetrics;
 type Row = { key: string; label: string } & { [K in Column]?: number };
 const COLUMNS: ReadonlyArray<[Column, string]> = [
   ["figure_refs", "refs"],
   ["plain_numbers", "plain#"],
-  ["removed", "removed"],
   ["fallback", "fallback"],
   ["accepted", "accepted"],
   ["rejected", "rejected"],
+  ["inferences_shown", "inf shown"],
+  ["inferences_hidden", "inf hidden"],
   ["output_tokens", "out tok"],
   ["latency_ms", "latency ms"],
 ];
-const JUDGE_COLUMNS: ReadonlyArray<[Column, string]> = [
-  ["entailed", "entailed"],
-  ["not_entailed", "not ent"],
-  ["judge_error", "judge err"],
-];
-const columnsOf = (judged: boolean) => (judged ? [...COLUMNS, ...JUDGE_COLUMNS] : COLUMNS);
 
 // A trace's row: the mean of its samples.
 function meanRow(trace: { key: string; label: string }, samples: ReadonlyArray<SampleMetrics>, columns = COLUMNS): Row {
@@ -135,24 +132,27 @@ function delta(before: Row, after: Row): string {
   ].join("\n");
 }
 
-// Each trace replayed with its recorded reply; differs: the blocks are not the
-// recorded ones. judge: the live judge reads each replay's inferences.
+// Each trace replayed with its recorded replies, the answer model's and the
+// judge's; differs: the blocks are not the recorded ones. judge: the live judge
+// reads each replay's inferences instead, and --update records its reply.
+// judge_input_changed: today's answer asks the recorded judge something else.
 async function recorded(
   traces: ReadonlyArray<LabeledTrace>,
   update = false,
   judge = false,
-): Promise<Array<{ key: string; label: string; metrics: SampleMetrics; differs: boolean; judge?: JudgedAnswer }>> {
+): Promise<Array<{ key: string; label: string; metrics: SampleMetrics; differs: boolean; judge_input_changed: boolean; judge?: JudgeView }>> {
   const results = [];
   for (const { key, label, file, trace } of traces) {
-    const replayed = await replayRecorded(trace);
+    const { judge_input_changed, ...replayed } = await replayRecorded(trace, judge ? { env: liveEnv() } : undefined);
     if (update) writeFileSync(file, `${JSON.stringify(replayed, null, 2)}\n`);
-    const judged = judge ? await judgeAnswer(trace.input, replayed.assertions, { env: liveEnv() }) : undefined;
+    const view = judgeView(replayed);
     results.push({
       key,
       label,
-      metrics: { ...answerMetrics(replayed), ...(judged ? judgeCounts(judged.verdicts) : {}) },
+      metrics: answerMetrics(replayed),
       differs: !isDeepStrictEqual(JSON.parse(JSON.stringify(replayed.blocks)), trace.blocks),
-      ...(judged ? { judge: judged } : {}),
+      judge_input_changed,
+      ...(view ? { judge: view } : {}),
     });
   }
   return results;
@@ -163,9 +163,14 @@ function liveEnv(): Record<string, string | undefined> {
   return { ...process.env, LLM_SETTINGS_ENV_FILE: process.env.LLM_SETTINGS_ENV_FILE ?? join(ROOT, ".env.dev") };
 }
 
-function judgeCounts(verdicts: ReadonlyArray<InferenceVerdict>): JudgeCounts {
-  const count = (verdict: InferenceVerdict["verdict"]) => verdicts.filter((entry) => entry.verdict === verdict).length;
-  return { entailed: count("entailed"), not_entailed: count("not_entailed"), judge_error: count("error") };
+// What the judge did with an answer's inferences, and each it left out, with
+// why: the judge's verdict and reason, or why no verdict came.
+export type JudgeView = { record: JudgeRecord; hidden: Array<{ index: number; text: string; reason: string }> };
+
+function judgeView(answer: Pick<TurnTrace, "judge" | "assertions">): JudgeView | undefined {
+  if (!answer.judge) return undefined;
+  const hidden = (answer.assertions?.rejected ?? []).filter((entry) => entry.check === "judge");
+  return { record: answer.judge, hidden: hidden.map(({ index, text, reason }) => ({ index, text: text ?? "", reason })) };
 }
 
 // text: the model's raw reply; answer: the rich_text the user reads, each
@@ -179,7 +184,7 @@ type LiveSample = {
   text?: string;
   answer?: string;
   assertions?: { rendered: boolean; accepted: AssertionKind[]; rejected: string[]; repeated?: number };
-  judge?: JudgedAnswer;
+  judge?: JudgeView;
   error?: string;
 };
 // traces: the turns' keys; labels: their file names, for display.
@@ -224,15 +229,17 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
       const { key, label, trace, sample } = job;
       try {
         const env = liveEnv();
-        const answer = await composeTraced(trace.input, { env });
+        const composed = await composeTraced(trace.input, { env });
         // No deployment configured: the placeholder came back and no model answered.
-        if (answer.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
-        const judged = judge ? await judgeAnswer(trace.input, answer.assertions, { env }) : undefined;
+        if (composed.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
+        const { cases, companies } = inferenceCases(trace.input, composed.assertions);
+        const answer = judgedAnswer(composed, cases, judge ? await judgeAnswer(cases, companies, { env }) : UNJUDGED);
+        const view = judge ? judgeView(answer) : undefined;
         results.push({
           trace: key,
           sample,
           deployment: answer.exchange?.deployment,
-          metrics: { ...answerMetrics(answer), ...(judged ? judgeCounts(judged.verdicts) : {}) },
+          metrics: answerMetrics(answer),
           text: answer.exchange?.text,
           answer: answerText(answer.blocks),
           ...(answer.assertions
@@ -245,7 +252,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
               },
             }
             : {}),
-          ...(judged ? { judge: judged } : {}),
+          ...(view ? { judge: view } : {}),
         });
         console.log(`done  ${label} #${sample}  (${((answer.exchange?.latency_ms ?? 0) / 1000).toFixed(1)}s)`);
       } catch (error) {
@@ -267,6 +274,9 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
     results,
   };
 }
+
+// A run without --judge shows what a reader with no judge would: no inference.
+const UNJUDGED: JudgeRecord = { outcome: "not_called", reason: "the run was not judged (--judge)" };
 
 // Each attempt's deployment and code: the router's message alone names neither.
 function failure(error: unknown): string {
@@ -300,27 +310,25 @@ export function assertionSummary(run: Pick<LiveRun, "results">): string {
 function liveRows(run: LiveRun, keys: ReadonlyArray<string> = run.traces): Row[] {
   return keys.flatMap((key) => {
     const answered = run.results.flatMap((result) => (result.trace === key && result.metrics ? [result.metrics] : []));
-    return answered.length > 0 ? [meanRow({ key, label: run.labels?.[key] ?? key }, answered, columnsOf(run.judged === true))] : [];
+    return answered.length > 0 ? [meanRow({ key, label: run.labels?.[key] ?? key }, answered)] : [];
   });
 }
 
-// The judge's verdicts over the run, its cost per judged answer, and each
-// inference it did not find entailed, with its text and reason.
-export function judgeSummary(run: Pick<LiveRun, "results" | "labels">): string {
-  const judged = run.results.filter((result) => result.judge && result.judge.verdicts.length > 0);
-  const verdicts = judged.flatMap((result) => result.judge!.verdicts);
-  const counts = judgeCounts(verdicts);
-  const called = judged.filter((result) => result.judge!.deployment !== null);
-  const mean = (values: ReadonlyArray<number>) => (values.length === 0 ? 0 : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
-  const flagged = judged.flatMap((result) =>
-    result.judge!.verdicts.filter((verdict) => verdict.verdict !== "entailed").map((verdict) =>
-      `  ${verdict.verdict === "error" ? "error" : "not entailed"}  ${run.labels?.[result.trace] ?? result.trace} #${result.sample} [${verdict.index}] ${verdict.text}\n      ${verdict.reason ?? "(no reason given)"}`
-    )
-  );
+// The inferences the judge showed and left out over the run, what it did per
+// answer, its cost per answer it replied to, and each inference it left out,
+// with its text and why.
+export function judgeSummary(run: Pick<LiveRun, "labels"> & { results: ReadonlyArray<Pick<LiveSample, "trace" | "sample" | "metrics" | "judge">> }): string {
+  const judged = run.results.filter((result) => result.judge);
+  const outcomes = (outcome: JudgeRecord["outcome"]) => judged.filter((result) => result.judge!.record.outcome === outcome).length;
+  const replies = judged.flatMap((result) => (result.judge!.record.outcome === "replied" ? [result.judge!.record.exchange] : []));
+  const sum = (key: "inferences_shown" | "inferences_hidden") => judged.reduce((total, result) => total + (result.metrics?.[key] ?? 0), 0);
+  const mean = (values: ReadonlyArray<number>) => (values.length === 0 ? 0 : Math.round(values.reduce((total, value) => total + value, 0) / values.length));
   return [
-    `judge: ${counts.entailed} entailed, ${counts.not_entailed} not entailed, ${counts.judge_error} errors, of ${verdicts.length} inferences in ${judged.length} answers`,
-    `judge per answer: ${mean(called.map((result) => result.judge!.latency_ms))} ms, ${mean(called.map((result) => result.judge!.usage?.input_tokens ?? 0))} in / ${mean(called.map((result) => result.judge!.usage?.output_tokens ?? 0))} out tokens, on ${[...new Set(called.map((result) => result.judge!.deployment))].join(", ") || "no model"}`,
-    ...flagged,
+    `judge: ${sum("inferences_shown")} shown, ${sum("inferences_hidden")} hidden, in ${judged.length} answers (${outcomes("replied")} replied, ${outcomes("failed")} failed, ${outcomes("not_called")} not called)`,
+    `judge per reply: ${mean(replies.map((reply) => reply.latency_ms))} ms, ${mean(replies.map((reply) => reply.usage?.input_tokens ?? 0))} in / ${mean(replies.map((reply) => reply.usage?.output_tokens ?? 0))} out tokens, on ${[...new Set(replies.map((reply) => reply.deployment))].join(", ") || "no model"}`,
+    ...judged.flatMap((result) => result.judge!.hidden.map((entry) =>
+      `  hidden  ${run.labels?.[result.trace] ?? result.trace} #${result.sample} [${entry.index}] ${entry.text}\n      ${entry.reason}`
+    )),
   ].join("\n");
 }
 
@@ -346,8 +354,8 @@ type MutationSet = {
 export type MutationVariant = { id: string; kind: "original" | MutationKind; judged: JudgeCase; companies: ReadonlyArray<string> };
 
 // Each case's original and mutations on its trace's packet, through the
-// turn's own checks. One the word rules reject is no gap of theirs, so it
-// fails the set rather than inflate the catch rate.
+// turn's own checks. One those checks reject is no gap of theirs, so it fails
+// the set rather than inflate the catch rate.
 export function mutationVariants(file: string): MutationVariant[] {
   const set = JSON.parse(readFileSync(file, "utf8")) as MutationSet;
   return set.cases.flatMap((entry) => {
@@ -371,7 +379,7 @@ export function mutationVariants(file: string): MutationVariant[] {
   });
 }
 
-type MutationResult = { id: string; kind: MutationVariant["kind"]; text: string; verdict: InferenceVerdict; deployment: string | null; latency_ms: number; usage?: JudgeOutcome["usage"] };
+type MutationResult = { id: string; kind: MutationVariant["kind"]; text: string; verdict: InferenceVerdict; deployment: string | null; latency_ms: number; usage?: ModelExchange["usage"] };
 
 // Each inference judged alone, as an answer of one.
 async function judgeMutations(variants: ReadonlyArray<MutationVariant>, concurrency: number): Promise<MutationResult[]> {
@@ -380,9 +388,13 @@ async function judgeMutations(variants: ReadonlyArray<MutationVariant>, concurre
   const worker = async () => {
     for (let job = jobs.shift(); job; job = jobs.shift()) {
       const { id, kind, judged, companies } = job;
-      const { verdicts, ...outcome } = await judgeInferences({ cases: [judged], companies, env: liveEnv() });
-      results.push({ id, kind, text: judged.text, verdict: verdicts[0]!, ...outcome });
-      console.log(`${verdicts[0]!.verdict.padEnd(12)} ${id} ${kind}`);
+      const record = await judgeInferences({ cases: [judged], companies, env: liveEnv() });
+      const verdict = verdictsOf([judged], record)[0]!;
+      const cost = record.outcome === "replied"
+        ? { deployment: record.exchange.deployment, latency_ms: record.exchange.latency_ms, ...(record.exchange.usage ? { usage: record.exchange.usage } : {}) }
+        : { deployment: null, latency_ms: record.outcome === "failed" ? record.latency_ms : 0 };
+      results.push({ id, kind, text: judged.text, verdict, ...cost });
+      console.log(`${verdict.verdict.padEnd(12)} ${id} ${kind}`);
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
@@ -464,28 +476,25 @@ async function main(argv: string[]): Promise<number> {
   if (mode === "recorded") {
     const results = await recorded(traces, values.update, values.judge);
     const differs = new Set(results.filter((result) => result.differs).map((result) => result.key));
-    const columns = columnsOf(values.judge);
-    console.log(table(results.map((result) => meanRow(result, [result.metrics], columns)), (row) => (differs.has(row.key) ? "  DIFFERS" : ""), columns));
+    const drifted = new Set(results.filter((result) => result.judge_input_changed).map((result) => result.key));
+    const flag = (key: string) => `${differs.has(key) ? "  DIFFERS" : ""}${drifted.has(key) ? "  JUDGE INPUT CHANGED" : ""}`;
+    console.log(table(results.map((result) => meanRow(result, [result.metrics])), (row) => flag(row.key)));
     console.log(`\n${traces.length - differs.size} of ${traces.length} replayed to the recorded blocks`);
-    // Verdicts the shadow judge recorded on the turns as they ran (#302).
-    const shadowed = traces.flatMap(({ key, trace }) => (trace.judge ? [{ trace: key, sample: 0, judge: trace.judge }] : []));
-    if (shadowed.length > 0) {
-      console.log(`\nrecorded in shadow, ${judgeSummary({ results: shadowed, labels: Object.fromEntries(traces.map(({ key, label }) => [key, label])) })}`);
-    }
+    const run: LiveRun = {
+      run: new Date().toISOString().slice(0, 19).replace(/:/g, ""),
+      samples: 1,
+      ...(values.judge ? { judged: true } : {}),
+      wall_ms: 0,
+      traces: traces.map(({ key }) => key),
+      labels: Object.fromEntries(traces.map(({ key, label }) => [key, label])),
+      results: results.map(({ key, metrics, judge }) => ({ trace: key, sample: 0, metrics, ...(judge ? { judge } : {}) })),
+    };
+    if (run.results.some((result) => result.judge)) console.log(`\n${values.judge ? "judged live" : "as recorded"}, ${judgeSummary(run)}`);
     if (values.judge) {
-      const run: LiveRun = {
-        run: new Date().toISOString().slice(0, 19).replace(/:/g, ""),
-        samples: 1,
-        judged: true,
-        wall_ms: 0,
-        traces: traces.map(({ key }) => key),
-        labels: Object.fromEntries(traces.map(({ key, label }) => [key, label])),
-        results: results.map(({ key, metrics, judge }) => ({ trace: key, sample: 0, metrics, ...(judge ? { judge } : {}) })),
-      };
       mkdirSync(RUNS_DIR, { recursive: true });
       const file = join(RUNS_DIR, `${run.run}.recorded-judge.json`);
       writeFileSync(file, `${JSON.stringify(run, null, 2)}\n`, { flag: "wx" });
-      console.log(`\n${judgeSummary(run)}\n${file}`);
+      console.log(file);
     }
     return values.check && differs.size > 0 ? 1 : 0;
   }
@@ -509,7 +518,7 @@ async function main(argv: string[]): Promise<number> {
   const rows = liveRows(run);
   const errors = run.results.filter((result) => result.error).length;
   const unanswered = run.traces.filter((key) => !rows.some((row) => row.key === key)).map((key) => run.labels?.[key] ?? key);
-  console.log(`\n${table(rows, undefined, columnsOf(values.judge))}\n\n${assertionSummary(run)}${values.judge ? `\n\n${judgeSummary(run)}` : ""}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
+  console.log(`\n${table(rows)}\n\n${assertionSummary(run)}${values.judge ? `\n\n${judgeSummary(run)}` : ""}\n\n${run.results.length - errors} answers, ${errors} errors, ${(run.wall_ms / 1000).toFixed(1)}s wall; ${file}`);
   if (unanswered.length > 0) console.log(`no answer: ${unanswered.join(", ")}`);
   if (before) {
     // Only traces both runs answered, so a failed one does not read as a change.

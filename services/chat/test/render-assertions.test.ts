@@ -40,12 +40,12 @@ test("an observation is rendered from its figures, each value a sealed fact ref 
   assert.deepEqual(rendered.source_refs, ["s-nvda", "s-amd"]);
 });
 
-test("a value whose fact cannot seal here is the packet's value in plain text; the guard reads it as its reference (#208, #301)", () => {
+test("a value whose fact cannot seal here is the packet's value in plain text, still the figure it writes (#208, #301)", () => {
   const rendered = renderAssertion({ index: 0, kind: "observation", text: "x", evidence: ["F3"] }, PACKET, FACT_BLOCKS);
   assert.equal(plainText(rendered.segments), "AMD's EPS was $1.37.");
   assert.equal(rendered.segments.some((segment) => segment.type === "ref"), false);
   assert.deepEqual(rendered.fact_bindings, []);
-  assert.equal(rendered.reference_text, "AMD's EPS was [[F3]].");
+  assert.deepEqual(rendered.figure_ids, ["F3"]);
 });
 
 test("a period's dates are written by month and year, never the day (#208)", () => {
@@ -145,7 +145,7 @@ test("a comparison over time renders its derived high, low or trend, values as f
   const low = renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "lowest", "T2", ALL);
   assert.equal(plainText(low.segments), "AMD's operating margin was lowest in Q2 2025, at -1.7%, of the periods from Q1 2025 to Q4 2025.");
   assert.deepEqual(low.segments.filter((segment) => segment.type === "ref").map((segment) => segment.type === "ref" && segment.ref_id), [uuid(2)]);
-  assert.equal(low.reference_text, "AMD's operating margin was lowest in Q2 2025, at [[T2]], of the periods from Q1 2025 to Q4 2025.");
+  assert.deepEqual(low.figure_ids, ["T2"]);
   assert.equal(
     plainText(renderComparison(AMD_QUARTERS, QUARTER_BLOCKS, "trend", "rebounded", ALL).segments),
     "AMD's operating margin fell from 10.8% in Q1 2025 to a low of -1.7% in Q2 2025, then rebounded to 14.1% in Q4 2025, above where it started.",
@@ -175,7 +175,7 @@ test("a ranking across companies lists every company's value and period, and nam
     "By gross margin, highest first: NVDA 74.6% (FY2026), AMD 49.2% (FY2025). No gross margin is shown for AAPL.");
 });
 
-test("a ranking over a price window writes its dates by month and year, as the guard allows (#301), each return a chip on its chart line (#317)", () => {
+test("a ranking over a price window writes its dates by month and year (#301), each return a chip on its chart line (#317)", () => {
   const window = "YTD 2026: 2025-12-31 close to 2026-08-31 close";
   const NVDA_LINE = "d1000000-0000-4000-8000-000000000001";
   const AMD_LINE = "d1000000-0000-4000-8000-000000000002";
@@ -186,8 +186,7 @@ test("a ranking over a price window writes its dates by month and year, as the g
   const rendered = renderComparison(returns, FACT_BLOCKS, "highest", "F5", ["F5", "F6"]);
   assert.equal(plainText(rendered.segments),
     "Of NVDA and AMD, NVDA's price return was highest: NVDA 5.81%, AMD 3.17% (YTD 2026: Dec 2025 close to Aug 2026 close).");
-  assert.equal(rendered.reference_text,
-    "Of NVDA and AMD, NVDA's price return was highest: NVDA [[F5]], AMD [[F6]] (YTD 2026: Dec 2025 close to Aug 2026 close).");
+  assert.deepEqual(rendered.figure_ids, ["F5", "F6"]);
   assert.deepEqual(rendered.segments.filter((segment) => segment.type === "ref"), [
     { type: "ref", ref_kind: "series", ref_id: NVDA_LINE, format: "5.81%" },
     { type: "ref", ref_kind: "series", ref_id: AMD_LINE, format: "3.17%" },

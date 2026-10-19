@@ -15,7 +15,7 @@ import { ChatLayout } from './ChatPage.tsx'
 import { shareAnalyzeRunToChat } from '../analyze/shareToChat.ts'
 import { BlockRegistryProvider, createDefaultBlockRegistry, type Block } from '../blocks'
 import { openChatTurnStream } from '../chat/openChatTurnStream.ts'
-import type { ChatSseEvent } from '../chat/sseEventTypes.ts'
+import { CHAT_SSE_EVENT_TYPES, type ChatSseEvent } from '../chat/sseEventTypes.ts'
 import { AuthContext } from '../shell/authTypes.ts'
 import { ThemeProvider } from '../shell/ThemeProvider.tsx'
 import { WorkspaceShell } from '../shell/WorkspaceShell.tsx'
@@ -335,6 +335,33 @@ test('Chat stream URL carries dev identity and refreshes history after completio
   assert.equal(refreshes, 1)
   assert.equal(events.at(-1)?.type, 'turn.completed')
   assert.equal(eventSources[0].closed, true)
+})
+
+test('Chat stream delivers every event kind the server sends, a sealed answer shown before it is saved included', () => {
+  const eventSources: MockEventSource[] = []
+  const events: ChatSseEvent[] = []
+  openChatTurnStream({
+    threadId: 'thread-123',
+    runId: 'run-1',
+    turnId: 'message-user',
+    userIntent: 'Review margins',
+    userId: USER_ID,
+  }, {
+    onEvent: (event) => events.push(event),
+    onError: () => {
+      throw new Error('unexpected stream error')
+    },
+  }, class extends MockEventSource {
+      constructor(url: string | URL) {
+        super(url)
+        eventSources.push(this)
+      }
+    } as unknown as typeof EventSource)
+
+  const delivered = CHAT_SSE_EVENT_TYPES.filter((type) => type !== 'turn.completed' && type !== 'turn.error')
+  delivered.forEach((type, i) => eventSources[0].emit(type, { type, seq: i + 1, thread_id: 'thread-123', run_id: 'run-1', turn_id: 'message-user' }))
+  assert.deepEqual(events.map((event) => event.type), delivered)
+  assert.ok(delivered.includes('answer.shown'))
 })
 
 test('Chat stream delivers a server-signaled turn error as an event, closes, and reports no connection error', () => {
@@ -839,9 +866,10 @@ class MockEventSource {
     this.closed = true
   }
 
+  // As an EventSource: onmessage hears only unnamed events, a named one its listeners.
   emit(type: string, payload: Record<string, unknown>) {
     const event = new MessageEvent(type, { data: JSON.stringify(payload) })
-    this.onmessage?.(event)
+    if (type === 'message') this.onmessage?.(event)
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event)
     }

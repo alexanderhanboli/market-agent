@@ -36,12 +36,23 @@ const PROOF_VALUES: { readonly [K in keyof BlockProof]: ReadonlyArray<BlockProof
 // Block bodies are left to BlockView, as on the history path.
 export function parseSealedMessage(value: unknown, expected: { threadId: string; messageId: unknown }): SealedChatMessage | null {
   if (!isRecord(value)) return null
-  const { message_id, thread_id, role, snapshot_id, content_hash, created_at, blocks, block_proofs } = value
+  const { message_id, thread_id, role, content_hash, created_at } = value
   if (message_id !== expected.messageId || thread_id !== expected.threadId || role !== 'assistant') return null
-  if (![message_id, snapshot_id, content_hash, created_at].every((field) => typeof field === 'string' && field !== '')) return null
+  if (![content_hash, created_at].every((field) => typeof field === 'string' && field !== '')) return null
+  return parseShownAnswer(value) === null ? null : value as SealedChatMessage
+}
+
+// A sealed answer shown before it is saved (answer.shown): its analyst
+// inferences are with the judge, a line in each one's place. The saved
+// message it becomes arrives with turn.completed.
+export type ShownAnswer = Pick<SealedChatMessage, 'message_id' | 'snapshot_id' | 'blocks' | 'block_proofs'>
+
+export function parseShownAnswer(value: Record<string, unknown>): ShownAnswer | null {
+  const { message_id, snapshot_id, blocks, block_proofs } = value
+  if (typeof message_id !== 'string' || message_id === '' || typeof snapshot_id !== 'string' || snapshot_id === '') return null
   if (!Array.isArray(blocks) || !blocks.every((block) => isRecord(block) && typeof block.id === 'string' && typeof block.kind === 'string')) return null
   if (!isRecord(block_proofs) || !Object.values(block_proofs).every(isBlockProof)) return null
-  return value as SealedChatMessage
+  return { message_id, snapshot_id, blocks: blocks as Block[], block_proofs: block_proofs as Record<string, BlockProof> }
 }
 
 // A turn on the server, named the way its stream route keys it.
