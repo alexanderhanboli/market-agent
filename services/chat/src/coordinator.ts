@@ -37,7 +37,7 @@ import {
   type ChatReadMessage,
 } from "./messages.ts";
 import { financialAwareRunner } from "./financial-turn.ts";
-import { LIST_END, namesFacet, words, type ResearchScope } from "./research-scope.ts";
+import { namesFacet, type ResearchScope } from "./research-scope.ts";
 import type { AssertionReport } from "./assertions.ts";
 import type { BlockProof } from "../../snapshot/src/block-proof.ts";
 
@@ -992,6 +992,17 @@ type TurnSubjects = {
 // naming a new company after a comparison ("what about AAPL?") could mean
 // either, so it asks; "just AAPL" or a full new question switches to it.
 const ADD = /\b(?:add|adding|bring (?:back|in))\b/i;
+// Where a list of companies to remove ends: at the end of the sentence, or
+// where the next request starts ("drop AMD and AAPL, and add TSLA"). Commas and
+// "and" inside the list are part of it.
+// A word in capitals is a ticker in the list ("drop AMD and NOW"), not a
+// request, so these patterns match words in lower case or capitalised only
+// (words()), never in capitals, and take no "i" flag.
+// ponytail: spelled out per word because Node 22 has no inline (?-i:) modifier.
+function words(list: ReadonlyArray<string>): string {
+  return list.map((word) => `[${word[0]}${word[0]!.toUpperCase()}]${word.slice(1)}`).join("|");
+}
+const LIST_END = String.raw`(?=\s*[.;:?!]|,?\s+(?:(?:${words(["and", "but", "then"])})\s+)?(?:${words(["add", "adding", "bring", "include", "show", "compare", "keep", "switch", "also", "now", "instead"])})\b|$)`;
 // The companies after a removal verb, a whole list of them (LIST_END).
 const REMOVE = new RegExp(
   String.raw`\b(?:${words(["drop", "remove", "exclude", "without", "leave out", "take out", "minus", "except"])})\s+([^.;:?!]+?)` + LIST_END,
@@ -1058,8 +1069,8 @@ async function companyChange(
     const removed = new Set(removedSubjects.map(companyKey));
     const kept = prior.filter((subject) => !removed.has(companyKey(subject)));
     // A company to drop that is ambiguous, or cannot be found, is asked about,
-    // unless the words name a facet or metric ("drop the FCF").
-    const unclear = namesFacet(removal) ? [] : removing.unresolved;
+    // unless the word names a facet or metric ("drop the FCF").
+    const unclear = removing.unresolved.filter((resolution) => !namesFacet(resolution.input_text));
     const ambiguousTarget = unclear.find((resolution) => resolution.status === "needs_clarification");
     if (ambiguousTarget) return { subjects: [], ambiguous: ambiguousTarget, notFound: [] };
     if (unclear.length > 0 && prior.length > 0) {

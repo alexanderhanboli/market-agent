@@ -27,6 +27,7 @@ import { closeLocalRuntimePoolForTests } from "../src/local-runtime.ts";
 import { readChatMessage } from "../src/messages.ts";
 import { loadChatServerOptionsFromEnv } from "../src/runtime.ts";
 import { AMD_Q2_2025_RELEASE, GOLDEN_COMPANIES, seedGoldenDataset } from "./golden/dataset.ts";
+import { requireRecordedScopes } from "./golden/harness.ts";
 import type { Client } from "pg";
 import { parseSseEvents, type ParsedSseEvent } from "./sse-helpers.ts";
 import type { AddressInfo } from "node:net";
@@ -58,6 +59,7 @@ type ChatMessage = { message_id: string; role: string; snapshot_id: string; bloc
 test("golden conversation: Analyze NVDA", { skip: !dockerAvailable(), timeout: 180_000 }, async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "chat-golden");
   withEnv(t, { ...GOLDEN_ENV, CHAT_DATABASE_URL: databaseUrl });
+  requireRecordedScopes(t);
   registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
 
   const client = await connectedClient(t, databaseUrl);

@@ -1,8 +1,11 @@
 // A turn's research scope (#206): which route answers it, the companies it
-// covers, the facets it asks for, and its periods. Resolved by the server from
-// the question and, for a follow-up, the previous answer's scope; never chosen
-// by a model. Saved with the answer, so the next follow-up and a reload read
-// the same interpretation.
+// covers, the facets it asks for, and its periods. What the question asks for
+// and turns off (facets, metrics, income items) is a model's reading of it,
+// proposed from closed vocabularies and validated (scope-proposal.ts); its
+// periods are read from fixed tokens (FY2026, Q3, YTD). Everything else here
+// is derived from those: the route, inheritance, what a turn-off clears. Saved
+// with the answer, so the next follow-up and a reload read the same
+// interpretation.
 //
 // The scope is what the thread is researching, not what one answer drew: a
 // field a turn's blocks cannot show (a single company's answer has no price
@@ -10,7 +13,10 @@
 //
 // A follow-up keeps every field it does not change. An inherited YTD window
 // keeps its cutoff, so its baseline and end are the ones already charted, not
-// recomputed from the current date.
+// recomputed from the current date. With no proposal (no model, a failure, a
+// reply outside the vocabularies) a turn asks for nothing new: a follow-up
+// keeps the previous scope whole, and a fresh question gets the plain answer
+// for its companies and periods.
 //
 // A metric the question names that no reader here serves (EBITDA, debt)
 // is a named gap: it is never answered with another metric in its place, so a
@@ -23,7 +29,6 @@
 // like any other facet, so a later turn still says it is missing.
 
 import { requestedFiscalQuarter, requestedFiscalYear, requestedPriceWindow, type FiscalQuarter } from "./fact-blocks.ts";
-import { BENCHMARK } from "./subject-extraction.ts";
 
 const ROUTES = [
   "latest_quarter",
@@ -70,183 +75,95 @@ export type ResearchScope = {
   price_window: { kind: "ytd"; cutoff: string } | null;
   // A benchmark index asked for: never in this data, so always a named gap.
   benchmark: boolean;
-  // Guidance asked for ("what guidance", "the outlook"), this turn or an
-  // earlier one, until a turn turns it off: its claims are read first. Absent
-  // when not.
+  // Guidance asked for, this turn or an earlier one, until a turn turns it off:
+  // its claims are read first. Absent when not.
   guidance?: true;
-  // A cause asked for ("why", "what drove"), this turn or an earlier one:
+  // A cause asked for, this turn or an earlier one, until a turn turns it off:
   // management's explanation is then read with the guidance. Absent when not.
   explains?: true;
-  // The income-statement items the question names ("operating income"), which
-  // its metrics read as the whole statement: their claims come first. This
-  // turn's, or the answer an evidence follow-up re-reads. Absent when none.
+  // The income-statement items the question names, which its metrics read as
+  // the whole statement: their claims come first. This turn's, or the answer
+  // an evidence follow-up re-reads. Absent when none.
   income_items?: ReadonlyArray<string>;
   // The fields carried from the previous answer rather than asked for now.
   inherited: ReadonlyArray<ScopeField>;
 };
 
-const PEERS = /\bpeers?\b/i;
-const WINDOW = /\b(?:ytd|year[- ]to[- ]date|(?:price )?window|(?:price )?returns?)\b/i;
-const FISCAL = /\b(?:FY\s?'?\d{2,4}|fiscal(?:\s+year)?(?:\s+\d{2,4})?|\d{4}\s+fiscal)\b/i;
-const QUARTER = /\b(?:Q[1-4]|quarter)\b/i;
+// What a question can ask for beside its metrics (scope-proposal.ts).
+export const SCOPE_FACETS = [
+  "peers",
+  "segments",
+  "margins",
+  "margin_trend",
+  "price_window",
+  "benchmark",
+  "guidance",
+  "explains",
+  "evidence",
+  "latest_quarter",
+] as const;
+export type ScopeFacet = (typeof SCOPE_FACETS)[number];
+// The periods a question can turn off beside its facets.
+export const PERIOD_FIELDS = ["fiscal_year", "fiscal_quarter"] as const;
+// The income-statement items, in earnings-release terms
+// (sec-earnings-release-extraction.ts).
+export const INCOME_ITEMS = ["revenue", "gross_margin", "operating_expenses", "operating_income", "net_income"] as const;
+export type IncomeItem = (typeof INCOME_ITEMS)[number];
+
+// A model's reading of what a question asks for and turns off, every entry
+// from the vocabularies above or the metric catalog (scope-proposal.ts).
+export type ScopeProposal = {
+  metrics: ReadonlyArray<RequestedMetric>;
+  asks: ReadonlySet<ScopeFacet>;
+  // Metric keys as proposedMetric builds them.
+  turns_off: { facets: ReadonlySet<ScopeFacet | (typeof PERIOD_FIELDS)[number]>; metrics: ReadonlySet<string> };
+  income_items: ReadonlyArray<IncomeItem>;
+};
+
+const NO_PROPOSAL: ScopeProposal = { metrics: [], asks: new Set(), turns_off: { facets: new Set(), metrics: new Set() }, income_items: [] };
+
+// The field a facet turned off clears. Guidance and a cause are read apart;
+// evidence and the latest quarter are asked for one turn only.
+const CLEARS: Partial<Record<ScopeFacet | (typeof PERIOD_FIELDS)[number], ScopeField>> = {
+  peers: "peers",
+  segments: "segments",
+  benchmark: "benchmark",
+  margins: "margin_trend",
+  margin_trend: "margin_trend",
+  price_window: "price_window",
+  fiscal_year: "fiscal_year",
+  fiscal_quarter: "fiscal_quarter",
+};
+
 // A quarter named without its year ("Q3", "the third quarter").
 const PARTIAL_QUARTER = /\bQ([1-4])\b|\b(first|second|third|fourth)\s+quarter\b/i;
 const ORDINAL_QUARTERS: Readonly<Record<string, number>> = { first: 1, second: 2, third: 3, fourth: 4 };
-// The latest quarter asked for again: a named quarter is not inherited (#292 review).
-// "Reported" may follow any of them ("the latest reported quarter").
-// A bare "last quarter" often means the one before, so "last" counts only as
-// "last reported".
-const LATEST_QUARTER = /\b(?:(?:latest|most recent(?:ly)?|current|newest)\s+(?:reported\s+)?(?:fiscal\s+)?|last\s+reported\s+(?:fiscal\s+)?)quarter\b/i;
-// Where a list of things to remove ends: at the end of the sentence, or where
-// the next request starts ("drop AMD and AAPL, and add TSLA"). Commas and "and"
-// inside the list ("segments, margins and the window") are part of it.
-// A word in capitals is a ticker in the list ("drop AMD and NOW"), not a
-// request, so these patterns match words in lower case or capitalised only
-// (words()), never in capitals, and take no "i" flag.
-// ponytail: spelled out per word because Node 22 has no inline (?-i:) modifier.
-export function words(list: ReadonlyArray<string>): string {
-  return list.map((word) => `[${word[0]}${word[0]!.toUpperCase()}]${word.slice(1)}`).join("|");
-}
-const CONJUNCTION = words(["and", "but", "then"]);
-export const LIST_END = String.raw`(?=\s*[.;:?!]|,?\s+(?:(?:${CONJUNCTION})\s+)?(?:${words(["add", "adding", "bring", "include", "show", "compare", "keep", "switch", "also", "now", "instead"])})\b|$)`;
-// What a follow-up turns off: the words after "without", "drop" and the like,
-// or after "no" starting a clause ("No segments", "same, no margins"), never
-// "no" inside one ("why was there no change in margins?").
-const OFF_VERBS = words([
-  "without", "drop", "remove", "exclude", "skip", "forget", "ignore", "hide", "leave out", "take out",
-  "no longer (?:show|include)", "stop (?:showing|including)",
-]);
-const OFF = new RegExp(
-  String.raw`(?:(?<=^\s*|[,;:]\s*|\b(?:${CONJUNCTION})\s+)${words(["no"])}|\b(?:${OFF_VERBS}))\s+((?:${words(["the", "any", "its", "their"])})\s+)?([^.;:?!]+?)` + LIST_END,
-  "g",
-);
-const SEGMENTS = /\bsegments?\b/i;
-// Guidance, however it is asked for: guided, an outlook or forecast, what the
-// company expects or is expected to do, its expectations, projections or
-// targets. A result "than expected" or "as expected" is set against past
-// expectations, and asks why (as do the comparisons below).
-// ponytail: "projects" as a noun ("its AI projects") reads as guidance too.
-const GUIDANCE = /\b(?:guidance|guid(?:e|es|ed|ing)|outlook|forecast(?:s|ed)?|expect(?:s|ing)?|expected (?:to|for)|expectations?|project(?:s|ed|ing|ions?)?|targets?)\b/i;
-// A result set against guidance, a forecast or a target ("missed its forecast",
-// "below target", "beat guidance", "below the low end of guidance") asks why,
-// not for guidance: the question
-// asks for guidance only if it still names some with those comparisons taken
-// out ("current guidance versus prior guidance" does).
-const AGAINST_GUIDANCE =
-  /\b(?:miss(?:ed|es)?|beat(?:s)?|below|above|short of|exceed(?:ed|s)?|than|versus|vs\.?|against|relative to|in line with)\s+(?:[\w'’]+\s+){0,5}(?:guidance|outlook|forecasts?|targets?|expectations?|projections?)\b/gi;
-// A cause asked for.
-const EXPLAINS =
-  /\b(?:why|explain\w*|caus(?:e|es|ed)|drove|driv(?:e|es|en|ers?)|reasons?|due to|because|led to|lead(?:s|ing)? to|behind|contribut(?:e|es|ed|ing) to|result(?:s|ed)? (?:in|from)|account(?:s|ed)? for|attribut(?:e|es|ed|able) to)\b/i;
-// Guidance turned off ("without using guidance", "no forecasts") is not asked for.
-const GUIDANCE_OFF =
-  /\b(?:without(?: including)?|no|not|exclud(?:e|ing)|ignor(?:e|ing)|skip(?:ping)?|drop(?:ping)?|remov(?:e|ing)|hid(?:e|ing)|leave out|take out|(?:don['’]t|do not) (?:use|include))\s+(?:[\w'’]+\s+){0,2}(?:guidance|outlook|forecasts?|projections?|targets?|expectations?)\b/gi;
 
-// The income-statement items a question names, in earnings-release terms
-// (sec-earnings-release-extraction.ts): the scope reads them all as the income
-// statement, so these say which comes first.
-const INCOME_ITEMS: ReadonlyArray<readonly [string, RegExp]> = [
-  ["revenue", /\b(?:revenues?|sales|top[- ]line)\b/i],
-  ["gross_margin", /\bgross (?:margins?|profits?)\b/i],
-  ["operating_expenses", /\b(?:operating expenses|opex)\b/i],
-  ["operating_income", /\boperating (?:income|profits?|margins?)\b/i],
-  ["net_income", /\bnet (?:income|profits?|margins?|earnings)\b/i],
-];
-const MARGINS = /\b(margins?|profitab\w*)\b/i;
-// A margin asked about over time, not just its latest value.
-const OVER_TIME =
-  /\b(trend\w*|over (?:the )?(?:last|past)\b|histor\w*|chang\w*|since|evolv\w*|quarters|years|qoq|yoy|quarter[- ]over[- ]quarter|year[- ]over[- ]year|(?:last|prior|previous) (?:quarter|year)|a year ago)\b/i;
-// Phrases that name a context, not a metric: "earnings" in "earnings call".
-const NOT_METRICS = /\bearnings (?:calls?|releases?|reports?|dates?|season)\b/gi;
-// Words that qualify a metric just named ("free cash flow growth", "free cash
-// flow YTD") rather than asking for another one. A YTD attached to a metric
-// qualifies it; one elsewhere ("EPS and YTD stock return") does not.
-const QUALIFIER = String.raw`(?:\s+(?:growth|margins?|yields?|trends?|per share|ytd|year[- ]to[- ]date))?`;
-// A qualifier's key and label: YTD is written out.
-function qualifierParts(qualifier: string): { key: string; label: string } {
-  return /^(?:ytd|year[- ]to[- ]date)$/.test(qualifier)
-    ? { key: "ytd", label: "year to date" }
-    : { key: qualifier.replace(/\s+/g, "_"), label: qualifier };
-}
-// Asking for an answer's evidence, not about a company's sources of revenue:
-// a source counts only as the answer's ("your source", "the sources for this"),
-// never one "of" something else ("the sources of NVDA's revenue").
-const EVIDENCE =
-  /\b(evidence|cite|citations?|(?:the|your|its) sources?(?!\s+of\b)|sources? (?:for|of) (?:this|that|these|those)|where (?:does|do|did) (?:this|that|these|those) come from)\b/i;
-
-// How a statement names the cash of an activity after it: "cash from",
-// "provided by", "used in", "used for", and the label's "provided by (used
-// in)". One phrasing for operating, investing and financing alike.
-const CASH_FOR = String.raw`\bcash(?:[- ]flows?)? (?:(?:was|is|were) )?(?:from|generated (?:by|from)|(?:provided by|used (?:in|for))(?: \((?:provided by|used in)\))?) `;
-
-// A cash flow category named before "cash flow" (its prepositive pattern) or
-// after "cash ..." (its activity).
-function cashFlowPattern(prepositive: string, activity: string): RegExp {
-  return new RegExp(String.raw`${prepositive}|${CASH_FOR}${activity}\b`, "gi");
-}
-
-// The metrics a question can name, most specific first: each match is removed
-// before the next is tried, so "free cash flow" is not also "cash flow" and
-// "earnings per share" is not also "earnings".
-const METRICS: ReadonlyArray<RequestedMetric & { pattern: RegExp }> = [
-  { metric_key: "free_cash_flow", label: "Free cash flow", available: true, pattern: /\bfree[- ]cash[- ]flows?\b|\bFCF\b/gi },
-  // Named before or after "cash flow" ("cash flow from investing activities").
-  {
-    metric_key: "financing_cash_flow",
-    label: "Financing cash flow",
-    available: false,
-    pattern: cashFlowPattern(String.raw`\bfinancing cash[- ]flows?\b`, String.raw`financing(?: activities)?`),
-  },
-  {
-    metric_key: "investing_cash_flow",
-    label: "Investing cash flow",
-    available: false,
-    pattern: cashFlowPattern(String.raw`\binvesting cash[- ]flows?\b`, String.raw`investing(?: activities)?`),
-  },
-  // Unqualified "cash flow" means operating cash flow, and so does cash "from
-  // operations" or "used in operating activities" (a negative one).
-  {
-    metric_key: "operating_cash_flow",
-    label: "Operating cash flow",
-    available: true,
-    pattern: cashFlowPattern(String.raw`\b(?:operating )?cash[- ]flows?\b`, String.raw`(?:operations|operating activities)`),
-  },
-  { metric_key: "capex", label: "Capital expenditures", available: true, pattern: /\bcapex\b|\bcapital expenditures?\b/gi },
+// The metrics a question can name. A model proposes from this catalog
+// (scope-proposal.ts); nothing else is accepted.
+export const PROPOSABLE_METRICS: ReadonlyArray<RequestedMetric> = Object.freeze([
+  { metric_key: "free_cash_flow", label: "Free cash flow", available: true },
+  { metric_key: "financing_cash_flow", label: "Financing cash flow", available: false },
+  { metric_key: "investing_cash_flow", label: "Investing cash flow", available: false },
+  { metric_key: "operating_cash_flow", label: "Operating cash flow", available: true },
+  { metric_key: "capex", label: "Capital expenditures", available: true },
   // The whole balance sheet, or one item of it, each its own request: a cash
-  // question is answered by cash, never by assets. Cash on hand is a balance,
-  // read after every cash flow phrase is taken.
-  { metric_key: "balance_sheet", label: "Balance sheet", available: true, pattern: /\bbalance[- ]sheets?\b/gi },
-  {
-    metric_key: "cash_and_equivalents",
-    label: "Cash and equivalents",
-    available: true,
-    pattern: /\bcash (?:and (?:cash )?equivalents|equivalents|position|balance|on hand)\b|\bhow much cash\b/gi,
-  },
-  { metric_key: "total_assets", label: "Total assets", available: true, pattern: /\btotal assets\b/gi },
-  { metric_key: "total_liabilities", label: "Total liabilities", available: true, pattern: /\btotal liabilities\b/gi },
-  {
-    metric_key: "total_equity",
-    label: "Stockholders' equity",
-    available: true,
-    pattern: /\b(?:total|(?:shareholders|stockholders)['’]?) equity\b|\bbook value\b/gi,
-  },
-  // Basic EPS is its own figure, taken before any EPS is read as diluted.
-  { metric_key: "eps_basic", label: "Basic earnings per share", available: true, pattern: /\bbasic (?:EPS|earnings per share)\b/gi },
-  // "Diluted" is part of the name, so an adjustment before it ("adjusted
-  // diluted EPS") still qualifies it.
-  { metric_key: "eps_diluted", label: "Earnings per share", available: true, pattern: /\b(?:diluted )?EPS\b|\b(?:diluted )?earnings per share\b/gi },
-  { metric_key: "ebitda", label: "EBITDA", available: false, pattern: /\bEBITDA\b/gi },
-  // An adjusted income figure is not the reported one (statement metrics take
-  // these adjectives through ADJUSTMENT instead).
-  {
-    metric_key: "non_gaap_income",
-    label: "Non-GAAP earnings",
-    available: false,
-    pattern: /\b(?:adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed) (?:operating income|net income|income|earnings|profits?|margins?|EBIT)\b/gi,
-  },
-  { metric_key: "total_debt", label: "Debt", available: false, pattern: /\bdebt\b/gi },
-  { metric_key: "dividends", label: "Dividends", available: false, pattern: /\bdividends?\b/gi },
-  { metric_key: "income_statement", label: "Revenue, profit and margins", available: true, pattern: /\b(revenue|sales|income|profits?|profitab\w*|margins?|growth|earnings)\b/gi },
-];
+  // question is answered by cash, never by assets.
+  { metric_key: "balance_sheet", label: "Balance sheet", available: true },
+  { metric_key: "cash_and_equivalents", label: "Cash and equivalents", available: true },
+  { metric_key: "total_assets", label: "Total assets", available: true },
+  { metric_key: "total_liabilities", label: "Total liabilities", available: true },
+  { metric_key: "total_equity", label: "Stockholders' equity", available: true },
+  // Basic EPS is its own figure, never answered with diluted EPS.
+  { metric_key: "eps_basic", label: "Basic earnings per share", available: true },
+  { metric_key: "eps_diluted", label: "Earnings per share", available: true },
+  { metric_key: "ebitda", label: "EBITDA", available: false },
+  // An adjusted income figure is not the reported one.
+  { metric_key: "non_gaap_income", label: "Non-GAAP earnings", available: false },
+  { metric_key: "total_debt", label: "Debt", available: false },
+  { metric_key: "dividends", label: "Dividends", available: false },
+  { metric_key: "income_statement", label: "Revenue, profit and margins", available: true },
+].map((metric) => Object.freeze(metric)));
 
 // The cash flow, balance sheet and EPS a question can name, each with the item
 // labels its block shows (statement-blocks.ts). One company at a time: a
@@ -267,8 +184,7 @@ export const STATEMENT_METRIC_LABELS: Readonly<Record<string, ReadonlyArray<stri
 const BALANCE_SHEET_ITEMS = ["cash_and_equivalents", "total_assets", "total_liabilities", "total_equity"];
 
 function metricByKey(key: string): RequestedMetric {
-  const { pattern: _pattern, ...metric } = METRICS.find((candidate) => candidate.metric_key === key)!;
-  return metric;
+  return PROPOSABLE_METRICS.find((candidate) => candidate.metric_key === key)!;
 }
 
 // The statement metrics a turn asks for (or kept from the previous one).
@@ -276,66 +192,40 @@ export function statementMetrics(scope: ResearchScope): ReadonlyArray<RequestedM
   return scope.metrics.filter((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS);
 }
 
-// A qualifier placed before a statement metric ("growth in free cash flow",
-// "growth in NVDA's EPS"), captured with it: the metric qualified, never the
-// plain figure, and its "growth" asks for no income figures.
-const PRE_QUALIFIER = String.raw`(?:\b(growth|margins?|yields?|trends?) (?:in|of) (?:(?:the|its|their|\w+['’]s) )?)?`;
-
 // Adjectives that make a statement metric another, unreported figure
-// ("adjusted EPS", "non-GAAP free cash flow"), captured before it.
-const ADJUSTMENT = String.raw`(?:\b(adjusted|non[- ]GAAP|pro[- ]forma|core|normali[sz]ed|levered|unlevered|ytd|year[- ]to[- ]date)\s+)?`;
-const ADJUSTMENTS: Readonly<Record<string, { key: string; label: string }>> = {
-  // Year to date, before the metric ("year-to-date EPS"): a figure no reader serves.
-  "ytd": { key: "ytd", label: "Year-to-date" },
-  "year to date": { key: "ytd", label: "Year-to-date" },
-  "adjusted": { key: "adjusted", label: "Adjusted" },
-  "non gaap": { key: "non_gaap", label: "Non-GAAP" },
-  "pro forma": { key: "pro_forma", label: "Pro forma" },
-  "core": { key: "core", label: "Core" },
-  "normalized": { key: "normalized", label: "Normalized" },
-  "normalised": { key: "normalized", label: "Normalized" },
-  "levered": { key: "levered", label: "Levered" },
-  "unlevered": { key: "unlevered", label: "Unlevered" },
+// ("adjusted EPS", "non-GAAP free cash flow"), and what is asked of one
+// ("free cash flow margin", "growth in EPS").
+export const PROPOSABLE_ADJUSTMENTS = ["adjusted", "non_gaap", "pro_forma", "core", "normalized", "levered", "unlevered"] as const;
+export const PROPOSABLE_QUALIFIERS = ["growth", "margin", "yield", "trend", "per_share", "ytd"] as const;
+type Adjustment = (typeof PROPOSABLE_ADJUSTMENTS)[number];
+type Qualifier = (typeof PROPOSABLE_QUALIFIERS)[number];
+const ADJUSTMENT_LABELS: Readonly<Record<Adjustment, string>> = {
+  adjusted: "Adjusted",
+  non_gaap: "Non-GAAP",
+  pro_forma: "Pro forma",
+  core: "Core",
+  normalized: "Normalized",
+  levered: "Levered",
+  unlevered: "Unlevered",
 };
 
-// One mention of a statement metric: the metric itself, or with an adjustment
-// before it or a qualifier after it, the named gap it then asks for.
-function classifyStatementMention(metric: RequestedMetric, pattern: RegExp, occurrence: RegExpMatchArray): RequestedMetric {
-  // Group 1: a qualifier before the metric ("growth in"); group 2: an adjustment.
-  const before = occurrence[1]?.toLowerCase().replace(/s$/, "");
-  const adjustment = occurrence[2] !== undefined ? ADJUSTMENTS[occurrence[2].toLowerCase().replace(/[- ]/g, " ")] : undefined;
-  const text = occurrence[0];
-  const body = before || adjustment ? text.slice(text.search(new RegExp(`(?:${pattern.source})`, "i"))) : text;
-  const raw = body.replace(new RegExp(`^(?:${pattern.source})`, "i"), "").trim().toLowerCase() || before || "";
-  return qualifiedMetric(metric, adjustment, raw === "" ? undefined : qualifierParts(raw));
+export function isOneOf<T extends string>(value: unknown, vocabulary: ReadonlyArray<T>): value is T {
+  return (vocabulary as ReadonlyArray<unknown>).includes(value);
 }
 
 // A statement metric with an adjustment and/or a qualifier is another figure
-// no reader serves: a named gap. The regex reader and a model's proposal
-// (scope-proposal.ts) both build it here, so they name it identically.
-function qualifiedMetric(
-  metric: RequestedMetric,
-  adjustment: { key: string; label: string } | undefined,
-  qualifier: { key: string; label: string } | undefined,
-): RequestedMetric {
-  if (!adjustment && !qualifier) return metric;
+// no reader serves: a named gap.
+function qualifiedMetric(metric: RequestedMetric, adjustment: Adjustment | null, qualifier: Qualifier | null): RequestedMetric {
+  if (adjustment === null && qualifier === null) return metric;
+  const name = adjustment === null
+    ? metric.label
+    : `${ADJUSTMENT_LABELS[adjustment]} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}`;
   return {
-    metric_key: [metric.metric_key, adjustment?.key, qualifier?.key].filter(Boolean).join("_"),
-    label: [
-      adjustment ? `${adjustment.label} ${metric.label[0]!.toLowerCase()}${metric.label.slice(1)}` : metric.label,
-      qualifier?.label,
-    ].filter(Boolean).join(" "),
+    metric_key: [metric.metric_key, adjustment, qualifier].filter(Boolean).join("_"),
+    label: [name, qualifier === "ytd" ? "year to date" : qualifier?.replaceAll("_", " ")].filter(Boolean).join(" "),
     available: false,
   };
 }
-
-// What a model may propose a question asks for (scope-proposal.ts): a metric
-// from this catalog, with qualifiers from these. Nothing else is accepted.
-export const PROPOSABLE_METRICS: ReadonlyArray<RequestedMetric> = Object.freeze(
-  METRICS.map(({ pattern: _pattern, ...metric }) => Object.freeze(metric)),
-);
-export const PROPOSABLE_ADJUSTMENTS = ["adjusted", "non_gaap", "pro_forma", "core", "normalized", "levered", "unlevered"] as const;
-export const PROPOSABLE_QUALIFIERS = ["growth", "margin", "yield", "trend", "per_share", "ytd"] as const;
 
 // The metric a validated proposal names: a catalog metric, qualified only if
 // it is a statement metric (an unavailable one is a named gap already).
@@ -347,49 +237,13 @@ export function proposedMetric(
 ): RequestedMetric | undefined {
   const metric = PROPOSABLE_METRICS.find((candidate) => candidate.metric_key === key);
   if (!metric) return undefined;
-  if (adjustment !== null && !(PROPOSABLE_ADJUSTMENTS as ReadonlyArray<string>).includes(adjustment)) return undefined;
-  if (qualifier !== null && !(PROPOSABLE_QUALIFIERS as ReadonlyArray<string>).includes(qualifier)) return undefined;
+  if (adjustment !== null && !isOneOf(adjustment, PROPOSABLE_ADJUSTMENTS)) return undefined;
+  if (qualifier !== null && !isOneOf(qualifier, PROPOSABLE_QUALIFIERS)) return undefined;
   // Adjusted income ("adjusted profit") is not the reported income statement:
-  // the non-GAAP gap, as the patterns read it.
+  // the non-GAAP gap.
   if (metric.metric_key === "income_statement" && adjustment !== null) return proposedMetric("non_gaap_income", null, null);
   if (!(metric.metric_key in STATEMENT_METRIC_LABELS)) return metric;
-  return qualifiedMetric(
-    metric,
-    adjustment === null ? undefined : ADJUSTMENTS[adjustment.replace(/_/g, " ")],
-    qualifier === null ? undefined : qualifierParts(qualifier.replace(/_/g, " ")),
-  );
-}
-
-export function requestedMetrics(question: string): RequestedMetric[] {
-  return scanMetrics(question).metrics;
-}
-
-// The metrics a question names, and the question without the unavailable ones
-// and their qualifiers: "free cash flow margin" asks for no (available) margin.
-function scanMetrics(question: string): { metrics: RequestedMetric[]; rest: string } {
-  let rest = question.replace(NOT_METRICS, " ");
-  let withoutOthers = question;
-  const metrics: RequestedMetric[] = [];
-  for (const { pattern, ...metric } of METRICS) {
-    // A metric other than the income statement takes its qualifier with it, so
-    // "free cash flow growth" or "EBITDA margin" asks for no income figures.
-    const own = metric.metric_key !== "income_statement";
-    const statement = metric.metric_key in STATEMENT_METRIC_LABELS;
-    const match = new RegExp(`${statement ? PRE_QUALIFIER + ADJUSTMENT : ""}(?:${pattern.source})${own ? QUALIFIER : ""}`, "gi");
-    const found = [...rest.matchAll(match)];
-    if (found.length === 0) continue;
-    // Each mention is classified ("EPS and adjusted EPS" asks for both). A
-    // qualified statement metric ("free cash flow margin", "EPS growth",
-    // "adjusted EPS") is another metric no reader serves: a named gap, never
-    // the reported figure in its place.
-    for (const occurrence of found) {
-      const classified = statement ? classifyStatementMention(metric, pattern, occurrence) : metric;
-      if (!metrics.some((seen) => seen.metric_key === classified.metric_key)) metrics.push(classified);
-    }
-    rest = rest.replace(match, " ");
-    if (own) withoutOthers = withoutOthers.replace(match, " ");
-  }
-  return { metrics, rest: withoutOthers };
+  return qualifiedMetric(metric, adjustment, qualifier);
 }
 
 export function resolveResearchScope(input: {
@@ -403,79 +257,80 @@ export function resolveResearchScope(input: {
   served?: boolean;
   // Every auto-selected peer was dropped by name: peers are off (local-runtime).
   peersOff?: boolean;
-  // The metrics a model proposed the question names, validated against the
-  // catalog (scope-proposal.ts); null or absent: the patterns read them. Only
-  // the metrics: facets, companies and turning things off keep their rules.
-  proposedMetrics?: ReadonlyArray<RequestedMetric> | null;
+  // What a model read the question to ask for and turn off
+  // (scope-proposal.ts). Null: it asks for nothing beyond its companies and
+  // period tokens, and turns nothing off.
+  proposal: ScopeProposal | null;
 }): ResearchScope {
-  const { prior } = input;
-  // What the turn turns off, and the question without those phrases, so a facet
-  // turned off is not also read as asked for.
-  const off = turnedOff(input.question);
-  if (input.peersOff) off.fields.add("peers");
-  const question = off.rest;
+  const { prior, question } = input;
+  const { metrics: proposed, asks, turns_off: turnsOff, income_items: namedItems } = input.proposal ?? NO_PROPOSAL;
+  const off = new Set([...turnsOff.facets].flatMap((facet) => CLEARS[facet] ?? []));
+  if (input.peersOff) off.add("peers");
   const inherited: ScopeField[] = [];
+  // A field turned off is neither asked for nor kept, though the model may
+  // also have read it as asked ("Show NVDA without the segments").
   const pick = <T>(field: ScopeField, asked: T | null, kept: T | null | undefined): T | null => {
+    if (off.has(field)) return null;
     if (asked !== null) return asked;
-    if (kept === null || kept === undefined || off.fields.has(field)) return null;
+    if (kept === null || kept === undefined) return null;
     inherited.push(field);
     return kept;
   };
-  const flag = (field: ScopeField, pattern: RegExp, kept: boolean | undefined): boolean =>
-    pick(field, pattern.test(question) ? true : null, kept ? true : null) ?? false;
-  const peers = flag("peers", PEERS, prior?.peers);
-  const segments = flag("segments", SEGMENTS, prior?.segments);
-  const benchmark = flag("benchmark", BENCHMARK, prior?.benchmark);
-  // Margins asked about in their own right, not as an unavailable metric's
-  // qualifier ("free cash flow margin").
-  const scanned = scanMetrics(question);
-  // The metrics a model proposed from the catalog (scope-proposal.ts), when it
-  // did; else the ones the patterns found. A metric the turn turns off ("drop
-  // capex") is not asked for, though the model read the question with the
-  // words still in it.
-  const requested = input.proposedMetrics?.filter((metric) => !off.metrics.has(metric.metric_key)) ?? scanned.metrics;
-  // With a proposal, a margin word is an income margin only if the model read
-  // income figures: else it qualifies a metric it proposed ("the margin on the
-  // cash the business threw off"), in words the patterns did not take out.
-  const marginAsked = MARGINS.test(scanned.rest) &&
-    (input.proposedMetrics == null || requested.some((metric) => metric.metric_key === "income_statement"));
-  const margin_trend = pick("margin_trend", marginAsked && OVER_TIME.test(scanned.rest) ? true : null, prior?.margin_trend ? true : null) ?? false;
-  const named = requested.map((metric) => (input.served ? { ...metric, available: true } : metric));
+  const flag = (field: ScopeField & ScopeFacet, kept: boolean | undefined): boolean =>
+    pick(field, asks.has(field) ? true : null, kept ? true : null) ?? false;
+  const peers = flag("peers", prior?.peers);
+  const segments = flag("segments", prior?.segments);
+  const benchmark = flag("benchmark", prior?.benchmark);
+  const marginAsked = !off.has("margin_trend") && (asks.has("margins") || asks.has("margin_trend"));
+  const margin_trend = flag("margin_trend", prior?.margin_trend);
+  // A metric the turn turns off ("drop capex") is not asked for, even if the
+  // model also named it. The whole balance sheet takes its items with it,
+  // however they were kept.
+  const offMetrics = new Set(turnsOff.metrics);
+  if (offMetrics.has("balance_sheet")) for (const key of BALANCE_SHEET_ITEMS) offMetrics.add(key);
+  const named = proposed
+    .filter((metric) => !offMetrics.has(metric.metric_key))
+    .map((metric) => (input.served ? { ...metric, available: true } : metric));
   // A metric turned off leaves the ones kept; none left keeps none.
   // Dropping one item of the whole balance sheet keeps the others, named.
   const kept = (prior?.metrics ?? []).flatMap((metric): RequestedMetric[] => {
-    if (off.metrics.has(metric.metric_key)) return [];
+    if (offMetrics.has(metric.metric_key)) return [];
     const parts = metric.metric_key === "balance_sheet" ? BALANCE_SHEET_ITEMS : [];
-    if (!parts.some((key) => off.metrics.has(key))) return [metric];
-    return parts.filter((key) => !off.metrics.has(key)).map(metricByKey);
+    if (!parts.some((key) => offMetrics.has(key))) return [metric];
+    return parts.filter((key) => !offMetrics.has(key)).map(metricByKey);
   });
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
+  // A period turned off is read as not named, though its words are still in
+  // the question ("forget fiscal 2025").
+  const yearNamed = off.has("fiscal_year") ? undefined : requestedFiscalYear(question);
+  const quarterNamed = off.has("fiscal_quarter") ? undefined : requestedFiscalQuarter(question);
+  const latest = asks.has("latest_quarter");
   // The latest quarter replaces an inherited fiscal year ("Q1 fiscal 2025"
   // named both), so a reader that takes no quarter isn't held to the old year.
-  if (requestedFiscalYear(question) === undefined && requestedFiscalQuarter(question) === undefined && LATEST_QUARTER.test(question)) {
-    off.fields.add("fiscal_year");
-  }
+  if (yearNamed === undefined && quarterNamed === undefined && latest) off.add("fiscal_year");
   // A complete quarter named without a fiscal year sets its year (#292
   // review): a comparison then compares that fiscal year, not the latest.
-  const fiscal_year = pick("fiscal_year", requestedFiscalYear(question) ?? requestedFiscalQuarter(question)?.fiscal_year ?? null, prior?.fiscal_year);
+  const fiscal_year = pick("fiscal_year", yearNamed ?? quarterNamed?.fiscal_year ?? null, prior?.fiscal_year);
   // A follow-up naming part of a period updates the inherited quarter (#292
   // review): a quarter alone ("now Q3") takes its year; a fiscal year alone
   // ("now for fiscal 2026") or the latest quarter replaces it.
-  const partial = PARTIAL_QUARTER.exec(question);
+  const partial = off.has("fiscal_quarter") ? null : PARTIAL_QUARTER.exec(question);
   const partialPeriod = partial ? `Q${partial[1] ?? ORDINAL_QUARTERS[partial[2]!.toLowerCase()]}` : null;
   // Its year: one named in the question ("Q3, FY2026"), else the inherited
   // quarter's, else an inherited fiscal year (#292 review).
-  const partialYear = requestedFiscalYear(question) ?? prior?.fiscal_quarter?.fiscal_year ?? prior?.fiscal_year ?? undefined;
-  const namedQuarter = requestedFiscalQuarter(question) ??
+  const partialYear = yearNamed ?? prior?.fiscal_quarter?.fiscal_year ?? prior?.fiscal_year ?? undefined;
+  const namedQuarter = quarterNamed ??
     (partialPeriod && partialYear !== undefined ? { fiscal_year: partialYear, fiscal_period: partialPeriod } : null);
-  if (namedQuarter === null && (LATEST_QUARTER.test(question) || requestedFiscalYear(question) !== undefined)) off.fields.add("fiscal_quarter");
+  if (namedQuarter === null && (latest || yearNamed !== undefined)) off.add("fiscal_quarter");
   const fiscal_quarter = pick("fiscal_quarter", namedQuarter, prior?.fiscal_quarter);
-  const asked = requestedPriceWindow(question) === "ytd" ? { kind: "ytd" as const, cutoff: input.asOf } : null;
+  // The window is fixed syntax (YTD): its token asks for it, and the proposal
+  // only turns it off.
+  const asked = !off.has("price_window") && requestedPriceWindow(question) === "ytd" ? { kind: "ytd" as const, cutoff: input.asOf } : null;
   const price_window = pick("price_window", asked, prior?.price_window);
   // An evidence follow-up asks for the sources of the previous answer about the
   // same companies, so it reads that answer's scope again.
   const priorIds = new Set(prior?.companies.map((company) => company.issuer_id) ?? []);
-  const evidence = prior !== null && EVIDENCE.test(question) && input.companies.every((company) => priorIds.has(company.issuer_id));
+  const evidence = prior !== null && asks.has("evidence") && input.companies.every((company) => priorIds.has(company.issuer_id));
   // Only metrics no reader serves (named now, or kept from the previous turn)
   // and nothing else asked for now: a window, peers, segments or margins asked
   // beside such a gap are still read, with the gap named.
@@ -488,15 +343,14 @@ export function resolveResearchScope(input: {
   const readable = (metric: RequestedMetric) =>
     metric.available && !(comparing && named.length > 0 && metric.metric_key in STATEMENT_METRIC_LABELS);
   const onlyUnavailable = metrics.length > 0 && metrics.every((metric) => !readable(metric)) &&
-    (asked === null || input.companies.length < 2) && !PEERS.test(question) && !SEGMENTS.test(question) && !marginAsked;
+    (asked === null || input.companies.length < 2) && !asks.has("peers") && !asks.has("segments") && !marginAsked;
   // Only cash flow, balance sheet or EPS (and any named gaps beside them): the
   // statement figures alone, as a segment request reads segments alone.
   const onlyStatements = metrics.some((metric) => metric.available && metric.metric_key in STATEMENT_METRIC_LABELS) &&
     metrics.every((metric) => !metric.available || metric.metric_key in STATEMENT_METRIC_LABELS) &&
-    !SEGMENTS.test(question) && !marginAsked;
+    !asks.has("segments") && !marginAsked;
   // The items named now; else the previous answer's, where this turn re-reads
   // it (an evidence follow-up) or keeps the metrics it named them for ("Why?").
-  const namedItems = INCOME_ITEMS.flatMap(([item, pattern]) => (pattern.test(question) ? [item] : []));
   const incomeItems = evidence || (namedItems.length === 0 && inherited.includes("metrics"))
     ? prior?.income_items ?? []
     : namedItems;
@@ -505,6 +359,10 @@ export function resolveResearchScope(input: {
     : input.served
     ? "financial_answer"
     : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable, onlyStatements });
+  // Guidance and a cause are asked this turn, or kept from an earlier one as
+  // the other facets are, unless this one turns them off.
+  const keeps = (facet: "guidance" | "explains", kept: true | undefined) =>
+    !turnsOff.facets.has(facet) && (asks.has(facet) || kept === true);
   return {
     route: evidence ? "evidence_followup" : reads,
     reads,
@@ -519,58 +377,27 @@ export function resolveResearchScope(input: {
     fiscal_quarter,
     price_window,
     benchmark,
-    // Asked this turn, or kept from an earlier one, as the other facets are,
-    // unless this one turns it off. Turned off in the question as asked: the
-    // turn-off of a metric ("without revenue guidance") has taken its words out
-    // of `question`. (search: GUIDANCE_OFF is global, and test would keep its
-    // place.)
-    ...(GUIDANCE.test(question.replace(AGAINST_GUIDANCE, " ").replace(GUIDANCE_OFF, " ")) ||
-        (prior?.guidance && input.question.search(GUIDANCE_OFF) < 0)
-      ? { guidance: true as const }
-      : {}),
-    // Asked this turn, or kept from an earlier one, as guidance is.
-    ...(EXPLAINS.test(question) || prior?.explains ? { explains: true as const } : {}),
+    ...(keeps("guidance", prior?.guidance) ? { guidance: true as const } : {}),
+    ...(keeps("explains", prior?.explains) ? { explains: true as const } : {}),
     ...(incomeItems.length > 0 ? { income_items: incomeItems } : {}),
     inherited,
   };
 }
 
-// Whether words name a facet or metric this scope tracks ("the FCF", "the
-// segments"), so they are not a company to drop.
-export function namesFacet(text: string): boolean {
-  return [SEGMENTS, PEERS, BENCHMARK, MARGINS, WINDOW, FISCAL, QUARTER].some((pattern) => pattern.test(text)) ||
-    scanMetrics(text).metrics.length > 0;
-}
+// Every word of the catalog's labels and keys, each multi-word label's
+// initials ("FCF"), and the facet, period and income item names.
+const FACET_WORDS = new Set([
+  ...PROPOSABLE_METRICS.flatMap(({ metric_key, label }) => {
+    const words = label.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+    return [...metric_key.split("_"), ...words, ...(words.length > 1 ? [words.map((word) => word[0]).join("")] : [])];
+  }),
+  ...[...SCOPE_FACETS, ...PERIOD_FIELDS, ...INCOME_ITEMS].flatMap((name) => name.split("_")),
+]);
 
-// The fields and metrics a question turns off, and the question without the
-// phrases that do it. A phrase naming nothing here ("without AMD", a company
-// the coordinator removes) turns nothing off.
-function turnedOff(question: string): { fields: Set<ScopeField>; metrics: Set<string>; rest: string } {
-  const fields = new Set<ScopeField>();
-  const metrics = new Set<string>();
-  const rest = question.replace(OFF, (phrase, _article: string | undefined, object: string) => {
-    const before = fields.size + metrics.size;
-    if (SEGMENTS.test(object)) fields.add("segments");
-    if (PEERS.test(object)) fields.add("peers");
-    if (BENCHMARK.test(object)) fields.add("benchmark");
-    if (MARGINS.test(object)) fields.add("margin_trend");
-    if (WINDOW.test(object)) fields.add("price_window");
-    if (FISCAL.test(object)) fields.add("fiscal_year");
-    // A quarter-over-quarter comparison removed is not the quarter (#292 review).
-    if (QUARTER.test(object.replace(/\bquarter[- ]over[- ]quarter\b|\bQoQ\b/gi, " "))) fields.add("fiscal_quarter");
-    // Each clause widens only what it names itself.
-    const named = new Set(scanMetrics(object).metrics.map((metric) => metric.metric_key));
-    // Unqualified "cash flow" ("drop the cash flow") drops every cash flow
-    // figure; "drop operating cash flow" names only that one.
-    if (named.has("operating_cash_flow") && !/\boperating\b|\boperations\b/i.test(object)) {
-      for (const key of ["capex", "free_cash_flow"]) named.add(key);
-    }
-    // The whole balance sheet drops its items too, however they were kept.
-    if (named.has("balance_sheet")) for (const key of BALANCE_SHEET_ITEMS) named.add(key);
-    for (const key of named) metrics.add(key);
-    return fields.size + metrics.size > before ? " " : phrase;
-  });
-  return { fields, metrics, rest };
+// Whether a word names a facet or metric this scope tracks ("FCF", "capex"),
+// so it is not a company to drop.
+export function namesFacet(word: string): boolean {
+  return FACET_WORDS.has(word.toLowerCase());
 }
 
 function routeOf(

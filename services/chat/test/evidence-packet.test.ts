@@ -2,14 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildEvidencePacket, claimSelection, packetForModel, type ClaimRecord } from "../src/evidence-packet.ts";
-import { resolveResearchScope } from "../src/research-scope.ts";
+import { resolveResearchScope, type ScopeProposal } from "../src/research-scope.ts";
+import { proposal } from "./scope-fixtures.ts";
 
 const NVDA = { issuer_id: "60000000-0000-4000-8000-000000000001", label: "NVDA" };
 const AMD = { issuer_id: "60000000-0000-4000-8000-000000000002", label: "AMD" };
 const AAPL = { issuer_id: "60000000-0000-4000-8000-000000000003", label: "AAPL" };
 const CUTOFF = "2026-09-01T00:00:00.000Z";
-const scope = (question: string, companies = [NVDA]) =>
-  resolveResearchScope({ question, companies, prior: null, asOf: CUTOFF });
+const scope = (question: string, companies = [NVDA], read: ScopeProposal = proposal()) =>
+  resolveResearchScope({ question, companies, prior: null, asOf: CUTOFF, proposal: read });
+const REVENUE = { metrics: ["income_statement"], items: ["revenue"] } as const;
+const GROSS_MARGIN_CHANGE = proposal({ asks: ["margins", "margin_trend"], metrics: ["income_statement"], items: ["gross_margin"] });
 
 const LATEST = {
   id: "b-latest",
@@ -78,7 +81,7 @@ test("a comparison packet binds each figure to its company and period; a company
     ] } },
   };
   const packet = buildEvidencePacket({
-    scope: scope("Compare NVDA, AMD and AAPL fiscal 2025 revenue", [NVDA, AMD, AAPL]),
+    scope: scope("Compare NVDA, AMD and AAPL fiscal 2025 revenue", [NVDA, AMD, AAPL], proposal(REVENUE)),
     factBlocks: [comparison],
     cutoff: CUTOFF,
   });
@@ -96,7 +99,7 @@ test("a comparison packet binds each figure to its company and period; a company
 
 test("a metric no reader serves is a gap with no figure in its place (#207)", () => {
   const gap = { id: "b-gap", kind: "rich_text", segments: [{ type: "text", text: "EBITDA is not available for AMD in this data, so no other figure is shown in its place." }] };
-  const packet = buildEvidencePacket({ scope: scope("What is AMD's EBITDA?", [AMD]), factBlocks: [gap], cutoff: CUTOFF });
+  const packet = buildEvidencePacket({ scope: scope("What is AMD's EBITDA?", [AMD], proposal({ metrics: ["ebitda"] })), factBlocks: [gap], cutoff: CUTOFF });
   assert.equal(packet.route, "unavailable_metric");
   assert.deepEqual(packet.figures, []);
   assert.deepEqual(packet.gaps, [gap.segments[0]!.text]);
@@ -105,14 +108,14 @@ test("a metric no reader serves is a gap with no figure in its place (#207)", ()
 });
 
 test("a cash flow question names the periods its readers cover", () => {
-  const packet = buildEvidencePacket({ scope: scope("What is AMD's free cash flow?", [AMD]), factBlocks: [], cutoff: CUTOFF });
+  const packet = buildEvidencePacket({ scope: scope("What is AMD's free cash flow?", [AMD], proposal({ metrics: ["free_cash_flow"] })), factBlocks: [], cutoff: CUTOFF });
   assert.equal(packet.route, "statements");
   assert.equal(
     packet.query_bounds.periods,
     "latest quarter and latest fiscal year reported for cash flow; balance sheet at its latest period end; EPS for the latest quarter, or the fiscal year once its annual report is in",
   );
   // A named fiscal year is the only period read.
-  const year = buildEvidencePacket({ scope: scope("What was AMD's free cash flow in fiscal 2024?", [AMD]), factBlocks: [], cutoff: CUTOFF });
+  const year = buildEvidencePacket({ scope: scope("What was AMD's free cash flow in fiscal 2024?", [AMD], proposal({ metrics: ["free_cash_flow"] })), factBlocks: [], cutoff: CUTOFF });
   assert.equal(
     year.query_bounds.periods,
     "fiscal year 2024 only: its latest quarter and the year for cash flow; balance sheet at its latest period end in that year; EPS for that year",
@@ -121,7 +124,13 @@ test("a cash flow question names the periods its readers cover", () => {
 
 test("an inherited YTD window is bounded at its own cutoff (#207)", () => {
   const first = scope("Compare NVDA with AMD YTD", [NVDA, AMD]);
-  const next = resolveResearchScope({ question: "Explain the differences", companies: [NVDA, AMD], prior: first, asOf: "2026-09-05T00:00:00.000Z" });
+  const next = resolveResearchScope({
+    question: "Explain the differences",
+    companies: [NVDA, AMD],
+    prior: first,
+    asOf: "2026-09-05T00:00:00.000Z",
+    proposal: proposal({ asks: ["explains"] }),
+  });
   const packet = buildEvidencePacket({ scope: next, factBlocks: [], cutoff: "2026-09-05T00:00:00.000Z" });
   assert.equal(packet.query_bounds.price_window, "year to date, to the 2026-09-01 cutoff");
 });
@@ -135,7 +144,7 @@ test("the model's packet has short ids only, no fact or source ids (#207)", () =
 test("an auto-selected peer with no block is still covered, as not shown (#207)", () => {
   // A peers request's auto-selected peer carries no label, and the comparison
   // and price readers came back empty.
-  const peers = { ...scope("How does NVDA compare with its peers?"), companies: [NVDA, { issuer_id: AMD.issuer_id }] };
+  const peers = { ...scope("How does NVDA compare with its peers?", [NVDA], proposal({ asks: ["peers"] })), companies: [NVDA, { issuer_id: AMD.issuer_id }] };
   const packet = buildEvidencePacket({ scope: peers, factBlocks: [], cutoff: CUTOFF });
   assert.deepEqual(packet.coverage, [
     { company: "NVDA", status: "not_shown" },
@@ -186,13 +195,13 @@ test("a route reads its predicate families first, from the start of the period i
     effective_until: null,
     fiscal_year: null,
   });
-  assert.deepEqual(claimSelection(scope("Break down NVDA's segments"), CUTOFF).predicate_prefixes, ["management.explanation.", "segment.", "guidance."]);
+  assert.deepEqual(claimSelection(scope("Break down NVDA's segments", [NVDA], proposal({ asks: ["segments"] })), CUTOFF).predicate_prefixes, ["management.explanation.", "segment.", "guidance."]);
   // Management's explanation of what the question asks about comes before its
   // other explanations: one release can hold more than the claim limit. The
   // margin named comes first; the others share one priority after it, so none
   // crowds out another.
   const MARGINS = ["management.explanation.gross_margin", "management.explanation.operating_income", "management.explanation.net_income"];
-  assert.deepEqual(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?"), CUTOFF).predicate_prefixes, [
+  assert.deepEqual(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?", [NVDA], GROSS_MARGIN_CHANGE), CUTOFF).predicate_prefixes, [
     "management.explanation.gross_margin",
     MARGINS,
     "management.explanation.",
@@ -200,7 +209,7 @@ test("a route reads its predicate families first, from the start of the period i
     "kpi.",
   ]);
   // Free cash flow's own explanations, then either component's alike.
-  assert.deepEqual(claimSelection(scope("What is NVDA's free cash flow?"), CUTOFF).predicate_prefixes.slice(0, 3), [
+  assert.deepEqual(claimSelection(scope("What is NVDA's free cash flow?", [NVDA], proposal({ metrics: ["free_cash_flow"] })), CUTOFF).predicate_prefixes.slice(0, 3), [
     "management.explanation.free_cash_flow",
     ["management.explanation.operating_cash_flow", "management.explanation.capex"],
     "management.explanation.",
@@ -208,29 +217,29 @@ test("a route reads its predicate families first, from the start of the period i
   // A question asking for guidance reads it first: for the metric it names,
   // then any. Whatever the figures' route, a metric no reader serves included:
   // guidance is how management answers it.
-  assert.equal(scope("What adjusted EPS guidance did NVDA give?").reads, "unavailable_metric");
+  assert.equal(scope("What adjusted EPS guidance did NVDA give?", [NVDA], proposal({ asks: ["guidance"], metrics: [{ metric: "eps_diluted", adjustment: "adjusted" }] })).reads, "unavailable_metric");
   // A question asking why as well ("why ..., and what guidance?") reads
   // management's explanation of the same metric at guidance's priority.
-  assert.deepEqual(claimSelection(scope("What adjusted EPS guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 2), ["guidance.eps", "guidance."]);
+  assert.deepEqual(claimSelection(scope("What adjusted EPS guidance did NVDA give?", [NVDA], proposal({ asks: ["guidance"], metrics: [{ metric: "eps_diluted", adjustment: "adjusted" }] })), CUTOFF).predicate_prefixes.slice(0, 2), ["guidance.eps", "guidance."]);
   // The income-statement item it names before the rest of the statement.
   // Revenue's include its segments' and products' ("other" in a release).
-  assert.deepEqual(claimSelection(scope("What revenue guidance did NVDA give?"), CUTOFF).predicate_prefixes.slice(0, 3), [
+  assert.deepEqual(claimSelection(scope("What revenue guidance did NVDA give?", [NVDA], proposal({ asks: ["guidance"], ...REVENUE })), CUTOFF).predicate_prefixes.slice(0, 3), [
     ["guidance.revenue", "guidance.other"],
     ["guidance.revenue", "guidance.gross_margin", "guidance.operating_expenses", "guidance.operating_income", "guidance.net_income"],
     "guidance.",
   ]);
-  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue decline, and what guidance did management give?"), CUTOFF).predicate_prefixes[0], [
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue decline, and what guidance did management give?", [NVDA], proposal({ asks: ["explains", "guidance"], ...REVENUE })), CUTOFF).predicate_prefixes[0], [
     "guidance.revenue",
     "guidance.other",
     "management.explanation.revenue",
     "management.explanation.other",
   ]);
-  assert.equal(claimSelection(scope("What is NVDA's outlook for next quarter?"), CUTOFF).predicate_prefixes[0], "guidance.");
-  assert.ok(!claimSelection(scope("What was NVDA's revenue?"), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("guidance."));
-  assert.equal(claimSelection(scope("What was NVDA's EPS?"), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
+  assert.equal(claimSelection(scope("What is NVDA's outlook for next quarter?", [NVDA], proposal({ asks: ["guidance"] })), CUTOFF).predicate_prefixes[0], "guidance.");
+  assert.ok(!claimSelection(scope("What was NVDA's revenue?", [NVDA], proposal(REVENUE)), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("guidance."));
+  assert.equal(claimSelection(scope("What was NVDA's EPS?", [NVDA], proposal({ metrics: ["eps_diluted"] })), CUTOFF).predicate_prefixes[0], "management.explanation.eps");
   // An adjusted income figure names neither by itself; the items the question
   // names come first.
-  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted operating income rise?"), CUTOFF).predicate_prefixes[0], [
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue and adjusted operating income rise?", [NVDA], proposal({ asks: ["explains"], metrics: ["non_gaap_income", "income_statement"], items: ["revenue", "operating_income"] })), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",
     "management.explanation.operating_income",
     "management.explanation.net_income",
@@ -238,33 +247,33 @@ test("a route reads its predicate families first, from the start of the period i
   ]);
   // So does each metric it asks about: free cash flow's explanations never
   // crowd out EPS's; their components follow.
-  assert.deepEqual(claimSelection(scope("What were NVDA's free cash flow and EPS?"), CUTOFF).predicate_prefixes.slice(0, 2), [
+  assert.deepEqual(claimSelection(scope("What were NVDA's free cash flow and EPS?", [NVDA], proposal({ metrics: ["free_cash_flow", "eps_diluted"] })), CUTOFF).predicate_prefixes.slice(0, 2), [
     ["management.explanation.free_cash_flow", "management.explanation.eps"],
     ["management.explanation.operating_cash_flow", "management.explanation.capex"],
   ]);
   // A metric no reader serves is still explained by management, first.
-  assert.equal(scope("Why did NVDA's adjusted operating income decline?").reads, "unavailable_metric");
-  assert.deepEqual(claimSelection(scope("Why did NVDA's adjusted operating income decline?"), CUTOFF).predicate_prefixes[0], [
+  assert.equal(scope("Why did NVDA's adjusted operating income decline?", [NVDA], proposal({ asks: ["explains"], metrics: ["non_gaap_income"], items: ["operating_income"] })).reads, "unavailable_metric");
+  assert.deepEqual(claimSelection(scope("Why did NVDA's adjusted operating income decline?", [NVDA], proposal({ asks: ["explains"], metrics: ["non_gaap_income"], items: ["operating_income"] })), CUTOFF).predicate_prefixes[0], [
     "management.explanation.operating_income",
     "management.explanation.net_income",
   ]);
   // One no explanation maps to (EBITDA: "other" in a release) reads them all.
-  assert.equal(scope("Why did NVDA's EBITDA decline?").reads, "unavailable_metric");
-  assert.equal(claimSelection(scope("Why did NVDA's EBITDA decline?"), CUTOFF).predicate_prefixes[0], "management.explanation.");
+  assert.equal(scope("Why did NVDA's EBITDA decline?", [NVDA], proposal({ asks: ["explains"], metrics: ["ebitda"] })).reads, "unavailable_metric");
+  assert.equal(claimSelection(scope("Why did NVDA's EBITDA decline?", [NVDA], proposal({ asks: ["explains"], metrics: ["ebitda"] })), CUTOFF).predicate_prefixes[0], "management.explanation.");
   // Every item it names shares the top priority: none crowds out another.
-  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue fall while operating income rose?"), CUTOFF).predicate_prefixes[0], [
+  assert.deepEqual(claimSelection(scope("Why did NVDA's revenue fall while operating income rose?", [NVDA], proposal({ asks: ["explains"], metrics: ["income_statement"], items: ["revenue", "operating_income"] })), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",
     "management.explanation.operating_income",
     "management.explanation.other",
   ]);
   // A segment's revenue ("Gaming revenue") is explained as "other" in a release.
-  assert.deepEqual(claimSelection(scope("Why did NVDA's Gaming revenue grow?"), CUTOFF).predicate_prefixes[0], [
+  assert.deepEqual(claimSelection(scope("Why did NVDA's Gaming revenue grow?", [NVDA], proposal({ asks: ["explains"], ...REVENUE })), CUTOFF).predicate_prefixes[0], [
     "management.explanation.revenue",
     "management.explanation.other",
   ]);
   // Operating or net income is read as the income statement: the item named
   // first, then its other explanations alike.
-  assert.deepEqual(claimSelection(scope("Why did NVDA's operating income fall?"), CUTOFF).predicate_prefixes.slice(0, 3), [
+  assert.deepEqual(claimSelection(scope("Why did NVDA's operating income fall?", [NVDA], proposal({ asks: ["explains"], metrics: ["income_statement"], items: ["operating_income"] })), CUTOFF).predicate_prefixes.slice(0, 3), [
     "management.explanation.operating_income",
     [
       "management.explanation.revenue",
@@ -275,8 +284,12 @@ test("a route reads its predicate families first, from the start of the period i
     ],
     "management.explanation.",
   ]);
-  for (const question of ["How have NVDA's margins trended?", "What is NVDA's free cash flow?", "Compare NVDA with AMD"]) {
-    assert.ok(claimSelection(scope(question, question.includes("AMD") ? [NVDA, AMD] : [NVDA]), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("management.explanation."), question);
+  for (const [question, companies, read] of [
+    ["How have NVDA's margins trended?", [NVDA], proposal({ asks: ["margins", "margin_trend"], metrics: ["income_statement"] })],
+    ["What is NVDA's free cash flow?", [NVDA], proposal({ metrics: ["free_cash_flow"] })],
+    ["Compare NVDA with AMD", [NVDA, AMD], proposal()],
+  ] as const) {
+    assert.ok(claimSelection(scope(question, [...companies], read), CUTOFF).predicate_prefixes.flat()[0]!.startsWith("management.explanation."), question);
   }
   // A fiscal year's window ends a quarter after the year, when its last release is out.
   const fiscal = claimSelection(scope("Compare NVDA with AMD for fiscal year 2025", [NVDA, AMD]), CUTOFF);
@@ -284,7 +297,7 @@ test("a route reads its predicate families first, from the start of the period i
   assert.equal(fiscal.effective_until, "2026-04-01T00:00:00.000Z");
   // The issuer's own fiscal year bounds it where its facts date that year.
   assert.equal(fiscal.fiscal_year, 2025);
-  assert.equal(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?"), CUTOFF).effective_until, "2027-04-01T00:00:00.000Z");
+  assert.equal(claimSelection(scope("What changed in NVDA's gross margin in Q1 fiscal 2026?", [NVDA], GROSS_MARGIN_CHANGE), CUTOFF).effective_until, "2027-04-01T00:00:00.000Z");
   assert.deepEqual(claimSelection(undefined, CUTOFF), { predicate_prefixes: [], effective_from: null, effective_until: null, fiscal_year: null });
 });
 
@@ -372,7 +385,7 @@ test("a price window adds its event predicates to the route's, over the route's 
 
 test("an auto-selected peer's claims name it as coverage does, even with no figures (#207)", () => {
   const peer = "60000000-0000-4000-8000-0000000000ff";
-  const base = scope("Compare NVDA with its peers");
+  const base = scope("Compare NVDA with its peers", [NVDA], proposal({ asks: ["peers"] }));
   const packet = buildEvidencePacket({
     scope: { ...base, companies: [NVDA, { issuer_id: peer }] },
     factBlocks: [],
@@ -384,7 +397,7 @@ test("an auto-selected peer's claims name it as coverage does, even with no figu
 });
 
 test("a named quarter's packet says which quarter was read, and reads claims from the year before it (#290)", () => {
-  const named = scope("Why did AMD's operating margin turn negative in Q2 2025?", [AMD]);
+  const named = scope("Why did AMD's operating margin turn negative in Q2 2025?", [AMD], proposal({ asks: ["explains", "margins"], metrics: ["income_statement"], items: ["operating_income"] }));
   const packet = buildEvidencePacket({ scope: named, factBlocks: [], cutoff: CUTOFF });
   assert.match(packet.query_bounds.periods!, /^fiscal Q2 2025/);
   assert.equal(claimSelection(named, CUTOFF).effective_from, "2024-01-01T00:00:00.000Z");
