@@ -124,6 +124,24 @@ test('delete announces "Chat deleted." through the app announcer and focuses Und
   }
 })
 
+test('an Undo before "Chat deleted." is spoken withdraws it, and so does signing out', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h } = await chatsWithTwoThreads()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await act(async () => h.button('Undo').click())
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(announced(h, 'status'), '')
+
+    await act(async () => h.button('Delete Chips').click())
+    await act(async () => forgetThreadDeletes())
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(announced(h, 'status'), '')
+  } finally {
+    await h.cleanup()
+  }
+})
+
 function focused(h: Harness): string {
   const element = h.dom.window.document.activeElement
   if (element === null || element.tagName === 'BODY') return 'BODY'

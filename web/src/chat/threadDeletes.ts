@@ -14,6 +14,8 @@ type PendingDelete = {
   threadId: string
   name: string
   timer: ReturnType<typeof setTimeout>
+  // Withdraws "Chat deleted." if Undo or sign-out lands before it is spoken.
+  withdrawAnnouncement: () => void
 }
 
 export type ThreadDeletes = {
@@ -53,21 +55,24 @@ export function startThreadDelete(userId: string, threadId: string, name: string
   if (state.pending !== null) commit(state.pending)
   // A reload inside the window keeps the chat: the timer dies with the page.
   const timer = setTimeout(() => commit(pending), UNDO_DELETE_MS)
-  const pending = { userId, threadId, name, timer }
+  const pending = { userId, threadId, name, timer, withdrawAnnouncement: announce('Chat deleted.') }
   publish({ ...state, pending, error: null })
-  announce('Chat deleted.')
 }
 
 export function cancelThreadDelete(threadId: string): void {
   if (state.pending?.threadId !== threadId) return
   clearTimeout(state.pending.timer)
+  state.pending.withdrawAnnouncement()
   publish({ ...state, pending: null })
 }
 
 // Called on identity change. A pending delete is dropped rather than sent: the
 // session that could show its outcome is ending, and the chat stays deletable.
 export function forgetThreadDeletes(): void {
-  if (state.pending !== null) clearTimeout(state.pending.timer)
+  if (state.pending !== null) {
+    clearTimeout(state.pending.timer)
+    state.pending.withdrawAnnouncement()
+  }
   generation += 1
   publish(INITIAL)
 }
