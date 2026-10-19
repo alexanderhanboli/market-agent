@@ -115,6 +115,10 @@ export class FakeServer {
   createReply: () => Reply = () => ({ status: 201, body: this.createThread() })
   listReply: () => Reply = () => ({ body: { threads: this.threads } })
   postReply: (message: ChatMessage) => Reply = (message) => ({ status: 201, body: { message } })
+  deleteReply: (threadId: string) => Reply = (threadId) => {
+    this.threads = this.threads.filter((thread) => thread.thread_id !== threadId)
+    return { body: {} }
+  }
 
   createThread() {
     const thread = { thread_id: this.createdThreadId, title: null, updated_at: '2026-05-06T00:00:00.000Z' }
@@ -155,6 +159,8 @@ export class FakeServer {
       return this.postReply(message)
     }
     if (match && method === 'GET') return this.history(match[1])
+    const thread = /^\/v1\/chat\/threads\/([^/]+)$/.exec(path)
+    if (thread && method === 'DELETE') return this.deleteReply(thread[1])
     throw new Error(`unexpected request ${method} ${path}`)
   }
 }
