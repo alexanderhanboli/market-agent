@@ -174,6 +174,14 @@ test("the mutation summary counts catches by kind and false alarms on originals;
   ].join("\n"));
 });
 
+test("a run with no judge configured counts each inference not called", () => {
+  const metrics = { figure_refs: 0, plain_numbers: 0, fallback: false, accepted: 0, rejected: 0, inferences_shown: 0, inferences_hidden: 2, output_tokens: 0, latency_ms: 0 };
+  const none = { outcome: "not_called" as const, reason: "no judge model is configured" };
+  const judge = { records: [none, none], hidden: [] };
+  const summary = judgeSummary({ results: [{ trace: "a", sample: 0, metrics, judge }, { trace: "b", sample: 0, metrics, judge }] });
+  assert.equal(summary.split("\n")[0], "judge: 0 shown, 4 hidden, in 2 answers (0 replied, 0 failed, 4 not called)");
+});
+
 test("a judged run's summary counts the inferences shown and hidden, what the judge did per inference, its cost per reply, and each inference it left out", () => {
   const metrics = (shown: number, hidden: number) =>
     ({ figure_refs: 0, plain_numbers: 0, fallback: false, accepted: 0, rejected: 0, inferences_shown: shown, inferences_hidden: hidden, output_tokens: 0, latency_ms: 0 });
@@ -184,7 +192,7 @@ test("a judged run's summary counts the inferences shown and hidden, what the ju
   const summary = judgeSummary({
     labels: { a: "peer-two" },
     results: [
-      { trace: "a", sample: 1, metrics: metrics(1, 1), judge: { records: [replied, { ...replied }], hidden: [{ index: 10, text: "amd trails.", reason: "not_entailed: contradicts_ranking: NVDA is highest." }] } },
+      { trace: "a", sample: 1, metrics: metrics(1, 1), judge: { records: [replied, { ...replied, exchange: { ...replied.exchange } }], hidden: [{ index: 10, text: "amd trails.", reason: "not_entailed: contradicts_ranking: NVDA is highest." }] } },
       { trace: "a", sample: 2, metrics: metrics(0, 1), judge: { records: [{ outcome: "failed", reason: "judge call failed: timeout", latency_ms: 8000 }], hidden: [{ index: 3, text: "It leads.", reason: "error: judge call failed: timeout" }] } },
       { trace: "b", sample: 0 },
     ],
@@ -217,7 +225,7 @@ test("recorded replays each trace with the judge reply it recorded, and summariz
   ].join("\n"));
 });
 
-test("recorded counts a trace's one batched judge call once, though each inference replays its verdict from it", async () => {
+test("recorded counts the cost of a trace's one batched judge call once, though each inference replays its verdict from it", async () => {
   const { trace } = TRACES.find(({ label }) => label === "segment-drill-down")!;
   const judge = {
     outcome: "replied",
@@ -234,7 +242,7 @@ test("recorded counts a trace's one batched judge call once, though each inferen
   const script = fileURLToPath(new URL("../scripts/answer-lab.ts", import.meta.url));
   const { stdout } = await promisify(execFile)(process.execPath, ["--experimental-strip-types", script, "recorded", root]);
   assert.equal(stdout.slice(stdout.indexOf("as recorded")).split("\n").slice(0, 2).join("\n"), [
-    "as recorded, judge: 1 shown, 1 hidden, in 1 answers (1 replied, 0 failed, 0 not called)",
+    "as recorded, judge: 1 shown, 1 hidden, in 1 answers (2 replied, 0 failed, 0 not called)",
     "judge per reply: 3000 ms, 500 in / 100 out tokens, on anthropic/claude-haiku-5-5",
   ].join("\n"));
 });

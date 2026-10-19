@@ -320,10 +320,11 @@ function liveRows(run: LiveRun, keys: ReadonlyArray<string> = run.traces): Row[]
 // with its text and why.
 export function judgeSummary(run: Pick<LiveRun, "labels"> & { results: ReadonlyArray<Pick<LiveSample, "trace" | "sample" | "metrics" | "judge">> }): string {
   const judged = run.results.filter((result) => result.judge);
-  // A trace from before #376 recorded one call for all its inferences, which replays as each one's record: count it once.
-  const records = [...new Set(judged.flatMap((result) => result.judge!.records))];
+  const records = judged.flatMap((result) => result.judge!.records);
   const outcomes = (outcome: JudgeRecord["outcome"]) => records.filter((record) => record.outcome === outcome).length;
-  const replies = records.flatMap((record) => (record.outcome === "replied" ? [record.exchange] : []));
+  // A trace from before #376 recorded one call for all its inferences, which
+  // replays as each one's record: its cost counts once.
+  const replies = [...new Set(records.flatMap((record) => (record.outcome === "replied" ? [record.exchange] : [])))];
   const sum = (key: "inferences_shown" | "inferences_hidden") => judged.reduce((total, result) => total + (result.metrics?.[key] ?? 0), 0);
   const mean = (values: ReadonlyArray<number>) => (values.length === 0 ? 0 : Math.round(values.reduce((total, value) => total + value, 0) / values.length));
   return [
