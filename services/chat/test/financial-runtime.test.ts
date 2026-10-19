@@ -5,7 +5,9 @@ import { dockerAvailable } from "../../../db/test/docker-pg.ts";
 import type { PlanningModel } from "../../financial-engine/src/planner.ts";
 import { IDS } from "../../financial-engine/test/db-fixtures.ts";
 import type { ChatAnalystToolRuntime } from "../src/coordinator.ts";
-import { createChatFinancialRuntime, isFinancialRequest } from "../src/financial-runtime.ts";
+import { createChatFinancialRuntime, isFinancialRequest, SCOPE_METRICS } from "../src/financial-runtime.ts";
+import { METRIC_CATALOG_V1, OPERATION_REGISTRY } from "../../financial-core/src/index.ts";
+import { proposedMetric } from "../src/research-scope.ts";
 import { createEvidenceFinancialPort } from "../../financial-engine/src/evidence-adapter.ts";
 import type { FinancialPool } from "../../financial-engine/src/ports.ts";
 import { chatDatabase, chatHarness, completed, revenueModel } from "./financial-fixtures.ts";
@@ -150,4 +152,14 @@ test("chat financial lane", { timeout: 300_000 }, async (t) => {
     assert.equal(second.calls, 0, "the retry does not plan again");
     assert.equal((await db.query(`select count(*)::int as n from chat_messages where message_id = $1`, [answered.message_id])).rows[0].n, 1);
   });
+});
+
+test("every figure the engine names maps to the chat metric a follow-up reads, or none (#381)", () => {
+  // These operations are of the figures they read; every other one is a figure.
+  const ofFigures = new Set(["reported_metric", "absolute_change", "percent_change_positive_base", "ratio", "trailing_sum", "threshold", "peer_compare"]);
+  const named = Object.keys(OPERATION_REGISTRY).filter((operation) => !ofFigures.has(operation));
+  const engine = [...METRIC_CATALOG_V1.keys(), ...named].sort();
+  assert.deepEqual(Object.keys(SCOPE_METRICS).sort(), engine);
+  const unread = Object.values(SCOPE_METRICS).filter((key) => key !== null && proposedMetric(key, null, null)?.available !== true);
+  assert.deepEqual(unread, []);
 });
