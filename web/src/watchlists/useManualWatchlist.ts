@@ -9,12 +9,16 @@ import {
   type WatchlistMember,
 } from './membership'
 
-export type ManualWatchlistStatus = 'idle' | 'loading' | 'error'
+export type ManualWatchlistLoad =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; reason: string }
 
 export type ManualWatchlistState = {
   members: WatchlistMember[]
-  status: ManualWatchlistStatus
-  message: string | null
+  load: ManualWatchlistLoad
+  // A failed add or remove; kept apart so it never hides a failed load.
+  editError: string | null
   addSubject: (subjectRef: SubjectRef) => Promise<void>
   removeSubject: (subjectRef: SubjectRef) => Promise<void>
   reload: () => void
@@ -26,10 +30,10 @@ export type ManualWatchlistState = {
 // add/remove from either surface stay consistent.
 export function useManualWatchlist(userId: string | null): ManualWatchlistState {
   const [members, setMembers] = useState<WatchlistMember[]>([])
-  const [status, setStatus] = useState<ManualWatchlistStatus>(() =>
-    userId ? 'loading' : 'idle',
+  const [load, setLoad] = useState<ManualWatchlistLoad>(() =>
+    userId ? { status: 'loading' } : { status: 'idle' },
   )
-  const [message, setMessage] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
@@ -39,30 +43,29 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
       .then((next) => {
         if (controller.signal.aborted) return
         setMembers(next)
-        setStatus('idle')
+        setLoad({ status: 'idle' })
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
-        setStatus('error')
-        setMessage(error instanceof Error ? error.message : 'Failed to load watchlist')
+        setLoad({ status: 'error', reason: error instanceof Error ? error.message : 'Failed to load watchlist' })
       })
     return () => controller.abort()
   }, [userId, loadAttempt])
 
   const reload = useCallback(() => {
-    setStatus((current) => current === 'idle' ? current : 'loading')
-    setMessage(null)
+    setLoad((current) => current.status === 'idle' ? current : { status: 'loading' })
     setLoadAttempt((attempt) => attempt + 1)
   }, [])
 
   const addSubject = useCallback(
     async (subjectRef: SubjectRef) => {
       if (!userId) return
+      setEditError(null)
       try {
         const result = await addManualWatchlistMember({ userId, subject_ref: subjectRef })
         setMembers((current) => mergeMemberIntoList(current, result))
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : 'Failed to add')
+        setEditError(error instanceof Error ? error.message : 'Failed to add')
       }
     },
     [userId],
@@ -71,6 +74,7 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
   const removeSubject = useCallback(
     async (subjectRef: SubjectRef) => {
       if (!userId) return
+      setEditError(null)
       let previous: WatchlistMember[] = []
       setMembers((current) => {
         previous = current
@@ -80,11 +84,11 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
         await removeManualWatchlistMember({ userId, subject_ref: subjectRef })
       } catch (error) {
         setMembers(previous)
-        setMessage(error instanceof Error ? error.message : 'Failed to remove')
+        setEditError(error instanceof Error ? error.message : 'Failed to remove')
       }
     },
     [userId],
   )
 
-  return { members, status, message, addSubject, removeSubject, reload }
+  return { members, load, editError, addSubject, removeSubject, reload }
 }
