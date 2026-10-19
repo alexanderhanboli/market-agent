@@ -37,6 +37,7 @@ const APPLE_READY_VIEW: QuoteRowView = {
   href: `/symbol/${encodeURIComponent('listing:' + APPLE_LISTING_ID)}/overview`,
   primary: 'AAPL',
   secondary: 'XNAS · USD',
+  label: 'AAPL (XNAS, USD)',
   price: {
     text: '$184.32',
     direction: 'up',
@@ -84,4 +85,18 @@ test('a row whose name lookup failed gets the neutral "Symbol"', () => {
 
 test('only a subject that hydrates without any name is "Unknown symbol"', () => {
   assert.equal(quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, named({})).primary, 'Unknown symbol')
+})
+
+test('a row labels the control beside it with its real name, and gives a placeholder no label', () => {
+  const label = (state: QuoteRowState, subject: VisibleFetchState<ResolvedSubject>) => quoteRowView(state, APPLE_LISTING_REF, subject).label
+  assert.deepStrictEqual(
+    [
+      label(UNAVAILABLE_QUOTE, named({ display_labels: { primary: 'AAPL' } })),
+      label({ status: 'loading' }, UNNAMED),
+      label(UNAVAILABLE_QUOTE, { status: 'loading' }),
+      label(UNAVAILABLE_QUOTE, { status: 'unavailable', reason: 'HTTP 503', retry: () => {} }),
+      label({ status: 'idle' }, named({})),
+    ],
+    ['AAPL', null, null, null, null],
+  )
 })

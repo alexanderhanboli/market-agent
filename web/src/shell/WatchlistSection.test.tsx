@@ -170,3 +170,49 @@ test('each watchlist row is named by its subject, and so is its Remove button', 
     await rail.cleanup()
   }
 })
+
+test('Remove buttons stay distinct for same-ticker listings and for rows that could not be named', async () => {
+  const listing = (n: number) => ({ kind: 'listing', id: `${n}${n}${n}${n}${n}${n}${n}${n}-${n}${n}${n}${n}-4${n}${n}${n}-a${n}${n}${n}-${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}` }) as const
+  const refs = [listing(3), listing(5), listing(6), listing(7)]
+  const quotes: Record<string, { mic: string; currency: string }> = {
+    [refs[0].id]: { mic: 'XNAS', currency: 'USD' },
+    [refs[1].id]: { mic: 'XLON', currency: 'GBP' },
+  }
+  const rail = await renderRail((_method, path) => {
+    if (path === MEMBERS_PATH) {
+      return new Response(JSON.stringify({ members: refs.map((subject_ref) => ({ subject_ref, created_at: '2026-10-19T00:00:00.000Z' })) }), { status: 200 })
+    }
+    const id = new URL(path, 'http://localhost').searchParams.get('subject_id')
+    const quote = id === null ? undefined : quotes[id]
+    if (path.startsWith('/v1/market/quote') && quote) {
+      return new Response(JSON.stringify({
+        quote: {
+          listing: { kind: 'listing', id },
+          price: 10,
+          prev_close: 10,
+          change_abs: 0,
+          change_pct: 0,
+          currency: quote.currency,
+          as_of: '2026-10-19T00:00:00.000Z',
+          delay_class: 'delayed_15m',
+          session_state: 'regular',
+          source_id: '00000000-0000-4000-a000-000000000001',
+        },
+        provenance: { provider: 'polygon_market' },
+        listing_context: { ticker: 'AAPL', mic: quote.mic, timezone: 'UTC' },
+      }), { status: 200 })
+    }
+    return new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 })
+  })
+  try {
+    const rows = [...rail.section().querySelectorAll('ul[aria-label="Watchlist members"] > li')]
+    assert.deepEqual(rows.map((row) => row.querySelector('button')?.getAttribute('aria-label')), [
+      'Remove AAPL (XNAS, USD) from watchlist',
+      'Remove AAPL (XLON, GBP) from watchlist',
+      'Remove symbol 3 from watchlist',
+      'Remove symbol 4 from watchlist',
+    ])
+  } finally {
+    await rail.cleanup()
+  }
+})

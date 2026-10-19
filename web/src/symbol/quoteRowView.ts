@@ -24,6 +24,8 @@ export type QuoteRowView = {
   // Null while the name is still loading.
   primary: string | null
   secondary: string
+  // The name a control beside the row says it acts on; null while the row has only a placeholder name.
+  label: string | null
   price: { text: string; direction: QuoteDirection; percent: string; freshness: string } | null
 }
 
@@ -41,6 +43,7 @@ export function quoteRowView(
       href,
       primary: quote.listing.ticker,
       secondary: `${quote.listing.mic} · ${quote.currency}`,
+      label: `${quote.listing.ticker} (${quote.listing.mic}, ${quote.currency})`,
       price: {
         text: formatQuotePrice(quote.latest_price, quote.currency),
         direction: quoteDirection(quote),
@@ -50,18 +53,20 @@ export function quoteRowView(
     }
   }
 
-  if (state.status === 'loading') return { href, primary: null, secondary: '', price: null }
+  if (state.status === 'loading') return { href, primary: null, secondary: '', label: null, price: null }
+  const name = subject.status === 'ready' ? subjectDisplayName(subject.data) : null
   return {
     href,
-    primary: rowName(subject),
+    primary: name ?? placeholderName(subject),
     secondary: state.status === 'idle' ? 'No quote' : 'Quote unavailable',
+    label: name,
     price: null,
   }
 }
 
 // A failed lookup says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
-function rowName(subject: VisibleFetchState<ResolvedSubject>): string | null {
-  if (subject.status === 'ready') return subjectDisplayName(subject.data) ?? UNKNOWN_SYMBOL
+function placeholderName(subject: VisibleFetchState<ResolvedSubject>): string | null {
+  if (subject.status === 'ready') return UNKNOWN_SYMBOL
   return subject.status === 'unavailable' ? UNNAMED_SYMBOL : null
 }
 

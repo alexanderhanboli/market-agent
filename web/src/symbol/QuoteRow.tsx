@@ -14,8 +14,8 @@ import { Skeleton } from '../ui/Skeleton.tsx'
 
 type QuoteRowProps = {
   subjectRef: SubjectRef
-  // Given the row's name, null while it loads, so a control beside the row can say what it acts on.
-  trailing?: (name: string | null) => ReactNode
+  // Given the row's label, so a control beside the row can say what it acts on.
+  trailing?: (label: string | null) => ReactNode
   // Closing prices for an inline trend sparkline (reference-terminal rail).
   // Omit to render the row without one (e.g. holdings surfaces).
   sparkline?: ReadonlyArray<number>
@@ -70,7 +70,7 @@ export function QuoteRow({ subjectRef, trailing, sparkline }: QuoteRowProps) {
           )}
         </span>
       </Link>
-      {trailing?.(view.primary)}
+      {trailing?.(view.label)}
     </li>
   )
 }

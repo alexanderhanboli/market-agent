@@ -37,7 +37,7 @@ export function ManualWatchlist({ members, load, editError, onRemove, onRetry, s
       ) : null}
       {members.length > 0 ? (
         <ul aria-label="Watchlist members" className="flex flex-col">
-          {members.map((member) => (
+          {members.map((member, index) => (
             <QuoteRow
               key={`${member.subject_ref.kind}:${member.subject_ref.id}`}
               subjectRef={member.subject_ref}
@@ -46,11 +46,11 @@ export function ManualWatchlist({ members, load, editError, onRemove, onRetry, s
                   ? sparklines?.get(member.subject_ref.id)
                   : undefined
               }
-              trailing={(name) => (
+              trailing={(label) => (
                 <button
                   type="button"
                   onClick={() => onRemove(member.subject_ref)}
-                  aria-label={name === null ? 'Remove from watchlist' : `Remove ${name} from watchlist`}
+                  aria-label={`Remove ${label ?? `symbol ${index + 1}`} from watchlist`}
                   className="shrink-0 px-2 text-xs text-faint hover:text-negative"
                 >
                   ×
