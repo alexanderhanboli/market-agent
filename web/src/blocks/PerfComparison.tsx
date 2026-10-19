@@ -111,7 +111,7 @@ function LivePerfComparison({ block }: PerfComparisonProps): ReactElement {
             ariaLabel={`${range} performance comparison`}
             series={state.data}
           />
-          {state.refreshError !== null && <RefreshFailedNote noun="series" error={state.refreshError} />}
+          {state.refreshError !== null && <RefreshFailedNote noun="price history" error={state.refreshError} />}
         </>
       ) : (
         <dl className="grid grid-cols-3 gap-2 text-xs text-muted">

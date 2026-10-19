@@ -49,7 +49,7 @@ export function EarningsSection() {
         >
           <FetchStateView
             state={consensus}
-            noun="consensus"
+            noun="analyst consensus"
             skeletonClassName="h-32"
           >
             {(envelope) => <ConsensusBody envelope={envelope} />}

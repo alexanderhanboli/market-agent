@@ -82,7 +82,7 @@ export function OverviewSection() {
       >
         <FetchStateView
           state={series}
-          noun="series"
+          noun="price history"
           skeletonClassName="h-48"
           idleMessage="Price history isn't available for this company."
         >
@@ -105,7 +105,7 @@ export function OverviewSection() {
         <Card testId="overview-profile" headingId="overview-profile-heading" heading="Company profile">
           <FetchStateView
             state={profile}
-            noun="profile"
+            noun="company profile"
             skeletonClassName="h-24"
           >
             {(data) => <ProfileBody profile={data} />}
@@ -118,7 +118,7 @@ export function OverviewSection() {
         >
           <FetchStateView
             state={consensus}
-            noun="consensus"
+            noun="analyst consensus"
             skeletonClassName="h-32"
           >
             {(envelope) => <ConsensusBody envelope={envelope} />}

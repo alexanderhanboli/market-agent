@@ -123,7 +123,7 @@ export function FinancialsSection() {
       >
         <FetchStateView
           state={statements}
-          noun="revenue"
+          noun="revenue history"
           skeletonClassName="h-40"
         >
           {(data) => <RevenueBars response={data} />}
@@ -145,7 +145,7 @@ export function FinancialsSection() {
       >
         <FetchStateView
           state={segments}
-          noun="segments"
+          noun="revenue segments"
           skeletonClassName="h-32"
         >
           {(envelope) => <SegmentsView envelope={envelope} />}
@@ -169,7 +169,7 @@ export function FinancialsSection() {
       >
         <FetchStateView
           state={statements}
-          noun="statements"
+          noun="income statement"
           skeletonClassName="h-40"
         >
           {(data) => <StatementsTable response={data} />}

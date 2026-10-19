@@ -168,7 +168,7 @@ test('a live perf comparison says when its retry failed and keeps the chart', as
   await mount(<PerfComparison block={block} />)
 
   assert.notEqual(dom.window.document.querySelector('[data-testid="block-perf-comparison-perf-1-chart"]'), null)
-  assert.deepEqual(notes(), [["Showing earlier series. Couldn't refresh.", 'market series fetch failed: HTTP 503']])
+  assert.deepEqual(notes(), [["Showing earlier price history. Couldn't refresh.", 'market series fetch failed: HTTP 503']])
 })
 
 test('the header quote says when its price failed to refresh', () => {
