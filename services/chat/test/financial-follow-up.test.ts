@@ -78,13 +78,13 @@ test("a follow-up to the engine's EPS answer reads EPS", { timeout: 300_000 }, a
   });
 });
 
-test("a follow-up to the engine's share count names it as a gap and reads management's explanation (#378 review)", { timeout: 300_000 }, async (t) => {
+test("a follow-up to the engine's share count does not call the figure it just showed unavailable (#381)", { timeout: 300_000 }, async (t) => {
   if (!dockerAvailable()) {
     t.skip("Docker is required for the financial follow-up");
     return;
   }
   assert.deepEqual(await followUpToEngine(t, "chat-fin-follow-up-shares", "shares_outstanding", "What were AAA's shares outstanding?"), {
-    saved: ["financial_answer", [{ metric_key: "shares_outstanding", label: "Shares outstanding", available: false }]],
-    followUp: { route: "unavailable_metric", reads: "unavailable_metric", metrics: ["shares_outstanding"], explains: true },
+    saved: ["financial_answer", []],
+    followUp: { route: "latest_quarter", reads: "latest_quarter", metrics: [], explains: true },
   });
 });
