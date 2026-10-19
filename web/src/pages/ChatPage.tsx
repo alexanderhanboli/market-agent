@@ -48,7 +48,7 @@ export function ChatLayout() {
               state={threads.state}
               activeThreadId={activeThreadId}
               activeName={threadName}
-              onChanged={threads.refresh}
+              refresh={threads.refresh}
             />
           </aside>
         )}
@@ -146,20 +146,20 @@ function ThreadList({
   state,
   activeThreadId,
   activeName,
-  onChanged,
+  refresh,
 }: {
   userId: string
   state: ThreadListState
   activeThreadId: string | null
   activeName: string
-  onChanged: () => void
+  refresh: () => void
 }) {
   const navigate = useNavigate()
   const [actionError, setActionError] = useState<string | null>(null)
   const rows = state.kind === 'ready' ? state.threads : []
 
   return (
-    <nav aria-label="Thread list" className="flex min-h-0 flex-col gap-3">
+    <nav aria-label="Chats" className="flex min-h-0 flex-col gap-3">
       <button
         type="button"
         onClick={() => navigate('/chat')}
@@ -170,17 +170,18 @@ function ThreadList({
       {actionError ? (
         <p className="text-xs text-negative">{actionError}</p>
       ) : null}
-      <div>
-        <h2 className="text-sm font-semibold text-fg">Thread list</h2>
-        <p className="mt-1 text-xs text-muted">
-          Persistent research threads scoped to your session.
-        </p>
-      </div>
-      {state.kind === 'error' ? (
-        <p className="text-xs text-negative">{state.message}</p>
+      <h2 className="text-sm font-semibold text-fg">Chats</h2>
+      {state.kind === 'loading' ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton label="Loading chats" className="h-14" />
+          <Skeleton className="h-14" />
+          <Skeleton className="h-14" />
+        </div>
+      ) : state.kind === 'error' ? (
+        <FailureNotice message="Couldn't load your chats." detail={state.message} onRetry={refresh} />
       ) : rows.length === 0 ? (
         <p className="rounded-md border border-dashed border-line-strong p-3 text-xs text-muted">
-          No threads yet.
+          No chats yet.
         </p>
       ) : (
         <ul className="flex min-h-0 flex-col gap-2 overflow-auto">
@@ -209,7 +210,7 @@ function ThreadList({
                     setActionError(null)
                     void deleteThread(userId, thread.thread_id)
                       .then(() => {
-                        onChanged()
+                        refresh()
                         if (active) navigate('/chat')
                       })
                       .catch((e) => setActionError(e instanceof Error ? e.message : String(e)))

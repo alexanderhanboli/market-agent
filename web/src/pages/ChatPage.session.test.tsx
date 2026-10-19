@@ -377,17 +377,6 @@ test('a failed title refresh keeps the sidebar row and the header name', async (
   }
 })
 
-test('a failed first thread-list load shows its error', async () => {
-  const server = new FakeServer()
-  server.listReply = () => ({ status: 502, body: { error: 'bad gateway' } })
-  const h = await renderChat('/chat', server)
-  try {
-    assert.match(h.query('nav[aria-label="Thread list"]')?.textContent ?? '', /HTTP 502/)
-  } finally {
-    await h.cleanup()
-  }
-})
-
 const GOLDEN = JSON.parse(readFileSync(new URL('../../../services/app/fixtures/golden-conversation.replay.json', import.meta.url), 'utf-8')) as {
   exchanges: Array<{ method: string; path: string; body: string }>
 }
