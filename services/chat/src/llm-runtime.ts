@@ -32,10 +32,10 @@ type Answer =
   | { kind: "rendered"; paragraphs: ReadonlyArray<Paragraph>; notes: ReadonlyArray<string> }
   | { kind: "fallback"; text: string };
 
-// Which of an answer's accepted inferences it shows: those whose indexes the
-// set holds (the judge entailed them, inference-judge.ts), the rest left out;
-// or "pending", a line in each one's place while the judge reads them.
-export type Inferences = ReadonlySet<number> | "pending";
+// What an answer shows of each accepted inference, by index: "shown" (the
+// judge entailed it, inference-judge.ts), "pending" (a line in its place while
+// the judge reads it); one absent is left out.
+export type Inferences = ReadonlyMap<number, "shown" | "pending">;
 // The turn's blocks, its answer showing the given inferences.
 export type AnswerBlocks = (inferences: Inferences) => ReadonlyArray<Record<string, unknown>>;
 
@@ -558,11 +558,10 @@ function withAnswer(blocks: ReadonlyArray<Record<string, unknown>>, answer: Answ
       return Object.freeze({ ...block, segments: Object.freeze([Object.freeze({ type: "text", text: answer.text })]) });
     }
     const { notes } = answer;
-    const paragraphs = answer.paragraphs.flatMap((entry) =>
-      entry.inference === undefined || (inferences !== "pending" && inferences.has(entry.inference))
-        ? [entry]
-        : inferences === "pending" ? [PENDING_INFERENCE] : []
-    );
+    const paragraphs = answer.paragraphs.flatMap((entry) => {
+      const state = entry.inference === undefined ? "shown" : inferences.get(entry.inference);
+      return state === "shown" ? [entry] : state === "pending" ? [PENDING_INFERENCE] : [];
+    });
     const segments = [
       ...paragraphs.flatMap((entry, i) => [...(i === 0 ? [] : [{ type: "text", text: "\n\n" }]), ...entry.segments]),
       ...(notes.length > 0 ? [{ type: "text", text: `\n\n${notes.join(" ")}` }] : []),

@@ -247,7 +247,8 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     cutoff: asOf,
   };
   // While the judge reads the answer's inferences, the answer shows a line in
-  // each one's place; `judged` brings the blocks the turn saves (answer-trace.ts).
+  // each one's place; `judging` brings each verdict's blocks as it settles,
+  // and the blocks the turn saves (answer-trace.ts).
   const answer = await answerTurn(answerInput, {
     thread_id: context.threadId,
     run_id: context.runId,
@@ -261,6 +262,7 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     },
   });
   const answerUsage = answer.exchange?.usage;
+  const { judging } = answer;
   const normalize = (block: Record<string, unknown>, refs: typeof defaultRefs) =>
     normalizeAssistantBlock(block, {
       snapshotId: result.snapshot_id,
@@ -285,12 +287,15 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   return {
     ...result,
     blocks: turnBlocks(answer.blocks),
-    ...(answer.judged
+    ...(judging
       ? {
-        judged: answer.judged.then(({ blocks, assertions }) => ({
-          blocks: turnBlocks(blocks),
-          ...(assertions ? { assertion_report: assertions } : {}),
-        })),
+        judging: {
+          watch: (listener: (blocks: ReadonlyArray<Record<string, unknown>>) => void) => judging.watch((blocks) => listener(turnBlocks(blocks))),
+          done: judging.done.then(({ blocks, assertions }) => ({
+            blocks: turnBlocks(blocks),
+            ...(assertions ? { assertion_report: assertions } : {}),
+          })),
+        },
       }
       : {}),
     ...(answeredBy ? { answered_by: answeredBy } : {}),

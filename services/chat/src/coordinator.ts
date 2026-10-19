@@ -101,10 +101,14 @@ export type ChatAnalystToolRuntimeResult = {
   // The check of the answer's assertion list, which the answer is rendered from (#208).
   assertion_report?: AssertionReport;
   // Present while a judge reads the answer's analyst inferences (answer-trace.ts):
-  // `blocks` show a line in each one's place, and this settles, never
-  // rejecting, with the blocks to save in their place and the report of what
-  // the judge left out.
-  judged?: Promise<{ blocks: ReadonlyArray<Record<string, unknown>>; assertion_report?: AssertionReport }>;
+  // `blocks` show a line in each one's place. watch calls its listener at once
+  // with the blocks as the verdicts so far leave them, then again as each later
+  // verdict settles; done settles, never rejecting, with the blocks to save
+  // and the report of what the judge left out.
+  judging?: {
+    watch(listener: (blocks: ReadonlyArray<Record<string, unknown>>) => void): void;
+    done: Promise<{ blocks: ReadonlyArray<Record<string, unknown>>; assertion_report?: AssertionReport }>;
+  };
   // The deployment (channel/model) that wrote the narrative; absent when no
   // model answered (#183).
   answered_by?: string;
@@ -1323,7 +1327,8 @@ async function toolBackedAnalystTurnRunner(
     withUnresolvedNote(blocks, context.unresolvedMentions ?? []).map((block) => Object.freeze({ ...block })),
   );
   // What the reader is shown first, and what the turn saves: the same blocks,
-  // unless the judge reads the answer's inferences in between (result.judged).
+  // unless the judge reads the answer's inferences in between (result.judging).
+  const { judging } = result;
   const shown = freeze(result.blocks);
   const saved = {
     blocks: shown,
@@ -1331,7 +1336,7 @@ async function toolBackedAnalystTurnRunner(
     report: result.assertion_report ? { assertion_report: result.assertion_report } : {},
   };
   const judged = async () => {
-    const answer = await result.judged!;
+    const answer = await judging!.done;
     saved.blocks = freeze(answer.blocks);
     saved.content_hash = contentHashForText(JSON.stringify(saved.blocks));
     if (answer.assertion_report) saved.report = { assertion_report: answer.assertion_report };
@@ -1344,7 +1349,7 @@ async function toolBackedAnalystTurnRunner(
   // turn.completed carries the full blocks because there is no message to reload.
   // An answer whose inferences the judge reads shows them as they would be saved.
   const showUnverified = async (failures: ReadonlyArray<unknown>) => {
-    if (result.judged) await judged();
+    if (judging) await judged();
     emit("snapshot.staged", {
       snapshot_id: result.snapshot_id,
       status: "staged",
@@ -1394,9 +1399,11 @@ async function toolBackedAnalystTurnRunner(
   };
   let persisted: ChatCommittedMessage | null = null;
   // An answer whose inferences the judge reads is sealed and shown as soon as
-  // it is composed, a line in each inference's place, and saved once the judge
-  // is done, with the inferences it entailed (#302). It shows only blocks the
-  // seal verified, and is the message a reload reads once the turn completes.
+  // it is composed, a line in each inference's place; each inference then
+  // shows, or its line goes, as its own verdict settles (#376), and the answer
+  // is saved once the judge is done, with the inferences it entailed (#302).
+  // It shows only blocks the seal verified, and is the message a reload reads
+  // once the turn completes.
   let revealed = false;
   if (options.persistAssistantMessage) {
     try {
@@ -1409,16 +1416,14 @@ async function toolBackedAnalystTurnRunner(
         content_hash: saved.content_hash,
         ...answeredBy,
         ...(result.research_scope ? { research_scope: result.research_scope } : {}),
-        ...(result.judged
+        ...(judging
           ? {
             reveal: async ({ snapshot_id, block_proofs }) => {
               emitSealed(snapshot_id);
-              emit("answer.shown", {
-                message_id: answerMessageId(context.threadId, context.runId, turnId),
-                snapshot_id,
-                blocks: shown,
-                block_proofs,
-              });
+              const message_id = answerMessageId(context.threadId, context.runId, turnId);
+              // A verdict changes only text, which the seal and its proofs do
+              // not read (messages.ts revealed).
+              judging.watch((blocks) => emit("answer.shown", { message_id, snapshot_id, blocks: freeze(blocks), block_proofs }));
               revealed = true;
               await judged();
               return { blocks: saved.blocks, content_hash: saved.content_hash };
@@ -1433,7 +1438,7 @@ async function toolBackedAnalystTurnRunner(
       }
       throw error;
     }
-  } else if (result.judged) {
+  } else if (judging) {
     await judged();
   }
   if (!revealed) {
