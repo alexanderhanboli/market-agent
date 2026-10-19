@@ -290,6 +290,27 @@ test('Back to a chat deleted while open reopens it and cancels the delete', asyn
   }
 })
 
+test('Back to a chat whose delete already went out lands on /chat instead of a dead chat', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const server = new FakeServer()
+  server.threads = [...TWO_THREADS]
+  const h = await renderChat('/home', server)
+  try {
+    await h.navigate('/chat/T1')
+    await act(async () => h.button('Delete Chips').click())
+    await tick(h, t, UNDO_MS + 1000)
+    assert.deepEqual(server.writes(), [DELETE_T1])
+    server.history = () => ({ status: 404, body: { error: 'not found' } })
+
+    await h.back()
+    assert.equal(h.path(), '/chat')
+    assert.deepEqual(shownChats(h), ['Rates'])
+    assert.doesNotMatch(h.text(), /Couldn't load this chat\./)
+  } finally {
+    await h.cleanup()
+  }
+})
+
 test('opening the chat that is pending delete cancels the delete', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads('/chat/T2')

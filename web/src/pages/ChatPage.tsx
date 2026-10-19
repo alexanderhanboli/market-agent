@@ -23,9 +23,12 @@ export function ChatLayout() {
   const navigate = useNavigate()
   const routeThreadId = useMatch('/chat/:threadId')?.params.threadId ?? null
   const threads = useThreadList(userId)
+  const { sent } = useThreadDeletes()
   useEffect(() => {
-    if (routeThreadId !== null) cancelThreadDelete(routeThreadId)
-  }, [routeThreadId])
+    if (routeThreadId === null) return
+    if (sent.has(routeThreadId)) navigate('/chat', { replace: true })
+    else cancelThreadDelete(routeThreadId)
+  }, [routeThreadId, sent, navigate])
   const chat = useChatSession({ userId, threadId: routeThreadId, navigate, onThreadCreated: threads.refresh })
   const activeThreadId = chat.view.threadId
   const activeThread = threads.state.kind === 'ready'
