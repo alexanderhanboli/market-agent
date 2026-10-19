@@ -263,12 +263,16 @@ export function resolveResearchScope(input: {
   proposal: ScopeProposal | null;
 }): ResearchScope {
   const { prior, question } = input;
-  const { metrics: proposed, asks, turns_off: turnsOff, income_items: namedItems } = input.proposal ?? NO_PROPOSAL;
-  const off = new Set([...turnsOff.facets].flatMap((facet) => CLEARS[facet] ?? []));
+  const { metrics: proposed, turns_off: turnsOff, income_items: namedItems } = input.proposal ?? NO_PROPOSAL;
+  // A facet turned off is not asked for, though the model may also have read
+  // it as asked ("Show NVDA without the segments"). No margins is no trend.
+  const offFacets = new Set(turnsOff.facets);
+  if (offFacets.has("margins")) offFacets.add("margin_trend");
+  const asks = new Set([...(input.proposal ?? NO_PROPOSAL).asks].filter((facet) => !offFacets.has(facet)));
+  const off = new Set([...offFacets].flatMap((facet) => CLEARS[facet] ?? []));
   if (input.peersOff) off.add("peers");
   const inherited: ScopeField[] = [];
-  // A field turned off is neither asked for nor kept, though the model may
-  // also have read it as asked ("Show NVDA without the segments").
+  // A field turned off is neither asked for nor kept.
   const pick = <T>(field: ScopeField, asked: T | null, kept: T | null | undefined): T | null => {
     if (off.has(field)) return null;
     if (asked !== null) return asked;
@@ -281,7 +285,7 @@ export function resolveResearchScope(input: {
   const peers = flag("peers", prior?.peers);
   const segments = flag("segments", prior?.segments);
   const benchmark = flag("benchmark", prior?.benchmark);
-  const marginAsked = !off.has("margin_trend") && (asks.has("margins") || asks.has("margin_trend"));
+  const marginAsked = asks.has("margins") || asks.has("margin_trend");
   const margin_trend = flag("margin_trend", prior?.margin_trend);
   // A metric the turn turns off ("drop capex") is not asked for, even if the
   // model also named it. The whole balance sheet takes its items with it,
@@ -299,6 +303,10 @@ export function resolveResearchScope(input: {
     if (!parts.some((key) => offMetrics.has(key))) return [metric];
     return parts.filter((key) => !offMetrics.has(key)).map(metricByKey);
   });
+  // A margin is an income figure: asked with no metric, it names the income
+  // statement, unless kept, so it is not read as a kept cash flow (#378 eval).
+  const income = metricByKey("income_statement");
+  if (marginAsked && named.length === 0 && !offMetrics.has(income.metric_key) && !kept.some((metric) => metric.metric_key === income.metric_key)) named.push(income);
   const metrics = pick("metrics", named.length > 0 ? named : null, kept.length > 0 ? kept : null) ?? [];
   // A period turned off is read as not named, though its words are still in
   // the question ("forget fiscal 2025").
@@ -354,24 +362,34 @@ export function resolveResearchScope(input: {
   const incomeItems = evidence || (namedItems.length === 0 && inherited.includes("metrics"))
     ? prior?.income_items ?? []
     : namedItems;
+  // With no proposal a follow-up asks nothing new, so it reads what the
+  // previous answer read (#378 review): not the engine's answer, which no
+  // reader here re-reads, nor one that compared where this turn covers one
+  // company, or the reverse. Those are routed by what they keep.
+  const reread = input.proposal === null && prior !== null && !input.served && prior.reads !== "financial_answer" &&
+      comparing === (prior.companies.length > 1 || prior.peers)
+    ? prior
+    : null;
   const reads = evidence && prior !== null
     ? prior.reads
     : input.served
     ? "financial_answer"
+    : reread
+    ? reread.reads
     : routeOf(input.companies.length, { peers, segments, margin_trend, marginAsked, onlyUnavailable, onlyStatements });
   // Guidance and a cause are asked this turn, or kept from an earlier one as
   // the other facets are, unless this one turns them off.
   const keeps = (facet: "guidance" | "explains", kept: true | undefined) =>
-    !turnsOff.facets.has(facet) && (asks.has(facet) || kept === true);
+    !offFacets.has(facet) && (asks.has(facet) || kept === true);
   return {
-    route: evidence ? "evidence_followup" : reads,
+    route: evidence ? "evidence_followup" : reread?.route ?? reads,
     reads,
     // An evidence follow-up re-reads the previous answer, over all its companies.
     companies: evidence && prior !== null ? prior.companies : input.companies,
     peers,
     segments,
     margin_trend,
-    margins: marginAsked || margin_trend,
+    margins: reread?.margins ?? (marginAsked || margin_trend),
     metrics,
     fiscal_year,
     fiscal_quarter,

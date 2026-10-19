@@ -173,6 +173,36 @@ test("a field turned off is not also asked for", () => {
   assert.deepEqual(dropped.metrics.map((metric) => metric.metric_key), ["operating_cash_flow"]);
 });
 
+test("a facet both asked for and turned off routes as if never asked (#378 review)", () => {
+  const without = (metric: string) =>
+    fresh(`Show NVDA's ${metric} without segments`, proposal({ asks: ["segments"], off: ["segments"], metrics: [metric] }));
+  assert.deepEqual([without("ebitda").route, without("ebitda").segments], ["unavailable_metric", false]);
+  assert.deepEqual([without("eps_diluted").route, without("eps_diluted").segments], ["statements", false]);
+  const quarter = fresh("Why did AMD's operating margin turn negative in Q2 2025?", proposal(), [AMD]);
+  const notLatest = followUp("Not the latest quarter", proposal({ asks: ["latest_quarter"], off: ["latest_quarter"] }), quarter);
+  assert.deepEqual([notLatest.fiscal_year, notLatest.fiscal_quarter], [2025, { fiscal_year: 2025, fiscal_period: "Q2" }]);
+  const noEvidence = followUp("No sources", proposal({ asks: ["evidence"], off: ["evidence"] }), quarter);
+  assert.deepEqual([noEvidence.route, noEvidence.reads], ["latest_quarter", "latest_quarter"]);
+});
+
+test("turning off the margin trend keeps the margins asked for (#378 eval)", () => {
+  const prior = fresh("Why did AMD's operating margin turn negative in Q2 2025?", proposal({ asks: ["explains", "margins"], metrics: ["income_statement"] }), [AMD]);
+  const same = followUp("Same margins, without quarter-over-quarter growth", proposal({ asks: ["margins"], off: ["margin_trend"] }), prior);
+  assert.deepEqual([same.route, same.margins, same.margin_trend], ["derived_margin", true, false]);
+  const none = followUp("Remove the margins", proposal({ asks: ["margin_trend"], off: ["margins"] }), prior);
+  assert.deepEqual([none.route, none.margins, none.margin_trend], ["latest_quarter", false, false]);
+});
+
+test("margins asked with no metric read the income statement, not a kept cash flow (#378 eval)", () => {
+  const fcf = fresh("What is AMD's free cash flow?", proposal({ metrics: ["free_cash_flow"] }), [AMD]);
+  const profitability = followUp("What is its profitability?", proposal({ asks: ["margins"] }), fcf);
+  assert.deepEqual([profitability.route, profitability.metrics, profitability.inherited], ["derived_margin", [INCOME], []]);
+  assert.deepEqual(fresh("What is NVDA's gross margin?", proposal({ asks: ["margins"], items: ["gross_margin"] })).metrics, [INCOME]);
+  // Kept income figures are the margins' own: a kept cash flow beside them stays.
+  const both = fresh("NVDA revenue and free cash flow", proposal({ metrics: ["income_statement", "free_cash_flow"] }));
+  assert.deepEqual(followUp("And its margins?", proposal({ asks: ["margins"] }), both).metrics, both.metrics);
+});
+
 test("an evidence follow-up re-reads what the previous answer read, over its companies", () => {
   const prior = fresh("Break down AMD's revenue by segment", proposal({ asks: ["segments"], metrics: ["income_statement"], items: ["revenue"] }), [AMD]);
   assert.deepEqual(followUp("Show the evidence", proposal({ asks: ["evidence"] }), prior), {
@@ -232,6 +262,24 @@ test("with no proposal, a follow-up keeps the previous scope whole", () => {
     ...prior,
     inherited: ["segments", "margin_trend", "metrics", "fiscal_year", "price_window"],
   });
+});
+
+test("with no proposal, a follow-up reads what the previous answer read (#378 review)", () => {
+  const segments = fresh("Show NVDA's segments and EBITDA", proposal({ asks: ["segments"], metrics: ["ebitda"] }));
+  assert.equal(segments.reads, "segments");
+  assert.deepEqual(followUp("And then?", null, segments), { ...segments, inherited: ["segments", "metrics"] });
+  const trend = fresh("NVDA's margin trend and free cash flow", proposal({ asks: ["margin_trend"], metrics: ["free_cash_flow"] }));
+  assert.equal(trend.route, "trend");
+  assert.deepEqual(followUp("And then?", null, trend), { ...trend, inherited: ["margin_trend", "metrics"] });
+  const margin = fresh("What is NVDA's gross margin?", proposal({ asks: ["margins"], metrics: ["income_statement"] }));
+  assert.deepEqual(followUp("And then?", null, margin), { ...margin, inherited: ["metrics"] });
+  // Explicit period tokens still apply.
+  assert.deepEqual(followUp("And for FY2025?", null, segments), { ...segments, fiscal_year: 2025, inherited: ["segments", "metrics"] });
+  // Its companies are the turn's: one company added to a single company's answer is compared.
+  assert.equal(followUp("And then?", null, margin, [NVDA, AMD]).route, "comparison");
+  // The engine's answer is not re-read here: its kept figures are.
+  const engine: ResearchScope = { ...fresh("", proposal({ metrics: ["eps_diluted"] })), route: "financial_answer", reads: "financial_answer" };
+  assert.deepEqual([followUp("And then?", null, engine).route, followUp("And then?", null, engine).reads], ["statements", "statements"]);
 });
 
 test("with no proposal, a fresh question gets the plain answer for its companies and period tokens", () => {
