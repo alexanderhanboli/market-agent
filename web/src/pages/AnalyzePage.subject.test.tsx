@@ -47,6 +47,7 @@ async function renderAnalyze(entry: string | { pathname: string; search: string;
     back: () => carried().querySelector('[data-testid="analyze-back-to-symbol"]')!.textContent,
     text: () => container.textContent ?? '',
     carriedText: () => carried().textContent ?? '',
+    carried,
     button: (name: string) => [...container.querySelectorAll('button')].find((button) => button.textContent === name)!,
     settle: () => act(async () => new Promise((resolve) => setTimeout(resolve, 0))),
     cleanup: async () => {
@@ -107,6 +108,32 @@ test('a failed hydration says so with Retry, names the subject neutrally, and Re
     ])
     assert.equal(page.heading().textContent, 'Apple Inc.')
     assert.doesNotMatch(page.text(), /Couldn't load this symbol/)
+  } finally {
+    await page.cleanup()
+  }
+})
+
+test('a failed hydration is spoken through the carried subject\'s standing status region, without Retry or Details', async () => {
+  const first = deferred<Reply>()
+  let calls = 0
+  const page = await renderAnalyze(DEEP_LINK, () => ++calls === 1
+    ? first.promise
+    : Promise.resolve({ status: 200, body: { subject: { subject_ref: ISSUER_REF, display_name: 'Apple Inc.', confidence: 1 } } }))
+  const region = () => page.carried().querySelector(':scope > p[role="status"]')
+  try {
+    const before = region()
+    assert.equal(before?.textContent, '')
+
+    await act(async () => first.resolve({ status: 503, body: {} }))
+    await page.settle()
+    assert.ok(region() === before, 'the same region announces')
+    assert.equal(region()?.textContent, "Couldn't load this symbol.")
+    const shown = [...page.carried().querySelectorAll('p:not([role])')].find((p) => p.textContent === "Couldn't load this symbol.")
+    assert.equal(shown?.getAttribute('aria-hidden'), 'true', 'readers hear the sentence once')
+
+    await act(async () => page.button('Retry').click())
+    await page.settle()
+    assert.equal(region()?.textContent, '')
   } finally {
     await page.cleanup()
   }
