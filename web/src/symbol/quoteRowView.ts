@@ -55,11 +55,12 @@ export function quoteRowView(
 
   if (state.status === 'loading') return { href, primary: null, secondary: '', label: null, price: null }
   const name = subject.status === 'ready' ? subjectDisplayName(subject.data) : null
+  const mic = subject.status === 'ready' ? subject.data.display_labels?.mic : undefined
   return {
     href,
     primary: name ?? placeholderName(subject),
     secondary: state.status === 'idle' ? 'No quote' : 'Quote unavailable',
-    label: name,
+    label: name !== null && mic ? `${name} (${mic})` : name,
     price: null,
   }
 }

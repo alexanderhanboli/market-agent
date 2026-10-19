@@ -171,16 +171,22 @@ test('each watchlist row is named by its subject, and so is its Remove button', 
   }
 })
 
-test('Remove buttons stay distinct for same-ticker listings and for rows that could not be named', async () => {
+test('Remove buttons stay distinct for same-ticker listings, quoted or not, and for rows that could not be named', async () => {
   const listing = (n: number) => ({ kind: 'listing', id: `${n}${n}${n}${n}${n}${n}${n}${n}-${n}${n}${n}${n}-4${n}${n}${n}-a${n}${n}${n}-${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}${n}` }) as const
-  const refs = [listing(3), listing(5), listing(6), listing(7)]
+  const refs = [listing(3), listing(5), listing(6), listing(7), listing(8), listing(9)]
   const quotes: Record<string, { mic: string; currency: string }> = {
     [refs[0].id]: { mic: 'XNAS', currency: 'USD' },
     [refs[1].id]: { mic: 'XLON', currency: 'GBP' },
   }
-  const rail = await renderRail((_method, path) => {
+  const unquotedMics: Record<string, string> = { [refs[4].id]: 'XNAS', [refs[5].id]: 'XLON' }
+  const rail = await renderRail((_method, path, body) => {
     if (path === MEMBERS_PATH) {
       return new Response(JSON.stringify({ members: refs.map((subject_ref) => ({ subject_ref, created_at: '2026-10-19T00:00:00.000Z' })) }), { status: 200 })
+    }
+    if (path === '/v1/subjects/hydrate') {
+      const { subject_ref } = JSON.parse(body) as { subject_ref: { id: string } }
+      const mic = unquotedMics[subject_ref.id]
+      if (mic) return new Response(JSON.stringify({ subject: { subject_ref, display_labels: { primary: 'AAPL', ticker: 'AAPL', mic }, confidence: 1 } }), { status: 200 })
     }
     const id = new URL(path, 'http://localhost').searchParams.get('subject_id')
     const quote = id === null ? undefined : quotes[id]
@@ -211,6 +217,8 @@ test('Remove buttons stay distinct for same-ticker listings and for rows that co
       'Remove AAPL (XLON, GBP) from watchlist',
       'Remove symbol 3 from watchlist',
       'Remove symbol 4 from watchlist',
+      'Remove AAPL (XNAS) from watchlist',
+      'Remove AAPL (XLON) from watchlist',
     ])
   } finally {
     await rail.cleanup()

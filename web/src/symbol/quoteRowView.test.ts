@@ -100,3 +100,8 @@ test('a row labels the control beside it with its real name, and gives a placeho
     ['AAPL', null, null, null, null],
   )
 })
+
+test('a row with no quote labels its control with the exchange its subject is listed on', () => {
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary: 'AAPL', ticker: 'AAPL', mic: 'XNAS' } }))
+  assert.deepStrictEqual([view.primary, view.label], ['AAPL', 'AAPL (XNAS)'])
+})
