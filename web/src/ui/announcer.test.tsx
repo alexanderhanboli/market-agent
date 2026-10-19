@@ -119,3 +119,19 @@ test('each region empties once it has been idle, so browse mode finds no stale m
   regions.tick(ANNOUNCE_CLEAR_MS)
   assert.deepEqual([regions.status(), regions.alert()], ['', ''])
 })
+
+test('a message spoken just before the region would clear stays its full time', async (t) => {
+  const regions = await mountAnnouncer(t)
+  regions.say("Couldn't load the quote.")
+  regions.tick(ANNOUNCE_DELAY_MS)
+  regions.tick(ANNOUNCE_CLEAR_MS - 200)
+  regions.say("Couldn't load the profile.")
+  regions.tick(ANNOUNCE_DELAY_MS)
+  regions.tick(200)
+  assert.equal(regions.status(), "Couldn't load the profile.")
+
+  regions.tick(ANNOUNCE_CLEAR_MS - 200 - 1)
+  assert.equal(regions.status(), "Couldn't load the profile.")
+  regions.tick(1)
+  assert.equal(regions.status(), '')
+})
