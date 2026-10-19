@@ -20,7 +20,7 @@ test('while the first list loads the sidebar shows row skeletons, not the empty 
   const h = await renderChat('/chat', server)
   try {
     assert.equal(sidebar(h).textContent, '+ New chatChatsLoading chats')
-    assert.equal(sidebar(h).querySelector('[role="status"]')?.textContent, 'Loading chats')
+    assert.equal(sidebar(h).querySelector('span[role="status"]')?.textContent, 'Loading chats')
 
     await act(async () => list.resolve({ body: { threads: [] } }))
     await h.flush()
@@ -36,8 +36,7 @@ test('a failed first list load says so, keeps the reason in details, and Retry r
   server.listReply = () => (++reads === 1 ? { status: 502, body: { error: 'bad gateway' } } : { body: { threads: TWO_THREADS } })
   const h = await renderChat('/chat', server)
   try {
-    assert.equal(sidebar(h).querySelector('p')?.textContent, "Couldn't load your chats.")
-    assert.equal(sidebar(h).querySelector('details')?.textContent, 'DetailsHTTP 502')
+    assert.equal(sidebar(h).textContent, "+ New chatChatsCouldn't load your chats.RetryDetailsHTTP 502")
 
     await act(async () => h.button('Retry').click())
     await h.flush()
@@ -55,7 +54,7 @@ test('Retry swaps the failure for loading rows while the list reloads', async ()
   server.listReply = () => (++reads === 1 ? { status: 503, body: {} } : second.promise)
   const h = await renderChat('/chat', server)
   try {
-    assert.equal(sidebar(h).querySelector('p')?.textContent, "Couldn't load your chats.")
+    assert.equal(sidebar(h).textContent, "+ New chatChatsCouldn't load your chats.RetryDetailsHTTP 503")
 
     await act(async () => h.button('Retry').click())
     await h.flush()
@@ -100,6 +99,25 @@ test('delete hides the row at once, and Undo restores it without a DELETE', asyn
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
     await tick(h, t, UNDO_MS * 2)
     assert.deepEqual(server.writes(), [])
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('delete announces through the sidebar\'s standing status region and focuses Undo', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h } = await chatsWithTwoThreads()
+  try {
+    const region = sidebar(h).querySelector('p[role="status"]')
+    assert.equal(region?.textContent, '')
+
+    await act(async () => h.button('Delete Chips').click())
+    assert.ok(sidebar(h).querySelector('p[role="status"]') === region, 'the same region announces')
+    assert.equal(region?.textContent, 'Chat deleted.')
+    assert.equal(h.dom.window.document.activeElement?.getAttribute('aria-label'), 'Undo deleting Chips')
+
+    await tick(h, t, UNDO_MS)
+    assert.equal(region?.textContent, '')
   } finally {
     await h.cleanup()
   }
@@ -235,8 +253,7 @@ test('a failed delete restores the row and says it could not delete', async (t) 
     await act(async () => h.button('Delete Chips').click())
     await tick(h, t, UNDO_MS)
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
-    assert.equal(sidebar(h).querySelector('p')?.textContent, "Couldn't delete the chat.")
-    assert.equal(sidebar(h).querySelector('details')?.textContent, 'DetailsHTTP 500')
+    assert.equal(sidebar(h).querySelector('[role="alert"]')?.textContent, "Couldn't delete the chat.DetailsHTTP 500")
     assert.deepEqual(server.writes(), [DELETE_T1])
   } finally {
     await h.cleanup()

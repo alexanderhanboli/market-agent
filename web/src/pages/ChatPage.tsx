@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useMatch, useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 
@@ -161,6 +161,14 @@ function ThreadList({
   const navigate = useNavigate()
   const { pending, error: deleteError } = useThreadDeletes()
   const rows = state.kind === 'ready' ? state.threads : []
+  const undoButton = useRef<HTMLButtonElement>(null)
+  // Only the delete click moves focus; coming back to a pending delete doesn't.
+  const focusUndo = useRef(false)
+  useEffect(() => {
+    if (!focusUndo.current) return
+    focusUndo.current = false
+    undoButton.current?.focus()
+  }, [pending])
 
   return (
     <nav aria-label="Chats" className="flex min-h-0 flex-col gap-3">
@@ -171,8 +179,11 @@ function ThreadList({
       >
         + New chat
       </button>
+      <p role="status" className="sr-only">{pending ? 'Chat deleted.' : ''}</p>
       {deleteError ? (
-        <FailureNotice message="Couldn't delete the chat." detail={deleteError} />
+        <div role="alert">
+          <FailureNotice message="Couldn't delete the chat." detail={deleteError} />
+        </div>
       ) : null}
       <h2 className="text-sm font-semibold text-fg">Chats</h2>
       {state.kind === 'loading' ? (
@@ -196,8 +207,9 @@ function ThreadList({
                   key={thread.thread_id}
                   className="flex items-center justify-between rounded-md border border-dashed border-line-strong p-3 text-xs text-muted"
                 >
-                  <span role="status">Chat deleted.</span>
+                  <span aria-hidden="true">Chat deleted.</span>
                   <button
+                    ref={undoButton}
                     type="button"
                     aria-label={`Undo deleting ${pending.name}`}
                     onClick={() => cancelThreadDelete(pending.threadId)}
@@ -228,6 +240,7 @@ function ThreadList({
                   className="absolute right-2 top-2 rounded p-1 text-muted opacity-0 transition hover:text-negative focus-visible:opacity-100 group-hover:opacity-100"
                   onClick={(e) => {
                     e.preventDefault()
+                    focusUndo.current = true
                     startThreadDelete(userId, thread.thread_id, name)
                     if (active) navigate('/chat', { replace: true })
                   }}
