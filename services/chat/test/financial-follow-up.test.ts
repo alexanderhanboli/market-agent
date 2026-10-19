@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { dockerAvailable } from "../../../db/test/docker-pg.ts";
 import type { PlanningModel } from "../../financial-engine/src/planner.ts";
 import { databaseUrl, IDS } from "../../financial-engine/test/db-fixtures.ts";
@@ -24,23 +24,22 @@ async function withHandoff(mention: string): Promise<ChatSubjectPreResolution> {
   return { ...resolution, handoff } as unknown as ChatSubjectPreResolution;
 }
 
-const epsModel = (async () => ({
+// A plan that reports one of AAA's FY2023 figures.
+const reporting = (metricKey: string) => (async () => ({
   model: "stub-model",
   text: JSON.stringify({
     outcome: "ready",
     subjects: [{ slot_id: "a", mention: "AAA" }],
-    operations: [{ node_id: "a_eps", operation: "reported_metric", subject_slot: "a", metric_key: "eps_diluted", period: { kind: "fiscal_period", fiscal_year: 2023, fiscal_period: "FY" } }],
-    outputs: [{ output_id: "a_out", node_id: "a_eps" }],
+    operations: [{ node_id: "a_metric", operation: "reported_metric", subject_slot: "a", metric_key: metricKey, period: { kind: "fiscal_period", fiscal_year: 2023, fiscal_period: "FY" } }],
+    outputs: [{ output_id: "a_out", node_id: "a_metric" }],
     thresholds: [],
   }),
 })) as unknown as PlanningModel;
 
-test("a follow-up to the engine's EPS answer reads EPS", { timeout: 300_000 }, async (t) => {
-  if (!dockerAvailable()) {
-    t.skip("Docker is required for the financial follow-up");
-    return;
-  }
-  const { db, pool, threadId } = await chatDatabase(t, "chat-fin-follow-up");
+// The engine answers the question with the plan, then QUESTION follows it up:
+// the scope the engine's answer saved, and the follow-up's.
+async function followUpToEngine(t: TestContext, prefix: string, metricKey: string, question: string) {
+  const { db, pool, threadId } = await chatDatabase(t, prefix);
   const replies = join(mkdtempSync(join(tmpdir(), "fin-follow-up-")), "replies.json");
   writeFileSync(replies, JSON.stringify({
     replies: [{ match: proposalQuestion(QUESTION), text: '{"metrics":[],"asks":["explains"],"turns_off":{"facets":[],"metrics":[]},"income_items":[]}' }],
@@ -55,15 +54,36 @@ test("a follow-up to the engine's EPS answer reads EPS", { timeout: 300_000 }, a
   });
   t.after(closeLocalRuntimePoolForTests);
 
-  const harness = chatHarness(pool, { model: epsModel, researchScope: financialResearchScope, resolveMention: withHandoff });
-  const answer = completed((await harness.run({ threadId, userId: IDS.owner, userIntent: "What was AAA's EPS?" })).events);
+  const harness = chatHarness(pool, { model: reporting(metricKey), researchScope: financialResearchScope, resolveMention: withHandoff });
+  const answer = completed((await harness.run({ threadId, userId: IDS.owner, userIntent: question })).events);
   const saved = (await db.query(`select research_scope from chat_messages where message_id = $1`, [answer.message_id])).rows[0].research_scope;
-  assert.deepEqual([saved.reads, saved.metrics], ["financial_answer", [{ metric_key: "eps_diluted", label: "Earnings per share", available: true }]]);
 
   const aaa = await withHandoff("AAA") as ChatResolvedSubjectPreResolution;
   const scope = (await analystTurnScope(threadId, QUESTION, [aaa]))("2026-09-01T00:00:00.000Z");
-  assert.deepEqual(
-    { route: scope.route, reads: scope.reads, metrics: scope.metrics.map((metric) => metric.metric_key), explains: scope.explains },
-    { route: "statements", reads: "statements", metrics: ["eps_diluted"], explains: true },
-  );
+  return {
+    saved: [saved.reads, saved.metrics],
+    followUp: { route: scope.route, reads: scope.reads, metrics: scope.metrics.map((metric) => metric.metric_key), explains: scope.explains },
+  };
+}
+
+test("a follow-up to the engine's EPS answer reads EPS", { timeout: 300_000 }, async (t) => {
+  if (!dockerAvailable()) {
+    t.skip("Docker is required for the financial follow-up");
+    return;
+  }
+  assert.deepEqual(await followUpToEngine(t, "chat-fin-follow-up", "eps_diluted", "What was AAA's EPS?"), {
+    saved: ["financial_answer", [{ metric_key: "eps_diluted", label: "Earnings per share", available: true }]],
+    followUp: { route: "statements", reads: "statements", metrics: ["eps_diluted"], explains: true },
+  });
+});
+
+test("a follow-up to the engine's share count names it as a gap and reads management's explanation (#378 review)", { timeout: 300_000 }, async (t) => {
+  if (!dockerAvailable()) {
+    t.skip("Docker is required for the financial follow-up");
+    return;
+  }
+  assert.deepEqual(await followUpToEngine(t, "chat-fin-follow-up-shares", "shares_outstanding", "What were AAA's shares outstanding?"), {
+    saved: ["financial_answer", [{ metric_key: "shares_outstanding", label: "Shares outstanding", available: false }]],
+    followUp: { route: "unavailable_metric", reads: "unavailable_metric", metrics: ["shares_outstanding"], explains: true },
+  });
 });
