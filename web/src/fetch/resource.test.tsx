@@ -271,12 +271,45 @@ test('an unavailable result is retried on the next mount', async () => {
 
   await render(<Probe resource={resource} params="k" log={log} />)
   await settle(loader.calls[0], { kind: 'unavailable', reason: 'HTTP 500' })
-  assert.deepEqual(log.at(-1), { status: 'unavailable', reason: 'HTTP 500' })
+  assert.equal(describeState(log.at(-1)!), 'unavailable:HTTP 500')
 
   await render(<></>)
   await render(<Probe resource={resource} params="k" />)
   assert.equal(text(), 'loading')
   assert.equal(loader.calls.length, 2)
+})
+
+test('retry on an unavailable state reloads it in place', async () => {
+  const loader = controlledLoader<string, string>()
+  const profile = defineResource({ freshness: 'filed', load: loader.load })
+  const log: VisibleFetchState<string>[] = []
+
+  await render(<Probe resource={profile} params="iss-1" log={log} />)
+  await settle(loader.calls[0], { kind: 'unavailable', reason: 'HTTP 503' })
+  const failed = log.at(-1)!
+  if (failed.status !== 'unavailable') assert.fail(`expected unavailable, got ${failed.status}`)
+
+  await act(async () => failed.retry())
+  assert.equal(text(), 'loading')
+  assert.equal(loader.calls.length, 2)
+  await settle(loader.calls[1], { kind: 'ready', data: 'Apple' })
+  assert.equal(text(), 'ready:Apple')
+})
+
+test('retry from a forgotten entry starts no load', async () => {
+  const loader = controlledLoader<{ userId: string }, string>()
+  const settings = defineResource({ freshness: 'filed', scope: 'user', load: loader.load })
+  const log: VisibleFetchState<string>[] = []
+
+  await render(<Probe resource={settings} params={{ userId: 'u1' }} log={log} />)
+  await settle(loader.calls[0], { kind: 'unavailable', reason: 'HTTP 503' })
+  const failed = log.at(-1)!
+  if (failed.status !== 'unavailable') assert.fail(`expected unavailable, got ${failed.status}`)
+
+  await render(<></>)
+  forgetUserData()
+  failed.retry()
+  assert.equal(loader.calls.length, 1)
 })
 
 test('an incomplete result is shown, retried on the next mount, and kept fresh once complete', async () => {

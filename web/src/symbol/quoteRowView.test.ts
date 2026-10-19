@@ -64,7 +64,7 @@ test('quoteRowView returns a loading view while a listing has not resolved yet',
 
 test('quoteRowView falls back to a truncated id when the listing is unavailable', () => {
   const view = quoteRowView(
-    { status: 'unavailable', reason: 'listing mismatch' },
+    { status: 'unavailable', reason: 'listing mismatch', retry: () => {} },
     APPLE_LISTING_REF,
   )
   assert.equal(view.primary, '11111111…')

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { DEFAULT_SKELETON_HEIGHT, SKELETON_HEIGHT_BY_KIND } from './blockSkeletonHeights.ts'
 
 type BlockSkeletonProps = {
@@ -8,16 +9,13 @@ type BlockSkeletonProps = {
 }
 
 export function BlockSkeleton({ blockId, kind }: BlockSkeletonProps): ReactElement {
-  const heightClass = SKELETON_HEIGHT_BY_KIND[kind] ?? DEFAULT_SKELETON_HEIGHT
   return (
-    <div
+    <Skeleton
       data-testid={`block-skeleton-${blockId}`}
       data-block-kind={kind}
       data-block-status="pending"
-      role="status"
-      aria-busy="true"
-      aria-label={`Loading ${kind} block`}
-      className={`${heightClass} animate-pulse rounded-md bg-surface-2`}
+      label={`Loading ${kind} block`}
+      className={SKELETON_HEIGHT_BY_KIND[kind] ?? DEFAULT_SKELETON_HEIGHT}
     />
   )
 }

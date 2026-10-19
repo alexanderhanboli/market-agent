@@ -11,7 +11,7 @@ export type FetchedResult<T> =
 export type VisibleFetchState<T> =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'unavailable'; reason: string }
+  | { status: 'unavailable'; reason: string; retry: () => void }
   | { status: 'ready'; data: T; refreshing: boolean; refreshError: string | null }
 
 const FRESH_FOR_MS = {
@@ -100,10 +100,11 @@ export function resetResourcesForTests(): void {
   for (const entry of [...entries.values()]) drop(entry)
 }
 
-function nextSnapshot<T>(
-  prev: EntrySnapshot<T>,
-  event: { type: 'start' } | { type: 'settled'; result: FetchedResult<T> },
-): EntrySnapshot<T> {
+function nextSnapshot(
+  entry: Entry,
+  event: { type: 'start' } | { type: 'settled'; result: FetchedResult<unknown> },
+): EntrySnapshot<unknown> {
+  const prev = entry.snapshot
   if (event.type === 'start') {
     if (prev.status === 'ready') return { ...prev, refreshing: true }
     return LOADING
@@ -115,7 +116,11 @@ function nextSnapshot<T>(
   if (prev.status === 'ready') {
     return { status: 'ready', data: prev.data, refreshing: false, refreshError: result.reason }
   }
-  return { status: 'unavailable', reason: result.reason }
+  return { status: 'unavailable', reason: result.reason, retry: () => retry(entry) }
+}
+
+function retry(entry: Entry): void {
+  if (entries.get(entry.id) === entry) ensureFresh(entry)
 }
 
 function subscribeEntry(def: ResourceDef, key: string, onChange: () => void): () => void {
@@ -182,7 +187,7 @@ function ensureFresh(entry: Entry): void {
   // Claimed before the first await so concurrent subscribers share this load.
   const controller = new AbortController()
   entry.inflight = controller
-  publish(entry, nextSnapshot(entry.snapshot, { type: 'start' }))
+  publish(entry, nextSnapshot(entry, { type: 'start' }))
   void runLoad(entry, controller)
 }
 
@@ -197,7 +202,7 @@ async function runLoad(entry: Entry, controller: AbortController): Promise<void>
   if (entries.get(entry.id) !== entry || entry.inflight !== controller) return
   entry.inflight = null
   if (result.kind === 'ready' && result.incomplete !== true) entry.readyAt = Date.now()
-  publish(entry, nextSnapshot(entry.snapshot, { type: 'settled', result }))
+  publish(entry, nextSnapshot(entry, { type: 'settled', result }))
 }
 
 function drop(entry: Entry): void {
