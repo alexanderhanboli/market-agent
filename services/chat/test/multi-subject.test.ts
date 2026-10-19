@@ -385,3 +385,20 @@ test("a metric named in capitals is dropped as the metric, not asked about as a 
   const { tickers, context } = await subjectsForTurn("Drop NET", comparison);
   assert.deepEqual([tickers, context], [[], null]);
 });
+
+test("a ticker inside a metric's name is the metric, unless the comparison covers that company (#382)", async () => {
+  // CASH is a real ticker (Pathward), so the production resolver resolves it.
+  const withCash = async ({ text }: { text: string }) => (text === "CASH" ? { ...resolved("NOW"), input_text: text } : preResolveSubject({ text }));
+  const comparison = { preResolveSubject: withCash, loadPriorSubjects: priorOf("NVDA", "AMD") };
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", comparison)).tickers, ["NVDA", "AMD"]);
+  assert.deepEqual((await subjectsForTurn("Drop AMD and the FREE CASH FLOW", comparison)).tickers, ["NVDA"]);
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW and add TSLA", comparison)).tickers, ["NVDA", "AMD", "TSLA"]);
+  // Nor are the metric's other words companies the answer could not find.
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", comparison)).context?.unresolvedMentions, []);
+  assert.deepEqual((await subjectsForTurn("Drop AMD and the FREE CASH FLOW", comparison)).context?.unresolvedMentions, []);
+  // With no comparison before, the turn is not about Pathward.
+  const fresh = { preResolveSubject: withCash, loadPriorSubjects: priorOf() };
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", fresh)).tickers, []);
+  const covered = { preResolveSubject: withCash, loadPriorSubjects: priorOf("NVDA", "NOW") };
+  assert.deepEqual((await subjectsForTurn("Drop CASH", covered)).tickers, ["NVDA"]);
+});

@@ -1069,13 +1069,17 @@ async function companyChange(
   const priorKeys = new Set(prior.map(companyKey));
   if (removal !== "") {
     const removing = await resolveNamedSubjects(removal, preResolve);
-    const removedSubjects = distinctCompanies(removing.resolved);
+    // A word in a metric or facet the removal names ("drop the FCF", "drop FREE
+    // CASH FLOW") is not a company, even one that resolves as a ticker (CASH),
+    // unless the previous answer covered that company.
+    const scopeWords = facetWords(removal);
+    const inScope = (subject: ChatResolvedSubjectPreResolution) =>
+      scopeWords.has(subject.input_text) && !priorKeys.has(companyKey(subject));
+    const removedSubjects = distinctCompanies(removing.resolved.filter((subject) => !inScope(subject)));
     const removed = new Set(removedSubjects.map(companyKey));
     const kept = prior.filter((subject) => !removed.has(companyKey(subject)));
     // A company to drop that is ambiguous, or cannot be found, is asked about,
-    // unless the word lies in a metric or facet the removal names ("drop the
-    // FCF", "drop FREE CASH FLOW").
-    const scopeWords = facetWords(removal);
+    // unless the word lies in such a name.
     const unclear = removing.unresolved.filter((resolution) => !scopeWords.has(resolution.input_text));
     const ambiguousTarget = unclear.find((resolution) => resolution.status === "needs_clarification");
     if (ambiguousTarget) return { subjects: [], ambiguous: ambiguousTarget, notFound: [] };
@@ -1087,7 +1091,9 @@ async function companyChange(
         clarify: `${missing} ${unclear.length > 1 ? "were" : "was"} not found, so nothing was dropped from the ${labelList(prior.map(tickerLabel))} comparison.`,
       };
     }
-    if (removed.size === 0) return null;
+    // A removal that drops no company goes the usual way, unless a ticker in a
+    // metric's name resolved: that would read as a company named.
+    if (removed.size === 0 && !named.some(inScope)) return null;
     // Only companies the previous answer covered can be dropped, and not all of
     // them: otherwise ask, rather than answer about the company named.
     const absent = removedSubjects.filter((subject) => !priorKeys.has(companyKey(subject)));
@@ -1100,22 +1106,23 @@ async function companyChange(
         clarify: `${missing} ${absent.length > 1 ? "are" : "is"} not in the ${compared} comparison, so there is nothing to drop. Say "add ${missing}" to add ${absent.length > 1 ? "them" : "it"}, or "just ${missing}" to look at ${absent.length > 1 ? "them" : "it"} alone.`,
       };
     }
-    if (kept.length === 0) {
+    if (removed.size > 0 && kept.length === 0) {
       return { subjects: [], notFound: [], clarify: `Dropping ${compared} leaves no company to compare. Name the company to look at.` };
     }
     // As in a comparison: an ambiguous company named beside it is asked about,
     // and one not found is named in the answer.
-    const ambiguousMention = mentioned.unresolved.find((resolution) => resolution.status === "needs_clarification");
+    const unresolved = mentioned.unresolved.filter((resolution) => !scopeWords.has(resolution.input_text));
+    const ambiguousMention = unresolved.find((resolution) => resolution.status === "needs_clarification");
     if (ambiguousMention) return { subjects: [], ambiguous: ambiguousMention, notFound: [] };
     // One named beside them ("drop AMD and add TSLA") is added, before the
     // carried companies take the capped slots.
     const keptKeys = new Set(kept.map(companyKey));
-    const additions = distinctCompanies(named)
+    const additions = distinctCompanies(named.filter((subject) => !inScope(subject)))
       .filter((subject) => !removed.has(companyKey(subject)) && !keptKeys.has(companyKey(subject)))
       .slice(0, MAX_TURN_SUBJECTS);
     return {
       subjects: [...kept.slice(0, MAX_TURN_SUBJECTS - additions.length), ...additions],
-      notFound: mentioned.unresolved.map((resolution) => resolution.input_text),
+      notFound: unresolved.map((resolution) => resolution.input_text),
     };
   }
   const added = distinctCompanies(named).filter((subject) => !priorKeys.has(companyKey(subject)));
