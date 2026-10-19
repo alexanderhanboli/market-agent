@@ -209,7 +209,7 @@ test('leaving and coming back while the DELETE is in flight keeps the chat hidde
   }
 })
 
-test('deleting the open chat replaces it with /chat, so Back skips the deleted chat', async (t) => {
+test('Back to a chat deleted while open reopens it and cancels the delete', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const server = new FakeServer()
   server.threads = [...TWO_THREADS]
@@ -221,9 +221,10 @@ test('deleting the open chat replaces it with /chat, so Back skips the deleted c
     assert.equal(h.path(), '/chat')
 
     await h.back()
-    assert.equal(h.path(), '/home')
-    await tick(h, t, UNDO_MS)
-    assert.deepEqual(server.writes(), [DELETE_T1])
+    assert.equal(h.path(), '/chat/T1')
+    assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
+    await tick(h, t, UNDO_MS * 2)
+    assert.deepEqual(server.writes(), [])
   } finally {
     await h.cleanup()
   }

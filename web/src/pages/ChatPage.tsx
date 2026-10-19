@@ -242,7 +242,7 @@ function ThreadList({
                     e.preventDefault()
                     focusUndo.current = true
                     startThreadDelete(userId, thread.thread_id, name)
-                    if (active) navigate('/chat', { replace: true })
+                    if (active) navigate('/chat')
                   }}
                 >
                   <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
