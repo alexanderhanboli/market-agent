@@ -280,9 +280,15 @@ income-statement items it names. English patterns in `research-scope.ts` missed 
   turn-off clears are derived from the proposal in `resolveResearchScope`. A field turned off is never also asked for.
 - **No proposal** when there is no model, the call fails or takes longer than one 12 s attempt (`SCOPE_DEADLINES`),
   the reply is invalid, or `CHAT_SCOPE_PROPOSAL=off`. The turn then asks for nothing new: a follow-up keeps the
-  previous answer's scope whole, and a fresh question gets the plain answer for its companies (the latest quarter for
+  previous answer's scope whole and reads what it read, and a fresh question gets the plain answer for its companies (the latest quarter for
   one, a comparison for several) and its period tokens. One `[chat] no scope proposal (<reason>)` warning names why.
-- **A financial-engine answer** saves its scope with no proposal, so its turn waits on no extra model call.
+- **A financial-engine answer** saves its scope with no proposal, so its turn waits on no extra model call. Its
+  metrics are the ones the published plan computed (`planMetrics` in `financial-runtime.ts`), so a follow-up reads
+  those figures.
+- **The live eval** is a test: `test/fixtures/scope-eval-cases.json` holds 115 questions with the previous answer's
+  scope and the scope each should resolve to, `scope-eval-replies.json` a live model's reply to each, and
+  `test/scope-eval.test.ts` resolves the replies with no model. After a prompt change, `npm run scope:eval`
+  (`scripts/scope-eval.ts`) asks the live model again and prints each case that no longer resolves as expected.
 - **Recorded replies** (`LLM_REPLAY_FILE`) answer it like any other call: each recorded conversation (the golden
   replies, each holdout case's `scopes`) records one reply per question, matched by `proposalQuestion`, and those
   suites fail on any turn that answered without one.
