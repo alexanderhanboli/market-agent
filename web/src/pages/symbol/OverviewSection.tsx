@@ -84,7 +84,7 @@ export function OverviewSection() {
           state={series}
           noun="series"
           skeletonClassName="h-48"
-          idleMessage="No listing context for this subject."
+          idleMessage="Price history isn't available for this company."
         >
           {({ bars }) =>
             bars.length < 2 ? (
