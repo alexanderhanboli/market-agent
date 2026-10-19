@@ -190,7 +190,15 @@ export async function answerTurn(
       if (verdictsOf([inference], record)[0]!.verdict === "entailed") inferences.set(inference.index, "shown");
       else inferences.delete(inference.index);
       const blocks = answer.blocks(inferences);
-      for (const listener of listeners) listener(blocks);
+      // A listener that throws stops hearing verdicts; the answer is still saved.
+      for (const listener of [...listeners]) {
+        try {
+          listener(blocks);
+        } catch (error) {
+          console.warn(`[chat] judge ${traceIds(turn)}: a verdict listener failed and was dropped`, error);
+          listeners.splice(listeners.indexOf(listener), 1);
+        }
+      }
       return record;
     })
   );

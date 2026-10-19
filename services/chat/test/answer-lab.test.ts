@@ -184,7 +184,7 @@ test("a judged run's summary counts the inferences shown and hidden, what the ju
   const summary = judgeSummary({
     labels: { a: "peer-two" },
     results: [
-      { trace: "a", sample: 1, metrics: metrics(1, 1), judge: { records: [replied, replied], hidden: [{ index: 10, text: "amd trails.", reason: "not_entailed: contradicts_ranking: NVDA is highest." }] } },
+      { trace: "a", sample: 1, metrics: metrics(1, 1), judge: { records: [replied, { ...replied }], hidden: [{ index: 10, text: "amd trails.", reason: "not_entailed: contradicts_ranking: NVDA is highest." }] } },
       { trace: "a", sample: 2, metrics: metrics(0, 1), judge: { records: [{ outcome: "failed", reason: "judge call failed: timeout", latency_ms: 8000 }], hidden: [{ index: 3, text: "It leads.", reason: "error: judge call failed: timeout" }] } },
       { trace: "b", sample: 0 },
     ],
@@ -214,5 +214,27 @@ test("recorded replays each trace with the judge reply it recorded, and summariz
     "  hidden  judged #0 [7] The other four segments provide limited diversification cushion relative to Data Center's dominance.",
     "      not_entailed: unsupported: no support measures diversification.",
     "",
+  ].join("\n"));
+});
+
+test("recorded counts a trace's one batched judge call once, though each inference replays its verdict from it", async () => {
+  const { trace } = TRACES.find(({ label }) => label === "segment-drill-down")!;
+  const judge = {
+    outcome: "replied",
+    exchange: {
+      messages: [],
+      text: '{"verdicts":[{"id":6,"verdict":"entailed"},{"id":7,"verdict":"not_entailed","reason":"unsupported: no support measures diversification."}]}',
+      truncated: false,
+      deployment: "anthropic/claude-haiku-5-5",
+      latency_ms: 3000,
+      usage: { input_tokens: 500, output_tokens: 100 },
+    },
+  };
+  const root = traceFiles({ "batched.json": { ...trace, judge } });
+  const script = fileURLToPath(new URL("../scripts/answer-lab.ts", import.meta.url));
+  const { stdout } = await promisify(execFile)(process.execPath, ["--experimental-strip-types", script, "recorded", root]);
+  assert.equal(stdout.slice(stdout.indexOf("as recorded")).split("\n").slice(0, 2).join("\n"), [
+    "as recorded, judge: 1 shown, 1 hidden, in 1 answers (1 replied, 0 failed, 0 not called)",
+    "judge per reply: 3000 ms, 500 in / 100 out tokens, on anthropic/claude-haiku-5-5",
   ].join("\n"));
 });

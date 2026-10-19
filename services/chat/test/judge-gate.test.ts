@@ -99,6 +99,30 @@ test("each inference shows as soon as its own verdict arrives, not when a slower
   assert.equal(seen.at(-1), [FIGURES, CONCENTRATED, CUSHION].join("\n\n"));
 });
 
+test("a verdict listener that throws is dropped, and the others still hear each verdict and the answer is still saved", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const slow = deferred<LlmChatResult>();
+  const { createClient } = models(SEGMENTS, byInference({ 6: async () => ({ text: ENTAILED(6) }), 7: () => slow.promise }));
+  const answer = await answerTurn(SEGMENTS.input, turn(SEGMENTS), { env: JUDGED_ENV, createClient });
+  let broken = 0;
+  answer.judging!.watch(() => {
+    if (++broken > 1) throw new Error("stream closed");
+  });
+  const seen: string[] = [];
+  const concentrated = new Promise<void>((resolve) => {
+    answer.judging!.watch((blocks) => {
+      seen.push(text(blocks));
+      if (text(blocks).includes(CONCENTRATED)) resolve();
+    });
+  });
+
+  await concentrated;
+  slow.resolve({ text: ENTAILED(7) });
+  assert.equal(text((await answer.judging!.done).blocks), [FIGURES, CONCENTRATED, CUSHION].join("\n\n"));
+  assert.equal(seen.at(-1), [FIGURES, CONCENTRATED, CUSHION].join("\n\n"));
+  assert.equal(broken, 2);
+});
+
 test("a judge call that fails or runs out of time hides only its own inference", async (t) => {
   const failures: Array<[string, () => Promise<LlmChatResult>]> = [
     ["a failed call", async () => {
