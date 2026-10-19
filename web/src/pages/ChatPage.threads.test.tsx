@@ -49,6 +49,28 @@ test('a failed first list load says so, keeps the reason in details, and Retry r
   }
 })
 
+test('Retry swaps the failure for loading rows while the list reloads', async () => {
+  const server = new FakeServer()
+  const second = deferred<{ body: unknown }>()
+  let reads = 0
+  server.listReply = () => (++reads === 1 ? { status: 503, body: {} } : second.promise)
+  const h = await renderChat('/chat', server)
+  try {
+    assert.equal(sidebar(h).querySelector('p')?.textContent, "Couldn't load your chats.")
+
+    await act(async () => h.button('Retry').click())
+    await h.flush()
+    assert.equal(sidebar(h).textContent, '+ New chatChats')
+    assert.notEqual(sidebar(h).querySelector('[role="status"][aria-label="Loading chats"]'), null)
+
+    await act(async () => second.resolve({ body: { threads: TWO_THREADS } }))
+    await h.flush()
+    assert.deepEqual([...sidebar(h).querySelectorAll('a span:first-child')].map((span) => span.textContent), ['Chips', 'Rates'])
+  } finally {
+    await h.cleanup()
+  }
+})
+
 const UNDO_MS = 5000
 const DELETE_T1: [string, string, string] = ['DELETE', '/v1/chat/threads/T1', '']
 const DELETE_T2: [string, string, string] = ['DELETE', '/v1/chat/threads/T2', '']

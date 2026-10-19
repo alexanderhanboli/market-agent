@@ -50,7 +50,7 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
   }, [userId, loadAttempt])
 
   const reload = useCallback(() => {
-    setStatus('loading')
+    setStatus((current) => current === 'idle' ? current : 'loading')
     setMessage(null)
     setLoadAttempt((attempt) => attempt + 1)
   }, [])

@@ -37,7 +37,10 @@ export function useThreadList(userId: string): ThreadList {
     return () => controller.abort()
   }, [userId, refreshKey, settled])
 
-  const refresh = useCallback(() => setRefreshKey((key) => key + 1), [])
+  const refresh = useCallback(() => {
+    setState((current) => current.kind === 'ready' ? current : { kind: 'loading' })
+    setRefreshKey((key) => key + 1)
+  }, [])
   const visible = useMemo<ThreadListState>(
     () => state.kind === 'ready' ? { kind: 'ready', threads: state.threads.filter((thread) => !sent.has(thread.thread_id)) } : state,
     [state, sent],
