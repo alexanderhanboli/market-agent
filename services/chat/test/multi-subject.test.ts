@@ -370,4 +370,8 @@ test("dropping a company that cannot be found, or is ambiguous, is asked about",
   assert.match(ambiguous.events, /Which Alphabet share class do you mean\?/);
   // A metric or facet in capitals is not a company to drop.
   assert.equal((await run("Drop the FCF")).ran, true);
+  // A word of a metric's name is not the metric (#378 review): NET is asked about.
+  const fragment = await run("Drop NET");
+  assert.equal(fragment.ran, false);
+  assert.match(fragment.events, /NET was not found, so nothing was dropped from the NVDA and AMD comparison/);
 });

@@ -402,20 +402,23 @@ export function resolveResearchScope(input: {
   };
 }
 
-// Every word of the catalog's labels and keys, each multi-word label's
-// initials ("FCF"), and the facet, period and income item names.
-const FACET_WORDS = new Set([
-  ...PROPOSABLE_METRICS.flatMap(({ metric_key, label }) => {
-    const words = label.toLowerCase().split(/[^a-z]+/).filter(Boolean);
-    return [...metric_key.split("_"), ...words, ...(words.length > 1 ? [words.map((word) => word[0]).join("")] : [])];
-  }),
-  ...[...SCOPE_FACETS, ...PERIOD_FIELDS, ...INCOME_ITEMS].flatMap((name) => name.split("_")),
+// The whole names of what a scope tracks (each catalog key and label, each
+// facet, period and income item) and the abbreviations written for them. A
+// word of a longer name is not one: NET (of net income) is a company (#378).
+const FACET_NAMES = new Set([
+  ...PROPOSABLE_METRICS.flatMap(({ metric_key, label }) => [metric_key, label.toLowerCase()]),
+  ...SCOPE_FACETS,
+  ...PERIOD_FIELDS,
+  ...INCOME_ITEMS,
+  "fcf",
+  "ocf",
+  "eps",
 ]);
 
 // Whether a word names a facet or metric this scope tracks ("FCF", "capex"),
 // so it is not a company to drop.
 export function namesFacet(word: string): boolean {
-  return FACET_WORDS.has(word.toLowerCase());
+  return FACET_NAMES.has(word.toLowerCase());
 }
 
 function routeOf(

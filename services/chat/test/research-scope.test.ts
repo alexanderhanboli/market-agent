@@ -448,6 +448,7 @@ test("a saved scope reads back; anything else starts fresh", () => {
 });
 
 test("a word naming a catalog metric or facet is not a company to drop", () => {
-  assert.deepEqual(["FCF", "CAPEX", "EPS", "DEBT", "PEERS"].map(namesFacet), [true, true, true, true, true]);
-  assert.deepEqual(["XYZQ", "AMD", "NOW"].map(namesFacet), [false, false, false]);
+  assert.deepEqual(["FCF", "OCF", "CAPEX", "EPS", "DEBT", "PEERS"].map(namesFacet), [true, true, true, true, true, true]);
+  // A word of a longer name is not that name: NET (net income) is a ticker.
+  assert.deepEqual(["XYZQ", "AMD", "NOW", "NET", "CASH", "TOTAL", "FLOW", "TREND"].map(namesFacet), [false, false, false, false, false, false, false, false]);
 });
