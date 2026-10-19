@@ -393,6 +393,12 @@ test("a ticker inside a metric's name is the metric, unless the comparison cover
   assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", comparison)).tickers, ["NVDA", "AMD"]);
   assert.deepEqual((await subjectsForTurn("Drop AMD and the FREE CASH FLOW", comparison)).tickers, ["NVDA"]);
   assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW and add TSLA", comparison)).tickers, ["NVDA", "AMD", "TSLA"]);
+  // Nor are the metric's other words companies the answer could not find.
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", comparison)).context?.unresolvedMentions, []);
+  assert.deepEqual((await subjectsForTurn("Drop AMD and the FREE CASH FLOW", comparison)).context?.unresolvedMentions, []);
+  // With no comparison before, the turn is not about Pathward.
+  const fresh = { preResolveSubject: withCash, loadPriorSubjects: priorOf() };
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", fresh)).tickers, []);
   const covered = { preResolveSubject: withCash, loadPriorSubjects: priorOf("NVDA", "NOW") };
   assert.deepEqual((await subjectsForTurn("Drop CASH", covered)).tickers, ["NVDA"]);
 });
