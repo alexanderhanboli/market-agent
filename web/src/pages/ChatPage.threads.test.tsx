@@ -169,6 +169,21 @@ test('the undo window elapsing on the last chat moves focus to New chat', async 
   }
 })
 
+test('a second delete clicked without moving focus leaves focus on the new Undo', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h } = await chatsWithTwoThreads()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    assert.equal(focused(h), 'Undo deleting Chips')
+
+    await act(async () => h.button('Delete Rates').click())
+    await h.flush()
+    assert.equal(focused(h), 'Undo deleting Rates')
+  } finally {
+    await h.cleanup()
+  }
+})
+
 test('the undo window elapsing leaves focus alone once it has left Undo', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h } = await chatsWithTwoThreads()

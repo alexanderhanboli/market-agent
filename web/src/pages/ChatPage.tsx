@@ -178,7 +178,7 @@ function ThreadList({
     undoButton.current?.focus()
   }, [pending])
   const newChatButton = useRef<HTMLButtonElement>(null)
-  const undoLostFocus = useRef<{ row: Element | null; neighbour: Element | null } | null>(null)
+  const undoLostFocus = useRef<{ button: HTMLButtonElement; row: Element | null; neighbour: Element | null } | null>(null)
   // React detaches the ref before it removes the button, so focus can still be read here.
   const undoRef = useCallback((button: HTMLButtonElement) => {
     undoButton.current = button
@@ -186,13 +186,17 @@ function ThreadList({
       undoButton.current = null
       if (button.ownerDocument.activeElement !== button) return
       const row = button.closest('li')
-      undoLostFocus.current = { row, neighbour: row?.nextElementSibling ?? row?.previousElementSibling ?? null }
+      undoLostFocus.current = { button, row, neighbour: row?.nextElementSibling ?? row?.previousElementSibling ?? null }
     }
   }, [])
   useEffect(() => {
     const lost = undoLostFocus.current
     if (lost === null) return
     undoLostFocus.current = null
+    // Restore only if focus fell to the page or stayed on the node React reused as Delete;
+    // the [pending] effect may already have focused a new Undo.
+    const { activeElement, body } = lost.button.ownerDocument
+    if (activeElement !== null && activeElement !== body && activeElement !== lost.button) return
     const link = [lost.row, lost.neighbour].find((row) => row?.isConnected)?.querySelector('a')
     ;(link ?? newChatButton.current)?.focus()
   })
