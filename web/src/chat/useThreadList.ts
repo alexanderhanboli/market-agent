@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { authenticatedFetch } from '../http/authFetch.ts'
 import type { ChatThread } from './threadActions.ts'
-import { useThreadDeletes } from './threadDeletes.ts'
+import { beginThreadListRead, useThreadDeletes } from './threadDeletes.ts'
 
 export type ThreadListState =
   | { kind: 'loading' }
@@ -19,13 +19,17 @@ export function useThreadList(userId: string): ThreadList {
   useEffect(() => {
     if (!userId) return
     const controller = new AbortController()
+    const readSucceeded = beginThreadListRead()
     authenticatedFetch('/v1/chat/threads', { userId, signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return (await response.json()) as { threads: ChatThread[] }
       })
       .then(
-        (body) => setState({ kind: 'ready', threads: body.threads }),
+        (body) => {
+          setState({ kind: 'ready', threads: body.threads })
+          readSucceeded()
+        },
         (error: unknown) => {
           if (controller.signal.aborted) return
           // A failed refresh, such as a title poll, keeps the last good list.

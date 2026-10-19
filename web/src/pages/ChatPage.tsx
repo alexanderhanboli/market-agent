@@ -160,6 +160,9 @@ function ThreadList({
 }) {
   const navigate = useNavigate()
   const { pending, error: deleteError } = useThreadDeletes()
+  // An error from before this mount was already announced.
+  const [errorAtMount] = useState(deleteError)
+  const freshError = deleteError === errorAtMount ? null : deleteError
   const rows = state.kind === 'ready' ? state.threads : []
   const undoButton = useRef<HTMLButtonElement>(null)
   // Only the delete click moves focus; coming back to a pending delete doesn't.
@@ -200,11 +203,8 @@ function ThreadList({
         + New chat
       </button>
       <p role="status" className="sr-only">{pending ? 'Chat deleted.' : ''}</p>
-      {deleteError ? (
-        <div role="alert">
-          <FailureNotice message="Couldn't delete the chat." detail={deleteError} />
-        </div>
-      ) : null}
+      <p role="alert" className="sr-only">{freshError ? "Couldn't delete the chat." : ''}</p>
+      {deleteError ? <FailureNotice message="Couldn't delete the chat." detail={deleteError.message} announced={freshError !== null} /> : null}
       <h2 className="text-sm font-semibold text-fg">Chats</h2>
       {state.kind === 'loading' ? (
         <div className="flex flex-col gap-2">
