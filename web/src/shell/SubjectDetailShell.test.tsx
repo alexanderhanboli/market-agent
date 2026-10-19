@@ -411,7 +411,7 @@ test('a failed hydration says "Couldn\'t load this symbol.", blocks child sectio
   }
 })
 
-test('an issuer route titles the header with a skeleton while hydrating and "Unknown symbol" once hydration fails', async () => {
+test('an issuer route titles the header with a skeleton while hydrating and a neutral "Symbol" once hydration fails', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
   const originalFetch = globalThis.fetch
@@ -453,7 +453,7 @@ test('an issuer route titles the header with a skeleton while hydrating and "Unk
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
     }
-    assert.equal(header.querySelector('h1')?.textContent, 'Unknown symbol')
+    assert.equal(header.querySelector('h1')?.textContent, 'Symbol')
     assert.equal(header.querySelector('h1 [role="status"]'), null)
     await act(async () => root.unmount())
   } finally {

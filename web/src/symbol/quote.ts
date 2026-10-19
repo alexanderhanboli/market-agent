@@ -233,6 +233,8 @@ export function issuerProfileFromSubject(
 }
 
 export const UNKNOWN_SYMBOL = 'Unknown symbol'
+// A failed lookup says nothing about the symbol, so it gets a neutral name.
+export const UNNAMED_SYMBOL = 'Symbol'
 
 // Null until hydration names a subject that was built from a bare ref. An empty label is no name.
 export function subjectDisplayName(subject: ResolvedSubject | RouteResolvedSubject): string | null {

@@ -4,7 +4,7 @@ import { analyzeEntryFromSubject } from '../analyze/analyzeEntry'
 import { issuerIdFromSubject } from '../symbol/profile.ts'
 import { QuoteSnapshot } from '../symbol/QuoteSnapshot'
 import { useResource } from '../fetch/resource.ts'
-import { candidateName, listingIdForQuote, listingQuote, subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
+import { candidateName, listingIdForQuote, listingQuote, subjectDisplayName, UNNAMED_SYMBOL } from '../symbol/quote'
 import { PANEL_CLASS } from '../symbol/surfaceStyles.ts'
 import {
   fetchSubjectHydration,
@@ -113,7 +113,7 @@ export function SubjectDetailShell() {
       ? hydrationState.message
       : null
   const title =
-    subjectDisplayName(subject) ?? (shouldBlockForHydration && hydrationError === null ? null : UNKNOWN_SYMBOL)
+    subjectDisplayName(subject) ?? (shouldBlockForHydration && hydrationError === null ? null : UNNAMED_SYMBOL)
   const visibleLegacyResolution =
     legacyTicker !== null &&
     legacyResolution.status !== 'idle' &&

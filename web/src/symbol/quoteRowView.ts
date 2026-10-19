@@ -10,6 +10,7 @@ import {
   quoteDirection,
   subjectDisplayName,
   UNKNOWN_SYMBOL,
+  UNNAMED_SYMBOL,
   type QuoteDirection,
   type QuoteSnapshot,
 } from './quote.ts'
@@ -61,7 +62,7 @@ export function quoteRowView(
 // A failed lookup says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
 function rowName(subject: VisibleFetchState<ResolvedSubject>): string | null {
   if (subject.status === 'ready') return subjectDisplayName(subject.data) ?? UNKNOWN_SYMBOL
-  return subject.status === 'unavailable' ? 'Symbol' : null
+  return subject.status === 'unavailable' ? UNNAMED_SYMBOL : null
 }
 
 function freshnessLabel(quote: QuoteSnapshot): string {
