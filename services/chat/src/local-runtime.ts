@@ -55,7 +55,7 @@ import {
   structuredEvidenceStatus,
   structuredRefsFromHandoff,
 } from "./local-runtime-structured.ts";
-import { createChatFinancialRuntime, type ChatFinancialRuntime } from "./financial-runtime.ts";
+import { createChatFinancialRuntime, type ChatFinancialRuntime, type ChatFinancialTurnContext } from "./financial-runtime.ts";
 import { createChatMessagePersistence } from "./messages.ts";
 import {
   preResolveChatSubjectWithResolver,
@@ -105,10 +105,7 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   const carriedSubjects = context.subjectPreResolutions ?? (resolved ? [resolved] : []);
   // What the turn asks for, keeping a follow-up's unchanged scope (#206). A
   // window asked for now is cut off at the turn's asOf, which a follow-up keeps.
-  // What the question asks for and turns off, as a model reads it
-  // (scope-proposal.ts).
-  const proposal = proposeScope({ question: context.userIntent ?? "" });
-  const scopeAt = await turnScope(context.threadId, context.userIntent ?? "", carriedSubjects, false, proposal);
+  const scopeAt = await analystTurnScope(context.threadId, context.userIntent ?? "", carriedSubjects);
   // A live YTD request fetches its prices first, so the cutoff below covers them (#232).
   await hydrateYtdWindow(scopeAt(turnNow(process.env)), carriedSubjects);
   const asOf = turnNow(process.env);
@@ -321,6 +318,16 @@ async function withCompanyLabels(scope: ResearchScope, asOf: string): Promise<Re
   };
 }
 
+// An analyst turn's scope at a cutoff: what the question asks for and turns
+// off, as a model reads it (scope-proposal.ts).
+export function analystTurnScope(
+  threadId: string,
+  question: string,
+  covered: ReadonlyArray<ChatResolvedSubjectPreResolution>,
+): Promise<(cutoff: string) => ResearchScope> {
+  return turnScope(threadId, question, covered, false, proposeScope({ question }));
+}
+
 // The turn's research scope at a cutoff (research-scope.ts): what it asks for,
 // keeping the previous answer's scope where it continues it. The companies are
 // the ones the answer compares, auto-selected peers included, so the price
@@ -465,6 +472,15 @@ const NO_DEFAULT_REFS = Object.freeze({
   provenance_fact_refs: [],
 });
 
+// A published financial answer saves its scope too, so a period it asks for
+// carries into the next follow-up (#206). Its metrics are the published plan's
+// (financial-runtime.ts), so the engine's answer waits on no model call.
+export async function financialResearchScope(context: ChatFinancialTurnContext): Promise<ResearchScope> {
+  const covered = context.subjectPreResolutions ??
+    (context.subjectPreResolution?.status === "resolved" ? [context.subjectPreResolution] : []);
+  return (await turnScope(context.threadId, context.userIntent ?? "", covered, true))(turnNow(process.env));
+}
+
 // Financial requests go through the verified engine. Off unless
 // CHAT_FINANCIAL_MODE is "shadow" or "enforce"; without a configured LLM router,
 // financial turns in enforce mode get a structured gap instead of a guess.
@@ -478,14 +494,7 @@ export const financialRuntime: ChatFinancialRuntime = createChatFinancialRuntime
   },
   resolveMention: (mention) => preResolveSubject({ text: mention }),
   evidence: createEvidenceFinancialPort,
-  // A published financial answer saves its scope too, so a period it asks for
-  // carries into the next follow-up (#206).
-  researchScope: async (context) => {
-    const covered = context.subjectPreResolutions ??
-      (context.subjectPreResolution?.status === "resolved" ? [context.subjectPreResolution] : []);
-    // The engine answered the metrics it published, so they are not gaps.
-    return (await turnScope(context.threadId, context.userIntent ?? "", covered, true))(turnNow(process.env));
-  },
+  researchScope: financialResearchScope,
 });
 
 export const persistAssistantMessage: ChatAssistantMessagePersistence = async (message) =>
