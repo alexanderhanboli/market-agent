@@ -410,6 +410,32 @@ test('a delete error is gone once the list re-reads, and a remounted sidebar rai
   }
 })
 
+test('a list read already in flight when the delete fails leaves the delete error up', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads()
+  server.deleteReply = () => ({ status: 500, body: { error: 'boom' } })
+  server.createdThreadId = 'T3'
+  const held = deferred<{ body: unknown }>()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    const reads = server.gets('/v1/chat/threads')
+    server.listReply = () => held.promise
+    await h.ask('Analyze NVDA')
+    assert.equal(server.gets('/v1/chat/threads'), reads + 1)
+
+    await tick(h, t, UNDO_MS)
+    assert.equal(alertText(h), "Couldn't delete the chat.")
+
+    await act(async () => held.resolve({ body: { threads: server.threads } }))
+    await h.flush()
+    assert.equal(server.gets('/v1/chat/threads'), reads + 1)
+    assert.equal(alertText(h), "Couldn't delete the chat.")
+    assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
+  } finally {
+    await h.cleanup()
+  }
+})
+
 test('a sidebar remounted before the list re-reads still shows the delete error but does not raise it again', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads('/chat/T2')
