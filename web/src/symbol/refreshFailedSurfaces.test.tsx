@@ -193,6 +193,7 @@ test('the header quote says when its price failed to refresh', () => {
   const html = renderToStaticMarkup(
     <QuoteSnapshot
       subject={subject}
+      title="Apple Inc."
       quoteState={{ status: 'ready', data: quote, refreshing: false, refreshError: 'HTTP 503' }}
     />,
   )

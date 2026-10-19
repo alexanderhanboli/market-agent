@@ -63,7 +63,8 @@ export type HydratedSubjectContext = {
 
 export type ResolvedSubject = {
   subject_ref: SubjectRef
-  display_name: string
+  // Absent on a subject built from a bare ref until hydration names it.
+  display_name?: string
   confidence: number
   alternatives?: SubjectRef[]
   identity_level?: SubjectKind
@@ -165,23 +166,19 @@ export function subjectFromRouteParam(param: string | undefined): RouteResolvedS
   return subjectFromRouteRef(parseSubjectRouteParam(param))
 }
 
-// Build a minimal ResolvedSubject from a bare SubjectRef. Shared between the
-// URL-entered landing path (subjectFromRouteParam) and the watchlist row
-// hydration path (fra-6al.6.2) so both feed createQuoteSnapshotStub with the
-// same shape — the verification that row values equal landing values for the
-// same subject reduces to a single derivation function over a single subject.
 export function subjectFromRef(subjectRef: SubjectRef): ResolvedSubject {
   return subjectFromRouteRef(subjectRef) as ResolvedSubject
 }
 
 function subjectFromRouteRef(subjectRef: RouteSubjectRef): RouteResolvedSubject {
-  const displayName = routeFallbackDisplayName(subjectRef)
+  if (subjectRef.kind !== 'legacy_listing_route') return { subject_ref: subjectRef, confidence: 1 }
+  const ticker = subjectRef.ticker.toUpperCase()
   return {
     subject_ref: subjectRef,
-    display_name: displayName,
+    display_name: ticker,
     confidence: 1,
     display_labels: {
-      primary: displayName,
+      primary: ticker,
     },
   }
 }
@@ -335,10 +332,6 @@ export async function fetchSubjectHydration(args: {
   return body.subject
 }
 
-export function displaySubjectRef(subjectRef: SubjectRef): string {
-  return formatSubjectRef(subjectRef)
-}
-
 export function candidateListingLabel(subject: ResolvedSubject): string {
   const labels = subject.display_labels
   const ticker = labels?.ticker
@@ -347,14 +340,4 @@ export function candidateListingLabel(subject: ResolvedSubject): string {
   if (ticker && mic) return `${ticker} · ${mic}`
   if (ticker) return ticker
   return subject.identity_level ?? subject.subject_ref.kind
-}
-
-function routeFallbackDisplayName(subjectRef: RouteSubjectRef): string {
-  if (subjectRef.kind === 'legacy_listing_route') return subjectRef.ticker.toUpperCase()
-  const label = subjectRef.kind
-    .split('_')
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(' ')
-
-  return `${label} subject`
 }

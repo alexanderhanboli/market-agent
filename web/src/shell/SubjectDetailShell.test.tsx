@@ -398,6 +398,58 @@ test('a failed hydration says "Couldn\'t load this symbol.", blocks child sectio
   }
 })
 
+test('an issuer route titles the header with a skeleton while hydrating and "Unknown symbol" once hydration fails', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  const originalFetch = globalThis.fetch
+  let failHydration: () => void = () => undefined
+
+  try {
+    globalThis.fetch = async (input) => {
+      if (String(input) === '/v1/subjects/hydrate') {
+        await new Promise<void>((resolve) => {
+          failHydration = resolve
+        })
+        return new Response(JSON.stringify({ error: 'bad gateway' }), { status: 502 })
+      }
+      return new Response('{}', { status: 404 })
+    }
+
+    const root = createRoot(dom.window.document.getElementById('root')!)
+    await act(async () => {
+      root.render(
+        wrapShell(
+          <MemoryRouter initialEntries={[`/symbol/issuer%3A${ISSUER_ID}/overview`]}>
+            <Routes>
+              <Route path="/symbol/:subjectRef" element={<SubjectDetailShell />}>
+                <Route path="overview" element={<ChildMountedProbe />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>,
+        ),
+      )
+    })
+    const header = dom.window.document.querySelector('[data-testid="subject-header"]')!
+
+    assert.equal(header.querySelector('h1')?.textContent, undefined)
+    assert.ok(header.querySelector('[role="status"][aria-label="Loading symbol name"]'), 'the title is a skeleton')
+    assert.doesNotMatch(header.textContent ?? '', /subject/i)
+
+    await act(async () => failHydration())
+    for (let attempt = 0; attempt < 5 && header.querySelector('h1') === null; attempt += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+    assert.equal(header.querySelector('h1')?.textContent, 'Unknown symbol')
+    assert.ok(!header.querySelector('[aria-label="Loading symbol name"]'), 'the title skeleton is gone')
+    await act(async () => root.unmount())
+  } finally {
+    globalThis.fetch = originalFetch
+    restoreGlobals()
+  }
+})
+
 test('SubjectDetailShell renders an explicit choice state for ambiguous legacy ticker routes', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window)

@@ -120,13 +120,18 @@ test('typeahead query edits clear candidates even when the next query is non-emp
   })
 })
 
-test('route fallback display avoids presenting raw subject refs as market labels', () => {
-  const subject = subjectFromRouteParam('listing%3A11111111-1111-4111-a111-111111111111')
-
-  assert.equal(subject.display_name, 'Listing subject')
-  assert.deepEqual(subject.display_labels, {
-    primary: 'Listing subject',
+test('a route fallback for a canonical ref carries no display name until hydration supplies one', () => {
+  assert.deepEqual(subjectFromRouteParam('listing%3A11111111-1111-4111-a111-111111111111'), {
+    subject_ref: { kind: 'listing', id: '11111111-1111-4111-a111-111111111111' },
+    confidence: 1,
   })
+})
+
+test('a legacy ticker route keeps the ticker as its display name', () => {
+  const subject = subjectFromRouteParam('aapl')
+
+  assert.equal(subject.display_name, 'AAPL')
+  assert.deepEqual(subject.display_labels, { primary: 'AAPL' })
 })
 
 test('parseSubjectRouteParam falls back without crashing on malformed percent-encoding', () => {

@@ -29,7 +29,7 @@ import { analyzeThesisHandoff } from '../analyze/thesisHandoff.ts'
 import { BlockView, type Block } from '../blocks'
 import { FinancialSections } from '../analyze/FinancialSections.tsx'
 import { authenticatedJson } from '../http/authFetch.ts'
-import { subjectDisplayName } from '../symbol/quote'
+import { subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
 import { symbolDetailPathForSubject, type ResolvedSubject } from '../symbol/search'
 import { useAuth } from '../shell/useAuth.ts'
 
@@ -236,7 +236,7 @@ function AnalyzeWorkspace({ subject }: { subject: ResolvedSubject | null }) {
     }
     const run = memoRun ?? (await generateMemo())
     if (!run) return
-    const titleSubject = subject ? subjectDisplayName(subject) : 'Research memo'
+    const titleSubject = (subject && subjectDisplayName(subject)) ?? 'Research memo'
     try {
       setStatus('Persisting memo in chat')
       const result = await shareAnalyzeRunToChat({
@@ -385,7 +385,7 @@ function AnalyzeWorkspace({ subject }: { subject: ResolvedSubject | null }) {
           <div>
             <h2 className="text-lg font-semibold text-fg">Memo canvas</h2>
             <p className="mt-1 text-sm text-muted">
-              {subject ? subjectDisplayName(subject) : 'No subject selected'} · {[...sources].join(', ') || 'no sources'}
+              {subject ? (subjectDisplayName(subject) ?? UNKNOWN_SYMBOL) : 'No subject selected'} · {[...sources].join(', ') || 'no sources'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -584,7 +584,7 @@ function CarriedSubjectContext({
   subject: ResolvedSubject
   intent: AnalyzeIntent | null
 }) {
-  const displayName = subjectDisplayName(subject)
+  const displayName = subjectDisplayName(subject) ?? UNKNOWN_SYMBOL
   return (
     <section
       data-testid="analyze-carried-subject"

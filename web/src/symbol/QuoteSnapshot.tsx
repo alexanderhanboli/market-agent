@@ -6,7 +6,6 @@ import {
   issuerProfileFromSubject,
   quoteDirection,
   SIGNED_BY_QUOTE_DIRECTION,
-  subjectDisplayName,
   type QuoteSnapshot as QuoteSnapshotData,
   type ResolvedSubject,
   type RouteResolvedSubject,
@@ -19,18 +18,18 @@ import { Skeleton } from '../ui/Skeleton.tsx'
 
 type QuoteSnapshotProps = {
   subject: ResolvedSubject | RouteResolvedSubject
+  // Null while the name is still loading.
+  title: string | null
   quoteState: VisibleFetchState<QuoteSnapshotData>
 }
 
-export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
+export function QuoteSnapshot({ subject, title, quoteState }: QuoteSnapshotProps) {
   const issuerProfile = issuerProfileFromSubject(subject)
 
   if (quoteState.status !== 'ready') {
     return (
       <section className="min-w-0">
-        <h1 className="min-w-0 truncate text-2xl font-semibold text-fg">
-          {subjectDisplayName(subject)}
-        </h1>
+        <SnapshotTitle title={title} />
         <div className="mt-3">
           {quoteState.status === 'loading' ? (
             <Skeleton label="Loading quote" className="h-9 w-48" />
@@ -51,9 +50,7 @@ export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
   return (
     <section className="min-w-0">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="min-w-0 truncate text-2xl font-semibold text-fg">
-          {subjectDisplayName(subject)}
-        </h1>
+        <SnapshotTitle title={title} />
         <span className="rounded border border-line px-2 py-0.5 text-xs font-medium text-muted">
           {quote.listing.ticker}
         </span>
@@ -81,6 +78,11 @@ export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
       <IssuerProfileLine profile={issuerProfile} />
     </section>
   )
+}
+
+function SnapshotTitle({ title }: { title: string | null }) {
+  if (title === null) return <Skeleton label="Loading symbol name" className="h-8 w-56" />
+  return <h1 className="min-w-0 truncate text-2xl font-semibold text-fg">{title}</h1>
 }
 
 function IssuerProfileLine({
