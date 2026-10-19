@@ -40,6 +40,7 @@ import {
   replayRecorded,
   type AnswerMetrics,
   type ModelExchange,
+  type TracedAnswer,
   type TurnTrace,
 } from "../src/answer-trace.ts";
 import { judgeCases, judgeInferences, verdictsOf, type InferenceVerdict, type JudgeCase, type JudgeRecord } from "../src/inference-judge.ts";
@@ -163,14 +164,14 @@ function liveEnv(): Record<string, string | undefined> {
   return { ...process.env, LLM_SETTINGS_ENV_FILE: process.env.LLM_SETTINGS_ENV_FILE ?? join(ROOT, ".env.dev") };
 }
 
-// What the judge did with an answer's inferences, and each it left out, with
-// why: the judge's verdict and reason, or why no verdict came.
-export type JudgeView = { record: JudgeRecord; hidden: Array<{ index: number; text: string; reason: string }> };
+// What the judge did with each of an answer's inferences, and each it left
+// out, with why: the judge's verdict and reason, or why no verdict came.
+export type JudgeView = { records: ReadonlyArray<JudgeRecord>; hidden: Array<{ index: number; text: string; reason: string }> };
 
-function judgeView(answer: Pick<TurnTrace, "judge" | "assertions">): JudgeView | undefined {
+function judgeView(answer: Pick<TracedAnswer, "judge" | "assertions">): JudgeView | undefined {
   if (!answer.judge) return undefined;
   const hidden = (answer.assertions?.rejected ?? []).filter((entry) => entry.check === "judge");
-  return { record: answer.judge, hidden: hidden.map(({ index, text, reason }) => ({ index, text: text ?? "", reason })) };
+  return { records: answer.judge, hidden: hidden.map(({ index, text, reason }) => ({ index, text: text ?? "", reason })) };
 }
 
 // text: the model's raw reply; answer: the rich_text the user reads, each
@@ -233,7 +234,7 @@ async function live(traces: ReadonlyArray<LabeledTrace>, samples: number, concur
         // No deployment configured: the placeholder came back and no model answered.
         if (composed.exchange === null) throw new Error("no model was called (no deployable LLM in the settings)");
         const { cases, companies } = inferenceCases(trace.input, composed.assertions);
-        const answer = judgedAnswer(composed, cases, judge ? await judgeAnswer(cases, companies, { env }) : UNJUDGED);
+        const answer = judgedAnswer(composed, cases, judge ? await judgeAnswer(cases, companies, { env }) : cases.map(() => UNJUDGED));
         const view = judge ? judgeView(answer) : undefined;
         results.push({
           trace: key,
@@ -315,12 +316,13 @@ function liveRows(run: LiveRun, keys: ReadonlyArray<string> = run.traces): Row[]
 }
 
 // The inferences the judge showed and left out over the run, what it did per
-// answer, its cost per answer it replied to, and each inference it left out,
+// inference, its cost per call it replied to, and each inference it left out,
 // with its text and why.
 export function judgeSummary(run: Pick<LiveRun, "labels"> & { results: ReadonlyArray<Pick<LiveSample, "trace" | "sample" | "metrics" | "judge">> }): string {
   const judged = run.results.filter((result) => result.judge);
-  const outcomes = (outcome: JudgeRecord["outcome"]) => judged.filter((result) => result.judge!.record.outcome === outcome).length;
-  const replies = judged.flatMap((result) => (result.judge!.record.outcome === "replied" ? [result.judge!.record.exchange] : []));
+  const records = judged.flatMap((result) => result.judge!.records);
+  const outcomes = (outcome: JudgeRecord["outcome"]) => records.filter((record) => record.outcome === outcome).length;
+  const replies = records.flatMap((record) => (record.outcome === "replied" ? [record.exchange] : []));
   const sum = (key: "inferences_shown" | "inferences_hidden") => judged.reduce((total, result) => total + (result.metrics?.[key] ?? 0), 0);
   const mean = (values: ReadonlyArray<number>) => (values.length === 0 ? 0 : Math.round(values.reduce((total, value) => total + value, 0) / values.length));
   return [

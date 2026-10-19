@@ -24,7 +24,7 @@ const BASE_ENV = {
 };
 // The answer as the reader ends with it when the judge entails every inference
 // (answer-trace.ts gates them).
-const ALL_SHOWN = new Set(Array.from({ length: MAX_ASSERTIONS }, (_, i) => i));
+const ALL_SHOWN = new Map(Array.from({ length: MAX_ASSERTIONS }, (_, i) => [i, "shown"] as const));
 const composeAnalystBlocksWithLlm = async (input: Parameters<typeof composeAnswer>[0]) => (await composeAnswer(input))(ALL_SHOWN);
 
 const FIGURES_FALLBACK = "The reported figures below come from the company's filings; select any value to see its source.";

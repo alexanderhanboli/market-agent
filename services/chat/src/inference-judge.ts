@@ -4,8 +4,9 @@
 // text, and no English matcher can tell whether they mean what their supports
 // show ("margins are expanding" beside a checked "fell"). A second model reads
 // each inference beside what it rests on, as the reader sees it, and says
-// whether that backs it. A chat turn shows an inference only once the judge
-// finds it entailed (answer-trace.ts answerTurn).
+// whether that backs it, each inference in a call of its own (#376). A chat
+// turn shows an inference only once the judge finds it entailed
+// (answer-trace.ts answerTurn).
 
 import { createLlmRouterFromEnv, type LlmChatClient, type LlmChatMessage, type LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
 import type { ModelExchange } from "./answer-trace.ts";
@@ -31,8 +32,8 @@ export type InferenceVerdict =
   // The judge gave no usable verdict: never read as entailed.
   | { index: number; verdict: "error"; reason: string };
 
-// What the judge did with an answer's inferences: everything its verdicts are
-// read from (verdictsOf), so a recorded turn replays them without a model.
+// What one judge call did: everything its verdicts are read from
+// (verdictsOf), so a recorded turn replays them without a model.
 export type JudgeRecord =
   // No model was asked: none is configured, or there was nothing to judge.
   | { outcome: "not_called"; reason: string }
@@ -41,12 +42,14 @@ export type JudgeRecord =
   // The router could not be built, or the call failed or ran out of time.
   | { outcome: "failed"; reason: string; latency_ms: number };
 
-// The reader waits on the judge for its inferences, with the figures shown.
-// Measured on Haiku over the 14 recorded traces' 12 judged answers (one call
-// each, 1 to 3 inferences): 2.4 to 6.6 s, about 10 ms per output token plus
-// a second. One attempt of 1.5 times the slowest: the judge model has no
-// fallback (JUDGE_LITELLM_MODEL alone), and a late verdict only costs the
-// inferences, which stay hidden. ceil(11000 / 10000) - 1 = 1 attempt.
+// The reader waits on the judge for each inference, with the figures shown;
+// the deadlines are per call, one call per inference. Measured on Haiku over
+// the 14 recorded traces' 12 judged answers, when one call judged all of an
+// answer's 1 to 3 inferences: 2.4 to 6.6 s, about 10 ms per output token plus
+// a second, so a call of one is no slower. One attempt of 1.5 times the
+// slowest: the judge model has no fallback (JUDGE_LITELLM_MODEL alone), and a
+// late verdict only costs its inference, which stays hidden.
+// ceil(11000 / 10000) - 1 = 1 attempt.
 export const JUDGE_DEADLINES: ModelDeadlines = { attemptMs: 10_000, totalMs: 11_000 };
 
 type Accepted = Assertion & { index: number };
@@ -67,8 +70,9 @@ export function judgeCases(accepted: ReadonlyArray<Accepted>, packet: EvidencePa
   });
 }
 
-// All of an answer's inferences in one call; never rejects. No temperature:
-// current Claude models reject one (pi-adapter.ts).
+// The given inferences in one call (a chat turn gives one, answer-trace.ts
+// judgeOne); never rejects. No temperature: current Claude models reject one
+// (pi-adapter.ts).
 export async function judgeInferences(input: {
   cases: ReadonlyArray<JudgeCase>;
   companies: ReadonlyArray<string>;

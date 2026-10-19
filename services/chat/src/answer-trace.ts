@@ -38,13 +38,15 @@ export type TurnTrace = {
   // The checks' report; each inference the judge did not entail is a
   // rejection with check "judge", so the accepted inferences are those shown.
   assertions: AssertionReport | null;
-  // What the judge did with the answer's inferences; null when it showed none
-  // to judge. Absent from traces recorded before the judge gated them.
-  judge?: JudgeRecord | null;
+  // What the judge did with the answer's inferences, a call per inference in
+  // their order; null when it showed none to judge. Absent from traces
+  // recorded before the judge gated them, and one record (one call for them
+  // all) in those recorded before #376 (recordedJudge).
+  judge?: ReadonlyArray<JudgeRecord> | JudgeRecord | null;
   blocks: ReadonlyArray<Record<string, unknown>>;
 };
 
-export type TracedAnswer = Pick<TurnTrace, "exchange" | "assertions" | "blocks"> & { judge: JudgeRecord | null };
+export type TracedAnswer = Pick<TurnTrace, "exchange" | "assertions" | "blocks"> & { judge: ReadonlyArray<JudgeRecord> | null };
 
 // The answer as composed, its inferences not yet judged.
 export type ComposedAnswer = Pick<TurnTrace, "exchange" | "assertions"> & { blocks: AnswerBlocks };
@@ -82,10 +84,11 @@ export function inferenceCases(input: AnswerTraceInput, report: AssertionReport 
 
 // What the reader ends with: each inference the judge entailed, and none
 // other. The rest leave the report's accepted list as "judge" rejections.
-export function judgedAnswer(answer: ComposedAnswer, cases: ReadonlyArray<JudgeCase>, record: JudgeRecord): TracedAnswer {
-  if (cases.length === 0) return { ...answer, judge: null, blocks: answer.blocks(new Set()) };
-  const verdicts = verdictsOf(cases, record);
-  const shown = new Set(verdicts.flatMap((entry) => (entry.verdict === "entailed" ? [entry.index] : [])));
+// records: the judge's, one per case.
+export function judgedAnswer(answer: ComposedAnswer, cases: ReadonlyArray<JudgeCase>, records: ReadonlyArray<JudgeRecord>): TracedAnswer {
+  if (cases.length === 0) return { ...answer, judge: null, blocks: answer.blocks(new Map()) };
+  const verdicts = cases.flatMap((inference, i) => verdictsOf([inference], records[i]!));
+  const shown = new Map(verdicts.flatMap((entry) => (entry.verdict === "entailed" ? [[entry.index, "shown"] as const] : [])));
   const hidden = verdicts.filter((entry) => entry.verdict !== "entailed");
   const report = answer.assertions!;
   return {
@@ -103,7 +106,7 @@ export function judgedAnswer(answer: ComposedAnswer, cases: ReadonlyArray<JudgeC
         })),
       ].sort((a, b) => a.index - b.index),
     },
-    judge: record,
+    judge: records,
     blocks: answer.blocks(shown),
   };
 }
@@ -122,10 +125,15 @@ async function judgeConfigured(env: JudgeOptions["env"]): Promise<boolean> {
   return (await loadLlmSettingsFromEnv(env)).judgeModel !== null;
 }
 
-export async function judgeAnswer(cases: ReadonlyArray<JudgeCase>, companies: ReadonlyArray<string>, options: JudgeOptions): Promise<JudgeRecord> {
-  if (!(await judgeConfigured(options.env))) return NO_JUDGE;
+// Each inference in a call of its own, all at once (#376).
+export async function judgeAnswer(cases: ReadonlyArray<JudgeCase>, companies: ReadonlyArray<string>, options: JudgeOptions): Promise<JudgeRecord[]> {
+  if (!(await judgeConfigured(options.env))) return cases.map(() => NO_JUDGE);
+  return Promise.all(cases.map((inference) => judgeOne(inference, companies, options)));
+}
+
+function judgeOne(inference: JudgeCase, companies: ReadonlyArray<string>, options: JudgeOptions): Promise<JudgeRecord> {
   return judgeInferences({
-    cases,
+    cases: [inference],
     companies,
     env: options.env,
     ...(options.createClient ? { createClient: options.createClient } : {}),
@@ -137,9 +145,16 @@ type TurnIds = Pick<TurnTrace, "thread_id" | "run_id" | "turn_id">;
 
 export type AnsweredTurn = Pick<TracedAnswer, "exchange" | "assertions" | "blocks"> & {
   // Present while the judge reads the answer's inferences: `blocks` then hold a
-  // line in each one's place, and this settles with what the reader ends with,
-  // once the trace is written. It never rejects.
-  judged?: Promise<Pick<TracedAnswer, "assertions" | "blocks">>;
+  // line in each one's place, and each inference takes its line, or drops it,
+  // as its own verdict settles.
+  judging?: {
+    // Called at once with the blocks as the verdicts so far leave them, then
+    // again as each later verdict settles.
+    watch(listener: (blocks: TracedAnswer["blocks"]) => void): void;
+    // What the reader ends with, once every verdict is in and the trace is
+    // written. It never rejects.
+    done: Promise<Pick<TracedAnswer, "assertions" | "blocks">>;
+  };
 };
 
 // A chat turn's answer, gated by the judge, and its trace.
@@ -155,23 +170,41 @@ export async function answerTurn(
   });
   const recorded_at = new Date().toISOString();
   const { cases, companies } = inferenceCases(input, answer.assertions);
-  const finish = async (record: JudgeRecord): Promise<TracedAnswer> => {
-    const traced = judgedAnswer(answer, cases, record);
+  const finish = async (records: ReadonlyArray<JudgeRecord>): Promise<TracedAnswer> => {
+    const traced = judgedAnswer(answer, cases, records);
     if (cases.length > 0) {
       const shown = traced.assertions!.accepted.filter((entry) => entry.kind === "analyst_inference").length;
-      const deployment = record.outcome === "replied" ? ` on ${record.exchange.deployment}` : "";
-      console.info(`[chat] judge ${traceIds(turn)}${deployment}: ${shown} of ${cases.length} inferences shown${record.outcome === "replied" ? "" : ` (${record.reason})`}`);
+      const deployments = [...new Set(records.flatMap((record) => (record.outcome === "replied" ? [record.exchange.deployment] : [])))];
+      const reasons = [...new Set(records.flatMap((record) => (record.outcome === "replied" ? [] : [record.reason])))];
+      console.info(`[chat] judge ${traceIds(turn)}${deployments.length > 0 ? ` on ${deployments.join(", ")}` : ""}: ${shown} of ${cases.length} inferences shown${reasons.length > 0 ? ` (${reasons.join("; ")})` : ""}`);
     }
     await writeTurnTrace(options.traceDir, { version: 2, ...turn, recorded_at, input, ...traced });
     return traced;
   };
-  if (cases.length === 0) return finish(NOTHING_TO_JUDGE);
-  if (!(await judgeConfigured(options.env))) return finish(NO_JUDGE);
+  if (cases.length === 0) return finish([]);
+  if (!(await judgeConfigured(options.env))) return finish(cases.map(() => NO_JUDGE));
+  const inferences = new Map<number, "shown" | "pending">(cases.map(({ index }) => [index, "pending"]));
+  const listeners: Array<(blocks: TracedAnswer["blocks"]) => void> = [];
+  const records = cases.map((inference) =>
+    judgeOne(inference, companies, options).then((record) => {
+      if (verdictsOf([inference], record)[0]!.verdict === "entailed") inferences.set(inference.index, "shown");
+      else inferences.delete(inference.index);
+      const blocks = answer.blocks(inferences);
+      for (const listener of listeners) listener(blocks);
+      return record;
+    })
+  );
   return {
     exchange: answer.exchange,
     assertions: answer.assertions,
-    blocks: answer.blocks("pending"),
-    judged: judgeAnswer(cases, companies, options).then(finish).then(({ assertions, blocks }) => ({ assertions, blocks })),
+    blocks: answer.blocks(inferences),
+    judging: {
+      watch: (listener) => {
+        listeners.push(listener);
+        listener(answer.blocks(inferences));
+      },
+      done: Promise.all(records).then(finish).then(({ assertions, blocks }) => ({ assertions, blocks })),
+    },
   };
 }
 
@@ -184,8 +217,9 @@ function traceIds(turn: TurnIds): string {
 // model is called; or, given a judge, with its live verdicts in place of the
 // recorded ones. The recorded answer exchange is kept: its output, latency and
 // tokens are what was recorded. judge_input_changed: today's answer would send
-// the judge something other than the recorded reply answered.
-export async function replayRecorded(trace: TurnTrace, judge?: JudgeOptions): Promise<TurnTrace & { judge_input_changed: boolean }> {
+// the judge, for some inference, something other than its recorded reply
+// answered.
+export async function replayRecorded(trace: TurnTrace, judge?: JudgeOptions): Promise<TurnTrace & Pick<TracedAnswer, "judge"> & { judge_input_changed: boolean }> {
   const { exchange } = trace;
   const answer = await composeTraced(trace.input, {
     env: exchange === null ? {} : RECORDED_CHANNEL,
@@ -205,25 +239,30 @@ export async function replayRecorded(trace: TurnTrace, judge?: JudgeOptions): Pr
     }),
   });
   const { cases, companies } = inferenceCases(trace.input, answer.assertions);
-  const record = cases.length === 0
-    ? NOTHING_TO_JUDGE
-    : judge ? await judgeAnswer(cases, companies, judge) : recordedJudge(trace);
+  const records = judge ? await judgeAnswer(cases, companies, judge) : recordedJudge(trace, cases);
   return {
     ...trace,
     version: 2,
-    ...judgedAnswer(answer, cases, record),
+    ...judgedAnswer(answer, cases, records),
     exchange,
-    judge_input_changed: record.outcome === "replied" && !isDeepStrictEqual(record.exchange.messages, judgeMessages(cases, companies)),
+    judge_input_changed: records.some((record, i) =>
+      record.outcome === "replied" && !isDeepStrictEqual(record.exchange.messages, judgeMessages([cases[i]!], companies))
+    ),
   };
 }
 
-const NOTHING_TO_JUDGE: JudgeRecord = { outcome: "not_called", reason: "no inference to judge" };
-
-// A trace from before the judge gated inferences recorded no judge reply (or
-// only the shadow judge's verdicts): its inferences replay hidden.
-function recordedJudge(trace: TurnTrace): JudgeRecord {
-  const judge = trace.judge as JudgeRecord | null | undefined;
-  return judge && typeof judge === "object" && "outcome" in judge ? judge : { outcome: "not_called", reason: "this trace recorded no judge reply" };
+// The recorded judge's record for each case: the one at its place. A trace
+// from before #376 recorded one call for every case, and each reads its own
+// verdict from it; one from before the judge gated inferences recorded no
+// judge reply (or only the shadow judge's verdicts), and its inferences replay
+// hidden.
+function recordedJudge(trace: TurnTrace, cases: ReadonlyArray<JudgeCase>): JudgeRecord[] {
+  const judge: unknown = trace.judge;
+  const recorded = (record: unknown): JudgeRecord =>
+    record !== null && typeof record === "object" && "outcome" in record
+      ? record as JudgeRecord
+      : { outcome: "not_called", reason: "this trace recorded no judge reply" };
+  return cases.map((_, i) => recorded(Array.isArray(judge) ? judge[i] : judge));
 }
 
 const RECORDED_CHANNEL = {

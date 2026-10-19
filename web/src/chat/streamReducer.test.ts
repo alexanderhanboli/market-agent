@@ -512,6 +512,14 @@ test('answer.shown holds the sealed answer until the saved message replaces it; 
   assert.equal(applyChatStreamEvent(state, completed(4)).turn_status, 'completed')
 })
 
+test('a later answer.shown for the same message replaces the one shown: each verdict brings the answer as it now stands', () => {
+  const settled = { ...SHOWN, blocks: [{ id: 'b1', kind: 'rich_text', segments: [{ type: 'text', text: 'Revenue rose. Margins held.' }] }] }
+  let state: StreamState = applyChatStreamEvent(INITIAL_STREAM_STATE, event('turn.started', 1))
+  state = applyChatStreamEvent(state, event('answer.shown', 2, SHOWN))
+  state = applyChatStreamEvent(state, event('answer.shown', 3, settled))
+  assert.deepEqual(state.shown, settled)
+})
+
 test('a failed turn saved nothing, so it drops the answer it showed; a new turn starts with none', () => {
   const shown = applyChatStreamEvent(applyChatStreamEvent(INITIAL_STREAM_STATE, event('turn.started', 1)), event('answer.shown', 2, SHOWN))
   assert.equal(applyChatStreamEvent(shown, event('turn.error', 3, { error: 'connection terminated' })).shown, null)
