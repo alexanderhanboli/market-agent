@@ -6,7 +6,7 @@ import test from 'node:test'
 import { act } from 'react'
 
 import { forgetThreadDeletes } from '../chat/threadDeletes.ts'
-import { ANNOUNCE_DELAY_MS } from '../ui/announcer.ts'
+import { ANNOUNCE_CLEAR_MS, ANNOUNCE_DELAY_MS } from '../ui/announcer.ts'
 import { FakeServer, deferred, renderChat, TWO_THREADS, type Harness } from './chatPageHarness.tsx'
 
 const announced = (h: Harness, role: 'status' | 'alert') => h.query(`[data-testid="announcer"] [role="${role}"]`)?.textContent
@@ -439,10 +439,12 @@ test('a delete that fails while the sidebar is collapsed is announced, and the s
     await tick(h, t, UNDO_MS)
     await tick(h, t, ANNOUNCE_DELAY_MS)
     assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+    await tick(h, t, ANNOUNCE_CLEAR_MS)
+    assert.deepEqual([announced(h, 'status'), announced(h, 'alert')], ['', ''])
 
     await act(async () => h.button('Expand sidebar').click())
     await tick(h, t, ANNOUNCE_DELAY_MS)
-    assert.equal(announced(h, 'status'), 'Chat deleted.')
+    assert.deepEqual([announced(h, 'status'), announced(h, 'alert')], ['', ''])
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
   } finally {
     await h.cleanup()

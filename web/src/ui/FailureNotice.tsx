@@ -12,9 +12,8 @@ type FailureNoticeProps = {
 
 export function FailureNotice({ message, detail, onRetry, announce = true }: FailureNoticeProps): ReactElement {
   const messageId = useId()
-  useEffect(() => {
-    if (announce) announceText(message)
-  }, [announce, message])
+  // Withdrawn on unmount: a cached failure remounts just before its retry swaps it for a loading state.
+  useEffect(() => (announce ? announceText(message) : undefined), [announce, message])
   return (
     <div className="flex flex-col gap-1 text-sm text-muted">
       <div className="flex flex-wrap items-center gap-2">
