@@ -386,8 +386,6 @@ const SCOPE_METRICS: Readonly<Record<string, string>> = {
   total_assets: "total_assets",
   total_liabilities: "total_liabilities",
   total_equity: "total_equity",
-  weighted_average_diluted_shares: "weighted_average_diluted_shares",
-  shares_outstanding: "shares_outstanding",
 };
 
 // The figures a plan's outputs show, as the chat scope names them: a change,
@@ -399,9 +397,9 @@ function planMetrics(plan: FinancialPlanV1): RequestedMetric[] {
     return Object.hasOwn(SCOPE_METRICS, key) ? [SCOPE_METRICS[key]!] : operationDependencies(node).flatMap((id) => figures(nodes.get(id)!));
   };
   const keys = new Set(plan.outputs.flatMap((output) => figures(nodes.get(output.node_id)!)));
-  // As the catalog has them: a follow-up is read here, where a figure no
-  // reader serves (a share count) is a named gap.
-  return [...keys].map((key) => proposedMetric(key, null, null)!);
+  // Only what a reader here serves (#381): a follow-up is read here, where a
+  // figure the engine just showed (a share count) would be a named gap.
+  return [...keys].map((key) => proposedMetric(key, null, null)!).filter((metric) => metric.available);
 }
 
 async function published(db: SqlExecutor, runId: string, threadId: string, messageId: string): Promise<ChatFinancialTurn> {
