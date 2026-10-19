@@ -9,9 +9,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 import { resetResourcesForTests } from '../fetch/resource.ts'
 import { AuthContext } from '../shell/authTypes.ts'
+import { Announcer } from '../ui/Announcer.tsx'
+import { ANNOUNCE_DELAY_MS, resetAnnouncerForTests } from '../ui/announcer.ts'
 import { AnalyzePage } from './AnalyzePage.tsx'
 
-afterEach(resetResourcesForTests)
+afterEach(() => {
+  resetResourcesForTests()
+  resetAnnouncerForTests()
+})
 
 const ISSUER_ID = '11111111-1111-4111-a111-111111111111'
 const ISSUER_REF = { kind: 'issuer', id: ISSUER_ID }
@@ -38,6 +43,7 @@ async function renderAnalyze(entry: string | { pathname: string; search: string;
           <Route path="/analyze" element={<AnalyzePage />} />
         </Routes>
       </MemoryRouter>
+      <Announcer />
     </AuthContext.Provider>,
   ))
   const carried = () => container.querySelector('[data-testid="analyze-carried-subject"]')!
@@ -50,6 +56,10 @@ async function renderAnalyze(entry: string | { pathname: string; search: string;
     carried,
     button: (name: string) => [...container.querySelectorAll('button')].find((button) => button.textContent === name)!,
     settle: () => act(async () => new Promise((resolve) => setTimeout(resolve, 0))),
+    announced: async () => {
+      await act(() => new Promise((resolve) => setTimeout(resolve, ANNOUNCE_DELAY_MS)))
+      return container.querySelector('[data-testid="announcer"] [role="status"]')?.textContent
+    },
     cleanup: async () => {
       await act(async () => root.unmount())
       container.remove()
@@ -113,27 +123,11 @@ test('a failed hydration says so with Retry, names the subject neutrally, and Re
   }
 })
 
-test('a failed hydration speaks only its sentence, not Retry or Details, through the carried subject\'s standing status region', async () => {
-  const first = deferred<Reply>()
-  let calls = 0
-  const page = await renderAnalyze(DEEP_LINK, () => ++calls === 1
-    ? first.promise
-    : Promise.resolve({ status: 200, body: { subject: { subject_ref: ISSUER_REF, display_name: 'Apple Inc.', confidence: 1 } } }))
-  const region = () => page.carried().querySelector(':scope > p[role="status"]')
+test('a failed hydration announces only its sentence, not Retry or Details, through the app announcer', async () => {
+  const page = await renderAnalyze(DEEP_LINK, async () => ({ status: 503, body: {} }))
   try {
-    const before = region()
-    assert.equal(before?.textContent, '')
-
-    await act(async () => first.resolve({ status: 503, body: {} }))
     await page.settle()
-    assert.ok(region() === before, 'the same region announces')
-    assert.equal(region()?.textContent, "Couldn't load this symbol.")
-    const shown = [...page.carried().querySelectorAll('p:not([role])')].find((p) => p.textContent === "Couldn't load this symbol.")
-    assert.equal(shown?.getAttribute('aria-hidden'), 'true', 'readers hear the sentence once')
-
-    await act(async () => page.button('Retry').click())
-    await page.settle()
-    assert.equal(region()?.textContent, '')
+    assert.equal(await page.announced(), "Couldn't load this symbol.")
   } finally {
     await page.cleanup()
   }

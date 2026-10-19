@@ -5,6 +5,7 @@ import test from 'node:test'
 
 import { act } from 'react'
 
+import { ANNOUNCE_DELAY_MS } from '../ui/announcer.ts'
 import { FakeServer, deferred, renderChat, TWO_THREADS, type Harness } from './chatPageHarness.tsx'
 
 function sidebar(h: Harness): Element {
@@ -87,6 +88,8 @@ async function tick(h: Harness, t: test.TestContext, ms: number): Promise<void> 
   await h.flush()
 }
 
+const announced = (h: Harness, role: 'status' | 'alert') => h.query(`[data-testid="announcer"] [role="${role}"]`)?.textContent
+
 test('delete hides the row at once, and Undo restores it without a DELETE', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads()
@@ -104,20 +107,15 @@ test('delete hides the row at once, and Undo restores it without a DELETE', asyn
   }
 })
 
-test('delete announces through the sidebar\'s standing status region and focuses Undo', async (t) => {
+test('delete announces "Chat deleted." through the app announcer and focuses Undo', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h } = await chatsWithTwoThreads()
   try {
-    const region = sidebar(h).querySelector('p[role="status"]')
-    assert.equal(region?.textContent, '')
-
     await act(async () => h.button('Delete Chips').click())
-    assert.ok(sidebar(h).querySelector('p[role="status"]') === region, 'the same region announces')
-    assert.equal(region?.textContent, 'Chat deleted.')
     assert.equal(h.dom.window.document.activeElement?.getAttribute('aria-label'), 'Undo deleting Chips')
 
-    await tick(h, t, UNDO_MS)
-    assert.equal(region?.textContent, '')
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(announced(h, 'status'), 'Chat deleted.')
   } finally {
     await h.cleanup()
   }
@@ -361,24 +359,17 @@ test('opening the chat that is pending delete cancels the delete', async (t) => 
   }
 })
 
-const alertText = (h: Harness) => sidebar(h).querySelector('[role="alert"]')?.textContent
-const shownDeleteError = (h: Harness) =>
-  [...sidebar(h).querySelectorAll('p:not([role])')].find((p) => p.textContent === "Couldn't delete the chat.")
-
 test('a failed delete restores the row and says it could not delete', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads()
   server.deleteReply = () => ({ status: 500, body: { error: 'boom' } })
   try {
-    const region = sidebar(h).querySelector('[role="alert"]')
-    assert.equal(region?.textContent, '')
-
     await act(async () => h.button('Delete Chips').click())
     await tick(h, t, UNDO_MS)
+    await tick(h, t, ANNOUNCE_DELAY_MS)
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
-    assert.ok(sidebar(h).querySelector('[role="alert"]') === region, 'the same region announces')
-    assert.equal(region?.textContent, "Couldn't delete the chat.")
-    assert.equal(shownDeleteError(h)?.getAttribute('aria-hidden'), 'true', 'readers hear the sentence once')
+    assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+    assert.equal(announced(h, 'status'), 'Chat deleted.', 'the visible notice does not announce it a second time')
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
     assert.deepEqual(server.writes(), [DELETE_T1])
   } finally {
@@ -386,7 +377,7 @@ test('a failed delete restores the row and says it could not delete', async (t) 
   }
 })
 
-test('a delete error is gone once the list re-reads, and a remounted sidebar raises no alert', async (t) => {
+test('a delete error is gone once the list re-reads, and stays gone when the sidebar remounts', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads()
   server.deleteReply = () => ({ status: 500, body: { error: 'boom' } })
@@ -394,7 +385,7 @@ test('a delete error is gone once the list re-reads, and a remounted sidebar rai
   try {
     await act(async () => h.button('Delete Chips').click())
     await tick(h, t, UNDO_MS)
-    assert.equal(alertText(h), "Couldn't delete the chat.")
+    assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\./)
     const reads = server.gets('/v1/chat/threads')
 
     await h.ask('Analyze NVDA')
@@ -403,7 +394,6 @@ test('a delete error is gone once the list re-reads, and a remounted sidebar rai
 
     await act(async () => h.button('Collapse sidebar').click())
     await act(async () => h.button('Expand sidebar').click())
-    assert.equal(alertText(h), '')
     assert.doesNotMatch(sidebar(h).textContent ?? '', /Couldn't delete/)
   } finally {
     await h.cleanup()
@@ -424,31 +414,31 @@ test('a list read already in flight when the delete fails leaves the delete erro
     assert.equal(server.gets('/v1/chat/threads'), reads + 1)
 
     await tick(h, t, UNDO_MS)
-    assert.equal(alertText(h), "Couldn't delete the chat.")
+    assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\./)
 
     await act(async () => held.resolve({ body: { threads: server.threads } }))
     await h.flush()
     assert.equal(server.gets('/v1/chat/threads'), reads + 1)
-    assert.equal(alertText(h), "Couldn't delete the chat.")
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
   } finally {
     await h.cleanup()
   }
 })
 
-test('a sidebar remounted before the list re-reads still shows the delete error but does not raise it again', async (t) => {
+test('a delete that fails while the sidebar is collapsed is announced, and the sidebar shows it without announcing again', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads('/chat/T2')
   server.deleteReply = () => ({ status: 500, body: { error: 'boom' } })
   try {
     await act(async () => h.button('Delete Chips').click())
-    await tick(h, t, UNDO_MS)
-    assert.equal(alertText(h), "Couldn't delete the chat.")
-
     await act(async () => h.button('Collapse sidebar').click())
+    await tick(h, t, UNDO_MS)
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+
     await act(async () => h.button('Expand sidebar').click())
-    assert.equal(alertText(h), '')
-    assert.equal(shownDeleteError(h)?.getAttribute('aria-hidden'), null, 'with the region quiet, readers find the shown sentence')
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(announced(h, 'status'), 'Chat deleted.')
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
   } finally {
     await h.cleanup()

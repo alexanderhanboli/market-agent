@@ -8,6 +8,8 @@ import { createMemoryRouter, createRoutesFromElements, Outlet, Route, RouterProv
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
 import { forgetThreadDeletes } from '../chat/threadDeletes.ts'
+import { Announcer } from '../ui/Announcer.tsx'
+import { resetAnnouncerForTests } from '../ui/announcer.ts'
 import type { ChatMessage } from '../chat/messageTypes.ts'
 import { AuthContext } from '../shell/authTypes.ts'
 import { ChatLayout } from './ChatPage.tsx'
@@ -255,6 +257,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
       <AuthContext.Provider value={{ session: { userId: USER_ID, displayName: 'Test User' }, signIn: () => undefined, signOut: () => undefined }}>
         <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
           <RouterProvider router={router} />
+          <Announcer />
         </BlockRegistryProvider>
       </AuthContext.Provider>
     </Profiler>
@@ -318,6 +321,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     cleanup: async () => {
       await unmount()
       forgetThreadDeletes()
+      resetAnnouncerForTests()
       for (const [key, value] of Object.entries(saved)) {
         if (value === undefined) delete globals[key]
         else globals[key] = value

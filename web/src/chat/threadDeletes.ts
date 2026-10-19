@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
+import { announce } from '../ui/announcer.ts'
 import { deleteThread } from './threadActions.ts'
 
 // Long enough to reach Undo, short enough that the chat doesn't linger.
@@ -51,6 +52,7 @@ export function startThreadDelete(userId: string, threadId: string, name: string
   const timer = setTimeout(() => commit(pending), UNDO_DELETE_MS)
   const pending = { userId, threadId, name, timer }
   publish({ ...state, pending, error: null })
+  announce('Chat deleted.')
 }
 
 export function cancelThreadDelete(threadId: string): void {
@@ -88,6 +90,8 @@ function commit(pending: PendingDelete): void {
       const sent = new Set(state.sent)
       sent.delete(pending.threadId)
       publish({ ...state, sent, error: { message: error instanceof Error ? error.message : String(error) } })
+      // Announced here, not by the sidebar, so it is heard with the sidebar collapsed or off /chat.
+      announce("Couldn't delete the chat.", 'assertive')
     },
   )
 }
