@@ -341,12 +341,11 @@ export const subjectHydration = defineResource({
   }),
 })
 
-export function candidateListingLabel(subject: ResolvedSubject): string {
+export function candidateListingLabel(subject: ResolvedSubject): string | null {
   const labels = subject.display_labels
   const ticker = labels?.ticker
   const mic = labels?.mic
 
   if (ticker && mic) return `${ticker} · ${mic}`
-  if (ticker) return ticker
-  return subject.identity_level ?? subject.subject_ref.kind
+  return ticker || mic || null
 }

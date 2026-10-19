@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { quoteRowView, type QuoteRowState, type QuoteRowView } from './quoteRowView.ts'
 import type { QuoteSnapshot } from './quote.ts'
-import type { SubjectRef } from './search.ts'
+import type { ResolvedSubject, SubjectRef } from './search.ts'
+import type { VisibleFetchState } from '../fetch/resource.ts'
 
 const APPLE_LISTING_ID = '11111111-1111-4111-a111-111111111111'
 const APPLE_INSTRUMENT_ID = '44444444-4444-4444-a444-444444444444'
@@ -36,6 +37,7 @@ const APPLE_READY_VIEW: QuoteRowView = {
   href: `/symbol/${encodeURIComponent('listing:' + APPLE_LISTING_ID)}/overview`,
   primary: 'AAPL',
   secondary: 'XNAS · USD',
+  label: 'AAPL (XNAS, USD)',
   price: {
     text: '$184.32',
     direction: 'up',
@@ -44,40 +46,68 @@ const APPLE_READY_VIEW: QuoteRowView = {
   },
 }
 
+const UNNAMED: VisibleFetchState<ResolvedSubject> = { status: 'idle' }
+
+function named(subject: Omit<ResolvedSubject, 'subject_ref' | 'confidence'>): VisibleFetchState<ResolvedSubject> {
+  return { status: 'ready', data: { subject_ref: APPLE_INSTRUMENT_REF, confidence: 1, ...subject }, refreshing: false, refreshError: null }
+}
+
+const UNAVAILABLE_QUOTE: QuoteRowState = { status: 'unavailable', reason: 'listing mismatch', retry: () => {} }
+
 test('quoteRowView projects a ready quote for a listing-kind subject', () => {
-  assert.deepStrictEqual(quoteRowView(READY_STATE, APPLE_LISTING_REF), APPLE_READY_VIEW)
+  assert.deepStrictEqual(quoteRowView(READY_STATE, APPLE_LISTING_REF, UNNAMED), APPLE_READY_VIEW)
 })
 
-test('quoteRowView produces identical output on repeated calls (shared-render contract)', () => {
-  const first = quoteRowView(READY_STATE, APPLE_LISTING_REF)
-  const second = quoteRowView(READY_STATE, APPLE_LISTING_REF)
-  assert.deepStrictEqual(first, second)
-  assert.deepStrictEqual(first, APPLE_READY_VIEW)
+test('quoteRowView blanks the name while the quote loads', () => {
+  const view = quoteRowView({ status: 'loading' }, APPLE_LISTING_REF, UNNAMED)
+  assert.deepStrictEqual([view.primary, view.secondary, view.price], [null, '', null])
 })
 
-test('quoteRowView returns a loading view while a listing has not resolved yet', () => {
-  const view = quoteRowView({ status: 'loading' }, APPLE_LISTING_REF)
-  assert.equal(view.primary, 'Loading…')
-  assert.equal(view.secondary, 'listing')
-  assert.equal(view.price, null)
+test('a row whose quote failed is named by its subject and says the quote is unavailable', () => {
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary: 'AAPL' } }))
+  assert.deepStrictEqual([view.primary, view.secondary, view.price], ['AAPL', 'Quote unavailable', null])
 })
 
-test('quoteRowView falls back to a truncated id when the listing is unavailable', () => {
-  const view = quoteRowView(
-    { status: 'unavailable', reason: 'listing mismatch', retry: () => {} },
-    APPLE_LISTING_REF,
+test('a row with no quote to fetch is named by its subject and says it has no quote', () => {
+  const view = quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, named({ display_name: 'Apple Inc.' }))
+  assert.deepStrictEqual([view.primary, view.secondary, view.price], ['Apple Inc.', 'No quote', null])
+})
+
+test('a row whose name is still loading shows no name, not "Unknown symbol"', () => {
+  assert.equal(quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, { status: 'loading' }).primary, null)
+  assert.equal(quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, { status: 'loading' }).primary, null)
+})
+
+test('a row whose name lookup failed gets the neutral "Symbol"', () => {
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, { status: 'unavailable', reason: 'HTTP 503', retry: () => {} })
+  assert.deepStrictEqual([view.primary, view.secondary], ['Symbol', 'Quote unavailable'])
+})
+
+test('only a subject that hydrates without any name is "Unknown symbol"', () => {
+  assert.equal(quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF, named({})).primary, 'Unknown symbol')
+})
+
+test('a row labels the control beside it with its real name, and gives a placeholder no label', () => {
+  const label = (state: QuoteRowState, subject: VisibleFetchState<ResolvedSubject>) => quoteRowView(state, APPLE_LISTING_REF, subject).label
+  assert.deepStrictEqual(
+    [
+      label(UNAVAILABLE_QUOTE, named({ display_labels: { primary: 'AAPL' } })),
+      label({ status: 'loading' }, UNNAMED),
+      label(UNAVAILABLE_QUOTE, { status: 'loading' }),
+      label(UNAVAILABLE_QUOTE, { status: 'unavailable', reason: 'HTTP 503', retry: () => {} }),
+      label({ status: 'idle' }, named({})),
+    ],
+    ['AAPL', null, null, null, null],
   )
-  assert.equal(view.primary, '11111111…')
-  assert.equal(view.secondary, 'listing')
-  assert.equal(view.price, null)
 })
 
-test('quoteRowView shows an idle view for non-listing subjects (no fetch keyed)', () => {
-  // useResource returns 'idle' when its params are null — the case for held
-  // holdings whose subject_ref is instrument-kind (HOLDING_SUBJECT_KINDS
-  // in services/portfolio/src/holdings.ts).
-  const view = quoteRowView({ status: 'idle' }, APPLE_INSTRUMENT_REF)
-  assert.equal(view.primary, '44444444…')
-  assert.equal(view.secondary, 'instrument')
-  assert.equal(view.price, null)
+test('a row with no quote labels its control with the exchange its subject is listed on', () => {
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary: 'AAPL', ticker: 'AAPL', mic: 'XNAS' } }))
+  assert.deepStrictEqual([view.primary, view.label], ['AAPL', 'AAPL (XNAS)'])
+})
+
+test('a row whose name already carries its exchange does not repeat it in the label', () => {
+  const primary = 'AAPL · XNAS — Apple Inc.'
+  const view = quoteRowView(UNAVAILABLE_QUOTE, APPLE_LISTING_REF, named({ display_labels: { primary, ticker: 'AAPL', mic: 'XNAS' } }))
+  assert.deepStrictEqual([view.primary, view.label], [primary, primary])
 })

@@ -67,10 +67,9 @@ function ThesisPanelContent({ userId, agentId, initialThesis, refreshKey, fetchI
   const failure = error === null ? null : history === null ? "Couldn't load the thesis conditions." : "Couldn't refresh the assessment history."
   return (
     <PanelFrame>
-      <p role="status" className="sr-only">{failure ?? ''}</p>
       {failure !== null ? (
         <div className="mt-2">
-          <FailureNotice message={failure} detail={error ?? ''} onRetry={retry} announced />
+          <FailureNotice message={failure} detail={error ?? ''} onRetry={retry} />
         </div>
       ) : null}
       {history === null ? (

@@ -11,8 +11,13 @@ import type { ResolvedSubject } from '../../symbol/search.ts'
 import type { GetSeriesResponse, NormalizedSeriesQuery } from '../../symbol/series.ts'
 import { OverviewSection } from './OverviewSection.tsx'
 import { resetResourcesForTests } from '../../fetch/resource.ts'
+import { Announcer } from '../../ui/Announcer.tsx'
+import { ANNOUNCE_DELAY_MS, resetAnnouncerForTests } from '../../ui/announcer.ts'
 
-afterEach(resetResourcesForTests)
+afterEach(() => {
+  resetResourcesForTests()
+  resetAnnouncerForTests()
+})
 
 const LISTING_ID = '11111111-1111-4111-a111-111111111111'
 const SOURCE_ID = '00000000-0000-4000-a000-000000000001'
@@ -169,6 +174,57 @@ test('Overview price card toggles 1M to 6M and back, rendering the cached 1M cha
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     assert.deepEqual(seriesQueries.map(spanDays), [30, 180])
+  } finally {
+    if (root !== null) {
+      await act(async () => root?.unmount())
+    }
+    dom.window.close()
+    globalThis.fetch = originalFetch
+    restoreGlobals()
+  }
+})
+
+test('Overview cards that fail together are announced once, joined, and a repeated failure is heard again', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
+  const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
+  const originalFetch = globalThis.fetch
+  const issuer: ResolvedSubject = { subject_ref: { kind: 'issuer', id: LISTING_ID }, display_name: 'Apple Inc.', confidence: 1 }
+  let root: Root | null = null
+  try {
+    globalThis.fetch = async () => new Response('{}', { status: 503, headers: { 'content-type': 'application/json' } })
+    const mountedRoot = createRoot(dom.window.document.getElementById('root')!)
+    root = mountedRoot
+    await act(async () => {
+      mountedRoot.render(
+        <>
+          <MemoryRouter initialEntries={['/symbol/issuer/overview']}>
+            <Routes>
+              <Route element={<SubjectOutlet subject={issuer} />}>
+                <Route path="/symbol/issuer/overview" element={<OverviewSection />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+          <Announcer />
+        </>,
+      )
+    })
+    const doc = dom.window.document
+    const region = doc.querySelector('[data-testid="announcer"] [role="status"]')!
+    const heard: string[] = []
+    new dom.window.MutationObserver(() => heard.push(region.textContent ?? '')).observe(region, { childList: true, characterData: true, subtree: true })
+    const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, ANNOUNCE_DELAY_MS)))
+
+    await waitFor(() => assert.match(doc.body.textContent ?? '', /Couldn't load the price target\./))
+    await wait()
+    assert.deepEqual(heard, ["Couldn't load the company profile. Couldn't load the analyst consensus. Couldn't load the price target."])
+
+    const retryProfile = [...doc.querySelectorAll('button')].find(
+      (button) => doc.getElementById(button.getAttribute('aria-describedby') ?? '')?.textContent === "Couldn't load the company profile.",
+    )!
+    await act(async () => retryProfile.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })))
+    await waitFor(() => assert.match(doc.body.textContent ?? '', /Couldn't load the company profile\./))
+    await wait()
+    assert.deepEqual(heard.slice(1), ['', "Couldn't load the company profile."])
   } finally {
     if (root !== null) {
       await act(async () => root?.unmount())

@@ -11,6 +11,7 @@ import { DEFAULT_MOCK_SESSION } from './shell/authTypes'
 import { webDevFlags } from './devFlags'
 import type { RouteHandle } from './shell/routeHandle'
 import { ThemeProvider } from './shell/ThemeProvider'
+import { Announcer } from './ui/Announcer.tsx'
 import { WorkspaceShell } from './shell/WorkspaceShell'
 import { HomePage } from './pages/HomePage'
 import { AgentsPage } from './pages/AgentsPage'
@@ -93,6 +94,7 @@ export function App() {
       <ThemeProvider>
         <AuthProvider initialSession={webDevFlags.devAutoLogin ? DEFAULT_MOCK_SESSION : null}>
           <RouterProvider router={router} />
+          <Announcer />
         </AuthProvider>
       </ThemeProvider>
     </BlockRegistryProvider>

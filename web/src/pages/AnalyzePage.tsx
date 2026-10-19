@@ -30,7 +30,7 @@ import { BlockView, type Block } from '../blocks'
 import { FinancialSections } from '../analyze/FinancialSections.tsx'
 import { useResource } from '../fetch/resource.ts'
 import { authenticatedJson } from '../http/authFetch.ts'
-import { subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
+import { subjectDisplayName, UNKNOWN_SYMBOL, UNNAMED_SYMBOL } from '../symbol/quote'
 import { subjectHydration, symbolDetailPathForSubject, type ResolvedSubject } from '../symbol/search'
 import { useAuth } from '../shell/useAuth.ts'
 import { FailureNotice } from '../ui/FailureNotice.tsx'
@@ -94,7 +94,7 @@ export function AnalyzePage() {
   // says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
   const subjectName = hydration.status === 'loading' || subject === null
     ? null
-    : subjectDisplayName(subject) ?? (hydration.status === 'unavailable' ? 'Selected symbol' : UNKNOWN_SYMBOL)
+    : subjectDisplayName(subject) ?? (hydration.status === 'unavailable' ? UNNAMED_SYMBOL : UNKNOWN_SYMBOL)
   const researchSummary = researchSummaryFromAnalyzeEntry(location.state)
 
   return (
@@ -620,9 +620,6 @@ function CarriedSubjectContext({
           <h2 id="analyze-carried-subject-heading" className="text-lg font-semibold text-fg">
             {name ?? <Skeleton label="Loading subject name" className="h-7 w-40" />}
           </h2>
-          <span data-testid="analyze-carried-subject-ref" className="font-mono text-xs text-muted">
-            {subject.subject_ref.kind}:{subject.subject_ref.id}
-          </span>
         </div>
         {intent !== null && (
           <span data-testid="analyze-intent-badge" className="rounded border border-line bg-surface-2 px-2 py-0.5 text-xs font-medium text-fg">
@@ -637,11 +634,10 @@ function CarriedSubjectContext({
           data-testid="analyze-back-to-symbol"
           className="inline-flex items-center gap-1 text-xs font-medium text-muted underline-offset-2 hover:text-fg hover:underline"
         >
-          Back to {name ?? <Skeleton className="h-3 w-16" />}
+          Back to {failure ? 'the selected symbol' : name ?? <Skeleton className="h-3 w-16" />}
         </Link>
       </div>
-      <p role="status" className="sr-only">{failure ? "Couldn't load this symbol." : ''}</p>
-      {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} announced /> : null}
+      {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} /> : null}
     </section>
   )
 }

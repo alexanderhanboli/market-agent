@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { announce } from '../ui/announcer.ts'
+import { candidateName } from './quote.ts'
 import {
   candidateListingLabel,
   clearSymbolTypeaheadForQueryChange,
@@ -24,6 +26,7 @@ type SymbolSearchProps = {
 type SearchStatus = 'idle' | 'loading' | 'resolving' | 'error'
 
 const DEBOUNCE_MS = 150
+const SEARCH_FAILED = "Couldn't search. Try again."
 
 export function SymbolSearch({
   placement = 'topbar',
@@ -42,6 +45,9 @@ export function SymbolSearch({
   const requestSeq = useRef(0)
   const resolveControllerRef = useRef<AbortController | null>(null)
   const trimmedQuery = query.trim()
+
+  // Withdrawn when the message changes first, so a reader hears only the search that stood.
+  useEffect(() => (message ? announce(message) : undefined), [message])
 
   useEffect(() => {
     return () => {
@@ -71,14 +77,14 @@ export function SymbolSearch({
           setTypeahead(createSymbolTypeaheadState(response.subjects))
           setMessage(
             response.subjects.length === 0
-              ? `No subject found for ${response.unresolved[0] ?? trimmedQuery}`
+              ? `No match for "${response.unresolved[0] ?? trimmedQuery}".`
               : null,
           )
         })
-        .catch((error) => {
+        .catch(() => {
           if (controller.signal.aborted || requestSeq.current !== seq) return
           setStatus('error')
-          setMessage(error instanceof Error ? error.message : 'Subject resolve failed')
+          setMessage(SEARCH_FAILED)
         })
     }, DEBOUNCE_MS)
 
@@ -145,10 +151,10 @@ export function SymbolSearch({
       }
 
       setTypeahead(createSymbolTypeaheadState([]))
-      setMessage(`No subject found for ${plan.unresolved || trimmedQuery}`)
-    } catch (error) {
+      setMessage(`No match for "${plan.unresolved || trimmedQuery}".`)
+    } catch {
       if (controller.signal.aborted || requestSeq.current !== seq) return
-      setMessage(error instanceof Error ? error.message : 'Subject resolve failed')
+      setMessage(SEARCH_FAILED)
       setStatus('error')
       return
     } finally {
@@ -220,35 +226,41 @@ export function SymbolSearch({
             placement === 'topbar' ? 'left-0 right-0' : 'left-0 w-72',
           ].join(' ')}
         >
-          {typeahead.candidates.map((candidate, index) => (
-            <button
-              key={`${candidate.subject_ref.kind}:${candidate.subject_ref.id}`}
-              id={`${listboxId}-${index}`}
-              type="button"
-              role="option"
-              aria-selected={index === typeahead.highlightedIndex}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => void resolveAndPlan(candidate)}
-              className={[
-                'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm',
-                index === typeahead.highlightedIndex
-                  ? 'bg-surface-2 text-fg'
-                  : 'text-fg hover:bg-surface-2',
-              ].join(' ')}
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-medium">
-                  {candidate.display_labels?.primary ?? candidate.display_name}
+          {typeahead.candidates.map((candidate, index) => {
+            const name = candidateName(candidate, index)
+            const listing = candidateListingLabel(candidate)
+            return (
+              <button
+                key={`${candidate.subject_ref.kind}:${candidate.subject_ref.id}`}
+                id={`${listboxId}-${index}`}
+                type="button"
+                role="option"
+                aria-selected={index === typeahead.highlightedIndex}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => void resolveAndPlan(candidate)}
+                className={[
+                  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm',
+                  index === typeahead.highlightedIndex
+                    ? 'bg-surface-2 text-fg'
+                    : 'text-fg hover:bg-surface-2',
+                ].join(' ')}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
+                    {name}
+                  </span>
+                  {listing !== null && listing !== name ? (
+                    <span className="block truncate text-xs text-muted">
+                      {listing}
+                    </span>
+                  ) : null}
                 </span>
-                <span className="block truncate text-xs text-muted">
-                  {candidateListingLabel(candidate)}
+                <span className="shrink-0 text-xs num text-muted">
+                  {Math.round(candidate.confidence * 100)}%
                 </span>
-              </span>
-              <span className="shrink-0 text-xs num text-muted">
-                {Math.round(candidate.confidence * 100)}%
-              </span>
-            </button>
-          ))}
+              </button>
+            )
+          })}
         </div>
       ) : null}
       {message ? (

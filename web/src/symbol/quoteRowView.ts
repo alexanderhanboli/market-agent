@@ -8,22 +8,33 @@ import {
   formatQuotePrice,
   formatSignedPercent,
   quoteDirection,
+  subjectDisplayName,
+  UNKNOWN_SYMBOL,
+  UNNAMED_SYMBOL,
   type QuoteDirection,
   type QuoteSnapshot,
 } from './quote.ts'
-import { symbolDetailPathForSubject, type SubjectRef } from './search.ts'
+import { symbolDetailPathForSubject, type ResolvedSubject, type SubjectRef } from './search.ts'
 import type { VisibleFetchState } from '../fetch/resource.ts'
 
 export type QuoteRowState = VisibleFetchState<QuoteSnapshot>
 
 export type QuoteRowView = {
   href: string
-  primary: string
+  // Null while the name is still loading.
+  primary: string | null
   secondary: string
+  // The name a control beside the row says it acts on; null while the row has only a placeholder name.
+  label: string | null
   price: { text: string; direction: QuoteDirection; percent: string; freshness: string } | null
 }
 
-export function quoteRowView(state: QuoteRowState, subjectRef: SubjectRef): QuoteRowView {
+// `subject` names a row that has no ready quote to take its ticker from.
+export function quoteRowView(
+  state: QuoteRowState,
+  subjectRef: SubjectRef,
+  subject: VisibleFetchState<ResolvedSubject>,
+): QuoteRowView {
   const href = symbolDetailPathForSubject(subjectRef)
 
   if (state.status === 'ready') {
@@ -32,6 +43,7 @@ export function quoteRowView(state: QuoteRowState, subjectRef: SubjectRef): Quot
       href,
       primary: quote.listing.ticker,
       secondary: `${quote.listing.mic} · ${quote.currency}`,
+      label: `${quote.listing.ticker} (${quote.listing.mic}, ${quote.currency})`,
       price: {
         text: formatQuotePrice(quote.latest_price, quote.currency),
         direction: quoteDirection(quote),
@@ -41,18 +53,25 @@ export function quoteRowView(state: QuoteRowState, subjectRef: SubjectRef): Quot
     }
   }
 
+  if (state.status === 'loading') return { href, primary: null, secondary: '', label: null, price: null }
+  const name = subject.status === 'ready' ? subjectDisplayName(subject.data) : null
+  const mic = subject.status === 'ready' ? subject.data.display_labels?.mic : undefined
   return {
     href,
-    primary: state.status === 'loading' ? 'Loading…' : truncateId(subjectRef.id),
-    secondary: subjectRef.kind,
+    primary: name ?? placeholderName(subject),
+    secondary: state.status === 'idle' ? 'No quote' : 'Quote unavailable',
+    // The resolver's listing name already reads "TICKER · MIC — Name".
+    label: name !== null && mic && !name.includes(mic) ? `${name} (${mic})` : name,
     price: null,
   }
 }
 
-function freshnessLabel(quote: QuoteSnapshot): string {
-  return `${quote.session_state.replaceAll('_', ' ')} · ${quote.delay_class.replaceAll('_', ' ')} · ${quote.as_of}`
+// A failed lookup says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
+function placeholderName(subject: VisibleFetchState<ResolvedSubject>): string | null {
+  if (subject.status === 'ready') return UNKNOWN_SYMBOL
+  return subject.status === 'unavailable' ? UNNAMED_SYMBOL : null
 }
 
-function truncateId(id: string): string {
-  return id.length <= 10 ? id : `${id.slice(0, 8)}…`
+function freshnessLabel(quote: QuoteSnapshot): string {
+  return `${quote.session_state.replaceAll('_', ' ')} · ${quote.delay_class.replaceAll('_', ' ')} · ${quote.as_of}`
 }

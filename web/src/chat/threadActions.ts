@@ -18,10 +18,11 @@ export async function createThread(userId: string): Promise<ChatThread> {
   })
 }
 
-export async function deleteThread(userId: string, threadId: string): Promise<void> {
+export async function deleteThread(userId: string, threadId: string, signal?: AbortSignal): Promise<void> {
   const res = await authenticatedFetch(`/v1/chat/threads/${encodeURIComponent(threadId)}`, {
     userId,
     method: 'DELETE',
+    signal,
   })
   if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`)
 }

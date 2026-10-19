@@ -6,9 +6,9 @@
 //
 // Holdings bind to `instrument` or `listing` SubjectRefs (see
 // services/portfolio/src/holdings.ts: HOLDING_SUBJECT_KINDS). Only
-// listing-kind holdings hydrate a quote today; instrument-kind rows
-// show the same "—" placeholder watchlist members get when their
-// subject doesn't resolve to a listing.
+// listing-kind holdings fetch a quote today; instrument-kind rows are
+// named by subject hydration and show "No quote" with a "—" price, the
+// same as non-listing watchlist members.
 
 import { QuoteRow } from '../symbol/QuoteRow'
 import type { SubjectKind } from '../symbol/search'
@@ -33,7 +33,7 @@ export function HeldRow({ holding }: HeldRowProps) {
   return (
     <QuoteRow
       subjectRef={holding.subject_ref}
-      trailing={<HoldingBadge quantity={holding.quantity} costBasis={holding.cost_basis} />}
+      trailing={() => <HoldingBadge quantity={holding.quantity} costBasis={holding.cost_basis} />}
     />
   )
 }

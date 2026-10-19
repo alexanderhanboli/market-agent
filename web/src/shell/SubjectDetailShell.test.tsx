@@ -76,6 +76,19 @@ const AMBIGUOUS_LISTING: ResolvedSubject = {
   },
 }
 
+const UNLABELLED_LISTING: ResolvedSubject = {
+  subject_ref: { kind: 'listing', id: '99999999-9999-4999-a999-999999999999' },
+  confidence: 0.4,
+  identity_level: 'listing',
+}
+
+const MIC_ONLY_LISTING: ResolvedSubject = {
+  subject_ref: { kind: 'listing', id: '88888888-8888-4888-a888-888888888888' },
+  confidence: 0.3,
+  identity_level: 'listing',
+  display_labels: { primary: '', mic: 'XLON' },
+}
+
 function SubjectIssuerProbe() {
   const { subject } = useSubjectDetailContext()
   return <div data-testid="issuer-id">{issuerIdFromSubject(subject) ?? 'missing'}</div>
@@ -398,7 +411,7 @@ test('a failed hydration says "Couldn\'t load this symbol.", blocks child sectio
   }
 })
 
-test('an issuer route titles the header with a skeleton while hydrating and "Unknown symbol" once hydration fails', async () => {
+test('an issuer route titles the header with a skeleton while hydrating and a neutral "Symbol" once hydration fails', async () => {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>')
   const restoreGlobals = installDomGlobals(dom.window as unknown as Window)
   const originalFetch = globalThis.fetch
@@ -440,7 +453,7 @@ test('an issuer route titles the header with a skeleton while hydrating and "Unk
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
     }
-    assert.equal(header.querySelector('h1')?.textContent, 'Unknown symbol')
+    assert.equal(header.querySelector('h1')?.textContent, 'Symbol')
     assert.equal(header.querySelector('h1 [role="status"]'), null)
     await act(async () => root.unmount())
   } finally {
@@ -459,7 +472,7 @@ test('SubjectDetailShell renders an explicit choice state for ambiguous legacy t
       const url = String(input)
       if (url === '/v1/subjects/resolve') {
         return new Response(
-          JSON.stringify({ subjects: [HYDRATED_LISTING, AMBIGUOUS_LISTING], unresolved: [] }),
+          JSON.stringify({ subjects: [HYDRATED_LISTING, AMBIGUOUS_LISTING, UNLABELLED_LISTING, MIC_ONLY_LISTING], unresolved: [] }),
           {
             status: 200,
             headers: { 'content-type': 'application/json' },
@@ -498,8 +511,10 @@ test('SubjectDetailShell renders an explicit choice state for ambiguous legacy t
     }
 
     assert.match(dom.window.document.body.innerHTML, /Choose a listing to continue/)
-    assert.match(dom.window.document.body.innerHTML, /AAPL/)
-    assert.match(dom.window.document.body.innerHTML, /APC/)
+    assert.deepEqual(
+      [...dom.window.document.querySelectorAll('li a')].map((link) => [...link.children].map((span) => span.textContent)),
+      [['AAPL · XNAS — Apple Inc.'], ['APC · XFRA — Apple Inc.'], ['Symbol 3'], ['XLON']],
+    )
     assert.doesNotMatch(dom.window.document.body.innerHTML, /child-mounted/)
     await act(async () => root.unmount())
   } finally {

@@ -8,12 +8,14 @@ import { ChangePill } from './ChangePill.tsx'
 import { useResource } from '../fetch/resource.ts'
 import { listingQuote, SIGNED_BY_QUOTE_DIRECTION } from './quote.ts'
 import { quoteRowView } from './quoteRowView.ts'
-import type { SubjectRef } from './search.ts'
+import { subjectHydration, type SubjectRef } from './search.ts'
 import { Sparkline } from './Sparkline.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 
 type QuoteRowProps = {
   subjectRef: SubjectRef
-  trailing?: ReactNode
+  // Given the row's label, so a control beside the row can say what it acts on.
+  trailing?: (label: string | null) => ReactNode
   // Closing prices for an inline trend sparkline (reference-terminal rail).
   // Omit to render the row without one (e.g. holdings surfaces).
   sparkline?: ReadonlyArray<number>
@@ -22,7 +24,8 @@ type QuoteRowProps = {
 export function QuoteRow({ subjectRef, trailing, sparkline }: QuoteRowProps) {
   const listingId = subjectRef.kind === 'listing' ? subjectRef.id : null
   const state = useResource(listingQuote, listingId)
-  const view = quoteRowView(state, subjectRef)
+  const subject = useResource(subjectHydration, state.status === 'idle' || state.status === 'unavailable' ? subjectRef : null)
+  const view = quoteRowView(state, subjectRef, subject)
 
   return (
     <li className="flex items-stretch">
@@ -32,7 +35,11 @@ export function QuoteRow({ subjectRef, trailing, sparkline }: QuoteRowProps) {
         className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs hover:bg-surface-hover"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold text-fg">{view.primary}</span>
+          {view.primary === null ? (
+            <Skeleton className="h-4 w-12" />
+          ) : (
+            <span className="block truncate font-semibold text-fg">{view.primary}</span>
+          )}
           <span className="block truncate text-[10px] text-muted">{view.secondary}</span>
         </span>
         {sparkline !== undefined && sparkline.length >= 2 ? (
@@ -63,7 +70,7 @@ export function QuoteRow({ subjectRef, trailing, sparkline }: QuoteRowProps) {
           )}
         </span>
       </Link>
-      {trailing}
+      {trailing?.(view.label)}
     </li>
   )
 }

@@ -1,19 +1,23 @@
-import { useId, type ReactElement } from 'react'
+import { useEffect, useId, type ReactElement } from 'react'
+
+import { announce as announceText } from './announcer.ts'
 
 type FailureNoticeProps = {
   message: string
   detail: string
   onRetry?: () => void
-  // The parent speaks the message through its own live region.
-  announced?: boolean
+  // False when the caller announces the failure itself.
+  announce?: boolean
 }
 
-export function FailureNotice({ message, detail, onRetry, announced = false }: FailureNoticeProps): ReactElement {
+export function FailureNotice({ message, detail, onRetry, announce = true }: FailureNoticeProps): ReactElement {
   const messageId = useId()
+  // Withdrawn on unmount: a cached failure remounts just before its retry swaps it for a loading state.
+  useEffect(() => (announce ? announceText(message) : undefined), [announce, message])
   return (
     <div className="flex flex-col gap-1 text-sm text-muted">
       <div className="flex flex-wrap items-center gap-2">
-        <p id={messageId} aria-hidden={announced || undefined}>{message}</p>
+        <p id={messageId}>{message}</p>
         {onRetry && (
           <button
             type="button"
