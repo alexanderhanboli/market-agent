@@ -25,10 +25,12 @@ export function ChatLayout() {
   const threads = useThreadList(userId)
   const { sent } = useThreadDeletes()
   useEffect(() => {
-    if (routeThreadId === null) return
-    if (sent.has(routeThreadId)) navigate('/chat', { replace: true })
-    else cancelThreadDelete(routeThreadId)
+    if (routeThreadId !== null && sent.has(routeThreadId)) navigate('/chat', { replace: true })
   }, [routeThreadId, sent, navigate])
+  // Route changes only: a store change can render before a delete's navigation away lands.
+  useEffect(() => {
+    if (routeThreadId !== null) cancelThreadDelete(routeThreadId)
+  }, [routeThreadId])
   const chat = useChatSession({ userId, threadId: routeThreadId, navigate, onThreadCreated: threads.refresh })
   const activeThreadId = chat.view.threadId
   const activeThread = threads.state.kind === 'ready'

@@ -224,6 +224,25 @@ test('a second delete sends the first at once and keeps its own undo window', as
   }
 })
 
+test('deleting the open chat while another delete is pending keeps the open chat\'s undo window', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads('/chat/T1')
+  try {
+    await act(async () => h.button('Delete Rates').click())
+    await act(async () => h.button('Delete Chips').click())
+    await h.flush()
+    assert.equal(h.path(), '/chat')
+    assert.equal(h.button('Undo').getAttribute('aria-label'), 'Undo deleting Chips')
+    assert.deepEqual(server.writes(), [DELETE_T2])
+
+    await tick(h, t, UNDO_MS)
+    await tick(h, t, UNDO_MS)
+    assert.deepEqual(server.writes(), [DELETE_T2, DELETE_T1])
+  } finally {
+    await h.cleanup()
+  }
+})
+
 test('collapsing the sidebar keeps the pending delete and its deadline', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads('/chat/T2')
