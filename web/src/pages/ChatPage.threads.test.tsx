@@ -123,6 +123,66 @@ test('delete announces through the sidebar\'s standing status region and focuses
   }
 })
 
+function focused(h: Harness): string {
+  const element = h.dom.window.document.activeElement
+  if (element === null || element.tagName === 'BODY') return 'BODY'
+  return element?.getAttribute('aria-label') ?? element?.querySelector('span')?.textContent ?? element?.textContent ?? ''
+}
+
+test('Undo puts focus on the restored chat link', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h } = await chatsWithTwoThreads()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    assert.equal(focused(h), 'Undo deleting Chips')
+
+    await act(async () => h.button('Undo').click())
+    assert.equal(focused(h), 'Chips')
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('the undo window elapsing moves focus from Undo to the next chat', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h } = await chatsWithTwoThreads()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await tick(h, t, UNDO_MS)
+    assert.equal(focused(h), 'Rates')
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('the undo window elapsing on the last chat moves focus to New chat', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const server = new FakeServer()
+  server.threads = [TWO_THREADS[0]]
+  const h = await renderChat('/chat', server)
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await tick(h, t, UNDO_MS)
+    assert.equal(focused(h), '+ New chat')
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('the undo window elapsing leaves focus alone once it has left Undo', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h } = await chatsWithTwoThreads()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    const composer = h.query('textarea') as HTMLTextAreaElement
+    composer.focus()
+    await tick(h, t, UNDO_MS)
+    assert.equal(h.dom.window.document.activeElement?.tagName, 'TEXTAREA')
+  } finally {
+    await h.cleanup()
+  }
+})
+
 test('the undo window elapsing sends exactly one DELETE and drops the chat', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads()

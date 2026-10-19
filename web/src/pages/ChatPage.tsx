@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useMatch, useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 
@@ -169,10 +169,30 @@ function ThreadList({
     focusUndo.current = false
     undoButton.current?.focus()
   }, [pending])
+  const newChatButton = useRef<HTMLButtonElement>(null)
+  const undoLostFocus = useRef<{ row: Element | null; neighbour: Element | null } | null>(null)
+  // React detaches the ref before it removes the button, so focus can still be read here.
+  const undoRef = useCallback((button: HTMLButtonElement) => {
+    undoButton.current = button
+    return () => {
+      undoButton.current = null
+      if (button.ownerDocument.activeElement !== button) return
+      const row = button.closest('li')
+      undoLostFocus.current = { row, neighbour: row?.nextElementSibling ?? row?.previousElementSibling ?? null }
+    }
+  }, [])
+  useEffect(() => {
+    const lost = undoLostFocus.current
+    if (lost === null) return
+    undoLostFocus.current = null
+    const link = [lost.row, lost.neighbour].find((row) => row?.isConnected)?.querySelector('a')
+    ;(link ?? newChatButton.current)?.focus()
+  })
 
   return (
     <nav aria-label="Chats" className="flex min-h-0 flex-col gap-3">
       <button
+        ref={newChatButton}
         type="button"
         onClick={() => navigate('/chat')}
         className={`${PRIMARY_BUTTON_CLASS} w-full justify-center`}
@@ -209,7 +229,7 @@ function ThreadList({
                 >
                   <span aria-hidden="true">Chat deleted.</span>
                   <button
-                    ref={undoButton}
+                    ref={undoRef}
                     type="button"
                     aria-label={`Undo deleting ${pending.name}`}
                     onClick={() => cancelThreadDelete(pending.threadId)}
