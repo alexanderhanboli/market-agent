@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { dockerAvailable } from "../../../db/test/docker-pg.ts";
+import { dockerAvailable, registerLifoCleanup } from "../../../db/test/docker-pg.ts";
 import type { PlanningModel } from "../../financial-engine/src/planner.ts";
 import { databaseUrl, IDS } from "../../financial-engine/test/db-fixtures.ts";
 import { analystTurnScope, closeLocalRuntimePoolForTests, financialResearchScope } from "../src/local-runtime.ts";
@@ -52,7 +52,8 @@ async function followUpToEngine(t: TestContext, prefix: string, metricKey: strin
     LITELLM_MODEL: "fixture/recorded",
     LLM_REPLAY_FILE: replies,
   });
-  t.after(closeLocalRuntimePoolForTests);
+  // Closed before the database it connects to stops.
+  registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
 
   const harness = chatHarness(pool, { model: reporting(metricKey), researchScope: financialResearchScope, resolveMention: withHandoff });
   const answer = completed((await harness.run({ threadId, userId: IDS.owner, userIntent: question })).events);
