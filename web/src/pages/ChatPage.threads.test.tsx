@@ -50,6 +50,8 @@ test('a failed first list load says so, keeps the reason in details, and Retry r
 })
 
 const UNDO_MS = 5000
+const DELETE_T1: [string, string, string] = ['DELETE', '/v1/chat/threads/T1', '']
+const DELETE_T2: [string, string, string] = ['DELETE', '/v1/chat/threads/T2', '']
 
 function shownChats(h: Harness): string[] {
   return [...sidebar(h).querySelectorAll('a span:first-child')].map((span) => span.textContent ?? '')
@@ -76,14 +78,14 @@ test('delete hides the row at once, and Undo restores it without a DELETE', asyn
 
     await act(async () => h.button('Undo').click())
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
-    await tick(h, t, UNDO_MS)
+    await tick(h, t, UNDO_MS * 2)
     assert.deepEqual(server.writes(), [])
   } finally {
     await h.cleanup()
   }
 })
 
-test('the undo window elapsing sends one DELETE and drops the chat', async (t) => {
+test('the undo window elapsing sends exactly one DELETE and drops the chat', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads()
   try {
@@ -92,8 +94,8 @@ test('the undo window elapsing sends one DELETE and drops the chat', async (t) =
     assert.deepEqual(server.writes(), [])
 
     await tick(h, t, 1)
-    await tick(h, t, UNDO_MS)
-    assert.deepEqual(server.writes(), [['DELETE', '/v1/chat/threads/T1', '']])
+    await tick(h, t, UNDO_MS * 2)
+    assert.deepEqual(server.writes(), [DELETE_T1])
     assert.deepEqual(shownChats(h), ['Rates'])
     assert.doesNotMatch(sidebar(h).textContent ?? '', /Chat deleted/)
   } finally {
@@ -101,41 +103,105 @@ test('the undo window elapsing sends one DELETE and drops the chat', async (t) =
   }
 })
 
-test('starting a second delete sends the first one at once', async (t) => {
+test('a second delete sends the first at once and keeps its own undo window', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads()
   try {
     await act(async () => h.button('Delete Chips').click())
+    await tick(h, t, 1000)
     await act(async () => h.button('Delete Rates').click())
     await h.flush()
-    assert.deepEqual(server.writes(), [['DELETE', '/v1/chat/threads/T1', '']])
-    assert.deepEqual(shownChats(h), [])
-    assert.match(sidebar(h).textContent ?? '', /Chat deleted\.Undo/)
+    assert.deepEqual(server.writes(), [DELETE_T1])
+
+    await tick(h, t, UNDO_MS - 500)
+    assert.deepEqual(server.writes(), [DELETE_T1])
+    assert.equal(h.button('Undo').getAttribute('aria-label'), 'Undo deleting Rates')
+
+    await tick(h, t, 500)
+    await tick(h, t, UNDO_MS * 2)
+    assert.deepEqual(server.writes(), [DELETE_T1, DELETE_T2])
+    assert.equal(sidebar(h).textContent, '+ New chatChatsNo chats yet.')
   } finally {
     await h.cleanup()
   }
 })
 
-test('collapsing the sidebar sends a pending delete', async () => {
+test('collapsing the sidebar keeps the pending delete and its deadline', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   const { h, server } = await chatsWithTwoThreads('/chat/T2')
   try {
     await act(async () => h.button('Delete Chips').click())
-    assert.deepEqual(server.writes(), [])
     await act(async () => h.button('Collapse sidebar').click())
     await h.flush()
-    assert.deepEqual(server.writes(), [['DELETE', '/v1/chat/threads/T1', '']])
+    assert.deepEqual(server.writes(), [])
+
+    await act(async () => h.button('Expand sidebar').click())
+    assert.equal(h.button('Undo').getAttribute('aria-label'), 'Undo deleting Chips')
+    await tick(h, t, UNDO_MS)
+    await tick(h, t, UNDO_MS)
+    assert.deepEqual(server.writes(), [DELETE_T1])
   } finally {
     await h.cleanup()
   }
 })
 
-test('deleting the open chat leaves it for /chat at once', async () => {
-  const { h } = await chatsWithTwoThreads('/chat/T1')
+test('leaving and coming back while the DELETE is in flight keeps the chat hidden until the list drops it', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads()
+  const held = deferred<{ body: unknown }>()
+  server.deleteReply = () => held.promise
   try {
-    assert.equal(h.path(), '/chat/T1')
+    await act(async () => h.button('Delete Chips').click())
+    await h.navigate('/home')
+    await tick(h, t, UNDO_MS)
+    assert.deepEqual(server.writes(), [DELETE_T1])
+
+    await h.navigate('/chat')
+    assert.deepEqual(shownChats(h), ['Rates'])
+
+    server.threads = server.threads.filter((thread) => thread.thread_id !== 'T1')
+    await act(async () => held.resolve({ body: {} }))
+    await h.flush()
+    assert.equal(server.gets('/v1/chat/threads'), 3)
+    assert.deepEqual(shownChats(h), ['Rates'])
+    await tick(h, t, UNDO_MS * 2)
+    assert.deepEqual(server.writes(), [DELETE_T1])
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('deleting the open chat replaces it with /chat, so Back skips the deleted chat', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const server = new FakeServer()
+  server.threads = [...TWO_THREADS]
+  const h = await renderChat('/home', server)
+  try {
+    await h.navigate('/chat/T1')
     await act(async () => h.button('Delete Chips').click())
     await h.flush()
     assert.equal(h.path(), '/chat')
+
+    await h.back()
+    assert.equal(h.path(), '/home')
+    await tick(h, t, UNDO_MS)
+    assert.deepEqual(server.writes(), [DELETE_T1])
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('opening the chat that is pending delete cancels the delete', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads('/chat/T2')
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await h.navigate('/chat/T1')
+    assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
+    assert.doesNotMatch(sidebar(h).textContent ?? '', /Chat deleted/)
+
+    await tick(h, t, UNDO_MS * 2)
+    assert.deepEqual(server.writes(), [])
   } finally {
     await h.cleanup()
   }
@@ -151,6 +217,7 @@ test('a failed delete restores the row and says it could not delete', async (t) 
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
     assert.equal(sidebar(h).querySelector('p')?.textContent, "Couldn't delete the chat.")
     assert.equal(sidebar(h).querySelector('details')?.textContent, 'DetailsHTTP 500')
+    assert.deepEqual(server.writes(), [DELETE_T1])
   } finally {
     await h.cleanup()
   }

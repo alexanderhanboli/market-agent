@@ -4,9 +4,10 @@ import assert from 'node:assert/strict'
 import { JSDOM } from 'jsdom'
 import { act, Profiler, StrictMode, useEffect, type ReactElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createMemoryRouter, createRoutesFromElements, Outlet, Route, RouterProvider, useLocation, useNavigate } from 'react-router-dom'
+import { createMemoryRouter, createRoutesFromElements, Outlet, Route, RouterProvider, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom'
 
 import { BlockRegistryProvider, createDefaultBlockRegistry } from '../blocks/index.ts'
+import { forgetThreadDeletes } from '../chat/threadDeletes.ts'
 import type { ChatMessage } from '../chat/messageTypes.ts'
 import { AuthContext } from '../shell/authTypes.ts'
 import { ChatLayout } from './ChatPage.tsx'
@@ -173,7 +174,7 @@ export function deferred<T>() {
   return { promise, resolve }
 }
 
-function LocationProbe({ onPath, onNavigate }: { onPath: (path: string) => void; onNavigate: (navigate: (to: string) => void) => void }) {
+function LocationProbe({ onPath, onNavigate }: { onPath: (path: string) => void; onNavigate: (navigate: NavigateFunction) => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   useEffect(() => onPath(location.pathname), [location.pathname, onPath])
@@ -189,6 +190,7 @@ export type Harness = {
   busyFrames: string[][]
   path: () => string
   navigate: (to: string) => Promise<void>
+  back: () => Promise<void>
   text: () => string
   query: (selector: string) => Element | null
   button: (name: string) => HTMLButtonElement
@@ -229,8 +231,8 @@ export async function renderChat(initialPath: string, server: FakeServer, option
   const onPath = (path: string) => {
     currentPath = path
   }
-  let routerNavigate: (to: string) => void = () => assert.fail('router not mounted')
-  const onNavigate = (navigate: (to: string) => void) => {
+  let routerNavigate: NavigateFunction = () => assert.fail('router not mounted')
+  const onNavigate = (navigate: NavigateFunction) => {
     routerNavigate = navigate
   }
   const threadRoute = options.threadRoute
@@ -281,6 +283,10 @@ export async function renderChat(initialPath: string, server: FakeServer, option
       await act(async () => routerNavigate(to))
       await flush()
     },
+    back: async () => {
+      await act(async () => routerNavigate(-1))
+      await flush()
+    },
     text: () => container.textContent ?? '',
     query: (selector) => container.querySelector(selector),
     button: (name) => {
@@ -311,6 +317,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     unmount,
     cleanup: async () => {
       await unmount()
+      forgetThreadDeletes()
       for (const [key, value] of Object.entries(saved)) {
         if (value === undefined) delete globals[key]
         else globals[key] = value

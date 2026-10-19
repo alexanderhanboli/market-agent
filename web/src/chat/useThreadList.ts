@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { authenticatedFetch } from '../http/authFetch.ts'
 import type { ChatThread } from './threadActions.ts'
+import { useThreadDeletes } from './threadDeletes.ts'
 
 export type ThreadListState =
   | { kind: 'loading' }
@@ -13,6 +14,7 @@ export type ThreadList = { state: ThreadListState; refresh: () => void }
 export function useThreadList(userId: string): ThreadList {
   const [state, setState] = useState<ThreadListState>({ kind: 'loading' })
   const [refreshKey, setRefreshKey] = useState(0)
+  const { sent, settled } = useThreadDeletes()
 
   useEffect(() => {
     if (!userId) return
@@ -33,10 +35,14 @@ export function useThreadList(userId: string): ThreadList {
         },
       )
     return () => controller.abort()
-  }, [userId, refreshKey])
+  }, [userId, refreshKey, settled])
 
   const refresh = useCallback(() => setRefreshKey((key) => key + 1), [])
-  return { state, refresh }
+  const visible = useMemo<ThreadListState>(
+    () => state.kind === 'ready' ? { kind: 'ready', threads: state.threads.filter((thread) => !sent.has(thread.thread_id)) } : state,
+    [state, sent],
+  )
+  return { state: visible, refresh }
 }
 
 // The server titles a thread after the turn completes and sends no event for

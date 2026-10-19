@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useMatch, useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 
@@ -10,7 +10,7 @@ import { ThreadColumn } from '../chat/turnLayout.tsx'
 import { FailureNotice } from '../ui/FailureNotice.tsx'
 import { Skeleton } from '../ui/Skeleton.tsx'
 import { useAuth } from '../shell/useAuth.ts'
-import { deleteThread } from '../chat/threadActions.ts'
+import { cancelThreadDelete, startThreadDelete, useThreadDeletes } from '../chat/threadDeletes.ts'
 import { threadDisplayName } from '../chat/threadName.ts'
 import { useChatSession, type ChatSession } from '../chat/useChatSession.ts'
 import { useThreadList, useTitleFollowUp, type ThreadListState } from '../chat/useThreadList.ts'
@@ -23,6 +23,9 @@ export function ChatLayout() {
   const navigate = useNavigate()
   const routeThreadId = useMatch('/chat/:threadId')?.params.threadId ?? null
   const threads = useThreadList(userId)
+  useEffect(() => {
+    if (routeThreadId !== null) cancelThreadDelete(routeThreadId)
+  }, [routeThreadId])
   const chat = useChatSession({ userId, threadId: routeThreadId, navigate, onThreadCreated: threads.refresh })
   const activeThreadId = chat.view.threadId
   const activeThread = threads.state.kind === 'ready'
@@ -142,11 +145,6 @@ function ChatThreadView({ chat, threadName, collapsed, setCollapsed }: ChatThrea
   )
 }
 
-// Long enough to reach Undo, short enough that the chat doesn't linger.
-const UNDO_DELETE_MS = 5000
-
-type PendingDelete = { threadId: string; name: string; timer: ReturnType<typeof setTimeout> }
-
 function ThreadList({
   userId,
   state,
@@ -161,51 +159,8 @@ function ThreadList({
   refresh: () => void
 }) {
   const navigate = useNavigate()
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
-  const [deleting, setDeleting] = useState<ReadonlySet<string>>(() => new Set())
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const rows = state.kind === 'ready' ? state.threads.filter((thread) => !deleting.has(thread.thread_id)) : []
-
-  const commitDelete = (threadId: string) => {
-    setDeleting((ids) => new Set(ids).add(threadId))
-    void deleteThread(userId, threadId).then(refresh, (error: unknown) => {
-      setDeleting((ids) => new Set([...ids].filter((id) => id !== threadId)))
-      setDeleteError(error instanceof Error ? error.message : String(error))
-    })
-  }
-
-  const startDelete = (threadId: string, name: string, active: boolean) => {
-    if (pendingDelete) {
-      clearTimeout(pendingDelete.timer)
-      commitDelete(pendingDelete.threadId)
-    }
-    setDeleteError(null)
-    const timer = setTimeout(() => {
-      setPendingDelete(null)
-      commitDelete(threadId)
-    }, UNDO_DELETE_MS)
-    setPendingDelete({ threadId, name, timer })
-    if (active) navigate('/chat')
-  }
-
-  const undoDelete = () => {
-    if (pendingDelete) clearTimeout(pendingDelete.timer)
-    setPendingDelete(null)
-  }
-
-  // Leaving the sidebar keeps the user's intent: a pending delete is sent, not dropped.
-  const commitOnUnmount = useRef(() => {})
-  useEffect(() => {
-    commitOnUnmount.current = () => {
-      if (pendingDelete === null) return
-      clearTimeout(pendingDelete.timer)
-      commitDelete(pendingDelete.threadId)
-    }
-  })
-  useEffect(() => {
-    const commit = commitOnUnmount
-    return () => commit.current()
-  }, [])
+  const { pending, error: deleteError } = useThreadDeletes()
+  const rows = state.kind === 'ready' ? state.threads : []
 
   return (
     <nav aria-label="Chats" className="flex min-h-0 flex-col gap-3">
@@ -235,7 +190,7 @@ function ThreadList({
       ) : (
         <ul className="flex min-h-0 flex-col gap-2 overflow-auto">
           {rows.map((thread) => {
-            if (thread.thread_id === pendingDelete?.threadId) {
+            if (thread.thread_id === pending?.threadId) {
               return (
                 <li
                   key={thread.thread_id}
@@ -244,8 +199,8 @@ function ThreadList({
                   <span role="status">Chat deleted.</span>
                   <button
                     type="button"
-                    aria-label={`Undo deleting ${pendingDelete.name}`}
-                    onClick={undoDelete}
+                    aria-label={`Undo deleting ${pending.name}`}
+                    onClick={() => cancelThreadDelete(pending.threadId)}
                     className="font-medium text-fg hover:underline"
                   >
                     Undo
@@ -273,7 +228,8 @@ function ThreadList({
                   className="absolute right-2 top-2 rounded p-1 text-muted opacity-0 transition hover:text-negative focus-visible:opacity-100 group-hover:opacity-100"
                   onClick={(e) => {
                     e.preventDefault()
-                    startDelete(thread.thread_id, name, active)
+                    startThreadDelete(userId, thread.thread_id, name)
+                    if (active) navigate('/chat', { replace: true })
                   }}
                 >
                   <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
