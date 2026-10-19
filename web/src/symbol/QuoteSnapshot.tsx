@@ -81,8 +81,11 @@ export function QuoteSnapshot({ subject, title, quoteState }: QuoteSnapshotProps
 }
 
 function SnapshotTitle({ title }: { title: string | null }) {
-  if (title === null) return <Skeleton label="Loading symbol name" className="h-8 w-56" />
-  return <h1 className="min-w-0 truncate text-2xl font-semibold text-fg">{title}</h1>
+  return (
+    <h1 className="min-w-0 truncate text-2xl font-semibold text-fg">
+      {title ?? <Skeleton label="Loading symbol name" className="h-8 w-56" />}
+    </h1>
+  )
 }
 
 function IssuerProfileLine({

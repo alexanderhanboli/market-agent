@@ -187,7 +187,7 @@ export type Harness = {
   container: HTMLElement
   server: FakeServer
   frames: string[]
-  busyFrames: string[][]
+  statusFrames: string[][]
   path: () => string
   navigate: (to: string) => Promise<void>
   back: () => Promise<void>
@@ -226,7 +226,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
 
   const container = dom.window.document.getElementById('root')!
   const frames: string[] = []
-  const busyFrames: string[][] = []
+  const statusFrames: string[][] = []
   let currentPath = initialPath
   const onPath = (path: string) => {
     currentPath = path
@@ -249,7 +249,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
       id="chat"
       onRender={() => {
         frames.push(container.textContent ?? '')
-        busyFrames.push([...container.querySelectorAll('[aria-busy="true"]')].map((node) => node.getAttribute('aria-label') ?? ''))
+        statusFrames.push([...container.querySelectorAll('[role="status"]')].map((node) => node.textContent ?? ''))
       }}
     >
       <AuthContext.Provider value={{ session: { userId: USER_ID, displayName: 'Test User' }, signIn: () => undefined, signOut: () => undefined }}>
@@ -277,7 +277,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     container,
     server,
     frames,
-    busyFrames,
+    statusFrames,
     path: () => currentPath,
     navigate: async (to) => {
       await act(async () => routerNavigate(to))

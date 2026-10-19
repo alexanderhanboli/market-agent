@@ -35,7 +35,7 @@ test('a failed refresh keeps the earlier data and puts the error in the title', 
 test('loading renders a status skeleton named for the noun', () => {
   assert.equal(
     render({ status: 'loading' }),
-    '<div role="status" aria-busy="true" aria-label="Loading quote" class="h-16 animate-pulse rounded-md bg-surface-2"></div>',
+    '<span role="status" class="block h-16 animate-pulse rounded-md bg-surface-2"><span class="sr-only">Loading quote</span></span>',
   )
 })
 

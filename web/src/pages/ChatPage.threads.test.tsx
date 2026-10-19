@@ -19,12 +19,11 @@ test('while the first list loads the sidebar shows row skeletons, not the empty 
   server.listReply = () => list.promise
   const h = await renderChat('/chat', server)
   try {
-    assert.notEqual(sidebar(h).querySelector('[role="status"][aria-label="Loading chats"]'), null)
-    assert.equal(sidebar(h).textContent, '+ New chatChats')
+    assert.equal(sidebar(h).textContent, '+ New chatChatsLoading chats')
+    assert.equal(sidebar(h).querySelector('[role="status"]')?.textContent, 'Loading chats')
 
     await act(async () => list.resolve({ body: { threads: [] } }))
     await h.flush()
-    assert.equal(sidebar(h).querySelector('[aria-label="Loading chats"]'), null)
     assert.equal(sidebar(h).textContent, '+ New chatChatsNo chats yet.')
   } finally {
     await h.cleanup()
@@ -60,8 +59,7 @@ test('Retry swaps the failure for loading rows while the list reloads', async ()
 
     await act(async () => h.button('Retry').click())
     await h.flush()
-    assert.equal(sidebar(h).textContent, '+ New chatChats')
-    assert.notEqual(sidebar(h).querySelector('[role="status"][aria-label="Loading chats"]'), null)
+    assert.equal(sidebar(h).textContent, '+ New chatChatsLoading chats')
 
     await act(async () => second.resolve({ body: { threads: TWO_THREADS } }))
     await h.flush()

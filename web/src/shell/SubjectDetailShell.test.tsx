@@ -431,18 +431,17 @@ test('an issuer route titles the header with a skeleton while hydrating and "Unk
     })
     const header = dom.window.document.querySelector('[data-testid="subject-header"]')!
 
-    assert.equal(header.querySelector('h1')?.textContent, undefined)
-    assert.ok(header.querySelector('[role="status"][aria-label="Loading symbol name"]'), 'the title is a skeleton')
+    assert.equal(header.querySelector('h1 [role="status"]')?.textContent, 'Loading symbol name')
     assert.doesNotMatch(header.textContent ?? '', /subject/i)
 
     await act(async () => failHydration())
-    for (let attempt = 0; attempt < 5 && header.querySelector('h1') === null; attempt += 1) {
+    for (let attempt = 0; attempt < 5 && header.querySelector('h1 [role="status"]') !== null; attempt += 1) {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       })
     }
     assert.equal(header.querySelector('h1')?.textContent, 'Unknown symbol')
-    assert.ok(!header.querySelector('[aria-label="Loading symbol name"]'), 'the title skeleton is gone')
+    assert.equal(header.querySelector('h1 [role="status"]'), null)
     await act(async () => root.unmount())
   } finally {
     globalThis.fetch = originalFetch

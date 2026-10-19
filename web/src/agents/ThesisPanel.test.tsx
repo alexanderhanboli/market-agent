@@ -190,7 +190,7 @@ test('ThesisPanel aborts and ignores stale responses when the user and agent swi
     await harness.render({ userId: USER_B, agentId: AGENT_B, initialThesis: 'Second agent base thesis.' })
     const newKey = `${USER_B}:/v1/agents/${AGENT_B}/thesis`
     assert.equal(signals.get(oldKey)?.aborted, true)
-    assert.notEqual(harness.document.querySelector('[role="status"][aria-label="Loading thesis conditions"]'), null)
+    assert.deepEqual([...harness.document.querySelectorAll('[role="status"]')].map((node) => node.textContent), ['Loading thesis conditions'])
 
     await act(async () => pending.get(newKey)?.resolve(json({
       thesis: { ...currentHistory().thesis!, agent_id: AGENT_B, thesis: 'Second agent current thesis.' },
