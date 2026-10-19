@@ -226,35 +226,41 @@ export function SymbolSearch({
             placement === 'topbar' ? 'left-0 right-0' : 'left-0 w-72',
           ].join(' ')}
         >
-          {typeahead.candidates.map((candidate, index) => (
-            <button
-              key={`${candidate.subject_ref.kind}:${candidate.subject_ref.id}`}
-              id={`${listboxId}-${index}`}
-              type="button"
-              role="option"
-              aria-selected={index === typeahead.highlightedIndex}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => void resolveAndPlan(candidate)}
-              className={[
-                'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm',
-                index === typeahead.highlightedIndex
-                  ? 'bg-surface-2 text-fg'
-                  : 'text-fg hover:bg-surface-2',
-              ].join(' ')}
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-medium">
-                  {candidateName(candidate, index)}
+          {typeahead.candidates.map((candidate, index) => {
+            const name = candidateName(candidate, index)
+            const listing = candidateListingLabel(candidate)
+            return (
+              <button
+                key={`${candidate.subject_ref.kind}:${candidate.subject_ref.id}`}
+                id={`${listboxId}-${index}`}
+                type="button"
+                role="option"
+                aria-selected={index === typeahead.highlightedIndex}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => void resolveAndPlan(candidate)}
+                className={[
+                  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm',
+                  index === typeahead.highlightedIndex
+                    ? 'bg-surface-2 text-fg'
+                    : 'text-fg hover:bg-surface-2',
+                ].join(' ')}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
+                    {name}
+                  </span>
+                  {listing !== null && listing !== name ? (
+                    <span className="block truncate text-xs text-muted">
+                      {listing}
+                    </span>
+                  ) : null}
                 </span>
-                <span className="block truncate text-xs text-muted">
-                  {candidateListingLabel(candidate)}
+                <span className="shrink-0 text-xs num text-muted">
+                  {Math.round(candidate.confidence * 100)}%
                 </span>
-              </span>
-              <span className="shrink-0 text-xs num text-muted">
-                {Math.round(candidate.confidence * 100)}%
-              </span>
-            </button>
-          ))}
+              </button>
+            )
+          })}
         </div>
       ) : null}
       {message ? (

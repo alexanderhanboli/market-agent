@@ -45,6 +45,7 @@ async function renderSearch(t: test.TestContext, reply: () => Response) {
     submit: () => act(async () => container.querySelector('form')!.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))),
     message: () => container.querySelector('form')?.lastElementChild?.textContent,
     options: () => [...container.querySelectorAll('[role="option"]')].map((option) => option.querySelector('span span')?.textContent),
+    optionLines: () => [...container.querySelectorAll('[role="option"]')].map((option) => [...option.querySelectorAll('span span')].map((line) => line.textContent)),
   }
 }
 
@@ -79,4 +80,17 @@ test('typeahead options with no name or listing are numbered, not blank', async 
   await search.type('APPL')
   await search.settle()
   assert.deepEqual(search.options(), ['Symbol 1', 'Symbol 2'])
+})
+
+test('a typeahead option shows its listing on a second line only when the name is not that listing', async (t) => {
+  const search = await renderSearch(t, () => new Response(JSON.stringify({
+    subjects: [
+      { subject_ref: { kind: 'listing', id: '11111111-1111-4111-a111-111111111111' }, display_labels: { primary: 'Apple Inc.', ticker: 'AAPL', mic: 'XNAS' }, confidence: 0.9 },
+      { subject_ref: { kind: 'listing', id: '22222222-2222-4222-a222-222222222222' }, display_labels: { ticker: 'AAPL', mic: 'XLON' }, confidence: 0.4 },
+    ],
+    unresolved: [],
+  }), { status: 200 }))
+  await search.type('AAPL')
+  await search.settle()
+  assert.deepEqual(search.optionLines(), [['Apple Inc.', 'AAPL · XNAS'], ['AAPL · XLON']])
 })
