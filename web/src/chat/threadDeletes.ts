@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
 import { announce } from '../ui/announcer.ts'
-import { deleteThread } from './threadActions.ts'
+import { authenticatedFetch } from '../http/authFetch.ts'
+import { deleteThread, type ChatThread } from './threadActions.ts'
 
 // Long enough to reach Undo, short enough that the chat doesn't linger.
 export const UNDO_DELETE_MS = 5000
@@ -81,17 +82,27 @@ function commit(pending: PendingDelete): void {
   clearTimeout(pending.timer)
   const sentIn = generation
   publish({ ...state, pending: null, sent: new Set(state.sent).add(pending.threadId) })
-  void deleteThread(pending.userId, pending.threadId).then(
-    () => {
-      if (sentIn === generation) publish({ ...state, settled: state.settled + 1 })
-    },
-    (error: unknown) => {
-      if (sentIn !== generation) return
-      const sent = new Set(state.sent)
-      sent.delete(pending.threadId)
-      publish({ ...state, sent, error: { message: error instanceof Error ? error.message : String(error) } })
-      // Announced here, not by the sidebar, so it is heard with the sidebar collapsed or off /chat.
-      announce("Couldn't delete the chat.", 'assertive')
-    },
-  )
+  const settle = () => {
+    if (sentIn === generation) publish({ ...state, settled: state.settled + 1 })
+  }
+  void deleteThread(pending.userId, pending.threadId).then(settle, async (error: unknown) => {
+    if (sentIn !== generation) return
+    // A DELETE that timed out may still have gone through, so the list decides.
+    // An unreadable list proves nothing, so the delete counts as failed.
+    const listed = await threadIsListed(pending).catch(() => true)
+    if (!listed) return settle()
+    if (sentIn !== generation) return
+    const sent = new Set(state.sent)
+    sent.delete(pending.threadId)
+    publish({ ...state, sent, error: { message: error instanceof Error ? error.message : String(error) } })
+    // Announced here, not by the sidebar, so it is heard with the sidebar collapsed or off /chat.
+    announce("Couldn't delete the chat.", 'assertive')
+  })
+}
+
+async function threadIsListed({ userId, threadId }: PendingDelete): Promise<boolean> {
+  const response = await authenticatedFetch('/v1/chat/threads', { userId })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const body = (await response.json()) as { threads: ChatThread[] }
+  return body.threads.some((thread) => thread.thread_id === threadId)
 }

@@ -5,6 +5,7 @@ import test from 'node:test'
 
 import { act } from 'react'
 
+import { forgetThreadDeletes } from '../chat/threadDeletes.ts'
 import { ANNOUNCE_DELAY_MS } from '../ui/announcer.ts'
 import { FakeServer, deferred, renderChat, TWO_THREADS, type Harness } from './chatPageHarness.tsx'
 
@@ -411,16 +412,17 @@ test('a list read already in flight when the delete fails leaves the delete erro
   try {
     await act(async () => h.button('Delete Chips').click())
     const reads = server.gets('/v1/chat/threads')
-    server.listReply = () => held.promise
+    server.listReply = () => server.gets('/v1/chat/threads') === reads + 1 ? held.promise : { body: { threads: server.threads } }
     await h.ask('Analyze NVDA')
     assert.equal(server.gets('/v1/chat/threads'), reads + 1)
 
     await tick(h, t, UNDO_MS)
+    assert.equal(server.gets('/v1/chat/threads'), reads + 2, 'the failed DELETE is checked against the list')
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\./)
 
     await act(async () => held.resolve({ body: { threads: server.threads } }))
     await h.flush()
-    assert.equal(server.gets('/v1/chat/threads'), reads + 1)
+    assert.equal(server.gets('/v1/chat/threads'), reads + 2)
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
   } finally {
     await h.cleanup()
@@ -442,6 +444,88 @@ test('a delete that fails while the sidebar is collapsed is announced, and the s
     await tick(h, t, ANNOUNCE_DELAY_MS)
     assert.equal(announced(h, 'status'), 'Chat deleted.')
     assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 500Chats/)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('a timed-out DELETE whose chat is gone from the list counts as deleted: no error, and the row stays hidden', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads('/chat/T2')
+  server.deleteReply = (threadId) => {
+    server.threads = server.threads.filter((thread) => thread.thread_id !== threadId)
+    return { status: 504, body: {} }
+  }
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await tick(h, t, UNDO_MS)
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.deepEqual(shownChats(h), ['Rates'])
+    assert.doesNotMatch(sidebar(h).textContent ?? '', /Couldn't delete/)
+    assert.equal(announced(h, 'alert'), '')
+
+    await h.navigate('/chat/T1')
+    assert.equal(h.path(), '/chat')
+    assert.deepEqual(shownChats(h), ['Rates'])
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('a timed-out DELETE whose chat is still listed restores the row and says it could not delete', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads('/chat/T2')
+  server.deleteReply = () => ({ status: 504, body: {} })
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await act(async () => h.button('Collapse sidebar').click())
+    const reads = server.gets('/v1/chat/threads')
+    await tick(h, t, UNDO_MS)
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(server.gets('/v1/chat/threads'), reads + 1, 'the store re-reads the list once to check')
+    assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+
+    await act(async () => h.button('Expand sidebar').click())
+    await h.flush()
+    assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
+    assert.match(sidebar(h).textContent ?? '', /Couldn't delete the chat\.DetailsHTTP 504Chats/)
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('a failed DELETE whose check cannot read the list counts as failed', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads()
+  server.deleteReply = () => ({ status: 504, body: {} })
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    server.listReply = () => ({ status: 503, body: {} })
+    await tick(h, t, UNDO_MS)
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
+    assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('signing out while a failed DELETE is being checked drops the result', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads()
+  server.deleteReply = () => ({ status: 504, body: {} })
+  const check = deferred<{ body: unknown }>()
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    server.listReply = () => check.promise
+    await tick(h, t, UNDO_MS)
+    await act(async () => forgetThreadDeletes())
+
+    await act(async () => check.resolve({ body: { threads: server.threads } }))
+    await h.flush()
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.doesNotMatch(sidebar(h).textContent ?? '', /Couldn't delete/)
+    assert.equal(announced(h, 'alert'), '')
   } finally {
     await h.cleanup()
   }
