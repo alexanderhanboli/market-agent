@@ -1,3 +1,4 @@
+import { defineResource } from '../fetch/resource.ts'
 import {
   formatSubjectRef,
   isSubjectRef,
@@ -190,7 +191,7 @@ export function isCanonicalResolvedSubject(subject: RouteResolvedSubject | Resol
 export function isResolvedSubject(value: unknown): value is ResolvedSubject {
   if (typeof value !== 'object' || value === null) return false
   const obj = value as Record<string, unknown>
-  return isSubjectRef(obj.subject_ref) && typeof obj.display_name === 'string'
+  return isSubjectRef(obj.subject_ref) && (obj.display_name === undefined || typeof obj.display_name === 'string')
 }
 
 // Shared narrower for React Router `state` payloads built via
@@ -331,6 +332,14 @@ export async function fetchSubjectHydration(args: {
   const body = (await response.json()) as HydrateSubjectResponse
   return body.subject
 }
+
+export const subjectHydration = defineResource({
+  freshness: 'filed',
+  load: async (subjectRef: SubjectRef, signal) => ({
+    kind: 'ready',
+    data: await fetchSubjectHydration({ subject_ref: subjectRef, signal }),
+  }),
+})
 
 export function candidateListingLabel(subject: ResolvedSubject): string {
   const labels = subject.display_labels
