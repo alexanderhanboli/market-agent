@@ -8,11 +8,11 @@ import { LlmProviderError, LlmRouterError } from "../../llm/src/index.ts";
 import {
   ANSWER_DEADLINES,
   answerContext,
-  composeAnalystBlocksWithLlm,
+  composeAnalystBlocksWithLlm as composeAnswer,
   TITLE_DEADLINES,
   createLlmThreadTitleModel,
 } from "../src/llm-runtime.ts";
-import type { AssertionReport, Rejection } from "../src/assertions.ts";
+import { MAX_ASSERTIONS, type AssertionReport, type Rejection } from "../src/assertions.ts";
 import { mayOfferOtherFacts, scopeGapBlocks } from "../src/fact-blocks.ts";
 import { resolveResearchScope } from "../src/research-scope.ts";
 
@@ -22,6 +22,11 @@ const BASE_ENV = {
   LLM_OPENAI_MODELS: "gpt-4.1",
   LITELLM_MODEL: "openai/gpt-4.1",
 };
+// The answer as the reader ends with it when the judge entails every inference
+// (answer-trace.ts gates them).
+const ALL_SHOWN = new Set(Array.from({ length: MAX_ASSERTIONS }, (_, i) => i));
+const composeAnalystBlocksWithLlm = async (input: Parameters<typeof composeAnswer>[0]) => (await composeAnswer(input))(ALL_SHOWN);
+
 const FIGURES_FALLBACK = "The reported figures below come from the company's filings; select any value to see its source.";
 
 test("createLlmThreadTitleModel delegates to the shared router", async () => {
@@ -320,7 +325,7 @@ test("the answer is asked for an analyst's view: takeaway, trend, strengths, cou
   assert.match(systemPrompt, /two figures side by side do not state one/);
   assert.match(systemPrompt, /never state one in words/);
   assert.match(systemPrompt, /never state a cause the data does not show/);
-  // The allowed forms of a cause, and the hypothesis label the guard keeps (#261).
+  // The allowed forms of a cause, and the hypothesis label (#261).
   assert.match(systemPrompt, /management attribution from a cited claim/);
   // Candidate causes go in labelled hypotheses, not inside a gap sentence (2026-10-08 eval).
   assert.match(systemPrompt, /never as\s+a list of candidate causes inside a sentence about what the data cannot tell/);
@@ -719,25 +724,6 @@ test("beside blocks that show no figures (a gap note), the quote renders from it
   assert.deepEqual(segments.filter((segment) => segment.type === "ref"), []);
 });
 
-test("with no figures shown, an inference stating a cause goes; the figure it rests on stays (#263)", async () => {
-  let removed: ReadonlyArray<string> = [];
-  const blocks = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
-    context: { userIntent: "How is AAPL doing?", bundleId: "single_subject_analysis" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [AVAILABLE_TOOL_CALL],
-    createClient: () => async () => ({ text: withList([
-      { kind: "observation", text: "Net income was [[F4]].", evidence: ["F4"] },
-      { kind: "analyst_inference", text: "The result could reflect a one-time charge.", supports: [0] },
-    ]) }),
-    onNarrativeRemoved: (dropped) => {
-      removed = dropped;
-    },
-  });
-  assert.equal((blocks[0]!.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), "Net income was $25.0B in Q1 2026 (partial period).");
-  assert.deepEqual(removed, ["> **Analyst inference:** The result could reflect a one-time charge."]);
-});
-
 test("the prompt asks for a missing period in words, not by its year (#264)", async () => {
   let system = "";
   await composeAnalystBlocksWithLlm({
@@ -858,9 +844,8 @@ async function renderWithReply(reply: string | { text: string; truncated: boolea
 }
 const withList = (list: unknown[]) => `NVDA earns more on each sale than AMD.\n\n\`\`\`assertions\n${JSON.stringify(list)}\n\`\`\``;
 
-// One company, "A", whose figures the guard never credits (a one-letter ticker
-// reads as the article), and one sourced claim: the guard drops A's observation
-// while the claim's attribution stands.
+// One company, "A", a one-letter ticker that reads as the article, and one
+// sourced claim.
 const A_CLAIM = "c2080000-0000-4000-8000-000000000021";
 const A_BLOCKS = [{ ...RENDER_BLOCKS[0]!, subject_labels: ["A"], cells: [RENDER_BLOCKS[0]!.cells[0]!] }];
 const A_TOOL_CALL = {
@@ -871,7 +856,6 @@ const A_TOOL_CALL = {
 } as never;
 async function renderA(list: unknown[]) {
   const reports: Array<Record<string, unknown>> = [];
-  const removed: string[][] = [];
   const composed = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
     context: { userIntent: "Analyze A", bundleId: "single_name" },
@@ -880,10 +864,9 @@ async function renderA(list: unknown[]) {
     factBlocks: A_BLOCKS,
     createClient: () => async () => ({ text: withList(list) }),
     onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
-    onNarrativeRemoved: (dropped) => removed.push([...dropped]),
   });
   const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  return { text, report: reports[0]!, removed };
+  return { text, report: reports[0]! };
 }
 
 test("the answer is written from its accepted assertions, values as sealed refs (#208)", async () => {
@@ -908,18 +891,6 @@ test("the answer is written from its accepted assertions, values as sealed refs 
   assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
     [2, "an unknown cause cites a change: one company's metric, two periods, two values"],
   ]);
-});
-
-test("rendering keeps the narrative guard as its backstop, assertion by assertion (#208)", async () => {
-  // A template's own digits are periods; an inference's magnitude in words is the model's (#228).
-  const { block, report } = await renderWithReply(withList([
-    { kind: "observation", text: "NVDA's gross margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
-    { kind: "analyst_inference", text: "The leader's margin has doubled.", evidence: [], supports: [0] },
-  ]));
-  const text = (block.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.equal(text, "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026); AMD's gross margin was 49.2% in FY2025 (ended Dec 2025).");
-  assert.equal(report.rendered, true);
-  assert.deepEqual(report.rejected, [{ index: 1, text: "> **Analyst inference:** The leader's margin has doubled.", check: "rendering", reason: "removed by the narrative guard" }]);
 });
 
 test("a data gap the model writes never reaches the answer: what is missing is the packet's to say (#302)", async () => {
@@ -1027,8 +998,7 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
     const { block, report } = await renderWithReply(reply);
     assert.deepEqual({ segments: block.segments, rendered: report.rendered }, { segments: fallback, rendered: undefined }, JSON.stringify(reply));
   }
-  // The guard removed every accepted assertion: a claim's magnitude in words is no figure shown (#228).
-  const removed: string[][] = [];
+  // An attribution quotes its claim as its source wrote it, a magnitude in words included.
   const reports: AssertionReport[] = [];
   const blocks = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
@@ -1043,12 +1013,13 @@ test("when no assertion renders, the answer is the fixed fallback sentence, neve
     factBlocks: [],
     createClient: () => async () => ({ text: withList([{ kind: "management_attribution", text: "Demand doubled.", evidence: ["C1"] }]) }),
     onAssertions: (report) => reports.push(report),
-    onNarrativeRemoved: (dropped) => removed.push([...dropped]),
   });
-  assert.deepEqual({ segments: blocks[0]!.segments, rejected: reports[0]!.rejected, removed }, {
-    segments: [{ type: "text", text: "No written answer is available for this question; try asking again." }],
-    rejected: [{ index: 0, text: "According to a source: Data center demand doubled.", check: "rendering", reason: "removed by the narrative guard" }],
-    removed: [["According to a source: Data center demand doubled."]],
+  assert.deepEqual({ segments: blocks[0]!.segments, rejected: reports[0]!.rejected }, {
+    segments: [
+      { type: "text", text: "According to a source: " },
+      { type: "ref", ref_kind: "claim", ref_id: A_CLAIM, format: "Data center demand doubled." },
+    ],
+    rejected: [],
   });
 });
 
@@ -1062,7 +1033,7 @@ test("an answer is rendered from its list alone: no prose before it, or prose cu
   }
 });
 
-test("a claim-only answer is rendered too; guard drops while rendering count as narrative removals (#208)", async () => {
+test("a claim-only answer is rendered too (#208)", async () => {
   const claimId = "c2080000-0000-4000-8000-000000000001";
   const toolCall = {
     tool_call_id: "tc-1",
@@ -1085,14 +1056,12 @@ test("a claim-only answer is rendered too; guard drops while rendering count as 
   assert.equal(segments.at(-1)?.ref_id, claimId);
   assert.equal(reports[0]?.rendered, true);
 
-  const { text, removed } = await renderA([
+  const { text } = await renderA([
     { kind: "management_attribution", text: "Management raised its outlook.", evidence: ["C1"] },
     { kind: "observation", text: "A's gross margin was [[F2]].", evidence: ["F2"] },
-    { kind: "analyst_inference", text: "A's margin has doubled.", evidence: [], supports: [1] },
   ]);
   // A one-letter ticker's observation renders as any other's: its value is the packet's.
   assert.equal(text, "According to a source dated Feb 2026: Management raised its outlook.\n\nA's gross margin was 74.6% in FY2026 (ended Jan 2026).");
-  assert.deepEqual(removed, [["> **Analyst inference:** A's margin has doubled."]]);
 });
 
 test("an inference resting on a management attribution renders (#302)", async () => {
@@ -1261,10 +1230,9 @@ test("a rendered comparison covers every company it shows figures for, and warns
       rejected: [nvdaMargin, { index: 1, text: "> **Analyst inference on NVDA:** It keeps more of each sale.", check: "rendering", reason: leftOut }],
     },
   );
-  // One-sided once the guard removed AMD's side: both are on the report, and the guard's drop is a narrative removal.
+  // A claim on AMD covers AMD's side, whatever its words.
   const reports: AssertionReport[] = [];
-  const removed: string[][] = [];
-  const guardedSide = await composeAnalystBlocksWithLlm({
+  const claimedSide = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,
     context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
     blocks: [NARRATIVE_BLOCK],
@@ -1280,13 +1248,10 @@ test("a rendered comparison covers every company it shows figures for, and warns
       { kind: "management_attribution", text: "Demand doubled.", evidence: ["C1"] },
     ]) }),
     onAssertions: (report) => reports.push(report),
-    onNarrativeRemoved: (dropped) => removed.push([...dropped]),
   });
-  const attribution = "According to a source on AMD: Data center demand doubled.";
-  assert.deepEqual({ segments: guardedSide[0]!.segments, rejected: reports[0]!.rejected, removed }, {
-    segments: [{ type: "text", text: FIGURES_FALLBACK }],
-    rejected: [nvdaMargin, { index: 1, text: attribution, check: "rendering", reason: "removed by the narrative guard" }],
-    removed: [[attribution]],
+  assert.deepEqual({ text: (claimedSide[0]!.segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join(""), rejected: reports[0]!.rejected }, {
+    text: "NVDA's gross margin was 74.6% in FY2026 (ended Jan 2026).\n\nAccording to a source on AMD: Data center demand doubled.",
+    rejected: [],
   });
 
   const sameYear = [{
@@ -1359,7 +1324,7 @@ test("an observation whose value cannot be sealed renders the packet's value as 
   assert.deepEqual(reports[0]!.rejected, []);
 });
 
-test("a ranking of price returns read off their chart renders through the guard (#301)", async () => {
+test("a ranking of price returns read off their chart renders (#301)", async () => {
   const perf = { id: "perf-1", kind: "perf_comparison", title: "Price performance", default_range: "YTD 2026: 2025-12-31 close to 2026-08-31 close", series: [
     { name: "NVDA", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 5.81 }] }, { name: "AMD", points: [{ x: "2025-12-31", y: 0 }, { x: "2026-08-31", y: 3.17 }] },
   ] };
@@ -1383,13 +1348,11 @@ test("a ranking of price returns read off their chart renders through the guard 
   assert.deepEqual(reports[0]!.rejected, []);
 });
 
-test("across companies, an inference names none: its label states what its comparisons checked (#288, #301)", async () => {
+test("across companies, an inference's label states what its comparisons checked (#288, #301)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "analyst_inference", text: "The margin lead leaves more room to invest.", evidence: [], supports: [1] },
     { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
     { kind: "observation", text: "NVDA's revenue was [[F1]] and AMD's was [[F3]].", evidence: ["F1", "F3"] },
-    // Beside a checked NVDA-highest: the words would contradict it.
-    { kind: "analyst_inference", text: "AMD leads NVDA on profitability.", evidence: [], supports: [1] },
     { kind: "analyst_inference", text: "Scale leaves room to invest.", evidence: [], supports: [2] },
   ]));
   const segments = block.segments as Array<{ type: string; text?: string; format?: string; ref_id?: string }>;
@@ -1403,9 +1366,7 @@ test("across companies, an inference names none: its label states what its compa
       "\n\nThe periods compared end at different times, so they do not line up: NVDA's FY2026 ended Jan 2026 and AMD's FY2025 ended Dec 2025.",
   );
   assert.deepEqual(segments.filter((segment) => segment.type === "ref").map((segment) => segment.ref_id), [FACT(2), FACT(4), FACT(1), FACT(3)]);
-  assert.deepEqual((report.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [3, "an inference names no company; its subject does"],
-  ]);
+  assert.deepEqual(report.rejected, []);
 
   // The wrong winner, every number right: rejected, and the inference with it.
   const wrong = await renderWithReply(withList([
@@ -1419,7 +1380,7 @@ test("across companies, an inference names none: its label states what its compa
   assert.equal(wrong.report.rendered, undefined);
 });
 
-test("across companies, an inference's subject is named in its label, through the guard (#308)", async () => {
+test("across companies, an inference's subject is named in its label (#308)", async () => {
   const { block, report } = await renderWithReply(withList([
     { kind: "comparison", op: "highest", result: "F2", text: "NVDA's gross margin is the highest.", evidence: ["F2", "F4"] },
     { kind: "analyst_inference", subject: "AMD", text: "Its thinner margin leaves less room to invest.", evidence: [], supports: [0] },
@@ -1452,7 +1413,7 @@ test("an observation a kept comparison already writes in full is not said twice;
   assert.deepEqual((report.accepted as Array<{ index: number }>).map((entry) => entry.index), [0, 1, 2, 3]);
 });
 
-test("a single company's checked trend and low render through the guard (#208)", async () => {
+test("a single company's checked trend and low render (#208)", async () => {
   const quarters = [["Q1 2025", "2025-03-29", "10.8%", 2025, "Q1"], ["Q2 2025", "2025-06-28", "-1.7%", 2025, "Q2"], ["Q3 2025", "2025-09-27", "13.7%", 2025, "Q3"], ["Q4 2025", "2025-12-27", "14.1%", 2025, "Q4"]] as const;
   const id = (n: number) => `d2080000-0000-4000-8000-00000000000${n}`;
   const trendRow = {
@@ -1487,61 +1448,6 @@ test("a single company's checked trend and low render through the guard (#208)",
   ]);
 });
 
-test("an inference goes only when the guard removed every assertion it rests on (#301)", async () => {
-  // A metric named as a magnitude ("halved"): the guard removes any sentence stating it.
-  const blocks = [{ ...RENDER_BLOCKS[0]!, metrics: ["Revenue", "Margin, halved"] }];
-  const reports: Array<Record<string, unknown>> = [];
-  const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
-    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
-    factBlocks: blocks,
-    createClient: () => async () => ({ text: withList([
-      { kind: "observation", text: "NVDA's margin was [[F2]] and AMD's was [[F4]].", evidence: ["F2", "F4"] },
-      { kind: "observation", text: "NVDA's revenue was [[F1]] and AMD's was [[F3]].", evidence: ["F1", "F3"] },
-      { kind: "analyst_inference", text: "The margin shows pricing power.", evidence: [], supports: [0] },
-      { kind: "analyst_inference", text: "Scale leaves room to invest.", evidence: [], supports: [0, 1] },
-    ]) }),
-    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
-  });
-  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.equal(text,
-    "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026); AMD's revenue was $25.8B in FY2025 (ended Dec 2025)." +
-    "\n\n> **Analyst inference:** Scale leaves room to invest.");
-  assert.deepEqual((reports[0]!.rejected as Rejection[]).map((entry) => [entry.index, entry.check, entry.reason]), [
-    [0, "rendering", "removed by the narrative guard"],
-    [2, "rendering", "rests on an observation the narrative guard removed"],
-  ]);
-});
-
-test("an inference goes when the guard removed every support that covered its subject (#308 review)", async () => {
-  const blocks = [{ ...RENDER_BLOCKS[0]!, metrics: ["Revenue", "Margin, halved"] }];
-  const reports: Array<Record<string, unknown>> = [];
-  const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
-    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
-    factBlocks: blocks,
-    createClient: () => async () => ({ text: withList([
-      { kind: "observation", text: "AMD's margin was [[F4]].", evidence: ["F4"] },
-      { kind: "observation", text: "NVDA's revenue was [[F1]].", evidence: ["F1"] },
-      { kind: "observation", text: "AMD's revenue was [[F3]].", evidence: ["F3"] },
-      { kind: "analyst_inference", subject: "AMD", text: "Its margin trails its scale.", evidence: [], supports: [0, 1] },
-    ]) }),
-    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
-  });
-  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.equal(text,
-    "NVDA's revenue was $130.5B in FY2026 (ended Jan 2026)." +
-    "\n\nAMD's revenue was $25.8B in FY2025 (ended Dec 2025).");
-  assert.deepEqual((reports[0]!.rejected as Array<{ index: number; reason: string }>).map((entry) => [entry.index, entry.reason]), [
-    [0, "removed by the narrative guard"],
-    [3, "rests on an observation the narrative guard removed"],
-  ]);
-});
-
 test("a rejected comparison never falls back to the model's prose (#286 review)", async () => {
   // The prose names the wrong winner; its comparison is rejected, nothing else is listed.
   const reply = "AMD has the highest gross margin.\n\n```assertions\n" + JSON.stringify([
@@ -1553,23 +1459,3 @@ test("a rejected comparison never falls back to the model's prose (#286 review)"
   assert.equal(report.rendered, undefined);
 });
 
-test("an inference resting on a comparison the guard removed keeps its other support, and its label names only that one (#306 review)", async () => {
-  const blocks = [{ ...RENDER_BLOCKS[0]!, metrics: ["Revenue halved", "Gross Margin"] }];
-  const reports: Array<Record<string, unknown>> = [];
-  const composed = await composeAnalystBlocksWithLlm({
-    env: BASE_ENV,
-    context: { userIntent: "Compare NVDA with AMD", bundleId: "peer_comparison" },
-    blocks: [NARRATIVE_BLOCK],
-    toolCalls: [],
-    factBlocks: blocks,
-    createClient: () => async () => ({ text: withList([
-      { kind: "comparison", op: "highest", result: "F1", text: "x", evidence: ["F1", "F3"] },
-      { kind: "comparison", op: "highest", result: "F2", text: "x", evidence: ["F2", "F4"] },
-      { kind: "analyst_inference", text: "The leader keeps more of each sale.", evidence: [], supports: [0, 1] },
-    ]) }),
-    onAssertions: (report) => reports.push(report as unknown as Record<string, unknown>),
-  });
-  const text = (composed[0].segments as Array<{ text?: string; format?: string }>).map((segment) => segment.text ?? segment.format).join("");
-  assert.match(text, /> \*\*Analyst inference\*\* \(NVDA highest on gross margin\): The leader keeps more of each sale\./);
-  assert.doesNotMatch(text, /halved/);
-});

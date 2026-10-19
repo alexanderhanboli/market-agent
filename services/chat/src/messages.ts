@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { PERF_POINTS } from "../../market/src/perf-points.ts";
 
 import {
@@ -168,17 +169,24 @@ export async function persistChatMessageAfterSnapshotSeal(
 
 export async function persistChatMessageAfterSnapshotSealWithPool(
   pool: ChatMessageClientPool,
-  input: PersistChatMessageAfterSnapshotSealInput,
+  input: PersistChatMessageAfterSnapshotSealInput & {
+    // Between the seal and the save: given the sealed snapshot and the proofs
+    // of the blocks it sealed, the blocks to save instead. No connection is
+    // held while it runs.
+    reveal?: (sealed: { snapshot_id: string; block_proofs: Readonly<Record<string, BlockProof>> }) =>
+      Promise<{ blocks: JsonValue; content_hash: string }>;
+  },
 ): Promise<PersistChatMessageAfterSnapshotSealResult> {
   const seal = await input.sealSnapshot();
   if (!isVerifiedSeal(seal)) {
     return Object.freeze({ ok: false, seal });
   }
+  const saved = input.reveal ? { ...input, ...(await revealed(pool, input.blocks, seal.snapshot.snapshot_id, input.reveal)) } : input;
 
   const client = await pool.connect();
   let releaseError: Error | undefined;
   try {
-    return await persistSealedChatMessage(chatMessageTransactionClient(client), input, seal);
+    return await persistSealedChatMessage(chatMessageTransactionClient(client), saved, seal);
   } catch (error) {
     if (error instanceof Error && (error as { rollback_error?: unknown }).rollback_error !== undefined) {
       releaseError = error;
@@ -187,6 +195,40 @@ export async function persistChatMessageAfterSnapshotSealWithPool(
   } finally {
     client.release(releaseError);
   }
+}
+
+// The blocks a reveal returns, once their proofs are read off the snapshot
+// just sealed, as a message read would. They must read as the sealed blocks
+// do to the verifier and to a proof, which read every block whole but a
+// rich_text block's text segments (snapshot-verifier.ts extractBlockRefs and
+// its ref format checks, block-proof.ts): anything else is not saved.
+async function revealed(
+  pool: ChatMessageClientPool,
+  blocks: JsonValue,
+  snapshotId: string,
+  reveal: NonNullable<Parameters<typeof persistChatMessageAfterSnapshotSealWithPool>[1]["reveal"]>,
+): Promise<{ blocks: JsonValue; content_hash: string }> {
+  const client = await pool.connect();
+  let snapshots: Map<string, SealedSnapshotRecord>;
+  try {
+    snapshots = await loadSealedSnapshots(client, [snapshotId, ...blockSnapshotIds(blocks)]);
+  } finally {
+    client.release();
+  }
+  const shown = await reveal({ snapshot_id: snapshotId, block_proofs: blockProofs({ blocks, snapshot_id: snapshotId }, snapshots) });
+  if (!isDeepStrictEqual(sealedView(shown.blocks), sealedView(blocks))) {
+    throw new Error("a revealed answer may differ from the sealed one only in its text; it was not saved");
+  }
+  return shown;
+}
+
+function sealedView(blocks: JsonValue): unknown[] {
+  const isText = (segment: unknown) => (segment as { type?: unknown } | null)?.type === "text";
+  return (Array.isArray(blocks) ? blocks : []).map((block) =>
+    block !== null && typeof block === "object" && !Array.isArray(block) && block.kind === "rich_text" && Array.isArray(block.segments)
+      ? { ...block, segments: block.segments.filter((segment: unknown) => !isText(segment)) }
+      : block
+  );
 }
 
 export function createChatMessagePersistence(
@@ -201,6 +243,14 @@ export function createChatMessagePersistence(
       content_hash: message.content_hash,
       ...(message.answered_by ? { answered_by: message.answered_by } : {}),
       ...(message.research_scope ? { research_scope: message.research_scope as JsonValue } : {}),
+      ...(message.reveal
+        ? {
+          reveal: async (sealed: { snapshot_id: string; block_proofs: Readonly<Record<string, BlockProof>> }) => {
+            const shown = await message.reveal!(sealed);
+            return { blocks: shown.blocks as JsonValue, content_hash: shown.content_hash };
+          },
+        }
+        : {}),
       sealSnapshot: () => input.sealSnapshot(message),
     });
 
@@ -277,7 +327,7 @@ function blockSnapshotIds(blocks: JsonValue): string[] {
 }
 
 // Each block is judged against its own snapshot (the message's when it names none).
-function blockProofs(row: ChatMessageRow, snapshots: ReadonlyMap<string, SealedSnapshotRecord>): Record<string, BlockProof> {
+function blockProofs(row: Pick<ChatMessageRow, "blocks" | "snapshot_id">, snapshots: ReadonlyMap<string, SealedSnapshotRecord>): Record<string, BlockProof> {
   // No prototype: any string is a valid block id, "__proto__" included.
   const proofs: Record<string, BlockProof> = Object.create(null);
   const seen = new Set<string>();

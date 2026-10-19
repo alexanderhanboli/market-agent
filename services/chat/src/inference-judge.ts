@@ -1,20 +1,17 @@
 // An entailment judge for analyst inferences (#302, #301 option 3). With
 // assertions rendered, every figure, company and period on the page is a
 // packet template's; the model's own words survive only in an inference's
-// text. The word rules in assertions.ts catch a digit, a number word before a
-// unit, and a company's label, but no English matcher can tell whether the
-// words mean what their supports show ("margins are expanding" beside a
-// checked "fell"). A second model reads each inference beside what it rests
-// on, as the reader sees it, and says whether that backs it.
-//
-// An eval metric for now (scripts/answer-lab.ts --judge), also run in shadow on
-// chat turns when JUDGE_LITELLM_MODEL is set (answer-trace.ts answerTurn): its
-// verdicts are logged and traced, and gate nothing.
+// text, and no English matcher can tell whether they mean what their supports
+// show ("margins are expanding" beside a checked "fell"). A second model reads
+// each inference beside what it rests on, as the reader sees it, and says
+// whether that backs it. A chat turn shows an inference only once the judge
+// finds it entailed (answer-trace.ts answerTurn).
 
 import { createLlmRouterFromEnv, type LlmChatClient, type LlmChatMessage, type LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
+import type { ModelExchange } from "./answer-trace.ts";
 import type { Assertion } from "./assertions.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
-import { withDeadlines, type AnswerUsage, type ModelDeadlines } from "./llm-runtime.ts";
+import { withDeadlines, type ModelDeadlines } from "./llm-runtime.ts";
 import { checkedResults, plainText, renderAssertion } from "./render-assertions.ts";
 
 // One accepted inference and what it rests on, as the page shows them.
@@ -34,16 +31,23 @@ export type InferenceVerdict =
   // The judge gave no usable verdict: never read as entailed.
   | { index: number; verdict: "error"; reason: string };
 
-export type JudgeOutcome = {
-  verdicts: ReadonlyArray<InferenceVerdict>;
-  // Null when no model was called.
-  deployment: string | null;
-  latency_ms: number;
-  usage?: AnswerUsage;
-};
+// What the judge did with an answer's inferences: everything its verdicts are
+// read from (verdictsOf), so a recorded turn replays them without a model.
+export type JudgeRecord =
+  // No model was asked: none is configured, or there was nothing to judge.
+  | { outcome: "not_called"; reason: string }
+  // What the judge was sent and wrote, raw.
+  | { outcome: "replied"; exchange: ModelExchange }
+  // The router could not be built, or the call failed or ran out of time.
+  | { outcome: "failed"; reason: string; latency_ms: number };
 
-// One attempt and a fallback, as for an answer: the judge reads a whole answer.
-export const JUDGE_DEADLINES: ModelDeadlines = { attemptMs: 60_000, totalMs: 130_000 };
+// The reader waits on the judge for its inferences, with the figures shown.
+// Measured on Haiku over the 14 recorded traces' 12 judged answers (one call
+// each, 1 to 3 inferences): 2.4 to 6.6 s, about 10 ms per output token plus
+// a second. One attempt of 1.5 times the slowest: the judge model has no
+// fallback (JUDGE_LITELLM_MODEL alone), and a late verdict only costs the
+// inferences, which stay hidden. ceil(11000 / 10000) - 1 = 1 attempt.
+export const JUDGE_DEADLINES: ModelDeadlines = { attemptMs: 10_000, totalMs: 11_000 };
 
 type Accepted = Assertion & { index: number };
 
@@ -63,39 +67,46 @@ export function judgeCases(accepted: ReadonlyArray<Accepted>, packet: EvidencePa
   });
 }
 
-// All of an answer's inferences in one call. No temperature: current Claude
-// models reject one (pi-adapter.ts).
+// All of an answer's inferences in one call; never rejects. No temperature:
+// current Claude models reject one (pi-adapter.ts).
 export async function judgeInferences(input: {
   cases: ReadonlyArray<JudgeCase>;
   companies: ReadonlyArray<string>;
   env: LlmSettingsLoaderEnv;
   createClient?: () => Promise<LlmChatClient> | LlmChatClient;
   deadlines?: ModelDeadlines;
-}): Promise<JudgeOutcome> {
-  if (input.cases.length === 0) return { verdicts: [], deployment: null, latency_ms: 0 };
-  const failed = (reason: string, rest: Omit<JudgeOutcome, "verdicts"> = { deployment: null, latency_ms: 0 }): JudgeOutcome => ({
-    ...rest,
-    verdicts: input.cases.map(({ index }) => ({ index, verdict: "error", reason })),
-  });
+}): Promise<JudgeRecord> {
+  if (input.cases.length === 0) return { outcome: "not_called", reason: "no inference to judge" };
   const router = await createLlmRouterFromEnv(input.env, { createClient: input.createClient, purpose: "judge" })
     .catch((error: unknown) => (error instanceof Error ? error : new Error(String(error))));
-  if (router instanceof Error) return failed(`judge model could not be configured: ${router.message}`);
-  if (!router) return failed("no judge model is configured");
+  if (router instanceof Error) return { outcome: "failed", reason: `judge model could not be configured: ${router.message}`, latency_ms: 0 };
+  if (!router) return { outcome: "not_called", reason: "no judge model is configured" };
+  const messages = judgeMessages(input.cases, input.companies);
   const startedAt = performance.now();
-  const result = await router.complete(
-    { messages: judgeMessages(input.cases, input.companies), reasoning: "low", maxTokens: 4096 },
-    withDeadlines(input.deadlines ?? JUDGE_DEADLINES),
-  ).catch((error: unknown) => (error instanceof Error ? error : new Error(String(error))));
-  if (result instanceof Error) {
-    return failed(`judge call failed: ${result.message}`, { deployment: null, latency_ms: Math.round(performance.now() - startedAt) });
-  }
-  const outcome = {
-    deployment: `${result.deployment.channel}/${result.deployment.model}`,
-    latency_ms: Math.round(performance.now() - startedAt),
-    ...(result.usage ? { usage: { input_tokens: result.usage.inputTokens, output_tokens: result.usage.outputTokens } } : {}),
+  const result = await router.complete({ messages, reasoning: "low", maxTokens: 4096 }, withDeadlines(input.deadlines ?? JUDGE_DEADLINES))
+    .catch((error: unknown) => (error instanceof Error ? error : new Error(String(error))));
+  const latency_ms = Math.round(performance.now() - startedAt);
+  if (result instanceof Error) return { outcome: "failed", reason: `judge call failed: ${result.message}`, latency_ms };
+  return {
+    outcome: "replied",
+    exchange: {
+      messages,
+      text: result.text,
+      truncated: result.truncated === true,
+      deployment: `${result.deployment.channel}/${result.deployment.model}`,
+      latency_ms,
+      ...(result.usage ? { usage: { input_tokens: result.usage.inputTokens, output_tokens: result.usage.outputTokens } } : {}),
+    },
   };
-  if (result.truncated) return failed("the judge's reply was cut off", outcome);
-  return { ...outcome, verdicts: parseVerdicts(result.text, input.cases) };
+}
+
+// A verdict per case from what the judge did: a reply's own verdicts, and an
+// error for each case when there is none to read.
+export function verdictsOf(cases: ReadonlyArray<JudgeCase>, record: JudgeRecord): InferenceVerdict[] {
+  const failed = (reason: string) => cases.map(({ index }): InferenceVerdict => ({ index, verdict: "error", reason }));
+  if (record.outcome !== "replied") return failed(record.reason);
+  if (record.exchange.truncated) return failed("the judge's reply was cut off");
+  return parseVerdicts(record.exchange.text, cases);
 }
 
 export function judgeMessages(cases: ReadonlyArray<JudgeCase>, companies: ReadonlyArray<string>): LlmChatMessage[] {

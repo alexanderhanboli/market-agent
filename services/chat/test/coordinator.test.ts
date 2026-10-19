@@ -1090,23 +1090,6 @@ test("default analyst runner surfaces bundle_id on turn.started for no-subject t
   assert.equal(completedEvent.bundle_id, "theme_research");
 });
 
-test("turn.completed reports the rendered assertions the guard dropped, only when there are any (#144)", async () => {
-  const removed = ["At 74.6%, NVDA had a higher gross margin than AMD at 49.2%."];
-  const guarded = createChatCoordinator({
-    analystToolRuntime: async (context) => ({ ...(await successfulRuntime(context)), narrative_removed: removed }),
-  });
-  const guardedTurn = guarded.getOrCreateTurn({ threadId: "t", runId: "r" });
-  await guardedTurn.completed;
-  const completed = guardedTurn.events.at(-1)!;
-  assert.equal(completed.type, "turn.completed");
-  assert.deepEqual(completed.narrative_removed, removed);
-
-  const clean = createChatCoordinator({ analystToolRuntime: successfulRuntime });
-  const cleanTurn = clean.getOrCreateTurn({ threadId: "t", runId: "r" });
-  await cleanTurn.completed;
-  assert.equal("narrative_removed" in cleanTurn.events.at(-1)!, false);
-});
-
 test("turn.completed reports the shadow assertion check when the answer had one (#208)", async () => {
   const report = { status: "checked" as const, accepted: [], rejected: [{ index: 0, check: "reference" as const, reason: 'unknown evidence id "F9"' }] };
   const checked = createChatCoordinator({

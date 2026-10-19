@@ -246,8 +246,8 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
     scope: await withCompanyLabels(scope, asOf),
     cutoff: asOf,
   };
-  // The shadow judge's verdicts (answer.judged) land in the trace and the log
-  // later; the turn does not wait for them.
+  // While the judge reads the answer's inferences, the answer shows a line in
+  // each one's place; `judged` brings the blocks the turn saves (answer-trace.ts).
   const answer = await answerTurn(answerInput, {
     thread_id: context.threadId,
     run_id: context.runId,
@@ -260,7 +260,6 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
       answeredBy = deployment;
     },
   });
-  const { blocks: llmBlocks, removed: narrativeRemoved, assertions: assertionReport } = answer;
   const answerUsage = answer.exchange?.usage;
   const normalize = (block: Record<string, unknown>, refs: typeof defaultRefs) =>
     normalizeAssistantBlock(block, {
@@ -270,25 +269,33 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
       defaultRefs: refs,
       toolCallIds,
     });
+  const turnBlocks = (llmBlocks: ReadonlyArray<Record<string, unknown>>) => [
+    // A rendered narrative (#208) names the sources its refs cite; the turn's
+    // default sources still apply alongside them.
+    ...llmBlocks.map((block) => normalize(
+      Array.isArray(block.source_refs)
+        ? { ...block, source_refs: [...new Set([...(block.source_refs as string[]), ...defaultRefs.source_refs])] }
+        : block,
+      defaultRefs,
+    )),
+    // Fact blocks cite exactly their own facts and sources; the narrative's
+    // default claim/document refs would demand sources they do not show.
+    ...factBlocks.map((block) => normalize(block, NO_DEFAULT_REFS)),
+  ];
   return {
     ...result,
-    blocks: [
-      // A rendered narrative (#208) names the sources its refs cite; the turn's
-      // default sources still apply alongside them.
-      ...llmBlocks.map((block) => normalize(
-        Array.isArray(block.source_refs)
-          ? { ...block, source_refs: [...new Set([...(block.source_refs as string[]), ...defaultRefs.source_refs])] }
-          : block,
-        defaultRefs,
-      )),
-      // Fact blocks cite exactly their own facts and sources; the narrative's
-      // default claim/document refs would demand sources they do not show.
-      ...factBlocks.map((block) => normalize(block, NO_DEFAULT_REFS)),
-    ],
-    ...(narrativeRemoved.length > 0 ? { narrative_removed: narrativeRemoved } : {}),
+    blocks: turnBlocks(answer.blocks),
+    ...(answer.judged
+      ? {
+        judged: answer.judged.then(({ blocks, assertions }) => ({
+          blocks: turnBlocks(blocks),
+          ...(assertions ? { assertion_report: assertions } : {}),
+        })),
+      }
+      : {}),
     ...(answeredBy ? { answered_by: answeredBy } : {}),
     ...(answerUsage ? { answer_usage: answerUsage } : {}),
-    ...(assertionReport ? { assertion_report: assertionReport } : {}),
+    ...(answer.assertions ? { assertion_report: answer.assertions } : {}),
     research_scope: scope,
   } satisfies ChatAnalystToolRuntimeResult;
 };

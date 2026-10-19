@@ -39,6 +39,7 @@ import {
 import { financialAwareRunner } from "./financial-turn.ts";
 import { LIST_END, namesFacet, words, type ResearchScope } from "./research-scope.ts";
 import type { AssertionReport } from "./assertions.ts";
+import type { BlockProof } from "../../snapshot/src/block-proof.ts";
 
 export type ChatTurnInput = {
   threadId: string;
@@ -97,11 +98,13 @@ export type ChatAnalystToolRuntimeResult = {
   blocks: ReadonlyArray<Record<string, unknown>>;
   verification: ChatAnalystToolRuntimeVerification;
   tool_calls?: ReadonlyArray<ChatAnalystToolRuntimeToolCall>;
-  // The rendered assertions the narrative guard dropped; reported on
-  // turn.completed so evals can count them (#144).
-  narrative_removed?: ReadonlyArray<string>;
   // The check of the answer's assertion list, which the answer is rendered from (#208).
   assertion_report?: AssertionReport;
+  // Present while a judge reads the answer's analyst inferences (answer-trace.ts):
+  // `blocks` show a line in each one's place, and this settles, never
+  // rejecting, with the blocks to save in their place and the report of what
+  // the judge left out.
+  judged?: Promise<{ blocks: ReadonlyArray<Record<string, unknown>>; assertion_report?: AssertionReport }>;
   // The deployment (channel/model) that wrote the narrative; absent when no
   // model answered (#183).
   answered_by?: string;
@@ -175,6 +178,12 @@ export type ChatAssistantMessagePersistenceInput = {
   content_hash: string;
   answered_by?: string;
   research_scope?: ResearchScope;
+  // Called once, after a verified seal of `blocks` and before the message is
+  // saved, with the sealed snapshot and its blocks' proofs; the blocks it
+  // returns are saved in place of `blocks`. They may differ from them only in
+  // rich_text text segments, which neither the seal nor a proof reads.
+  reveal?: (sealed: { snapshot_id: string; block_proofs: Readonly<Record<string, BlockProof>> }) =>
+    Promise<{ blocks: ReadonlyArray<Record<string, unknown>>; content_hash: string }>;
 };
 
 // Resolves to the saved message as the thread's messages GET returns it.
@@ -620,6 +629,9 @@ function threadTitleGenerationRunner(
         completed = true;
         // Unverified answers (display_unverified mode) are not saved, so they don't title the thread.
         clarification = payload.clarification === true || payload.unverified !== undefined;
+        // An answer shown before it was saved (answer.shown) streams no
+        // deltas; its saved message holds its text.
+        if (assistantTextParts.length === 0) assistantTextParts.push(...messageTexts(payload.message));
       }
       return context.emit(type, payload);
     };
@@ -654,10 +666,22 @@ function threadTitleGenerationRunner(
 function textFromBlockDeltaPayload(payload: Record<string, unknown>): string | null {
   const delta = payload.delta;
   if (delta === null || typeof delta !== "object") return null;
-  const segment = (delta as { segment?: unknown }).segment;
+  return segmentText((delta as { segment?: unknown }).segment);
+}
+
+// A segment as the reader sees it: a ref as its displayed value.
+function segmentText(segment: unknown): string | null {
   if (segment === null || typeof segment !== "object") return null;
-  const text = (segment as { text?: unknown }).text;
-  return typeof text === "string" ? text : null;
+  const { text, format } = segment as { text?: unknown; format?: unknown };
+  return typeof text === "string" ? text : typeof format === "string" ? format : null;
+}
+
+function messageTexts(message: unknown): string[] {
+  const blocks = message !== null && typeof message === "object" ? (message as { blocks?: unknown }).blocks : undefined;
+  return (Array.isArray(blocks) ? blocks : []).flatMap((block) => {
+    const segments = block !== null && typeof block === "object" ? (block as { segments?: unknown }).segments : undefined;
+    return (Array.isArray(segments) ? segments : []).flatMap((segment) => segmentText(segment) ?? []);
+  });
 }
 
 function toolNameFromPayload(payload: Record<string, unknown>): string {
@@ -1295,41 +1319,52 @@ async function toolBackedAnalystTurnRunner(
     });
   }
 
-  const assistantBlocks = Object.freeze(
-    withUnresolvedNote(result.blocks, context.unresolvedMentions ?? []).map((block) => Object.freeze({ ...block })),
+  const freeze = (blocks: ReadonlyArray<Record<string, unknown>>) => Object.freeze(
+    withUnresolvedNote(blocks, context.unresolvedMentions ?? []).map((block) => Object.freeze({ ...block })),
   );
-  const contentHash = contentHashForText(JSON.stringify(assistantBlocks));
-  // The guard's drops, on every completion that shows the answer (#144).
-  const narrativeRemoved = result.narrative_removed?.length ? { narrative_removed: result.narrative_removed } : {};
+  // What the reader is shown first, and what the turn saves: the same blocks,
+  // unless the judge reads the answer's inferences in between (result.judged).
+  const shown = freeze(result.blocks);
+  const saved = {
+    blocks: shown,
+    content_hash: contentHashForText(JSON.stringify(shown)),
+    report: result.assertion_report ? { assertion_report: result.assertion_report } : {},
+  };
+  const judged = async () => {
+    const answer = await result.judged!;
+    saved.blocks = freeze(answer.blocks);
+    saved.content_hash = contentHashForText(JSON.stringify(saved.blocks));
+    if (answer.assertion_report) saved.report = { assertion_report: answer.assertion_report };
+  };
   // Which model answered, on the completion and the saved message (#183).
   const answeredBy = result.answered_by ? { answered_by: result.answered_by } : {};
   const answerUsage = result.answer_usage ? { answer_usage: result.answer_usage } : {};
-  const assertionReport = result.assertion_report ? { assertion_report: result.assertion_report } : {};
 
   // display_unverified: show what failed verification, labelled, and save nothing.
   // turn.completed carries the full blocks because there is no message to reload.
-  const showUnverified = (failures: ReadonlyArray<unknown>) => {
+  // An answer whose inferences the judge reads shows them as they would be saved.
+  const showUnverified = async (failures: ReadonlyArray<unknown>) => {
+    if (result.judged) await judged();
     emit("snapshot.staged", {
       snapshot_id: result.snapshot_id,
       status: "staged",
       verification: { ok: false, failures },
     });
-    emitAssistantBlocks(emit, assistantBlocks, contentHash);
+    emitAssistantBlocks(emit, saved.blocks, saved.content_hash);
     emit("turn.completed", {
       bundle_id: context.bundleId,
       ...subjectRef,
-      ...narrativeRemoved,
       ...answeredBy,
       ...answerUsage,
-      ...assertionReport,
-      unverified: { persisted: false, failures, blocks: assistantBlocks },
+      ...saved.report,
+      unverified: { persisted: false, failures, blocks: saved.blocks },
     });
   };
 
   if (!result.verification.ok) {
     const failures = result.verification.failures ?? [];
     if (options.verificationMode === "display_unverified") {
-      showUnverified(failures);
+      await showUnverified(failures);
       return;
     }
     emit("snapshot.staged", {
@@ -1345,7 +1380,24 @@ async function toolBackedAnalystTurnRunner(
     return;
   }
 
+  const emitSealed = (snapshotId: string) => {
+    emit("snapshot.staged", {
+      snapshot_id: snapshotId,
+      status: "staged",
+      verification: result.verification,
+    });
+    emit("snapshot.sealed", {
+      snapshot_id: snapshotId,
+      status: "sealed",
+      verification: result.verification,
+    });
+  };
   let persisted: ChatCommittedMessage | null = null;
+  // An answer whose inferences the judge reads is sealed and shown as soon as
+  // it is composed, a line in each inference's place, and saved once the judge
+  // is done, with the inferences it entailed (#302). It shows only blocks the
+  // seal verified, and is the message a reload reads once the turn completes.
+  let revealed = false;
   if (options.persistAssistantMessage) {
     try {
       persisted = await options.persistAssistantMessage({
@@ -1353,40 +1405,48 @@ async function toolBackedAnalystTurnRunner(
         runId: context.runId,
         turnId,
         role: "assistant",
-        blocks: assistantBlocks,
-        content_hash: contentHash,
+        blocks: shown,
+        content_hash: saved.content_hash,
         ...answeredBy,
         ...(result.research_scope ? { research_scope: result.research_scope } : {}),
+        ...(result.judged
+          ? {
+            reveal: async ({ snapshot_id, block_proofs }) => {
+              emitSealed(snapshot_id);
+              emit("answer.shown", {
+                message_id: answerMessageId(context.threadId, context.runId, turnId),
+                snapshot_id,
+                blocks: shown,
+                block_proofs,
+              });
+              revealed = true;
+              await judged();
+              return { blocks: saved.blocks, content_hash: saved.content_hash };
+            },
+          }
+          : {}),
       });
     } catch (error) {
       if (options.verificationMode === "display_unverified" && error instanceof ChatSnapshotSealError) {
-        showUnverified(error.failures);
+        await showUnverified(error.failures);
         return;
       }
       throw error;
     }
+  } else if (result.judged) {
+    await judged();
   }
-  const snapshotId = persisted?.snapshot_id ?? result.snapshot_id;
-
-  emit("snapshot.staged", {
-    snapshot_id: snapshotId,
-    status: "staged",
-    verification: result.verification,
-  });
-  emit("snapshot.sealed", {
-    snapshot_id: snapshotId,
-    status: "sealed",
-    verification: result.verification,
-  });
-  emitAssistantBlocks(emit, assistantBlocks, contentHash);
+  if (!revealed) {
+    emitSealed(persisted?.snapshot_id ?? result.snapshot_id);
+    emitAssistantBlocks(emit, saved.blocks, saved.content_hash);
+  }
   emit("turn.completed", {
     ...sealedCompletion(persisted, stableUuid(`message:${context.threadId}:${context.runId}:${turnId}`)),
     bundle_id: context.bundleId,
     ...subjectRef,
-    ...narrativeRemoved,
     ...answeredBy,
     ...answerUsage,
-    ...assertionReport,
+    ...saved.report,
   });
 }
 
@@ -1397,7 +1457,8 @@ function withUnresolvedNote(
   mentions: ReadonlyArray<string>,
 ): ReadonlyArray<Record<string, unknown>> {
   if (mentions.length === 0) return blocks;
-  const note = `I could not find ${mentions.join(", ")}, so this answer leaves ${mentions.length === 1 ? "it" : "them"} out. `;
+  // A paragraph of its own: an answer may open with a quoted inference.
+  const note = `I could not find ${mentions.join(", ")}, so this answer leaves ${mentions.length === 1 ? "it" : "them"} out.\n\n`;
   const index = blocks.findIndex((block) => block.kind === "rich_text" && Array.isArray(block.segments));
   if (index === -1) return blocks;
   const block = blocks[index];
@@ -1416,15 +1477,10 @@ function emitAssistantBlocks(
       block_id: blockId,
       kind: nonEmptyString((block as { kind?: unknown }).kind) ?? "rich_text",
     });
-    emit("block.delta", {
-      block_id: blockId,
-      delta: {
-        segment: {
-          type: "text",
-          text: textFromBlock(block),
-        },
-      },
-    });
+    // Each segment as written: a ref keeps its id and displayed value.
+    for (const segment of Array.isArray(block.segments) ? block.segments : []) {
+      emit("block.delta", { block_id: blockId, delta: { segment } });
+    }
     emit("block.completed", {
       block_id: blockId,
       content_hash: contentHash,
@@ -1758,19 +1814,6 @@ function nonEmptyString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function textFromBlock(block: Record<string, unknown>): string {
-  const segments = Array.isArray(block.segments) ? block.segments : [];
-  const text = segments
-    .map((segment) => {
-      if (segment === null || typeof segment !== "object") return "";
-      const value = (segment as Record<string, unknown>).text;
-      return typeof value === "string" ? value : "";
-    })
-    .filter((value) => value.length > 0)
-    .join("");
-  return text.length > 0 ? text : JSON.stringify(block);
 }
 
 async function renderSubjectClarification(

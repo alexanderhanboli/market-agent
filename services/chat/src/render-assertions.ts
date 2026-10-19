@@ -22,8 +22,6 @@ export type RenderedAssertion = {
   // A value with no fact to seal (a price return read off its chart) is the
   // packet's value as plain text.
   segments: ReadonlyArray<Segment>;
-  // The same text with each value its packet reference ([[F3]]), for the guard.
-  reference_text: string;
   // The packet ids of the figures it writes.
   figure_ids: ReadonlyArray<string>;
   // The fact bindings and sources its refs need to seal.
@@ -41,17 +39,16 @@ export function renderAssertion(
   accepted: ReadonlyArray<Assertion & { index: number }> = [],
 ): RenderedAssertion {
   const seal = createSealer(factBlocks);
-  const segments = templateSegments(assertion, packet, accepted, seal);
-  const { fact_bindings, source_refs } = seal.sealed();
   const figure_ids: string[] = [];
-  const reference_text = plainText(templateSegments(assertion, packet, accepted, {
+  const segments = templateSegments(assertion, packet, accepted, {
     value: (figure) => {
       figure_ids.push(figure.id);
-      return { type: "text", text: `[[${figure.id}]]` };
+      return seal.value(figure);
     },
-    quote: (claim) => ({ type: "text", text: `[[${claim.id}]]` }),
-  }));
-  return { index: assertion.index, segments, reference_text, figure_ids, fact_bindings, source_refs };
+    quote: seal.quote,
+  });
+  const { fact_bindings, source_refs } = seal.sealed();
+  return { index: assertion.index, segments, figure_ids, fact_bindings, source_refs };
 }
 
 type Writes = Pick<Sealer, "value" | "quote">;
@@ -282,7 +279,7 @@ export function calendarNote(assertions: ReadonlyArray<Assertion>, packet: Evide
     : `The periods compared end at different times, so they do not line up: ${new Intl.ListFormat("en").format(named)}.`;
 }
 
-// The text a rendered assertion reads as, for the narrative guard.
+// The text a rendered assertion reads as, each value as displayed.
 export function plainText(segments: ReadonlyArray<Segment>): string {
   return segments.map((segment) => (segment.type === "text" ? segment.text : segment.format)).join("");
 }

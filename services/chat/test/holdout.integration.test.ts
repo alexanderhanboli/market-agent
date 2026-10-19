@@ -38,7 +38,7 @@ import { HOLDOUT_CASES, HOLDOUT_VERSION, SYNTHETIC_CASES, SYNTHETIC_FIGURES, typ
 
 // The suite's identity: its version and the digest of every case, pinned so a
 // changed case is a new version, not a quiet edit (#221).
-const HOLDOUT_DIGEST = "sha256:1b18809b7b612e3b907ed8894de90135ff842fb0f2ee9db3f755e479e783b833";
+const HOLDOUT_DIGEST = "sha256:71625a356118d16fecfc295b714074339fa75a507916a49b86dafb97c446370a";
 
 test("the held-out suite is a fixed, versioned set of 10-12 cases (#221)", () => {
   assert.ok(HOLDOUT_CASES.length + 1 >= 10 && HOLDOUT_CASES.length + 1 <= 12, "10-12 cases, the synthetic set counted as one");
@@ -69,7 +69,8 @@ test("synthetic comparative traps: ties, negatives, rounding and missing interva
 
 test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvailable(), timeout: 600_000 }, async (t) => {
   const { databaseUrl } = await bootstrapDatabase(t, "chat-holdout");
-  withEnv(t, { ...GOLDEN_ENV, CHAT_DATABASE_URL: databaseUrl });
+  // The judge answers from the replay file too: no model is called.
+  withEnv(t, { ...GOLDEN_ENV, JUDGE_LITELLM_MODEL: "fixture/recorded", CHAT_DATABASE_URL: databaseUrl });
   registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
   const client = await connectedClient(t, databaseUrl);
   await client.query(`insert into users (user_id, email) values ($1::uuid, 'holdout@chat.example.test')`, [USER_ID]);
@@ -79,13 +80,20 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
   const base = await startChatServer(t, databaseUrl);
   const replies = mkdtempSync(join(tmpdir(), "holdout-replies-"));
 
-  // Runs a case's turns in a new thread, the checked turn answered with `reply`.
+  // Runs a case's turns in a new thread, the checked turn answered with `reply`
+  // and its inferences judged as `list` says: entailed, unless `judged` records
+  // another verdict.
   let run = 0;
-  const converse = async (holdout: HoldoutCase, reply: string) => {
+  const converse = async (holdout: HoldoutCase, reply: string, list: ReadonlyArray<Record<string, unknown>> = [], judged: Readonly<Record<number, string>> = {}) => {
     const file = join(replies, `${holdout.id}-${++run}.json`);
-    // The checked turn's reply first: a later turn's request holds the earlier
-    // questions too, and the first match answers.
+    const verdicts = list.flatMap((assertion, index) =>
+      assertion.kind === "analyst_inference" ? [{ id: index, verdict: judged[index] ?? "entailed", ...(judged[index] ? { reason: "recorded verdict" } : {}) }] : []
+    );
+    // The judge's reply first: its request quotes the inferences, not the
+    // question. Then the checked turn's: a later turn's request holds the
+    // earlier questions too, and the first match answers.
     const recorded = [
+      { match: "You check the analyst inferences", text: JSON.stringify({ verdicts }) },
       { match: holdout.turns.at(-1)!, text: reply },
       ...holdout.turns.slice(0, -1).reverse().map((turn) => ({ match: turn, text: "Noted." })),
       { match: "Create a short, specific research chat title", text: "Held-out case" },
@@ -107,7 +115,7 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
 
   for (const holdout of HOLDOUT_CASES) {
     await t.test(`${holdout.id}: ${holdout.trap}`, async () => {
-      const { completed, answer, scope } = await converse(holdout, withList(holdout.prose, holdout.good));
+      const { completed, answer, scope } = await converse(holdout, withList(holdout.prose, holdout.good), holdout.good);
       checkExpectations(holdout, completed.data, answer, scope);
       if (holdout.good) {
         const report = completed.data.assertion_report as { status: string; accepted: unknown[]; rejected: Array<{ reason: string }> };
@@ -116,13 +124,13 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
       }
       for (const mutation of holdout.mutations ?? []) {
         if ("fails" in mutation) {
-          const { completed: mutated } = await converse(holdout, withList(holdout.prose, mutation.list));
+          const { completed: mutated } = await converse(holdout, withList(holdout.prose, mutation.list), mutation.list, mutation.judged);
           const report = mutated.data.assertion_report as { rejected: Rejection[] };
           const failed = report.rejected.find((entry) => entry.index === mutation.fails.index);
           assert.ok(failed, `${mutation.name}: not rejected (${JSON.stringify(mutated.data.assertion_report)})`);
           assert.equal(failed.check, mutation.fails.check, `${mutation.name}: ${failed.reason}`);
         } else {
-          const { completed: mutated, answer } = await converse(holdout, "list" in mutation ? withList(holdout.prose, mutation.list) : mutation.prose);
+          const { completed: mutated, answer } = await converse(holdout, "list" in mutation ? withList(holdout.prose, mutation.list) : mutation.prose, "list" in mutation ? mutation.list : []);
           if ("list" in mutation) {
             const report = mutated.data.assertion_report as { rendered?: boolean; rejected: unknown[]; repeated?: unknown[] };
             assert.deepEqual([report.rendered, report.rejected, report.repeated ?? []], [true, [], []], `${mutation.name}: rendered in full from its assertions`);

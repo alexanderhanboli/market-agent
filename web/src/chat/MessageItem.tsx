@@ -2,6 +2,7 @@ import { memo, useLayoutEffect, useRef, type ReactElement } from 'react'
 
 import { MemoizedBlockView } from '../blocks/MemoizedBlockView.tsx'
 import type { BlockProof } from '../blocks/blockProof.ts'
+import type { Block } from '../blocks/types.ts'
 import type { ChatMessage } from './messageTypes.ts'
 import { AssistantTurn, BlockColumn, USER_BUBBLE_CLASS } from './turnLayout.tsx'
 
@@ -41,24 +42,33 @@ function MessageItemInner({ message, onMeasure }: MessageItemProps): ReactElemen
           ))}
         </div>
       ) : (
-        <AssistantTurn className="w-full">
-          {message.blocks.map((block) => (
-            <BlockColumn key={block.id} kind={block.kind}>
-              <MemoizedBlockView block={block} proof={proofFor(message, block.id)} />
-            </BlockColumn>
-          ))}
-        </AssistantTurn>
+        <AssistantBlocks blocks={message.blocks} proofs={message.block_proofs} />
       )}
     </div>
+  )
+}
+
+// An assistant answer's blocks, each with its proof: a saved message, and the
+// sealed answer shown before it is saved (PendingTurnView), through one tree,
+// so the hand-off from one to the other moves nothing.
+export function AssistantBlocks({ blocks, proofs }: { blocks: ReadonlyArray<Block>; proofs: Readonly<Record<string, BlockProof>> | undefined }): ReactElement {
+  return (
+    <AssistantTurn className="w-full">
+      {blocks.map((block) => (
+        <BlockColumn key={block.id} kind={block.kind}>
+          <MemoizedBlockView block={block} proof={proofFor(proofs, block.id)} />
+        </BlockColumn>
+      ))}
+    </AssistantTurn>
   )
 }
 
 // A message the server assessed carries a proof for every block it can claim
 // anything about; a block it has none for is unproven, never unassessed (which
 // would let a certified-looking answer keep its default label).
-function proofFor(message: ChatMessage, blockId: string): BlockProof | undefined {
-  if (message.block_proofs === undefined) return undefined
-  return Object.hasOwn(message.block_proofs, blockId) ? message.block_proofs[blockId] : UNPROVEN
+function proofFor(proofs: Readonly<Record<string, BlockProof>> | undefined, blockId: string): BlockProof | undefined {
+  if (proofs === undefined) return undefined
+  return Object.hasOwn(proofs, blockId) ? proofs[blockId] : UNPROVEN
 }
 
 const UNPROVEN: BlockProof = { evidence: 'unknown', calculation: 'not_verified', public_by_cutoff: 'unknown' }

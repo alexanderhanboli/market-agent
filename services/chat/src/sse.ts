@@ -4,6 +4,8 @@ export const CHAT_SSE_EVENT_TYPES = [
   "tool.completed",
   "snapshot.staged",
   "snapshot.sealed",
+  // A sealed answer shown before it is saved: its inferences are with the judge.
+  "answer.shown",
   "block.began",
   "block.delta",
   "block.completed",
@@ -35,7 +37,7 @@ const BLOCK_EVENT_TYPES = new Set<ChatSseWireEventType>([
 ]);
 
 const TOOL_EVENT_TYPES = new Set<ChatSseWireEventType>(["tool.started", "tool.completed"]);
-const SNAPSHOT_EVENT_TYPES = new Set<ChatSseWireEventType>(["snapshot.staged", "snapshot.sealed"]);
+const SNAPSHOT_EVENT_TYPES = new Set<ChatSseWireEventType>(["snapshot.staged", "snapshot.sealed", "answer.shown"]);
 
 export function createChatSseSequencer(context: ChatSseContext) {
   let seq = 0;

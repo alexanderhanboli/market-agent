@@ -1,4 +1,4 @@
-import type { ChatSseEvent } from './sseEventTypes.ts'
+import { CHAT_SSE_EVENT_TYPES, type ChatSseEvent } from './sseEventTypes.ts'
 
 type ChatTurnStreamCallbacks = {
   onEvent(event: ChatSseEvent): void
@@ -35,18 +35,8 @@ export function openChatTurnStream(
   source.onmessage = (event) => {
     callbacks.onEvent(JSON.parse(event.data) as ChatSseEvent)
   }
-  for (const type of [
-    'turn.started',
-    'tool.started',
-    'tool.completed',
-    'snapshot.staged',
-    'snapshot.sealed',
-    'block.began',
-    'block.delta',
-    'block.completed',
-    'turn.completed',
-    'turn.error',
-  ] as const) {
+  // Every kind the server sends: the list is drift-tested against the backend's.
+  for (const type of CHAT_SSE_EVENT_TYPES) {
     source.addEventListener(type, (event) => {
       callbacks.onEvent(JSON.parse((event as MessageEvent).data) as ChatSseEvent)
       if (type === 'turn.completed') {

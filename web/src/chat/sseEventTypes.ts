@@ -7,6 +7,7 @@ export const CHAT_SSE_EVENT_TYPES = [
   'tool.completed',
   'snapshot.staged',
   'snapshot.sealed',
+  'answer.shown',
   'block.began',
   'block.delta',
   'block.completed',

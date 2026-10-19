@@ -22,12 +22,13 @@ const PAYLOAD_FOR_KIND: Record<ChatSseEventType, Record<string, unknown>> = {
   "tool.completed": { tool_call_id: "tc-1" },
   "snapshot.staged": { snapshot_id: "snap-1" },
   "snapshot.sealed": { snapshot_id: "snap-1" },
+  "answer.shown": { snapshot_id: "snap-1" },
   "block.began": { block_id: "b-1" },
   "block.delta": { block_id: "b-1" },
   "block.completed": { block_id: "b-1" },
 };
 
-test("every one of the ten event kinds carries seq + turn_id + thread_id + run_id + type", () => {
+test("every event kind carries seq + turn_id + thread_id + run_id + type", () => {
   // Independent sequencer per kind so each event has seq=1 — the goal is to
   // confirm the universal-fields contract, not the monotonic property.
   for (const kind of CHAT_SSE_EVENT_TYPES) {
@@ -53,8 +54,8 @@ test("sequencer produces strictly monotonically increasing seq across event kind
   for (const kind of CHAT_SSE_EVENT_TYPES) {
     seqs.push(sequencer.next(kind, PAYLOAD_FOR_KIND[kind]).seq);
   }
-  assert.deepEqual(seqs, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-  assert.equal(sequencer.currentSeq(), 10);
+  assert.deepEqual(seqs, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.equal(sequencer.currentSeq(), 11);
 });
 
 test("payload fields are merged into the event, with universal fields winning on collision", () => {

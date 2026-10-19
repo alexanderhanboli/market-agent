@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "thread_id": "69e461c9-739b-47dc-8aad-8b0e4fcf3283",
   "run_id": "653a7acd-98ae-442d-9ad3-006fa6a7912a",
   "turn_id": "3594e64a-feaa-44dc-a624-9947579e36ab",
@@ -625,5 +625,6 @@
         }
       ]
     }
-  ]
+  ],
+  "judge": null
 }

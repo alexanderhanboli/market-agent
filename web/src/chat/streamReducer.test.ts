@@ -495,3 +495,25 @@ test('turn.started clears a previous unverified turn', () => {
   assert.equal(restarted.turn_status, 'started')
   assert.equal(restarted.unverified ?? null, null)
 })
+
+const SHOWN = {
+  message_id: 'msg-1',
+  snapshot_id: 'snap-1',
+  blocks: [{ id: 'b1', kind: 'rich_text', segments: [{ type: 'text', text: 'Revenue rose.' }] }],
+  block_proofs: { b1: { evidence: 'linked', calculation: 'not_verified', public_by_cutoff: 'unknown' } },
+}
+
+test('answer.shown holds the sealed answer until the saved message replaces it; a malformed one changes nothing', () => {
+  let state: StreamState = applyChatStreamEvent(INITIAL_STREAM_STATE, event('turn.started', 1))
+  state = applyChatStreamEvent(state, event('answer.shown', 2, SHOWN))
+  assert.deepEqual(state.shown, SHOWN)
+  assert.equal(applyChatStreamEvent(state, event('answer.shown', 3, { ...SHOWN, block_proofs: { b1: { evidence: 'maybe' } } })), state)
+  assert.equal(applyChatStreamEvent(state, event('answer.shown', 3, { ...SHOWN, snapshot_id: '' })), state)
+  assert.equal(applyChatStreamEvent(state, completed(4)).turn_status, 'completed')
+})
+
+test('a failed turn saved nothing, so it drops the answer it showed; a new turn starts with none', () => {
+  const shown = applyChatStreamEvent(applyChatStreamEvent(INITIAL_STREAM_STATE, event('turn.started', 1)), event('answer.shown', 2, SHOWN))
+  assert.equal(applyChatStreamEvent(shown, event('turn.error', 3, { error: 'connection terminated' })).shown, null)
+  assert.equal(applyChatStreamEvent(shown, event('turn.started', 3)).shown, null)
+})

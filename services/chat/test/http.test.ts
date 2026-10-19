@@ -225,7 +225,7 @@ test("SSE writer disconnects clients that exceed the pending frame cap", () => {
   assert.match(writable.destroyedWith?.message ?? "", /SSE client exceeded pending frame limit/);
 });
 
-test("SSE schema enumerates the ten coordinator event kinds", async () => {
+test("SSE schema enumerates the coordinator event kinds", async () => {
   const { CHAT_SSE_EVENT_TYPES } = await import("../src/sse.ts");
 
   assert.deepEqual([...CHAT_SSE_EVENT_TYPES], [
@@ -234,6 +234,7 @@ test("SSE schema enumerates the ten coordinator event kinds", async () => {
     "tool.completed",
     "snapshot.staged",
     "snapshot.sealed",
+    "answer.shown",
     "block.began",
     "block.delta",
     "block.completed",

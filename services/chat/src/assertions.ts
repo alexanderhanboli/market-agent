@@ -8,8 +8,9 @@
 // its evidence in a template (render-assertions.ts), so its words are not read.
 // An analyst inference writes no figure at all: it says in words what the
 // observations, comparisons and attributions it rests on mean, so every figure
-// a rendered answer shows is a template's value from the packet. What the data
-// cannot show is the packet's to say, in its gap notes, never the model's (#302).
+// a rendered answer shows is a template's value from the packet. Whether its
+// words mean what those supports show is the judge's to say (inference-judge.ts),
+// before it is shown.
 //
 // The answer is written from the accepted assertions (render-assertions.ts),
 // and the report goes to evals and logs.
@@ -17,7 +18,6 @@
 import { checkComparison, comparablePeriods, type ComparisonOp } from "./comparisons.ts";
 import type { EvidencePacket } from "./evidence-packet.ts";
 import { REFERENCE } from "./prose-refs.ts";
-import { requestedMetrics } from "./research-scope.ts";
 
 export const ASSERTION_KINDS = ["observation", "comparison", "management_attribution", "analyst_inference", "unknown_cause"] as const;
 export type AssertionKind = (typeof ASSERTION_KINDS)[number];
@@ -58,9 +58,10 @@ export const MAX_ASSERTIONS = 12;
 
 // The check a rejection failed, named so a report can tell a wrong number or
 // citation (binding) from a wrong ranking or trend (comparative), and so a
-// held-out mutation fails one named check (#221).
+// held-out mutation fails one named check (#221). judge: an inference the
+// judge did not find entailed (answer-trace.ts), so it was not shown.
 export type RejectionCheck =
-  | "binding" | "comparative" | "reference" | "kind" | "support" | "gap" | "limit" | "format" | "rendering";
+  | "binding" | "comparative" | "reference" | "kind" | "support" | "limit" | "format" | "rendering" | "judge";
 export type Rejection = { index: number; text?: string; check: RejectionCheck; reason: string };
 
 // The list closes the answer in a fenced block, closed or not (a reply cut
@@ -145,17 +146,8 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
     }
     // An inference writes no digit at all, a period's included: the periods
     // are its supports', rendered from the packet beside it.
-    if (kind === "analyst_inference" && (/\p{N}/u.test(item.text) || AMOUNT_WORD.test(item.text))) {
+    if (kind === "analyst_inference" && /\p{N}/u.test(item.text)) {
       reject(index, item, "binding", "an inference rests on its supports; it writes no figure");
-      continue;
-    }
-    // Across companies, who leads or trails is its comparisons' checked
-    // result, rendered in its label; its words name none, so they cannot
-    // contradict it ("AMD leads" beside a checked NVDA-highest, #288).
-    // A one-letter ticker ("A") cannot be told from the article, as in the guard.
-    if (kind === "analyst_inference" && packet.companies.length > 1 &&
-      packet.companies.some((company) => company.length > 1 && mentions(item.text as string, company))) {
-      reject(index, item, "binding", "an inference names no company; its subject does");
       continue;
     }
     const figureIds = evidence.filter((id) => figures.has(id));
@@ -177,19 +169,11 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
       reject(index, item, "kind", "an unknown cause cites a change: one company's metric, two periods, two values");
       continue;
     }
-    // Read with the question's own metric names, so "FCF" is free cash flow.
-    const gap = kind === "analyst_inference"
-      ? requestedMetrics(item.text).find((metric) => packet.unavailable_metrics?.includes(metric.label))?.label
-      : undefined;
-    if (gap !== undefined) {
-      reject(index, item, "gap", `${gap} is not in the evidence: it is a named gap`);
-      continue;
-    }
     // An inference's evidence is its own plus that of the observations it rests on.
     const cited = kind === "analyst_inference"
       ? [...evidence, ...accepted.filter((entry) => supports.includes(entry.index)).flatMap((entry) => entry.evidence)]
       : evidence;
-    const binding = bindingError(kind, item.text, cited, packet);
+    const binding = bindingError(item.text, cited, packet);
     if (binding) {
       reject(index, item, binding.check, binding.reason);
       continue;
@@ -221,14 +205,6 @@ export function checkAssertions(list: unknown[] | null | undefined, packet: Evid
 }
 
 const SUPPORT_KINDS: ReadonlySet<AssertionKind> = new Set(["observation", "comparison", "management_attribution"]);
-
-// An amount in words: a number word, then a unit ("seventy percent", "a few
-// billion dollars"). An inference states none. A count ("three companies") or
-// a unit with no number ("per dollar of revenue") is not an amount.
-const NUMBER_WORD = String.raw`(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|dozen|few|several|half)`;
-const AMOUNT_UNIT = String.raw`(?:per ?cent|percent(?:age points?)?|basis points?|bps|points?|dollars?|cents?|euros?|pounds?|pence|yen|yuan|renminbi|francs?|rupees?|thousands?|millions?|billions?|trillions?)`;
-// "a billion dollars": an article counts as a number only before a scale.
-const AMOUNT_WORD = new RegExp(String.raw`\b(?:${NUMBER_WORD}(?:[- ]${NUMBER_WORD})*[- ]${AMOUNT_UNIT}|an? (?:hundred|thousand|million|billion|trillion))\b`, "i");
 
 // Every cited figure: the template says each cited metric changed. The
 // other period may be any shown, so the figure that moved alone will do.
@@ -264,18 +240,12 @@ function shapeError(
   }
 }
 
-function bindingError(kind: AssertionKind, text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): Pick<Rejection, "check" | "reason"> | null {
+function bindingError(text: string, cited: ReadonlyArray<string>, packet: EvidencePacket): Pick<Rejection, "check" | "reason"> | null {
   for (const [reference, id] of text.matchAll(REFERENCE)) {
     if (!packet.figures.some((figure) => figure.id === id) && !packet.claims.some((claim) => claim.id === id)) return { check: "reference", reason: `unknown reference ${reference}` };
     if (!cited.includes(id!)) return { check: "binding", reason: `${reference} is not in its evidence` };
   }
-  if (kind !== "analyst_inference") return null;
-  // A claim with no company is no company's (its record named none).
-  if (packet.claims.some((claim) => cited.includes(claim.id) && claim.company === undefined)) return null;
-  const own = companiesOf(cited, packet);
-  // A one-letter ticker ("A") cannot be told from the article, as in the guard.
-  const other = packet.companies.find((company) => company.length > 1 && !own.has(company) && mentions(text, company));
-  return other === undefined ? null : { check: "binding", reason: `names ${other}, which its evidence does not` };
+  return null;
 }
 
 // The companies cited figures and claims are about; a figure with no company
@@ -285,11 +255,6 @@ export function companiesOf(cited: ReadonlyArray<string>, packet: EvidencePacket
     ...packet.figures.filter((figure) => cited.includes(figure.id)).map((figure) => figure.company ?? packet.companies[0]),
     ...packet.claims.filter((claim) => cited.includes(claim.id)).map((claim) => claim.company),
   ]);
-}
-
-function mentions(text: string, company: string): boolean {
-  const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^A-Za-z0-9])${escaped}($|[^A-Za-z0-9])`).test(text);
 }
 
 function kindOf(item: unknown): AssertionKind | undefined {
