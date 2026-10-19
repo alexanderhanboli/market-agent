@@ -8,6 +8,8 @@ import { act } from 'react'
 import { ANNOUNCE_DELAY_MS } from '../ui/announcer.ts'
 import { FakeServer, deferred, renderChat, TWO_THREADS, type Harness } from './chatPageHarness.tsx'
 
+const announced = (h: Harness, role: 'status' | 'alert') => h.query(`[data-testid="announcer"] [role="${role}"]`)?.textContent
+
 function sidebar(h: Harness): Element {
   const nav = h.query('nav[aria-label="Chats"]')
   assert.ok(nav, 'the chat sidebar is rendered')
@@ -38,6 +40,8 @@ test('a failed first list load says so, keeps the reason in details, and Retry r
   const h = await renderChat('/chat', server)
   try {
     assert.equal(sidebar(h).textContent, "+ New chatChatsCouldn't load your chats.RetryDetailsHTTP 502")
+    await act(() => new Promise((resolve) => setTimeout(resolve, ANNOUNCE_DELAY_MS)))
+    assert.equal(announced(h, 'status'), "Couldn't load your chats.")
 
     await act(async () => h.button('Retry').click())
     await h.flush()
@@ -87,8 +91,6 @@ async function tick(h: Harness, t: test.TestContext, ms: number): Promise<void> 
   await act(async () => t.mock.timers.tick(ms))
   await h.flush()
 }
-
-const announced = (h: Harness, role: 'status' | 'alert') => h.query(`[data-testid="announcer"] [role="${role}"]`)?.textContent
 
 test('delete hides the row at once, and Undo restores it without a DELETE', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })

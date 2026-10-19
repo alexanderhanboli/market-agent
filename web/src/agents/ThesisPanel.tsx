@@ -69,7 +69,7 @@ function ThesisPanelContent({ userId, agentId, initialThesis, refreshKey, fetchI
     <PanelFrame>
       {failure !== null ? (
         <div className="mt-2">
-          <FailureNotice message={failure} detail={error ?? ''} onRetry={retry} announce />
+          <FailureNotice message={failure} detail={error ?? ''} onRetry={retry} />
         </div>
       ) : null}
       {history === null ? (

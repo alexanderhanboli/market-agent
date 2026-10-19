@@ -640,7 +640,7 @@ function CarriedSubjectContext({
           Back to {name ?? <Skeleton className="h-3 w-16" />}
         </Link>
       </div>
-      {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} announce /> : null}
+      {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} /> : null}
     </section>
   )
 }

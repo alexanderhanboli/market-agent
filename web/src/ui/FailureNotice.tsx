@@ -10,7 +10,7 @@ type FailureNoticeProps = {
   announce?: boolean
 }
 
-export function FailureNotice({ message, detail, onRetry, announce = false }: FailureNoticeProps): ReactElement {
+export function FailureNotice({ message, detail, onRetry, announce = true }: FailureNoticeProps): ReactElement {
   const messageId = useId()
   useEffect(() => {
     if (announce) announceText(message)
