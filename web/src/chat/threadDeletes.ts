@@ -6,8 +6,8 @@ import { deleteThread, type ChatThread } from './threadActions.ts'
 
 // Long enough to reach Undo, short enough that the chat doesn't linger.
 export const UNDO_DELETE_MS = 5000
-// The chat stays hidden while its failed DELETE is checked, so a dead network can't stretch that out.
-export const DELETE_CHECK_TIMEOUT_MS = 8000
+// The chat stays hidden while its DELETE and the check of a failed one run, so a dead network can't stretch either out.
+export const DELETE_REQUEST_TIMEOUT_MS = 8000
 
 type PendingDelete = {
   userId: string
@@ -87,7 +87,7 @@ function commit(pending: PendingDelete): void {
   const settle = () => {
     if (sentIn === generation) publish({ ...state, settled: state.settled + 1 })
   }
-  void deleteThread(pending.userId, pending.threadId).then(settle, async (error: unknown) => {
+  void withTimeout((signal) => deleteThread(pending.userId, pending.threadId, signal)).then(settle, async (error: unknown) => {
     if (sentIn !== generation) return
     // A DELETE that timed out may still have gone through, so the list decides.
     // An unreadable list proves nothing, so the delete counts as failed.
@@ -102,15 +102,21 @@ function commit(pending: PendingDelete): void {
   })
 }
 
-async function threadIsListed({ userId, threadId }: PendingDelete): Promise<boolean> {
-  // A timer rather than AbortSignal.timeout, which test clocks can't advance.
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), DELETE_CHECK_TIMEOUT_MS)
-  try {
-    const response = await authenticatedFetch('/v1/chat/threads', { userId, signal: controller.signal })
+function threadIsListed({ userId, threadId }: PendingDelete): Promise<boolean> {
+  return withTimeout(async (signal) => {
+    const response = await authenticatedFetch('/v1/chat/threads', { userId, signal })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const body = (await response.json()) as { threads: ChatThread[] }
     return body.threads.some((thread) => thread.thread_id === threadId)
+  })
+}
+
+async function withTimeout<T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  // A timer rather than AbortSignal.timeout, which test clocks can't advance.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DELETE_REQUEST_TIMEOUT_MS)
+  try {
+    return await request(controller.signal)
   } finally {
     clearTimeout(timer)
   }

@@ -5,7 +5,7 @@ import test from 'node:test'
 
 import { act } from 'react'
 
-import { DELETE_CHECK_TIMEOUT_MS, forgetThreadDeletes } from '../chat/threadDeletes.ts'
+import { DELETE_REQUEST_TIMEOUT_MS, forgetThreadDeletes } from '../chat/threadDeletes.ts'
 import { ANNOUNCE_CLEAR_MS, ANNOUNCE_DELAY_MS } from '../ui/announcer.ts'
 import { FakeServer, deferred, renderChat, TWO_THREADS, type Harness } from './chatPageHarness.tsx'
 
@@ -522,11 +522,32 @@ test('a failed DELETE whose check never answers counts as failed once the check 
     await act(async () => h.button('Delete Chips').click())
     server.listReply = () => new Promise(() => {})
     await tick(h, t, UNDO_MS)
-    await tick(h, t, DELETE_CHECK_TIMEOUT_MS - 1)
+    await tick(h, t, DELETE_REQUEST_TIMEOUT_MS - 1)
     assert.deepEqual(shownChats(h), ['Rates'])
 
     await tick(h, t, 1)
     await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
+    assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
+  } finally {
+    await h.cleanup()
+  }
+})
+
+test('a DELETE that never answers is checked once it times out, and fails if the chat is still listed', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { h, server } = await chatsWithTwoThreads()
+  server.deleteReply = () => new Promise(() => {})
+  try {
+    await act(async () => h.button('Delete Chips').click())
+    await tick(h, t, UNDO_MS)
+    const reads = server.gets('/v1/chat/threads')
+    await tick(h, t, DELETE_REQUEST_TIMEOUT_MS - 1)
+    assert.deepEqual(shownChats(h), ['Rates'])
+
+    await tick(h, t, 1)
+    await tick(h, t, ANNOUNCE_DELAY_MS)
+    assert.equal(server.gets('/v1/chat/threads'), reads + 1, 'the store re-reads the list once to check')
     assert.deepEqual(shownChats(h), ['Chips', 'Rates'])
     assert.equal(announced(h, 'alert'), "Couldn't delete the chat.")
   } finally {
