@@ -37,7 +37,7 @@ import {
   type ChatReadMessage,
 } from "./messages.ts";
 import { financialAwareRunner } from "./financial-turn.ts";
-import { namesFacet, type ResearchScope } from "./research-scope.ts";
+import { facetWords, type ResearchScope } from "./research-scope.ts";
 import type { AssertionReport } from "./assertions.ts";
 import type { BlockProof } from "../../snapshot/src/block-proof.ts";
 
@@ -1069,8 +1069,10 @@ async function companyChange(
     const removed = new Set(removedSubjects.map(companyKey));
     const kept = prior.filter((subject) => !removed.has(companyKey(subject)));
     // A company to drop that is ambiguous, or cannot be found, is asked about,
-    // unless the word names a facet or metric ("drop the FCF").
-    const unclear = removing.unresolved.filter((resolution) => !namesFacet(resolution.input_text));
+    // unless the word lies in a metric or facet the removal names ("drop the
+    // FCF", "drop FREE CASH FLOW").
+    const scopeWords = facetWords(removal);
+    const unclear = removing.unresolved.filter((resolution) => !scopeWords.has(resolution.input_text));
     const ambiguousTarget = unclear.find((resolution) => resolution.status === "needs_clarification");
     if (ambiguousTarget) return { subjects: [], ambiguous: ambiguousTarget, notFound: [] };
     if (unclear.length > 0 && prior.length > 0) {

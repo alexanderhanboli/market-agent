@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { namesFacet, parseResearchScope, resolveResearchScope, type ResearchScope, type ScopeProposal } from "../src/research-scope.ts";
+import { facetWords, parseResearchScope, resolveResearchScope, type ResearchScope, type ScopeProposal } from "../src/research-scope.ts";
 import { proposal } from "./scope-fixtures.ts";
 
 const NVDA = { issuer_id: "60000000-0000-4000-8000-000000000001", label: "NVDA" };
@@ -468,8 +468,9 @@ test("a saved scope reads back; anything else starts fresh", () => {
   assert.deepEqual([parseResearchScope(older)?.metrics, parseResearchScope(older)?.reads], [[], "comparison"]);
 });
 
-test("a word naming a catalog metric or facet is not a company to drop", () => {
-  assert.deepEqual(["FCF", "OCF", "CAPEX", "EPS", "DEBT", "PEERS"].map(namesFacet), [true, true, true, true, true, true]);
-  // A word of a longer name is not that name: NET (net income) is a ticker.
-  assert.deepEqual(["XYZQ", "AMD", "NOW", "NET", "CASH", "TOTAL", "FLOW", "TREND"].map(namesFacet), [false, false, false, false, false, false, false, false]);
+test("the words of a whole catalog metric or facet name are not companies to drop", () => {
+  assert.deepEqual([...facetWords("FCF, OCF, CAPEX, EPS, DEBT and PEERS")], ["FCF", "OCF", "CAPEX", "EPS", "DEBT", "PEERS"]);
+  assert.deepEqual([...facetWords("AMD, the FREE CASH FLOW and STOCKHOLDERS' EQUITY")], ["FREE", "CASH", "FLOW", "STOCKHOLDERS", "EQUITY"]);
+  // A word of a longer name alone is not that name: NET (net income) is a ticker.
+  assert.deepEqual([...facetWords("XYZQ AMD NOW NET CASH TOTAL FLOW TREND")], []);
 });

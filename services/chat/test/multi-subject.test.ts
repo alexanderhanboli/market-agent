@@ -375,3 +375,13 @@ test("dropping a company that cannot be found, or is ambiguous, is asked about",
   assert.equal(fragment.ran, false);
   assert.match(fragment.events, /NET was not found, so nothing was dropped from the NVDA and AMD comparison/);
 });
+
+test("a metric named in capitals is dropped as the metric, not asked about as a company (#378 review)", async () => {
+  const comparison = { loadPriorSubjects: priorOf("NVDA", "AMD") };
+  assert.deepEqual((await subjectsForTurn("Drop BALANCE SHEET", comparison)).tickers, ["NVDA", "AMD"]);
+  assert.deepEqual((await subjectsForTurn("Drop FREE CASH FLOW", comparison)).tickers, ["NVDA", "AMD"]);
+  assert.deepEqual((await subjectsForTurn("Drop AMD and the FREE CASH FLOW", comparison)).tickers, ["NVDA"]);
+  // Alone, NET names no metric: it is asked about.
+  const { tickers, context } = await subjectsForTurn("Drop NET", comparison);
+  assert.deepEqual([tickers, context], [[], null]);
+});
