@@ -369,8 +369,10 @@ function persistAssistantMessage(
   };
 }
 
-// The chat catalog key (research-scope.ts) of each figure a plan computes.
-const SCOPE_METRICS: Readonly<Record<string, string>> = {
+// The chat catalog key (research-scope.ts) of each figure the engine names,
+// or null for a figure no chat reader serves: a follow-up reads the others.
+// Every engine metric is listed (#381), so a new one cannot silently drop out.
+export const SCOPE_METRICS: Readonly<Record<string, string | null>> = {
   revenue: "income_statement",
   gross_profit: "income_statement",
   operating_income: "income_statement",
@@ -386,6 +388,10 @@ const SCOPE_METRICS: Readonly<Record<string, string>> = {
   total_assets: "total_assets",
   total_liabilities: "total_liabilities",
   total_equity: "total_equity",
+  // SEC ingestion certifies no share count, so the engine shows one only from
+  // another source, and no chat reader has one.
+  weighted_average_diluted_shares: null,
+  shares_outstanding: null,
 };
 
 // The figures a plan's outputs show, as the chat scope names them: a change,
@@ -394,12 +400,11 @@ function planMetrics(plan: FinancialPlanV1): RequestedMetric[] {
   const nodes = new Map(plan.operations.map((node) => [node.node_id, node]));
   const figures = (node: OperationNode): string[] => {
     const key = node.operation === "reported_metric" ? node.metric_key : node.operation;
-    return Object.hasOwn(SCOPE_METRICS, key) ? [SCOPE_METRICS[key]!] : operationDependencies(node).flatMap((id) => figures(nodes.get(id)!));
+    if (Object.hasOwn(SCOPE_METRICS, key)) return SCOPE_METRICS[key] === null ? [] : [SCOPE_METRICS[key]!];
+    return operationDependencies(node).flatMap((id) => figures(nodes.get(id)!));
   };
   const keys = new Set(plan.outputs.flatMap((output) => figures(nodes.get(output.node_id)!)));
-  // Only what a reader here serves (#381): a follow-up is read here, where a
-  // figure the engine just showed (a share count) would be a named gap.
-  return [...keys].map((key) => proposedMetric(key, null, null)!).filter((metric) => metric.available);
+  return [...keys].map((key) => proposedMetric(key, null, null)!);
 }
 
 async function published(db: SqlExecutor, runId: string, threadId: string, messageId: string): Promise<ChatFinancialTurn> {
