@@ -23,6 +23,7 @@ import { SubjectMembershipBadges } from '../watchlists/SubjectMembershipBadges'
 import { useAuth } from './useAuth'
 import { ProtectedActionType } from './authInterruptState'
 import { SubjectNewsRail } from './SubjectNewsRail.tsx'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
 import { Skeleton } from '../ui/Skeleton.tsx'
 import type { SubjectDetailOutletContext } from './subjectDetailOutletContext'
 import { useRequestProtectedAction } from './useAuthInterrupt'
@@ -90,6 +91,7 @@ export function SubjectDetailShell() {
   })
   const [hydratedSubject, setHydratedSubject] = useState<ResolvedSubject | null>(null)
   const [hydrationState, setHydrationState] = useState<HydrationState>({ status: 'idle' })
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const canonicalBaseSubject = isCanonicalResolvedSubject(baseSubject) ? baseSubject : null
   const canonicalBaseSubjectKey =
     canonicalBaseSubject === null ? null : subjectKey(canonicalBaseSubject)
@@ -156,7 +158,7 @@ export function SubjectDetailShell() {
         setLegacyResolution({
           status: 'not_found',
           ticker,
-          message: `No subject found for ${plan.unresolved || ticker}.`,
+          message: `No symbol matches ${plan.unresolved || ticker}.`,
         })
       })
       .catch((error: unknown) => {
@@ -169,7 +171,7 @@ export function SubjectDetailShell() {
       })
 
     return () => controller.abort()
-  }, [currentTab, legacyTicker, navigate])
+  }, [currentTab, legacyTicker, navigate, loadAttempt])
 
   useEffect(() => {
     if (!needsHydration || canonicalBaseSubject === null || canonicalBaseSubjectKey === null) {
@@ -197,7 +199,13 @@ export function SubjectDetailShell() {
       })
 
     return () => controller.abort()
-  }, [canonicalBaseSubject, canonicalBaseSubjectKey, needsHydration])
+  }, [canonicalBaseSubject, canonicalBaseSubjectKey, needsHydration, loadAttempt])
+
+  const retryLoad = () => {
+    setLegacyResolution({ status: 'idle' })
+    setHydrationState({ status: 'idle' })
+    setLoadAttempt((attempt) => attempt + 1)
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -248,10 +256,11 @@ export function SubjectDetailShell() {
             ticker={legacyTicker}
             state={visibleLegacyResolution}
             currentTab={currentTab}
+            onRetry={retryLoad}
           />
         ) : shouldBlockForHydration ? (
           hydrationError ? (
-            <SubjectContextNotice title="Subject context unavailable" message={hydrationError} />
+            <SubjectLoadFailure detail={hydrationError} onRetry={retryLoad} />
           ) : (
             <SubjectContextSkeleton />
           )
@@ -267,25 +276,25 @@ function LegacyRouteResolutionView({
   ticker,
   state,
   currentTab,
+  onRetry,
 }: {
   ticker: string
   state: LegacyRouteResolutionState
   currentTab: SymbolDetailTab
+  onRetry: () => void
 }) {
   const normalizedTicker = ticker.trim()
   if (!normalizedTicker) {
-    return (
-      <SubjectContextNotice
-        title="Subject context unavailable"
-        message="No subject found for this route."
-      />
-    )
+    return <SymbolNotFoundNotice message="No symbol matches this link." />
   }
   if (state.status === 'ambiguous') {
     return <LegacySubjectChoice state={state} currentTab={currentTab} />
   }
-  if (state.status === 'not_found' || state.status === 'error') {
-    return <SubjectContextNotice title="Subject context unavailable" message={state.message} />
+  if (state.status === 'not_found') {
+    return <SymbolNotFoundNotice message={state.message} />
+  }
+  if (state.status === 'error') {
+    return <SubjectLoadFailure detail={state.message} onRetry={onRetry} />
   }
   return <SubjectContextSkeleton />
 }
@@ -332,22 +341,24 @@ function LegacySubjectChoice({
 function SubjectContextSkeleton() {
   return (
     <section className="w-full p-8">
-      <Skeleton label="Loading subject context" className="h-40" />
+      <Skeleton label="Loading symbol" className="h-40" />
     </section>
   )
 }
 
-function SubjectContextNotice({
-  title,
-  message,
-}: {
-  title: string
-  message: string
-}) {
+function SymbolNotFoundNotice({ message }: { message: string }) {
   return (
     <section className="flex w-full flex-col gap-2 p-8">
-      <h2 className="text-base font-semibold text-fg">{title}</h2>
+      <h2 className="text-base font-semibold text-fg">Symbol not found</h2>
       <p className="text-sm text-muted">{message}</p>
+    </section>
+  )
+}
+
+function SubjectLoadFailure({ detail, onRetry }: { detail: string; onRetry: () => void }) {
+  return (
+    <section className="w-full p-8">
+      <FailureNotice message="Couldn't load this symbol." detail={detail} onRetry={onRetry} />
     </section>
   )
 }
