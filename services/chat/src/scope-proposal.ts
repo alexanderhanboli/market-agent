@@ -109,7 +109,8 @@ function metricList(value: unknown): RequestedMetric[] | null {
   if (!Array.isArray(value) || value.length > MAX_METRICS) return null;
   const metrics: RequestedMetric[] = [];
   for (const item of value) {
-    const { metric, adjustment = null, qualifier = null } = (item ?? {}) as Record<string, unknown>;
+    // A bare catalog key is the metric with neither adjustment nor qualifier.
+    const { metric, adjustment = null, qualifier = null } = (typeof item === "string" ? { metric: item } : item ?? {}) as Record<string, unknown>;
     if (typeof metric !== "string") return null;
     if (adjustment !== null && typeof adjustment !== "string") return null;
     if (qualifier !== null && typeof qualifier !== "string") return null;
@@ -153,7 +154,8 @@ const PROPOSAL_INSTRUCTIONS = [
   "  or financing activities is investing_cash_flow or financing_cash_flow.",
   "- The whole balance sheet is balance_sheet; a single balance item is its own key.",
   "- A stock or price return, even year to date, is not a metric here.",
-  '- A margin of another metric ("free cash flow margin", "EBITDA margin") is that metric\'s qualifier, not margins.',
+  '- A margin of another metric ("free cash flow margin", "EBITDA margin") is that metric\'s qualifier, not margins;',
+  '  an income margin ("gross margin", "operating margin", "profitability") asks margins.',
   '- A result set against expectations asks why, not for guidance: "lower than expected", "as expected", "missed',
   '  its forecast", "below target", "beat guidance" ask explains. "Current guidance versus prior guidance" asks guidance.',
   '- A company\'s "sources of revenue" are not evidence; "your sources" or "where does this come from" are.',
@@ -161,7 +163,8 @@ const PROPOSAL_INSTRUCTIONS = [
   "  margin_trend.",
   '- turns_off lists what the question asks to remove or stop showing: "without guidance", "no forecasts" or',
   '  "don\'t include guidance" turn guidance off; "drop the YTD window" turns price_window off; "forget fiscal',
-  '  2025" turns fiscal_year off. Dropping "the cash flow" turns off operating_cash_flow, free_cash_flow and capex;',
+  '  2025" turns fiscal_year off. turns_off.metrics holds <metric> objects like metrics, never bare keys: dropping',
+  '  "the cash flow" turns off {"metric":"operating_cash_flow"}, {"metric":"free_cash_flow"} and {"metric":"capex"};',
   "  dropping operating cash flow by name turns off only that one.",
   '- Companies are not facets: "drop AMD and NOW" turns nothing off.',
   '- "No" inside a clause removes nothing: "why was there no change in margins?" asks explains and margin_trend.',

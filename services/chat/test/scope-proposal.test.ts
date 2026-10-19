@@ -39,6 +39,11 @@ test("a full reply is read into the proposal, each metric built from the catalog
   });
 });
 
+test("a metric to turn off may be its bare catalog key (#378 eval)", () => {
+  assert.deepEqual(parseProposal(reply({ turns_off: { facets: [], metrics: ["capex", { metric: "free_cash_flow" }] } }))?.turns_off.metrics, new Set(["capex", "free_cash_flow"]));
+  assert.equal(parseProposal(reply({ turns_off: { facets: [], metrics: ["price_to_book"] } })), null);
+});
+
 test("anything outside the vocabularies, or malformed, refuses the whole proposal", () => {
   for (const text of [
     // A facet, period, metric, adjustment, qualifier or item outside them.
