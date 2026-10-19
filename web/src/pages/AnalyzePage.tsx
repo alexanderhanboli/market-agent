@@ -33,6 +33,7 @@ import { authenticatedJson } from '../http/authFetch.ts'
 import { subjectDisplayName, UNKNOWN_SYMBOL } from '../symbol/quote'
 import { subjectHydration, symbolDetailPathForSubject, type ResolvedSubject } from '../symbol/search'
 import { useAuth } from '../shell/useAuth.ts'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
 import { Skeleton } from '../ui/Skeleton.tsx'
 
 type AnalyzeTemplate = {
@@ -89,8 +90,11 @@ export function AnalyzePage() {
     entrySubject !== null && subjectDisplayName(entrySubject) === null ? entrySubject.subject_ref : null,
   )
   const subject = hydration.status === 'ready' ? hydration.data : entrySubject
-  // Null while a deep-linked subject is still being named.
-  const subjectName = hydration.status === 'loading' || subject === null ? null : subjectDisplayName(subject) ?? UNKNOWN_SYMBOL
+  // Null while a deep-linked subject is still being named. A failed lookup
+  // says nothing about the symbol, so it gets a neutral name, not "Unknown symbol".
+  const subjectName = hydration.status === 'loading' || subject === null
+    ? null
+    : subjectDisplayName(subject) ?? (hydration.status === 'unavailable' ? 'Selected symbol' : UNKNOWN_SYMBOL)
   const researchSummary = researchSummaryFromAnalyzeEntry(location.state)
 
   return (
@@ -102,7 +106,14 @@ export function AnalyzePage() {
           chat handoff.
         </p>
       </header>
-      {subject ? <CarriedSubjectContext subject={subject} name={subjectName} intent={query.intent} /> : null}
+      {subject ? (
+        <CarriedSubjectContext
+          subject={subject}
+          name={subjectName}
+          intent={query.intent}
+          failure={hydration.status === 'unavailable' ? hydration : null}
+        />
+      ) : null}
       {researchSummary ? <CarriedResearchSummary summary={researchSummary} /> : null}
       <AnalyzeWorkspace subject={subject} subjectName={subjectName} />
     </div>
@@ -590,10 +601,12 @@ function CarriedSubjectContext({
   subject,
   name,
   intent,
+  failure,
 }: {
   subject: ResolvedSubject
   name: string | null
   intent: AnalyzeIntent | null
+  failure: { reason: string; retry: () => void } | null
 }) {
   return (
     <section
@@ -627,6 +640,7 @@ function CarriedSubjectContext({
           Back to {name ?? <Skeleton className="h-3 w-16" />}
         </Link>
       </div>
+      {failure ? <FailureNotice message="Couldn't load this symbol." detail={failure.reason} onRetry={failure.retry} /> : null}
     </section>
   )
 }

@@ -46,6 +46,8 @@ async function renderAnalyze(entry: string | { pathname: string; search: string;
     heading: () => carried().querySelector('h2')!,
     back: () => carried().querySelector('[data-testid="analyze-back-to-symbol"]')!.textContent,
     text: () => container.textContent ?? '',
+    carriedText: () => carried().textContent ?? '',
+    button: (name: string) => [...container.querySelectorAll('button')].find((button) => button.textContent === name)!,
     settle: () => act(async () => new Promise((resolve) => setTimeout(resolve, 0))),
     cleanup: async () => {
       await act(async () => root.unmount())
@@ -84,12 +86,27 @@ test('a deep-linked subject shows a skeleton name while it hydrates, then the hy
   }
 })
 
-test('a deep-linked subject reads "Unknown symbol" only once hydration fails', async () => {
-  const page = await renderAnalyze(DEEP_LINK, async () => ({ status: 503, body: {} }))
+test('a failed hydration says so with Retry, names the subject neutrally, and Retry hydrates again', async () => {
+  let calls = 0
+  const page = await renderAnalyze(DEEP_LINK, async () => ++calls === 1
+    ? { status: 503, body: {} }
+    : { status: 200, body: { subject: { subject_ref: ISSUER_REF, display_name: 'Apple Inc.', confidence: 1 } } })
   try {
     await page.settle()
-    assert.equal(page.heading().textContent, 'Unknown symbol')
-    assert.match(page.text(), /Memo canvasUnknown symbol · /)
+    assert.equal(page.heading().textContent, 'Selected symbol')
+    assert.equal(page.back(), 'Back to Selected symbol')
+    assert.match(page.text(), /Memo canvasSelected symbol · /)
+    assert.match(page.carriedText(), /Couldn't load this symbol\.RetryDetails/)
+    assert.doesNotMatch(page.text(), /Unknown symbol/)
+
+    await act(async () => page.button('Retry').click())
+    await page.settle()
+    assert.deepEqual(page.requests, [
+      ['POST', '/v1/subjects/hydrate', { subject_ref: ISSUER_REF }],
+      ['POST', '/v1/subjects/hydrate', { subject_ref: ISSUER_REF }],
+    ])
+    assert.equal(page.heading().textContent, 'Apple Inc.')
+    assert.doesNotMatch(page.text(), /Couldn't load this symbol/)
   } finally {
     await page.cleanup()
   }
