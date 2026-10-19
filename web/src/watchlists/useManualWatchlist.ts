@@ -17,6 +17,7 @@ export type ManualWatchlistState = {
   message: string | null
   addSubject: (subjectRef: SubjectRef) => Promise<void>
   removeSubject: (subjectRef: SubjectRef) => Promise<void>
+  reload: () => void
 }
 
 // Single owner of membership state for the default manual watchlist
@@ -29,6 +30,7 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
     userId ? 'loading' : 'idle',
   )
   const [message, setMessage] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
     if (!userId) return
@@ -45,7 +47,13 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
         setMessage(error instanceof Error ? error.message : 'Failed to load watchlist')
       })
     return () => controller.abort()
-  }, [userId])
+  }, [userId, loadAttempt])
+
+  const reload = useCallback(() => {
+    setStatus('loading')
+    setMessage(null)
+    setLoadAttempt((attempt) => attempt + 1)
+  }, [])
 
   const addSubject = useCallback(
     async (subjectRef: SubjectRef) => {
@@ -78,5 +86,5 @@ export function useManualWatchlist(userId: string | null): ManualWatchlistState 
     [userId],
   )
 
-  return { members, status, message, addSubject, removeSubject }
+  return { members, status, message, addSubject, removeSubject, reload }
 }

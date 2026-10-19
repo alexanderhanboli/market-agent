@@ -66,6 +66,7 @@ export function WatchlistSection() {
             status={watchlist.status}
             message={watchlist.message}
             onRemove={(ref) => void watchlist.removeSubject(ref)}
+            onRetry={watchlist.reload}
             sparklines={sparklines}
           />
         ) : (
