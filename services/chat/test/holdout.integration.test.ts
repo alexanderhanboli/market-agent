@@ -17,6 +17,7 @@ import { createFact } from "../../evidence/src/fact-repo.ts";
 import { checkAssertions, type Rejection } from "../src/assertions.ts";
 import type { EvidencePacket } from "../src/evidence-packet.ts";
 import { closeLocalRuntimePoolForTests } from "../src/local-runtime.ts";
+import { proposalQuestion } from "../src/scope-proposal.ts";
 import {
   GOLDEN_AS_OF,
   GOLDEN_COMPANIES,
@@ -28,6 +29,7 @@ import {
   completedTurn,
   GOLDEN_ENV,
   latestAssistantMessage,
+  requireRecordedScopes,
   runTurn,
   startChatServer,
   USER_ID,
@@ -38,10 +40,11 @@ import { HOLDOUT_CASES, HOLDOUT_VERSION, SYNTHETIC_CASES, SYNTHETIC_FIGURES, typ
 
 // The suite's identity: its version and the digest of every case, pinned so a
 // changed case is a new version, not a quiet edit (#221).
-const HOLDOUT_DIGEST = "sha256:71625a356118d16fecfc295b714074339fa75a507916a49b86dafb97c446370a";
+const HOLDOUT_DIGEST = "sha256:3dcbfdbba7affe45db13e0093f4510608cee4fde1cd1b00da9fdd43f99966b10";
 
 test("the held-out suite is a fixed, versioned set of 10-12 cases (#221)", () => {
   assert.ok(HOLDOUT_CASES.length + 1 >= 10 && HOLDOUT_CASES.length + 1 <= 12, "10-12 cases, the synthetic set counted as one");
+  for (const holdout of HOLDOUT_CASES) assert.equal(holdout.scopes.length, holdout.turns.length, `${holdout.id}: one recorded scope per turn`);
   const digest = `sha256:${createHash("sha256").update(JSON.stringify({ HOLDOUT_VERSION, HOLDOUT_CASES, SYNTHETIC_FIGURES, SYNTHETIC_CASES })).digest("hex")}`;
   assert.equal(digest, HOLDOUT_DIGEST, `the held-out cases changed: bump HOLDOUT_VERSION and pin ${digest}`);
 });
@@ -71,6 +74,7 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
   const { databaseUrl } = await bootstrapDatabase(t, "chat-holdout");
   // The judge answers from the replay file too: no model is called.
   withEnv(t, { ...GOLDEN_ENV, JUDGE_LITELLM_MODEL: "fixture/recorded", CHAT_DATABASE_URL: databaseUrl });
+  requireRecordedScopes(t);
   registerLifoCleanup(t, () => closeLocalRuntimePoolForTests());
   const client = await connectedClient(t, databaseUrl);
   await client.query(`insert into users (user_id, email) values ($1::uuid, 'holdout@chat.example.test')`, [USER_ID]);
@@ -89,10 +93,12 @@ test("held-out research traps on the frozen dataset (#221)", { skip: !dockerAvai
     const verdicts = list.flatMap((assertion, index) =>
       assertion.kind === "analyst_inference" ? [{ id: index, verdict: judged[index] ?? "entailed", ...(judged[index] ? { reason: "recorded verdict" } : {}) }] : []
     );
-    // The judge's reply first: its request quotes the inferences, not the
-    // question. Then the checked turn's: a later turn's request holds the
-    // earlier questions too, and the first match answers.
+    // Each turn's scope first, matched by its quoted question alone. Then the
+    // judge's reply: its request quotes the inferences, not the question. Then
+    // the checked turn's: a later turn's request holds the earlier questions
+    // too, and the first match answers.
     const recorded = [
+      ...holdout.turns.map((turn, index) => ({ match: proposalQuestion(turn), text: JSON.stringify(holdout.scopes[index]) })),
       { match: "You check the analyst inferences", text: JSON.stringify({ verdicts }) },
       { match: holdout.turns.at(-1)!, text: reply },
       ...holdout.turns.slice(0, -1).reverse().map((turn) => ({ match: turn, text: "Noted." })),

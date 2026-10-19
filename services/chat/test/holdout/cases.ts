@@ -20,7 +20,7 @@
 
 import type { RejectionCheck } from "../../src/assertions.ts";
 
-export const HOLDOUT_VERSION = 6;
+export const HOLDOUT_VERSION = 7;
 
 type Assertion = Record<string, unknown>;
 
@@ -30,6 +30,8 @@ export type HoldoutCase = {
   trap: string;
   // The questions in order; the last is the one checked.
   turns: ReadonlyArray<string>;
+  // The scope model's recorded reply for each turn, in order (scope-proposal.ts).
+  scopes: ReadonlyArray<ScopeReply>;
   expect: {
     // The companies the checked turn covers, primary first (research scope).
     companies: ReadonlyArray<string>;
@@ -61,6 +63,18 @@ export type HoldoutCase = {
   >;
 };
 
+type ScopeReply = {
+  metrics: ReadonlyArray<{ metric: string }>;
+  asks: ReadonlyArray<string>;
+  turns_off: { facets: ReadonlyArray<string>; metrics: ReadonlyArray<{ metric: string }> };
+  income_items: ReadonlyArray<string>;
+};
+// A turn's recorded scope: the facets it asks for, the catalog metrics and the
+// income items it names, nothing turned off.
+const scope = (asks: string[] = [], metrics: string[] = [], items: string[] = []): ScopeReply =>
+  ({ metrics: metrics.map((metric) => ({ metric })), asks, turns_off: { facets: [], metrics: [] }, income_items: items });
+const INCOME = ["income_statement"];
+
 const obs = (text: string, evidence: string[]): Assertion => ({ kind: "observation", text, evidence });
 const cmp = (op: string, result: unknown, evidence: string[], text = "x"): Assertion => ({ kind: "comparison", op, result, text, evidence });
 const inference = (text: string, supports: number[]): Assertion => ({ kind: "analyst_inference", text, supports });
@@ -73,6 +87,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "three-company-order",
     trap: "ordering three companies; a wrong winner, a dropped peer or a figure credited to the wrong company",
     turns: ["Compare NVDA, AMD and AAPL on revenue and margins."],
+    scopes: [scope(["margins"], INCOME, ["revenue"])],
     expect: { companies: ["NVDA", "AMD", "AAPL"], route: "comparison", blocks: [{ kind: "metrics_comparison" }] },
     prose: "AAPL has the largest revenue; AMD has the lowest net margin.",
     good: [
@@ -94,6 +109,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "fiscal-period",
     trap: "the fiscal year asked for, whose calendars end eight months apart; a substituted year",
     turns: ["Compare NVDA's and AAPL's fiscal 2025 revenue."],
+    scopes: [scope([], INCOME, ["revenue"])],
     expect: { companies: ["NVDA", "AAPL"], route: "comparison", fiscal_year: 2025, blocks: [{ kind: "metrics_comparison", title: "Side by side: NVDA FY2025 (ended Jan 2025), AAPL FY2025 (ended Sep 2025); fiscal years end 8 months apart" }] },
     prose: "NVDA's fiscal 2025 ended in January 2025, AAPL's in September 2025.",
     good: [obs("NVDA's revenue was [[F1]] in FY2025.", ["F1"]), obs("AAPL's revenue was [[F5]] in FY2025.", ["F5"])],
@@ -105,6 +121,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "unknown-cause",
     trap: "a margin drop with no cause in evidence; a stated cause, or a cause given as a management attribution without a claim",
     turns: ["What changed in NVDA's gross margin in Q1 fiscal 2026?"],
+    scopes: [scope(["margins", "margin_trend"], INCOME, ["gross_margin"])],
     expect: { companies: ["NVDA"], route: "trend", blocks: [{ kind: "metric_row", title: "Gross margin by quarter" }] },
     prose: "NVDA's gross margin fell to 60.5% in Q1 2026; the data does not show why.",
     good: [
@@ -120,6 +137,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "missing-cash-flow",
     trap: "free cash flow is not in the data: a named gap, never a number in its place",
     turns: ["What is AMD's free cash flow?"],
+    scopes: [scope([], ["free_cash_flow"])],
     expect: { companies: ["AMD"], gap: "Free cash flow is not available for AMD in this data", absent_kinds: ["metric_row", "revenue_bars"] },
     prose: "Free cash flow is not available for AMD in this data.",
     mutations: [
@@ -130,6 +148,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "restatement",
     trap: "a restated quarter shows its restated value; the superseded one is not a cited value",
     turns: ["Analyze AAPL's latest quarter."],
+    scopes: [scope(["latest_quarter"])],
     expect: { companies: ["AAPL"], route: "latest_quarter", shows: { block_title: "Latest quarter (Q3 2026)", label: "Revenue", format: "$97.4B" } },
     prose: "AAPL's revenue was $97.4B in its latest quarter.",
     good: [obs("AAPL's revenue was [[F1]] in Q3 2026.", ["F1"])],
@@ -141,6 +160,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "segment-definition",
     trap: "a redefined segment shows its current definition's revenue; the obsolete definition's is not a cited value",
     turns: ["Break down NVDA's revenue by segment."],
+    scopes: [scope(["segments"], INCOME, ["revenue"])],
     expect: { companies: ["NVDA"], route: "segments", shows: { block_title: "Revenue by segment (Q4 2026)", label: "Data Center", format: "$55.2B" } },
     prose: "Data Center is most of NVDA's revenue.",
     good: [obs("NVDA's Data Center revenue was [[F1]] in Q4 2026.", ["F1"])],
@@ -152,6 +172,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "ambiguous-follow-up",
     trap: "a follow-up naming a new company after a comparison could add it or switch to it: ask, never guess",
     turns: ["Compare NVDA with AMD.", "What about AAPL?"],
+    scopes: [scope(), scope()],
     expect: { companies: [], clarification: true, absent_kinds: ["metric_row", "metrics_comparison", "revenue_bars"] },
     prose: "",
   },
@@ -159,6 +180,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "interior-extremum-and-trend",
     trap: "a low inside the window, a rebound and net rise; an endpoint passed off as the low, a dropped quarter, a false every-quarter rise, a reversed direction",
     turns: ["How have AMD's operating margins trended over the last eight quarters?"],
+    scopes: [scope(["margins", "margin_trend"], INCOME, ["operating_income"])],
     expect: { companies: ["AMD"], route: "trend", blocks: [{ kind: "metric_row", title: "Operating margin by quarter" }] },
     prose: "AMD's operating margin dipped into a loss in Q2 2025 and recovered.",
     good: [
@@ -177,6 +199,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "comparison-follow-up-scope",
     trap: "a follow-up keeps both companies and the sealed YTD window; a conclusion on a narrowed cohort or the wrong winner; an inference crediting one company with another's figure",
     turns: ["Analyze NVDA", "Compare it with AMD YTD", "Explain the differences and show the evidence"],
+    scopes: [scope(), scope(["price_window"]), scope(["explains", "evidence"])],
     expect: {
       companies: ["NVDA", "AMD"],
       route: "evidence_followup",
@@ -216,6 +239,7 @@ export const HOLDOUT_CASES: ReadonlyArray<HoldoutCase> = [
     id: "filed-cause",
     trap: "a cause in evidence is a cited management attribution; a missing or duplicate claim reference, or the cause stated as an observation",
     turns: ["Why did AMD's operating margin turn negative in Q2 2025?"],
+    scopes: [scope(["explains", "margins"], INCOME, ["operating_income"])],
     expect: { companies: ["AMD"] },
     prose: "AMD's results were impacted by charges it attributed to the MI308 export control.",
     good: [{ kind: "management_attribution", text: MI308, evidence: ["C1"] }],

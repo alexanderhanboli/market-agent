@@ -1,80 +1,116 @@
-// A model reads which metrics a question asks for (#287 follow-up): the
-// patterns in research-scope.ts kept missing phrasings ("cash used in
-// operating activities", "growth in EPS", "adjusted diluted EPS"). The model
-// only proposes, from a closed catalog: every key and qualifier is checked,
-// and anything outside the catalog rejects the whole proposal, so the patterns
-// answer instead. It never picks companies, data or figures, and nothing it
-// writes reaches the answer: the readers and gap notes do as before.
+// A model reads what a question asks for and turns off (#287 follow-up): its
+// metrics, its facets (peers, segments, guidance, a cause...) and its income
+// items. English patterns kept missing phrasings, one review at a time. The
+// model only proposes, from closed vocabularies: every key is checked, and
+// anything outside them rejects the whole proposal, so the turn asks for
+// nothing new (research-scope.ts). It never picks companies, periods, data or
+// figures, and nothing it writes reaches the answer: the readers and gap notes
+// do as before.
 //
-// Off when there is no model, when replies are recorded (LLM_REPLAY_FILE: a
-// recorded conversation has no reply for this call), or CHAT_SCOPE_PROPOSAL=off.
+// Off when there is no model or CHAT_SCOPE_PROPOSAL=off. Recorded replies
+// (LLM_REPLAY_FILE) answer it like any other call: a fixture records one per
+// question, matched by proposalQuestion.
 
 import { createLlmRouterFromEnv, type LlmChatClient, type LlmSettingsLoaderEnv } from "../../llm/src/index.ts";
 import { withDeadlines, type ModelDeadlines } from "./llm-runtime.ts";
 import {
+  INCOME_ITEMS,
+  isOneOf,
+  PERIOD_FIELDS,
   PROPOSABLE_ADJUSTMENTS,
   PROPOSABLE_METRICS,
   PROPOSABLE_QUALIFIERS,
   proposedMetric,
+  SCOPE_FACETS,
   type RequestedMetric,
+  type ScopeProposal,
 } from "./research-scope.ts";
 
-// One attempt, no fallback model: the turn waits on it, and the patterns stand
-// in when it is slow. A large model took 3-9 s in the dev probe.
+// One attempt, no fallback model: the turn waits on it, and asks for nothing
+// new when it is slow. A large model took 3-9 s in the dev probe.
 export const SCOPE_DEADLINES: ModelDeadlines = { attemptMs: 12_000, totalMs: 15_000 };
 const MAX_METRICS = 10;
 
-type ProposalEnv = LlmSettingsLoaderEnv & { LLM_REPLAY_FILE?: string; CHAT_SCOPE_PROPOSAL?: string };
+type ProposalEnv = LlmSettingsLoaderEnv & { CHAT_SCOPE_PROPOSAL?: string };
 
-export function scopeProposalEnabled(env: ProposalEnv): boolean {
-  return !env.LLM_REPLAY_FILE && env.CHAT_SCOPE_PROPOSAL !== "off";
+// The user message: the question quoted, so a recorded reply can match it
+// alone, never a longer question that starts with it.
+export function proposalQuestion(question: string): string {
+  return `Question: ${JSON.stringify(question)}`;
 }
 
-// The metrics the question asks for, or null when the patterns should read
-// them instead (off, no model, a failure, or a proposal outside the catalog).
-export async function proposeQuestionMetrics(input: {
+// What the question asks for and turns off, or null when there is no proposal
+// (off, no model, a failure, a cut-off reply, or one outside the vocabularies).
+export async function proposeScope(input: {
   question: string;
   env?: ProposalEnv;
   createClient?: () => Promise<LlmChatClient> | LlmChatClient;
   deadlines?: ModelDeadlines;
-}): Promise<RequestedMetric[] | null> {
+}): Promise<ScopeProposal | null> {
   const env = input.env ?? (process.env as ProposalEnv);
-  if (input.question.trim() === "" || !scopeProposalEnabled(env)) return null;
+  if (input.question.trim() === "") return null;
+  const none = (reason: string, ...detail: unknown[]): null => {
+    console.warn(`[chat] no scope proposal (${reason}); the turn asks for nothing new`, ...detail);
+    return null;
+  };
+  if (env.CHAT_SCOPE_PROPOSAL === "off") return none("CHAT_SCOPE_PROPOSAL=off");
   try {
     const router = await createLlmRouterFromEnv(env, { createClient: input.createClient, purpose: "extraction" });
-    if (!router) return null;
+    if (!router) return none("no model");
     const result = await router.complete({
       messages: [
         { role: "system", content: PROPOSAL_INSTRUCTIONS },
-        { role: "user", content: input.question },
+        { role: "user", content: proposalQuestion(input.question) },
       ],
       temperature: 0,
       maxTokens: 512,
       reasoning: "off",
     }, withDeadlines(input.deadlines ?? SCOPE_DEADLINES));
-    if (result.truncated) return null;
-    return parseProposal(result.text);
+    if (result.truncated) return none("reply cut off");
+    return parseProposal(result.text) ?? none("reply outside the vocabularies");
   } catch (reason) {
-    console.warn("[chat] metric proposal unavailable; reading the question's metrics by pattern", reason);
-    return null;
+    return none("model call failed", reason);
   }
 }
 
-// The reply's metrics, each validated and built as the patterns would build
-// it; null for anything malformed or outside the catalog.
-export function parseProposal(text: string): RequestedMetric[] | null {
-  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+// The reply as a proposal, each metric built as the scope names it; null for
+// anything malformed or outside the vocabularies.
+export function parseProposal(text: string): ScopeProposal | null {
   let reply: unknown;
   try {
-    reply = JSON.parse(json);
+    reply = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   } catch {
     return null;
   }
-  const items = (reply as { metrics?: unknown } | null)?.metrics;
-  if (!Array.isArray(items) || items.length > MAX_METRICS) return null;
+  const { metrics, asks, turns_off: turnsOff, income_items: incomeItems } = (reply ?? {}) as Record<string, unknown>;
+  if (turnsOff === null || typeof turnsOff !== "object") return null;
+  const { facets: offFacets, metrics: offMetrics } = turnsOff as Record<string, unknown>;
+  const proposed = metricList(metrics);
+  const off = metricList(offMetrics);
+  const asked = members(asks, SCOPE_FACETS);
+  const offAsked = members(offFacets, [...SCOPE_FACETS, ...PERIOD_FIELDS]);
+  const items = members(incomeItems, INCOME_ITEMS);
+  if (!proposed || !off || !asked || !offAsked || !items) return null;
+  return {
+    metrics: proposed,
+    asks: new Set(asked),
+    turns_off: { facets: new Set(offAsked), metrics: new Set(off.map((metric) => metric.metric_key)) },
+    income_items: [...new Set(items)],
+  };
+}
+
+function members<T extends string>(value: unknown, vocabulary: ReadonlyArray<T>): T[] | null {
+  if (!Array.isArray(value)) return null;
+  const entries: unknown[] = value;
+  return entries.every((entry) => isOneOf(entry, vocabulary)) ? entries : null;
+}
+
+function metricList(value: unknown): RequestedMetric[] | null {
+  if (!Array.isArray(value) || value.length > MAX_METRICS) return null;
   const metrics: RequestedMetric[] = [];
-  for (const item of items) {
-    const { metric, adjustment = null, qualifier = null } = (item ?? {}) as Record<string, unknown>;
+  for (const item of value) {
+    // A bare catalog key is the metric with neither adjustment nor qualifier.
+    const { metric, adjustment = null, qualifier = null } = (typeof item === "string" ? { metric: item } : item ?? {}) as Record<string, unknown>;
     if (typeof metric !== "string") return null;
     if (adjustment !== null && typeof adjustment !== "string") return null;
     if (qualifier !== null && typeof qualifier !== "string") return null;
@@ -86,16 +122,31 @@ export function parseProposal(text: string): RequestedMetric[] | null {
 }
 
 const PROPOSAL_INSTRUCTIONS = [
-  "Read which financial metrics a research question asks for. Reply with JSON only, no prose:",
-  '{"metrics":[{"metric":"<key>","adjustment":<adjustment or null>,"qualifier":<qualifier or null>}]}',
+  "Read what a research question about companies asks for, and what it asks to remove. Reply with JSON only, no prose:",
+  '{"metrics":[<metric>],"asks":[<facet>],"turns_off":{"facets":[<facet or period>],"metrics":[<metric>]},"income_items":[<item>]}',
+  'A <metric> is {"metric":"<key>","adjustment":<adjustment or null>,"qualifier":<qualifier or null>}.',
   "metric is one of these keys (key: what it is):",
   ...PROPOSABLE_METRICS.map((metric) => `- ${metric.metric_key}: ${metric.label}`),
   `adjustment is one of ${PROPOSABLE_ADJUSTMENTS.join(", ")}, or null: an adjective that makes the figure`,
   'another one than reported ("adjusted EPS", "non-GAAP free cash flow").',
   `qualifier is one of ${PROPOSABLE_QUALIFIERS.join(", ")}, or null: what is asked of the metric`,
   '("free cash flow margin" is margin, "growth in EPS" is growth, "FCF YTD" is ytd).',
+  "A <facet> is one of these (facet: what the question asks for):",
+  "- peers: the company's peers or competitors, not named",
+  "- segments: revenue or results by business segment",
+  "- margins: an income margin (gross, operating, net) or profitability, its latest value",
+  "- margin_trend: an income margin over time: its trend, history, change, since a date, quarter over quarter,",
+  "  year over year, or against an earlier quarter or year",
+  "- price_window: a stock price return over a window, such as year to date",
+  "- benchmark: a market index or benchmark (the S&P 500, the Nasdaq)",
+  "- guidance: what the company guided to, its outlook, forecast, projections, targets or expectations",
+  "- explains: a cause: why, what drove, led to, contributed to or accounted for something",
+  "- evidence: the sources or evidence of the previous answer",
+  "- latest_quarter: the latest, most recent or current reported quarter",
+  `A period is ${PERIOD_FIELDS.join(" or ")}: a fiscal year or quarter the question asks to remove.`,
+  `An <item> is one of ${INCOME_ITEMS.join(", ")}: an income-statement item the question names.`,
   "Rules:",
-  "- List only metrics the question itself asks for, in the order it asks.",
+  "- List only what the question itself asks for, in the order it asks. Empty lists when nothing applies.",
   '- A context is not a metric, but a metric discussed in it is: "what did AMD say about free cash flow on its',
   '  earnings call" asks for free_cash_flow; the earnings call itself is no metric.',
   "- Revenue, sales, profit, income, margins and growth of those are income_statement.",
@@ -103,5 +154,21 @@ const PROPOSAL_INSTRUCTIONS = [
   "  or financing activities is investing_cash_flow or financing_cash_flow.",
   "- The whole balance sheet is balance_sheet; a single balance item is its own key.",
   "- A stock or price return, even year to date, is not a metric here.",
-  '- If it names no metric (a follow-up such as "why?" or "compare it with AMD"), reply {"metrics":[]}.',
+  '- A margin of another metric ("free cash flow margin", "EBITDA margin") is that metric\'s qualifier, not margins;',
+  '  an income margin ("gross margin", "operating margin", "profitability") asks margins, and margin_trend too',
+  '  when the question is about its change ("how did the gross margin change").',
+  '- A result set against expectations asks why, not for guidance: "lower than expected", "as expected", "missed',
+  '  its forecast", "below target", "beat guidance" ask explains. "Current guidance versus prior guidance" asks guidance.',
+  '- A company\'s "sources of revenue" are not evidence; "your sources" or "where does this come from" are.',
+  '- A bare "last quarter" is the one before, not latest_quarter: "compare gross margin with last quarter" asks',
+  "  margin_trend.",
+  '- turns_off lists what the question asks to remove or stop showing: "without guidance", "no forecasts" or',
+  '  "don\'t include guidance" turn guidance off; "drop the YTD window" turns price_window off; "forget fiscal',
+  '  2025" turns fiscal_year off. turns_off.metrics holds <metric> objects like metrics, never bare keys: dropping',
+  '  "the cash flow" turns off {"metric":"operating_cash_flow"}, {"metric":"free_cash_flow"} and {"metric":"capex"};',
+  "  dropping operating cash flow by name turns off only that one.",
+  '- Companies are not facets: "drop AMD and NOW" turns nothing off.',
+  '- "No" inside a clause removes nothing: "why was there no change in margins?" asks explains and margin_trend.',
+  '- Removing quarter-over-quarter growth is not removing the fiscal quarter.',
+  '- A follow-up that names nothing (a "why?", or "compare it with AMD") asks only what it says: explains, or nothing.',
 ].join("\n");

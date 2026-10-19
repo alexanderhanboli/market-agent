@@ -88,6 +88,19 @@ export async function latestAssistantMessage(base: string, threadId: string): Pr
   return answer;
 }
 
+// A recorded conversation records each turn's scope proposal
+// (scope-proposal.ts): a turn answered without one fails the test instead of
+// quietly asking for nothing new.
+export function requireRecordedScopes(t: TestContext): void {
+  const warn = console.warn;
+  let missing = 0;
+  t.mock.method(console, "warn", (...args: unknown[]) => {
+    if (String(args[0]).startsWith("[chat] no scope proposal")) missing += 1;
+    warn(...args);
+  });
+  registerLifoCleanup(t, () => assert.equal(missing, 0, "a turn had no recorded scope proposal; its warning is logged above"));
+}
+
 export function withEnv(t: TestContext, values: Record<string, string>): void {
   const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
   Object.assign(process.env, values);

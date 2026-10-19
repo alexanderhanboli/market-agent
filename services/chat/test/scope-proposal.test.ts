@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { requestedMetrics, resolveResearchScope } from "../src/research-scope.ts";
 import { withDeadlines } from "../src/llm-runtime.ts";
-import { parseProposal, proposeQuestionMetrics, SCOPE_DEADLINES, scopeProposalEnabled } from "../src/scope-proposal.ts";
+import { parseProposal, proposalQuestion, proposeScope, SCOPE_DEADLINES } from "../src/scope-proposal.ts";
 
 const ENV = {
   LLM_CHANNELS: "openai",
@@ -11,175 +13,151 @@ const ENV = {
   LLM_OPENAI_MODELS: "gpt-4.1",
   LITELLM_MODEL: "openai/gpt-4.1",
 };
-const NVDA = { issuer_id: "60000000-0000-4000-8000-000000000001", label: "NVDA" };
-const AS_OF = "2026-09-01T00:00:00.000Z";
-
+const EMPTY = { metrics: [], asks: [], turns_off: { facets: [], metrics: [] }, income_items: [] };
+const reply = (fields: Record<string, unknown>) => JSON.stringify({ ...EMPTY, ...fields });
 const replying = (text: string) => () => async () => ({ text });
 
-test("a proposal names its metrics exactly as the patterns would", () => {
-  const proposed = parseProposal(JSON.stringify({ metrics: [
-    { metric: "eps_diluted", adjustment: "adjusted", qualifier: null },
-    { metric: "free_cash_flow", adjustment: null, qualifier: "growth" },
-    { metric: "operating_cash_flow" },
-  ] }));
-  assert.deepEqual(proposed, [
-    ...requestedMetrics("adjusted EPS"),
-    ...requestedMetrics("free cash flow growth"),
-    ...requestedMetrics("operating cash flow"),
+test("a full reply is read into the proposal, each metric built from the catalog", () => {
+  assert.deepEqual(parseProposal(reply({
+    metrics: [
+      { metric: "eps_diluted", adjustment: "adjusted", qualifier: null },
+      { metric: "free_cash_flow", adjustment: null, qualifier: "growth" },
+      { metric: "income_statement" },
+    ],
+    asks: ["guidance", "explains", "guidance"],
+    turns_off: { facets: ["segments", "fiscal_quarter"], metrics: [{ metric: "capex" }, { metric: "eps_diluted", adjustment: "non_gaap" }] },
+    income_items: ["revenue", "operating_income", "revenue"],
+  })), {
+    metrics: [
+      { metric_key: "eps_diluted_adjusted", label: "Adjusted earnings per share", available: false },
+      { metric_key: "free_cash_flow_growth", label: "Free cash flow growth", available: false },
+      { metric_key: "income_statement", label: "Revenue, profit and margins", available: true },
+    ],
+    asks: new Set(["guidance", "explains"]),
+    turns_off: { facets: new Set(["segments", "fiscal_quarter"]), metrics: new Set(["capex", "eps_diluted_non_gaap"]) },
+    income_items: ["revenue", "operating_income"],
+  });
+});
+
+test("a metric to turn off may be its bare catalog key (#378 eval)", () => {
+  assert.deepEqual(parseProposal(reply({ turns_off: { facets: [], metrics: ["capex", { metric: "free_cash_flow" }] } }))?.turns_off.metrics, new Set(["capex", "free_cash_flow"]));
+  assert.equal(parseProposal(reply({ turns_off: { facets: [], metrics: ["price_to_book"] } })), null);
+});
+
+test("anything outside the vocabularies, or malformed, refuses the whole proposal", () => {
+  for (const text of [
+    // A facet, period, metric, adjustment, qualifier or item outside them.
+    reply({ asks: ["valuation"] }),
+    reply({ asks: ["fiscal_year"] }),
+    reply({ turns_off: { facets: ["companies"], metrics: [] } }),
+    reply({ metrics: [{ metric: "price_to_book" }] }),
+    reply({ turns_off: { facets: [], metrics: [{ metric: "price_to_book" }] } }),
+    reply({ metrics: [{ metric: "eps_diluted", adjustment: "street" }] }),
+    reply({ metrics: [{ metric: "eps_diluted", qualifier: "forecast" }] }),
+    reply({ income_items: ["ebitda"] }),
+    // Malformed.
+    reply({ metrics: [{ metric: "free_cash_flow" }, { metric: 42 }] }),
+    reply({ metrics: Array.from({ length: 11 }, () => ({ metric: "capex" })) }),
+    reply({ asks: "guidance" }),
+    reply({ turns_off: null }),
+    JSON.stringify({ metrics: [], asks: [], income_items: [] }),
+    '{"metrics":[{"metric":"capex"}]',
+    "free cash flow",
+  ]) {
+    assert.equal(parseProposal(text), null, text);
+  }
+});
+
+test("an adjusted income figure is the non-GAAP gap; an unavailable metric stays the gap it is", () => {
+  const nonGaap = { metric_key: "non_gaap_income", label: "Non-GAAP earnings", available: false };
+  for (const adjustment of ["adjusted", "non_gaap", "pro_forma"]) {
+    assert.deepEqual(parseProposal(reply({ metrics: [{ metric: "income_statement", adjustment }] }))?.metrics, [nonGaap], adjustment);
+  }
+  assert.deepEqual(parseProposal(reply({ metrics: [{ metric: "ebitda", qualifier: "margin" }] }))?.metrics, [
+    { metric_key: "ebitda", label: "EBITDA", available: false },
+  ]);
+  assert.deepEqual(parseProposal(reply({ metrics: [{ metric: "free_cash_flow", qualifier: "ytd" }] }))?.metrics, [
+    { metric_key: "free_cash_flow_ytd", label: "Free cash flow year to date", available: false },
   ]);
 });
 
-test("a proposal outside the catalog is refused whole, so the patterns answer", () => {
-  for (const reply of [
-    '{"metrics":[{"metric":"price_to_book"}]}',
-    '{"metrics":[{"metric":"eps_diluted","adjustment":"street"}]}',
-    '{"metrics":[{"metric":"eps_diluted","qualifier":"forecast"}]}',
-    '{"metrics":[{"metric":"free_cash_flow"},{"metric":42}]}',
-    '{"metric":"free_cash_flow"}',
-    "free cash flow",
-    `{"metrics":${JSON.stringify(Array.from({ length: 11 }, () => ({ metric: "capex" })))}}`,
-  ]) {
-    assert.equal(parseProposal(reply), null, reply);
-  }
-});
-
-test("an adjusted income figure is the non-GAAP gap, never the reported income statement", () => {
-  for (const adjustment of ["adjusted", "non_gaap", "pro_forma"]) {
-    assert.deepEqual(
-      parseProposal(JSON.stringify({ metrics: [{ metric: "income_statement", adjustment }] })),
-      requestedMetrics("non-GAAP operating income"),
-      adjustment,
-    );
-  }
-  // Unadjusted, it is the reported figures.
-  assert.deepEqual(parseProposal('{"metrics":[{"metric":"income_statement","qualifier":"growth"}]}'), requestedMetrics("revenue"));
-});
-
-test("a margin the model reads as a metric's qualifier asks for no income margins", () => {
-  const question = "What was the margin on the cash NVDA's business threw off?";
-  const scope = resolveResearchScope({
-    question,
-    companies: [NVDA],
-    prior: null,
-    asOf: AS_OF,
-    proposedMetrics: parseProposal('{"metrics":[{"metric":"operating_cash_flow","qualifier":"margin"}]}'),
+test("a reply wrapped in prose or a fence is read", () => {
+  assert.deepEqual(parseProposal(`Sure:\n\`\`\`json\n${reply({ asks: ["peers"] })}\n\`\`\``), {
+    metrics: [],
+    asks: new Set(["peers"]),
+    turns_off: { facets: new Set(), metrics: new Set() },
+    income_items: [],
   });
-  assert.equal(scope.route, "unavailable_metric");
-  assert.equal(scope.margins, false);
-  // Margins the model reads as income figures are still income margins.
-  const both = resolveResearchScope({
-    question: "Show NVDA's free cash flow margin and its gross margin trend",
-    companies: [NVDA],
-    prior: null,
-    asOf: AS_OF,
-    proposedMetrics: parseProposal('{"metrics":[{"metric":"free_cash_flow","qualifier":"margin"},{"metric":"income_statement"}]}'),
-  });
-  assert.equal(both.margins, true);
-  assert.equal(both.margin_trend, true);
 });
 
-test("a metric the turn turns off stays off, even when the model names it", () => {
-  const prior = resolveResearchScope({ question: "Show NVDA's operating cash flow and capex", companies: [NVDA], prior: null, asOf: AS_OF });
-  const next = resolveResearchScope({
-    question: "Drop capex",
-    companies: [NVDA],
-    prior,
-    asOf: AS_OF,
-    proposedMetrics: parseProposal('{"metrics":[{"metric":"capex"}]}'),
-  });
-  assert.deepEqual(next.metrics.map((metric) => metric.metric_key), ["operating_cash_flow"]);
-});
-
-test("an unavailable metric stays the named gap it is, whatever its qualifiers", () => {
-  assert.deepEqual(parseProposal('{"metrics":[{"metric":"ebitda","qualifier":"margin"}]}'), requestedMetrics("EBITDA"));
-});
-
-test("a reply wrapped in prose or a fence is read; an empty list is an answer", () => {
-  assert.deepEqual(parseProposal('Sure:\n```json\n{"metrics":[{"metric":"capex"}]}\n```'), requestedMetrics("capex"));
-  assert.deepEqual(parseProposal('{"metrics":[]}'), []);
-  assert.deepEqual(parseProposal('{"metrics":[{"metric":"capex"},{"metric":"capex","qualifier":null}]}'), requestedMetrics("capex"));
-});
-
-test("the model reads a phrasing the patterns miss, and the scope routes on it", async () => {
-  const question = "How did the cash NVDA's business threw off compare with its outlays on plant?";
-  // The patterns find nothing here.
-  assert.deepEqual(requestedMetrics(question), []);
-  const proposed = await proposeQuestionMetrics({
-    question,
-    env: ENV,
-    createClient: replying('{"metrics":[{"metric":"operating_cash_flow"},{"metric":"capex"}]}'),
-  });
-  assert.deepEqual(proposed?.map((metric) => metric.metric_key), ["operating_cash_flow", "capex"]);
-  const scope = resolveResearchScope({ question, companies: [NVDA], prior: null, asOf: AS_OF, proposedMetrics: proposed });
-  assert.equal(scope.route, "statements");
-  assert.deepEqual(scope.metrics.map((metric) => metric.metric_key), ["operating_cash_flow", "capex"]);
-});
-
-test("the model sees the catalog and only the question", async () => {
+test("the model sees the vocabularies and the quoted question, and its reply is the proposal", async () => {
   let seen: Array<{ role: string; content: string }> = [];
-  await proposeQuestionMetrics({
-    question: "What was NVDA's capex?",
+  const proposed = await proposeScope({
+    question: "How did the cash NVDA's business threw off compare with its outlays on plant?",
     env: ENV,
     createClient: () => async (_deployment, request) => {
       seen = request.messages.map((message) => ({ role: message.role, content: String(message.content) }));
-      return { text: '{"metrics":[]}' };
+      return { text: reply({ metrics: [{ metric: "operating_cash_flow" }, { metric: "capex" }] }) };
     },
   });
+  assert.deepEqual(proposed?.metrics.map((metric) => metric.metric_key), ["operating_cash_flow", "capex"]);
   assert.deepEqual(seen.map((message) => message.role), ["system", "user"]);
-  assert.equal(seen[1]!.content, "What was NVDA's capex?");
-  for (const key of ["free_cash_flow", "eps_basic", "balance_sheet", "income_statement"]) assert.match(seen[0]!.content, new RegExp(`- ${key}:`));
+  assert.equal(seen[1]!.content, 'Question: "How did the cash NVDA\'s business threw off compare with its outlays on plant?"');
+  for (const key of ["- free_cash_flow:", "- income_statement:", "- latest_quarter:", "- evidence:", "operating_expenses"]) assert.ok(seen[0]!.content.includes(key), key);
 });
 
 test("the proposal runs on EXTRACTION_LITELLM_MODEL when one is set", async () => {
   const models: string[] = [];
-  await proposeQuestionMetrics({
+  await proposeScope({
     question: "What was NVDA's capex?",
     env: { ...ENV, LLM_OPENAI_MODELS: "gpt-4.1,gpt-4.1-mini", EXTRACTION_LITELLM_MODEL: "openai/gpt-4.1-mini" },
     createClient: () => async (deployment) => {
       models.push(`${deployment.channel}/${deployment.model}`);
-      return { text: '{"metrics":[]}' };
+      return { text: reply({}) };
     },
   });
   assert.deepEqual(models, ["openai/gpt-4.1-mini"]);
 });
 
-test("a failure, a cut-off reply, no model, or recorded replies leave the metrics to the patterns", async (t) => {
-  t.mock.method(console, "warn", () => {});
-  const failing = () => async () => {
-    throw new Error("provider down");
-  };
-  assert.equal(await proposeQuestionMetrics({ question: "NVDA capex", env: ENV, createClient: failing }), null);
-  assert.equal(
-    await proposeQuestionMetrics({ question: "NVDA capex", env: ENV, createClient: () => async () => ({ text: '{"metrics":[', truncated: true }) }),
-    null,
-  );
-  assert.equal(await proposeQuestionMetrics({ question: "NVDA capex", env: {}, createClient: replying('{"metrics":[]}') }), null);
+test("off, no model, a failure, a cut-off or invalid reply: no proposal, and one warning naming why", async (t) => {
+  const warnings: string[] = [];
+  t.mock.method(console, "warn", (message: string) => warnings.push(message));
   let called = false;
-  const recorded = await proposeQuestionMetrics({
-    question: "NVDA capex",
-    env: { ...ENV, LLM_REPLAY_FILE: "/tmp/replies.json" },
-    createClient: () => async () => {
+  const results = [
+    await proposeScope({ question: "NVDA capex", env: { ...ENV, CHAT_SCOPE_PROPOSAL: "off" }, createClient: () => async () => {
       called = true;
-      return { text: '{"metrics":[]}' };
-    },
-  });
-  assert.equal(recorded, null);
+      return { text: reply({}) };
+    } }),
+    await proposeScope({ question: "NVDA capex", env: {}, createClient: replying(reply({})) }),
+    await proposeScope({ question: "NVDA capex", env: ENV, createClient: () => async () => {
+      throw new Error("provider down");
+    } }),
+    await proposeScope({ question: "NVDA capex", env: ENV, createClient: () => async () => ({ text: '{"metrics":[', truncated: true }) }),
+    await proposeScope({ question: "NVDA capex", env: ENV, createClient: replying(reply({ asks: ["valuation"] })) }),
+  ];
+  assert.deepEqual(results, [null, null, null, null, null]);
   assert.equal(called, false);
-  assert.equal(scopeProposalEnabled({ CHAT_SCOPE_PROPOSAL: "off" }), false);
-  assert.equal(scopeProposalEnabled({}), true);
+  assert.deepEqual(warnings, [
+    "[chat] no scope proposal (CHAT_SCOPE_PROPOSAL=off); the turn asks for nothing new",
+    "[chat] no scope proposal (no model); the turn asks for nothing new",
+    "[chat] no scope proposal (model call failed); the turn asks for nothing new",
+    "[chat] no scope proposal (reply cut off); the turn asks for nothing new",
+    "[chat] no scope proposal (reply outside the vocabularies); the turn asks for nothing new",
+  ]);
 });
 
-test("the proposal gets one attempt: the turn waits on it, so a slow model falls back to the patterns", () => {
+test("recorded replies answer the proposal, matched by the quoted question alone", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "scope-replies-")), "replies.json");
+  writeFileSync(file, JSON.stringify({ replies: [
+    { match: proposalQuestion("Explain the differences and show the evidence"), text: reply({ asks: ["explains", "evidence"] }) },
+    { match: proposalQuestion("Explain the differences"), text: reply({ asks: ["explains"] }) },
+  ] }));
+  const env = { LLM_CHANNELS: "fixture", LLM_FIXTURE_PROTOCOL: "openai", LLM_FIXTURE_MODELS: "recorded", LITELLM_MODEL: "fixture/recorded", LLM_REPLAY_FILE: file };
+  const asks = async (question: string) => [...(await proposeScope({ question, env }))!.asks];
+  assert.deepEqual(await asks("Explain the differences"), ["explains"]);
+  assert.deepEqual(await asks("Explain the differences and show the evidence"), ["explains", "evidence"]);
+});
+
+test("the proposal gets one attempt: the turn waits on it, so a slow model asks for nothing new", () => {
   assert.equal(withDeadlines(SCOPE_DEADLINES).maxAttempts, 1);
-});
-
-test("without a proposal the scope reads metrics by pattern, as before", () => {
-  const question = "What is NVDA's free cash flow?";
-  const byPattern = resolveResearchScope({ question, companies: [NVDA], prior: null, asOf: AS_OF });
-  const withNull = resolveResearchScope({ question, companies: [NVDA], prior: null, asOf: AS_OF, proposedMetrics: null });
-  assert.deepEqual(withNull, byPattern);
-  // An empty proposal is an answer: the question names no metric, so a follow-up keeps the last ones.
-  const prior = byPattern;
-  const followUp = resolveResearchScope({ question: "And why is that?", companies: [NVDA], prior, asOf: AS_OF, proposedMetrics: [] });
-  assert.deepEqual(followUp.metrics.map((metric) => metric.metric_key), ["free_cash_flow"]);
 });

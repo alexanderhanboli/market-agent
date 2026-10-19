@@ -41,8 +41,8 @@ import {
   turnCompanies,
   withDerivationSources,
 } from "./fact-blocks.ts";
-import { requestedMetrics, resolveResearchScope, type RequestedMetric, type ResearchScope } from "./research-scope.ts";
-import { proposeQuestionMetrics } from "./scope-proposal.ts";
+import { resolveResearchScope, type ResearchScope, type ScopeProposal } from "./research-scope.ts";
+import { proposeScope } from "./scope-proposal.ts";
 import { loadStatementBlocks, statementFacets, wantsStatements } from "./statement-blocks.ts";
 import { frozenDataMode, hydrateYtdBars, marketHydrationOrigin, turnNow } from "./ytd-hydration.ts";
 import { listingTimeZones } from "./perf-block.ts";
@@ -55,7 +55,7 @@ import {
   structuredEvidenceStatus,
   structuredRefsFromHandoff,
 } from "./local-runtime-structured.ts";
-import { createChatFinancialRuntime, type ChatFinancialRuntime } from "./financial-runtime.ts";
+import { createChatFinancialRuntime, type ChatFinancialRuntime, type ChatFinancialTurnContext } from "./financial-runtime.ts";
 import { createChatMessagePersistence } from "./messages.ts";
 import {
   preResolveChatSubjectWithResolver,
@@ -105,10 +105,7 @@ export const analystToolRuntime: ChatAnalystToolRuntime = async (context) => {
   const carriedSubjects = context.subjectPreResolutions ?? (resolved ? [resolved] : []);
   // What the turn asks for, keeping a follow-up's unchanged scope (#206). A
   // window asked for now is cut off at the turn's asOf, which a follow-up keeps.
-  // The question's metrics as a model reads them from the catalog
-  // (scope-proposal.ts); the patterns read them when it does not.
-  const proposal = proposeQuestionMetrics({ question: context.userIntent ?? "" });
-  const scopeAt = await turnScope(context.threadId, context.userIntent ?? "", carriedSubjects, false, proposal);
+  const scopeAt = await analystTurnScope(context.threadId, context.userIntent ?? "", carriedSubjects);
   // A live YTD request fetches its prices first, so the cutoff below covers them (#232).
   await hydrateYtdWindow(scopeAt(turnNow(process.env)), carriedSubjects);
   const asOf = turnNow(process.env);
@@ -326,15 +323,14 @@ async function withCompanyLabels(scope: ResearchScope, asOf: string): Promise<Re
   };
 }
 
-// Where the model's reading and the patterns' differ, one log line, so an eval
-// or the logs show the phrasings each misses.
-function logMetricReadings(question: string, proposed: ReadonlyArray<RequestedMetric> | null): void {
-  if (proposed === null) return;
-  const byModel = proposed.map((metric) => metric.metric_key);
-  const byPattern = requestedMetrics(question).map((metric) => metric.metric_key);
-  if (byModel.join() !== byPattern.join()) {
-    console.info(`[scope] metrics read differently: model=[${byModel.join(", ")}] patterns=[${byPattern.join(", ")}]`);
-  }
+// An analyst turn's scope at a cutoff: what the question asks for and turns
+// off, as a model reads it (scope-proposal.ts).
+export function analystTurnScope(
+  threadId: string,
+  question: string,
+  covered: ReadonlyArray<ChatResolvedSubjectPreResolution>,
+): Promise<(cutoff: string) => ResearchScope> {
+  return turnScope(threadId, question, covered, false, proposeScope({ question }));
 }
 
 // The turn's research scope at a cutoff (research-scope.ts): what it asks for,
@@ -346,13 +342,13 @@ async function turnScope(
   question: string,
   covered: ReadonlyArray<ChatResolvedSubjectPreResolution>,
   served = false,
-  // The model's reading of the question's metrics, awaited beside the
-  // previous scope; null leaves them to the patterns.
-  proposal: Promise<ReadonlyArray<RequestedMetric> | null> = Promise.resolve(null),
+  // The model's reading of the question, awaited beside the previous scope;
+  // null asks for nothing new (a financial answer's scope takes none, so the
+  // engine's answer waits on no extra model call).
+  proposal: Promise<ScopeProposal | null> = Promise.resolve(null),
 ): Promise<(cutoff: string) => ResearchScope> {
   const carried = companiesOf(covered);
-  const [prior, proposedMetrics] = await Promise.all([continuedScope(threadId, carried), proposal]);
-  logMetricReadings(question, proposedMetrics);
+  const [prior, read] = await Promise.all([continuedScope(threadId, carried), proposal]);
   // Peers turned off: the previous answer's auto-selected peers (saved with no
   // label) go with them, though the follow-up carried them forward.
   const autoPeers = new Set(prior?.peers ? prior.companies.flatMap((company) => company.label === undefined ? [company.issuer_id] : []) : []);
@@ -362,10 +358,10 @@ async function turnScope(
   const dropped = new Set([...autoPeers].filter((id) => !carriedIds.has(id)));
   const allDropped = autoPeers.size > 0 && dropped.size === autoPeers.size;
   const peersOff = autoPeers.size > 0 && (allDropped ||
-    !resolveResearchScope({ question, companies: carried, prior, asOf: turnNow(process.env), served, proposedMetrics }).peers);
+    !resolveResearchScope({ question, companies: carried, prior, asOf: turnNow(process.env), served, proposal: read }).peers);
   const named = peersOff ? carried.filter((company) => !autoPeers.has(company.issuer_id)) : carried;
   const resolve = (cutoff: string) =>
-    resolveResearchScope({ question, companies: named, prior, asOf: cutoff, served, peersOff: allDropped, proposedMetrics });
+    resolveResearchScope({ question, companies: named, prior, asOf: cutoff, served, peersOff: allDropped, proposal: read });
   const base = resolve(turnNow(process.env));
   // An evidence follow-up keeps the previous answer's companies as they were; a
   // financial answer covers exactly the companies its plan requested.
@@ -481,6 +477,15 @@ const NO_DEFAULT_REFS = Object.freeze({
   provenance_fact_refs: [],
 });
 
+// A published financial answer saves its scope too, so a period it asks for
+// carries into the next follow-up (#206). Its metrics are the published plan's
+// (financial-runtime.ts), so the engine's answer waits on no model call.
+export async function financialResearchScope(context: ChatFinancialTurnContext): Promise<ResearchScope> {
+  const covered = context.subjectPreResolutions ??
+    (context.subjectPreResolution?.status === "resolved" ? [context.subjectPreResolution] : []);
+  return (await turnScope(context.threadId, context.userIntent ?? "", covered, true))(turnNow(process.env));
+}
+
 // Financial requests go through the verified engine. Off unless
 // CHAT_FINANCIAL_MODE is "shadow" or "enforce"; without a configured LLM router,
 // financial turns in enforce mode get a structured gap instead of a guess.
@@ -494,14 +499,7 @@ export const financialRuntime: ChatFinancialRuntime = createChatFinancialRuntime
   },
   resolveMention: (mention) => preResolveSubject({ text: mention }),
   evidence: createEvidenceFinancialPort,
-  // A published financial answer saves its scope too, so a period it asks for
-  // carries into the next follow-up (#206).
-  researchScope: async (context) => {
-    const covered = context.subjectPreResolutions ??
-      (context.subjectPreResolution?.status === "resolved" ? [context.subjectPreResolution] : []);
-    // The engine answered the metrics it published, so they are not gaps.
-    return (await turnScope(context.threadId, context.userIntent ?? "", covered, true))(turnNow(process.env));
-  },
+  researchScope: financialResearchScope,
 });
 
 export const persistAssistantMessage: ChatAssistantMessagePersistence = async (message) =>

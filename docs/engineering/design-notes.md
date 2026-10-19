@@ -264,24 +264,37 @@ an 8-K Item 2.02 files the press release and CFO commentary as EX-99 exhibits
 - **Not yet:** guidance compared with the reported result once it is in, 10-Q/10-K MD&A, and the frozen golden
   dataset has no such claims (the eval's "why" question still answers from figures alone).
 
-## Which metrics a chat turn asks for
+## What a chat turn asks for
 
-A turn's metrics (free cash flow, adjusted EPS, a balance item...) are read by a model, proposed from a fixed catalog
-(`services/chat/src/scope-proposal.ts`). The patterns in `research-scope.ts` missed phrasings one review at a time
-("cash used in operating activities", "growth in EPS", "adjusted diluted EPS").
+What a turn asks for and turns off is read by a model, proposed from closed vocabularies
+(`services/chat/src/scope-proposal.ts`): its metrics (free cash flow, adjusted EPS, a balance item...), its facets
+(peers, segments, margins or their trend, a benchmark, guidance, a cause, evidence, the latest quarter) and the
+income-statement items it names. English patterns in `research-scope.ts` missed phrasings one review at a time
+("cash used in operating activities", "lower than expected", "without guidance"), so they are gone.
 
-- **The model only proposes.** It returns JSON naming catalog keys (`PROPOSABLE_METRICS`), each with an optional
-  adjustment (adjusted, non-GAAP...) and qualifier (growth, margin, YTD...). Every key and qualifier is checked;
-  anything outside the catalog, malformed or cut off rejects the whole proposal. The metric is then built by the same
-  function the patterns use (`proposedMetric` / `qualifiedMetric`), so either reader names a gap identically.
-- **It decides only the metrics.** Companies, facets (segments, peers, windows, fiscal years) and turning things off
-  ("drop capex") keep their rules. It never picks data or figures, and nothing it writes reaches the answer.
-- **The patterns stand in** when there is no model, the call fails or takes longer than one 12 s attempt
-  (`SCOPE_DEADLINES`), the proposal is invalid, recorded replies are in use (`LLM_REPLAY_FILE`: the golden runs stay
-  deterministic), or `CHAT_SCOPE_PROPOSAL=off`.
+- **The model only proposes.** One call returns JSON: `metrics` (catalog keys from `PROPOSABLE_METRICS`, each with an
+  optional adjustment and qualifier), `asks` (`SCOPE_FACETS`), `turns_off` (facets, a fiscal year or quarter, and
+  metrics) and `income_items` (`INCOME_ITEMS`). `parseProposal` checks every key; anything outside the vocabularies,
+  malformed or cut off rejects the whole proposal. It never picks companies, periods, data or figures, and nothing
+  it writes reaches the answer.
+- **Fixed syntax stays code.** Periods come from token readers (`FY2026`, `Q3`, `the third quarter`, `YTD` in
+  `fact-blocks.ts` and `research-scope.ts`), companies from the coordinator, and the route, inheritance and what a
+  turn-off clears are derived from the proposal in `resolveResearchScope`. A field turned off is never also asked for.
+- **No proposal** when there is no model, the call fails or takes longer than one 12 s attempt (`SCOPE_DEADLINES`),
+  the reply is invalid, or `CHAT_SCOPE_PROPOSAL=off`. The turn then asks for nothing new: a follow-up keeps the
+  previous answer's scope whole and reads what it read, and a fresh question gets the plain answer for its companies (the latest quarter for
+  one, a comparison for several) and its period tokens. One `[chat] no scope proposal (<reason>)` warning names why.
+- **A financial-engine answer** saves its scope with no proposal, so its turn waits on no extra model call. Its
+  metrics are the ones the published plan computed (`planMetrics` in `financial-runtime.ts`), so a follow-up reads
+  those figures.
+- **The live eval** is a test: `test/fixtures/scope-eval-cases.json` holds 115 questions with the previous answer's
+  scope and the scope each should resolve to, `scope-eval-replies.json` a live model's reply to each, and
+  `test/scope-eval.test.ts` resolves the replies with no model. After a prompt change, `npm run scope:eval`
+  (`scripts/scope-eval.ts`) asks the live model again and prints each case that no longer resolves as expected.
+- **Recorded replies** (`LLM_REPLAY_FILE`) answer it like any other call: each recorded conversation (the golden
+  replies, each holdout case's `scopes`) records one reply per question, matched by `proposalQuestion`, and those
+  suites fail on any turn that answered without one.
 - **Cost:** one short call per turn, awaited beside the previous scope's read; 3-9 s on the dev model in a probe.
-- Where the model's reading and the patterns' differ, one `[scope] metrics read differently` log line names both, so
-  misses on either side show in logs and evals.
 
 ## Which companies a chat turn covers
 

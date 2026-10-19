@@ -15,6 +15,7 @@ import {
 import { MAX_ASSERTIONS, type AssertionReport, type Rejection } from "../src/assertions.ts";
 import { mayOfferOtherFacts, scopeGapBlocks } from "../src/fact-blocks.ts";
 import { resolveResearchScope } from "../src/research-scope.ts";
+import { proposal } from "./scope-fixtures.ts";
 
 const BASE_ENV = {
   LLM_CHANNELS: "openai",
@@ -691,7 +692,7 @@ test("with no figures shown, an assertion about an available value is checked ag
     blocks: [NARRATIVE_BLOCK],
     toolCalls: [AVAILABLE_TOOL_CALL],
     factBlocks: [],
-    scope: resolveResearchScope({ question: "How did AAPL do?", companies: [{ issuer_id: "60000000-0000-4000-8000-000000000003", label: "AAPL" }], prior: null, asOf }),
+    scope: resolveResearchScope({ question: "How did AAPL do?", companies: [{ issuer_id: "60000000-0000-4000-8000-000000000003", label: "AAPL" }], prior: null, asOf, proposal: proposal() }),
     cutoff: asOf,
     createClient: () => async () => ({ text: withList([
       { kind: "observation", text: "Net income was [[F4]].", evidence: ["F4"] },
@@ -918,7 +919,7 @@ function gapTurn(scope: ReturnType<typeof resolveResearchScope>) {
 }
 
 test("a turn with no figure and only gap notes points to its notes, never the model's prose (#302)", async () => {
-  const turn = gapTurn(resolveResearchScope({ question: "What is AMD's free cash flow?", companies: AMD, prior: null, asOf: GAP_AS_OF }));
+  const turn = gapTurn(resolveResearchScope({ question: "What is AMD's free cash flow?", companies: AMD, prior: null, asOf: GAP_AS_OF, proposal: proposal({ metrics: ["free_cash_flow"] }) }));
   assert.deepEqual(turn.factBlocks.map((block) => (block.segments as Array<{ text: string }>)[0]!.text), ["Free cash flow is not available for AMD in this data, so no other figure is shown in its place."]);
   const prose = "It shows no operating cash flow, no capital expenditure and no free cash flow for AMD.";
   const shown = async (env: Record<string, string>, reply: string, toolCalls: ReadonlyArray<never> = []) => {
@@ -951,8 +952,15 @@ test("a turn with no figure and only gap notes points to its notes, never the mo
 });
 
 test("a financial-engine answer's evidence follow-up never reads its note as missing data (#358 review)", async () => {
-  const served = resolveResearchScope({ question: "What is AMD's operating margin?", companies: AMD, prior: null, asOf: GAP_AS_OF, served: true });
-  const turn = gapTurn(resolveResearchScope({ question: "Show the evidence", companies: AMD, prior: served, asOf: GAP_AS_OF }));
+  const served = resolveResearchScope({
+    question: "What is AMD's operating margin?",
+    companies: AMD,
+    prior: null,
+    asOf: GAP_AS_OF,
+    served: true,
+    proposal: proposal({ asks: ["margins"], metrics: ["income_statement"], items: ["operating_income"] }),
+  });
+  const turn = gapTurn(resolveResearchScope({ question: "Show the evidence", companies: AMD, prior: served, asOf: GAP_AS_OF, proposal: proposal({ asks: ["evidence"] }) }));
   assert.deepEqual(turn.factBlocks.map((block) => (block.segments as Array<{ text: string }>)[0]!.text), [
     "The previous answer's figures were calculated and verified by the financial engine; each one links to its sources in that answer, and no other figure is shown in their place.",
   ]);
@@ -972,7 +980,7 @@ test("a financial-engine answer's evidence follow-up never reads its note as mis
 });
 
 test("with claims on file but none rendered, a named gap's answer points to its note (#358 review)", async () => {
-  const turn = gapTurn(resolveResearchScope({ question: "What is AMD's free cash flow?", companies: AMD, prior: null, asOf: GAP_AS_OF }));
+  const turn = gapTurn(resolveResearchScope({ question: "What is AMD's free cash flow?", companies: AMD, prior: null, asOf: GAP_AS_OF, proposal: proposal({ metrics: ["free_cash_flow"] }) }));
   const prose = "Management raised its outlook.";
   const composed = await composeAnalystBlocksWithLlm({
     env: BASE_ENV,

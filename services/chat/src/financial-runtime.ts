@@ -15,9 +15,12 @@ import { randomUUID } from "node:crypto";
 import {
   createRuntimeAuthority,
   METRIC_CATALOG_V1,
+  operationDependencies,
   RATIO_CATALOG_V1,
+  type FinancialPlanV1,
   type FinancialRuntimeAuthority,
   type FinancialSubjectRef,
+  type OperationNode,
 } from "../../financial-core/src/index.ts";
 import { cashResilienceDraft, LATEST_FISCAL_YEAR, type CashResiliencePeriod } from "../../financial-engine/src/cash-resilience.ts";
 import type { PersistParentArtifact } from "../../financial-engine/src/finalize.ts";
@@ -34,12 +37,13 @@ import {
 import type { FinancialEvidencePort, FinancialPool, SqlExecutor } from "../../financial-engine/src/ports.ts";
 import { requireFinancialReadiness } from "../../financial-engine/src/readiness.ts";
 import { publishRequest, type FinancialMode, type RequestGap } from "../../financial-engine/src/request.ts";
+import { findPlanForRequest } from "../../financial-engine/src/run-repo.ts";
 import type { ChatTurnRunContext } from "./coordinator.ts";
 import { contentHashForText, financialMessageId } from "./chat-ids.ts";
 import { logUnreadMessage, readChatMessage, type ChatReadMessage } from "./messages.ts";
 import { COMPARATIVE, companyKey, extractSubjectMentions } from "./subject-extraction.ts";
 import type { ChatResolvedSubjectPreResolution, ChatSubjectPreResolution } from "./subjects.ts";
-import type { ResearchScope } from "./research-scope.ts";
+import { proposedMetric, type RequestedMetric, type ResearchScope } from "./research-scope.ts";
 
 export type ChatFinancialMode = FinancialMode;
 
@@ -119,7 +123,7 @@ export function createChatFinancialRuntime(deps: ChatFinancialRuntimeDeps): Chat
       // pool acquire here could wait forever on a one-connection pool.
       plan: (db) => planTurn(deps, db, context, text, authority, new Date()),
       evidence: deps.evidence,
-      persistParent: persistAssistantMessage(context.threadId, messageId, scope),
+      persistParent: persistAssistantMessage(context.threadId, messageId, scope, { authority, request_key: turnId }),
     });
     switch (outcome.status) {
       case "planned":
@@ -334,9 +338,18 @@ function chatAuthority(userId: string, threadId: string, turnId: string, mode: C
 }
 
 /** Writes the assistant message inside the finalization transaction, under the thread's owner. */
-function persistAssistantMessage(threadId: string, messageId: string, scope: ResearchScope | null): PersistParentArtifact {
+function persistAssistantMessage(
+  threadId: string,
+  messageId: string,
+  scope: ResearchScope | null,
+  request: { authority: FinancialRuntimeAuthority; request_key: string },
+): PersistParentArtifact {
   return async (tx, publication) => {
     const blocks = [publication.block];
+    // The scope names the figures the published plan computed, so a follow-up
+    // ("why did it change?") reads them (#378 review).
+    const plan = scope === null ? null : await findPlanForRequest(tx.client, request);
+    const saved = scope === null || plan === null ? scope : { ...scope, metrics: planMetrics(plan) };
     const inserted = await tx.client.query(
       `insert into chat_messages (message_id, thread_id, role, snapshot_id, blocks, content_hash, research_scope)
        select $1::uuid, t.thread_id, 'assistant'::chat_role, $3::uuid, $4::jsonb, $5, $7::jsonb
@@ -349,11 +362,46 @@ function persistAssistantMessage(threadId: string, messageId: string, scope: Res
         JSON.stringify(blocks),
         contentHashForText(JSON.stringify(blocks)),
         tx.run.user_id,
-        scope === null ? null : JSON.stringify(scope),
+        saved === null ? null : JSON.stringify(saved),
       ],
     );
     if (inserted.rows.length === 0) throw new Error("the chat thread no longer belongs to the run's owner");
   };
+}
+
+// The chat catalog key (research-scope.ts) of each figure a plan computes.
+const SCOPE_METRICS: Readonly<Record<string, string>> = {
+  revenue: "income_statement",
+  gross_profit: "income_statement",
+  operating_income: "income_statement",
+  net_income: "income_statement",
+  gross_margin: "income_statement",
+  operating_margin: "income_statement",
+  net_margin: "income_statement",
+  free_cash_flow: "free_cash_flow",
+  operating_cash_flow: "operating_cash_flow",
+  capex: "capex",
+  eps_basic: "eps_basic",
+  eps_diluted: "eps_diluted",
+  total_assets: "total_assets",
+  total_liabilities: "total_liabilities",
+  total_equity: "total_equity",
+  weighted_average_diluted_shares: "weighted_average_diluted_shares",
+  shares_outstanding: "shares_outstanding",
+};
+
+// The figures a plan's outputs show, as the chat scope names them: a change,
+// sum, ratio, threshold or ranking is of the figures it reads.
+function planMetrics(plan: FinancialPlanV1): RequestedMetric[] {
+  const nodes = new Map(plan.operations.map((node) => [node.node_id, node]));
+  const figures = (node: OperationNode): string[] => {
+    const key = node.operation === "reported_metric" ? node.metric_key : node.operation;
+    return Object.hasOwn(SCOPE_METRICS, key) ? [SCOPE_METRICS[key]!] : operationDependencies(node).flatMap((id) => figures(nodes.get(id)!));
+  };
+  const keys = new Set(plan.outputs.flatMap((output) => figures(nodes.get(output.node_id)!)));
+  // As the catalog has them: a follow-up is read here, where a figure no
+  // reader serves (a share count) is a named gap.
+  return [...keys].map((key) => proposedMetric(key, null, null)!);
 }
 
 async function published(db: SqlExecutor, runId: string, threadId: string, messageId: string): Promise<ChatFinancialTurn> {

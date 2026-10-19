@@ -89,6 +89,7 @@ export function chatHarness(
     mode?: ChatFinancialMode;
     analyst?: ChatAnalystToolRuntime;
     researchScope?: Parameters<typeof createChatFinancialRuntime>[0]["researchScope"];
+    resolveMention?: typeof resolveMention;
   },
 ) {
   const persisted: string[] = [];
@@ -102,7 +103,7 @@ export function chatHarness(
       mode: options.mode ?? "enforce",
       pool,
       planningModel: options.model,
-      resolveMention,
+      resolveMention: options.resolveMention ?? resolveMention,
       evidence: createEvidenceFinancialPort,
       ...(options.researchScope ? { researchScope: options.researchScope } : {}),
     }),
