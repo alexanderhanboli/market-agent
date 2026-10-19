@@ -146,7 +146,7 @@ export class FakeServer {
     const path = String(input)
     const body = init?.body === undefined ? '' : String(init.body)
     this.log.push([method, path, body])
-    const reply = await this.route(method, path, body)
+    const reply = await Promise.race([this.route(method, path, body), rejectOnAbort(init?.signal)])
     if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError')
     return new Response(JSON.stringify(reply.body), { status: reply.status ?? 200, headers: { 'content-type': 'application/json' } })
   }
@@ -166,6 +166,13 @@ export class FakeServer {
     if (thread && method === 'DELETE') return this.deleteReply(thread[1])
     throw new Error(`unexpected request ${method} ${path}`)
   }
+}
+
+// Like a real fetch, an abort rejects a request whose reply never comes.
+function rejectOnAbort(signal: AbortSignal | null | undefined): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+  })
 }
 
 export function deferred<T>() {

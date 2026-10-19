@@ -6,6 +6,8 @@ import { deleteThread, type ChatThread } from './threadActions.ts'
 
 // Long enough to reach Undo, short enough that the chat doesn't linger.
 export const UNDO_DELETE_MS = 5000
+// The chat stays hidden while its failed DELETE is checked, so a dead network can't stretch that out.
+export const DELETE_CHECK_TIMEOUT_MS = 8000
 
 type PendingDelete = {
   userId: string
@@ -101,8 +103,15 @@ function commit(pending: PendingDelete): void {
 }
 
 async function threadIsListed({ userId, threadId }: PendingDelete): Promise<boolean> {
-  const response = await authenticatedFetch('/v1/chat/threads', { userId })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  const body = (await response.json()) as { threads: ChatThread[] }
-  return body.threads.some((thread) => thread.thread_id === threadId)
+  // A timer rather than AbortSignal.timeout, which test clocks can't advance.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DELETE_CHECK_TIMEOUT_MS)
+  try {
+    const response = await authenticatedFetch('/v1/chat/threads', { userId, signal: controller.signal })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const body = (await response.json()) as { threads: ChatThread[] }
+    return body.threads.some((thread) => thread.thread_id === threadId)
+  } finally {
+    clearTimeout(timer)
+  }
 }
