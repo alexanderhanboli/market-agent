@@ -91,6 +91,7 @@ test('a deep-linked subject shows a skeleton name while it hydrates, then the hy
     await page.settle()
     assert.equal(page.heading().textContent, 'Apple Inc.')
     assert.equal(page.back(), 'Back to Apple Inc.')
+    assert.equal(page.carriedText(), 'Carried subjectApple Inc.Back to Apple Inc.')
     assert.match(page.text(), /Memo canvasApple Inc\. · /)
   } finally {
     await page.cleanup()

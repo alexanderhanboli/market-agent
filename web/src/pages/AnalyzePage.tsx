@@ -620,9 +620,6 @@ function CarriedSubjectContext({
           <h2 id="analyze-carried-subject-heading" className="text-lg font-semibold text-fg">
             {name ?? <Skeleton label="Loading subject name" className="h-7 w-40" />}
           </h2>
-          <span data-testid="analyze-carried-subject-ref" className="font-mono text-xs text-muted">
-            {subject.subject_ref.kind}:{subject.subject_ref.id}
-          </span>
         </div>
         {intent !== null && (
           <span data-testid="analyze-intent-badge" className="rounded border border-line bg-surface-2 px-2 py-0.5 text-xs font-medium text-fg">
