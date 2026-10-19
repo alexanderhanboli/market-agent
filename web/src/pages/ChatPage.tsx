@@ -6,6 +6,8 @@ import { VirtualizedMessageList } from '../chat'
 import { ChatComposer } from '../chat/ChatComposer.tsx'
 import { PendingTurnView } from '../chat/PendingTurnView.tsx'
 import { ThreadColumn } from '../chat/turnLayout.tsx'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { useAuth } from '../shell/useAuth.ts'
 import { deleteThread } from '../chat/threadActions.ts'
 import { threadDisplayName } from '../chat/threadName.ts'
@@ -114,19 +116,15 @@ function ChatThreadView({ chat, threadName, collapsed, setCollapsed }: ChatThrea
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
         {view.history === 'loading' ? (
           <ThreadColumn>
-            <p className="text-sm text-muted">Loading message history.</p>
+            <div className="flex flex-col gap-3">
+              <Skeleton label="Loading message history" className="ml-auto h-10 w-2/3" />
+              <Skeleton className="h-24" />
+            </div>
           </ThreadColumn>
         ) : null}
         {view.history === 'error' ? (
-          <ThreadColumn className="flex items-center gap-3 text-sm">
-            <p className="text-negative">Message history unavailable: {view.historyError}</p>
-            <button
-              type="button"
-              onClick={chat.reload}
-              className="rounded-md border border-negative px-3 py-1.5 text-xs font-medium text-negative"
-            >
-              Retry
-            </button>
+          <ThreadColumn>
+            <FailureNotice message="Couldn't load this chat." detail={view.historyError ?? ''} onRetry={chat.reload} />
           </ThreadColumn>
         ) : null}
         {view.listMounted ? (

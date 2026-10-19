@@ -56,7 +56,7 @@ test('golden conversation renders charts, metrics and inspectable sources, and s
   const narrativeCounts = await page.evaluate(() => (window as unknown as { __narrativeCounts: number[] }).__narrativeCounts)
   expect(narrativeCounts.length).toBeGreaterThan(0)
   expect(narrativeCounts.filter((count) => count !== 1)).toEqual([])
-  await expect(page.getByText('Loading message history.')).toHaveCount(0)
+  await expect(page.getByRole('status', { name: 'Loading message history', exact: true })).toHaveCount(0)
   // Fact-built blocks: the metric row's figures and the revenue chart.
   await expect(page.getByText('Revenue', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Quarterly revenue')).toBeVisible()

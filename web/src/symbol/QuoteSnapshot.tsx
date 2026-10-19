@@ -15,6 +15,7 @@ import type { VisibleFetchState } from '../fetch/resource.ts'
 import { ChangePill } from './ChangePill.tsx'
 import { RefreshFailedNote } from './FetchStateView.tsx'
 import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 
 type QuoteSnapshotProps = {
   subject: ResolvedSubject | RouteResolvedSubject
@@ -32,7 +33,7 @@ export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
         </h1>
         <div className="mt-3">
           {quoteState.status === 'loading' ? (
-            <p className="text-sm text-muted">Loading quote…</p>
+            <Skeleton label="Loading quote" className="h-9 w-48" />
           ) : quoteState.status === 'unavailable' ? (
             <FailureNotice message="Couldn't load the quote." detail={quoteState.reason} onRetry={quoteState.retry} />
           ) : (

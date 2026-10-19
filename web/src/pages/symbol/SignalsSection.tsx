@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSubjectDetailContext } from '../../shell/subjectDetailOutletContext.ts'
 import { Card } from '../../symbol/Card.tsx'
 import { ISSUER_NOT_LINKED_MESSAGE } from '../../symbol/FetchStateView.tsx'
+import { Skeleton } from '../../ui/Skeleton.tsx'
 import { CARD_CLASS, SECTION_STACK_CLASS } from '../../symbol/surfaceStyles.ts'
 import { formatCompactNumber } from '../../symbol/format.ts'
 import { issuerIdFromSubject } from '../../symbol/profile.ts'
@@ -165,7 +166,7 @@ function ThemeRationaleBody({
   state: ThemeRationaleState
 }) {
   if (state.status === 'loading') {
-    return <p className={PLACEHOLDER_CLASS}>Loading theme rationale...</p>
+    return <Skeleton label="Loading theme rationale" className="h-16" />
   }
   if (state.status === 'error') {
     return <p className={PLACEHOLDER_CLASS}>Theme rationale is unavailable.</p>

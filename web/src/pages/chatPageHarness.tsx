@@ -180,6 +180,7 @@ export type Harness = {
   container: HTMLElement
   server: FakeServer
   frames: string[]
+  busyFrames: string[][]
   path: () => string
   navigate: (to: string) => Promise<void>
   text: () => string
@@ -217,6 +218,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
 
   const container = dom.window.document.getElementById('root')!
   const frames: string[] = []
+  const busyFrames: string[][] = []
   let currentPath = initialPath
   const onPath = (path: string) => {
     currentPath = path
@@ -235,7 +237,13 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     </Route>,
   ), { initialEntries: [initialPath] })
   const tree: ReactElement = (
-    <Profiler id="chat" onRender={() => frames.push(container.textContent ?? '')}>
+    <Profiler
+      id="chat"
+      onRender={() => {
+        frames.push(container.textContent ?? '')
+        busyFrames.push([...container.querySelectorAll('[aria-busy="true"]')].map((node) => node.getAttribute('aria-label') ?? ''))
+      }}
+    >
       <AuthContext.Provider value={{ session: { userId: USER_ID, displayName: 'Test User' }, signIn: () => undefined, signOut: () => undefined }}>
         <BlockRegistryProvider registry={createDefaultBlockRegistry()}>
           <RouterProvider router={router} />
@@ -261,6 +269,7 @@ export async function renderChat(initialPath: string, server: FakeServer, option
     container,
     server,
     frames,
+    busyFrames,
     path: () => currentPath,
     navigate: async (to) => {
       await act(async () => routerNavigate(to))

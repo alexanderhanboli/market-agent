@@ -45,7 +45,7 @@ test('the completion hands off to the sealed answer it carries: no history GET, 
       h.frames.slice(first).map((frame) => occurrences(frame, ANSWER)).filter((count) => count !== 1),
       [],
     )
-    assert.deepEqual(h.frames.filter((frame) => frame.includes('Loading message history.')), [])
+    assert.deepEqual(h.busyFrames.filter((labels) => labels.includes('Loading message history')), [])
     assert.equal(h.query('[data-testid="virtualized-message-list"]'), listBefore)
     assert.equal(h.query('[data-role="assistant"]')?.textContent, SEALED_TEXT)
     assert.equal(h.container.querySelectorAll('[data-testid="streaming-turn"]').length, 0)

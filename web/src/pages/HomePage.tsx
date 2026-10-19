@@ -28,6 +28,7 @@ import type { FindingSeverity } from '../blocks/types.ts'
 import { severityFillClass } from '../blocks/severityTone.ts'
 import { StackedBar, StackedBarLegend, type StackedSegment } from '../symbol/StackedBar.tsx'
 import { useAuth } from '../shell/useAuth.ts'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { useRightRail } from '../shell/useRightRail'
 
 type HomeRunActivityStage = 'reading' | 'investigating' | 'found' | 'dismissed'
@@ -166,9 +167,10 @@ function SignInHint() {
 
 function LoadingHint() {
   return (
-    <Section title="Loading Home...">
-      <p className="text-sm text-muted">Fetching your latest findings and market sections.</p>
-    </Section>
+    <div className="flex flex-col gap-4">
+      <Skeleton label="Loading Home" className="h-32" />
+      <Skeleton className="h-48" />
+    </div>
   )
 }
 

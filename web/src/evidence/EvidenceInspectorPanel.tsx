@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { FinancialResultInspector } from '../blocks/renderers/FinancialResultInspector.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import { EvidenceInspectorContext, type EvidenceInspectorContextValue } from './evidenceInspectorContext.ts'
 import type {
   EvidenceBlockInspection,
@@ -127,7 +128,7 @@ function PageBody({ page }: { page: InspectorPage }) {
     return <FinancialResultInspector load={page.load} onCopy={(text) => void globalThis.navigator?.clipboard?.writeText(text)} />
   }
   if (page.kind === 'block') return <BlockInspectionBody inspection={page.inspection} />
-  if (page.load.kind === 'loading') return <p className="text-sm text-muted">Loading evidence.</p>
+  if (page.load.kind === 'loading') return <Skeleton label="Loading evidence" className="h-40" />
   if (page.load.kind === 'error') return <p className="text-sm text-fg-soft">{page.load.message}</p>
   return <InspectionBody inspection={page.load.inspection} />
 }

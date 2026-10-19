@@ -106,7 +106,7 @@ function installDomGlobals(domWindow: Window): () => void {
 
 test('UserHomeView renders the loading hint when state.kind is loading', () => {
   const html = renderToString(<UserHomeView state={{ kind: 'loading' }} />)
-  assert.match(html, /Loading Home/)
+  assert.match(html, /aria-label="Loading Home"/)
 })
 
 test('UserHomeView renders the error message when state.kind is error', () => {
@@ -227,7 +227,7 @@ test('UserHomeContent ignores a stale fetch resolution that lands after an abort
     await act(async () => {
       root.render(<UserHomeContent userId={USER_ID_A} fetchImpl={hanging.fetch} />)
     })
-    assert.match(container.innerHTML, /Loading Home/)
+    assert.match(container.innerHTML, /aria-label="Loading Home"/)
 
     // Switch to userId B; the previous A-fetch is now aborted.
     await act(async () => {
@@ -246,7 +246,7 @@ test('UserHomeContent ignores a stale fetch resolution that lands after an abort
       )
     })
     assert.match(container.innerHTML, /Findings/)
-    assert.doesNotMatch(container.innerHTML, /Loading Home/)
+    assert.doesNotMatch(container.innerHTML, /aria-label="Loading Home"/)
 
     await act(async () => root.unmount())
   } finally {

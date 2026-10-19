@@ -9,6 +9,7 @@ import {
   type FinancialResultInspection,
 } from '../financialInspection.ts'
 import { VerificationLabel } from '../VerificationLabel.tsx'
+import { Skeleton } from '../../ui/Skeleton.tsx'
 
 export type FinancialInspectorLoad =
   | { kind: 'loading'; resultId: string }
@@ -22,7 +23,7 @@ export type FinancialInspectorLoad =
 // decimal the server stored. Source identifiers are shown as text; no link is
 // built from them.
 export function FinancialResultInspector({ load, onCopy }: { load: FinancialInspectorLoad; onCopy?: (text: string) => void }): ReactElement {
-  if (load.kind === 'loading') return <p role="status" className="text-sm text-muted">Loading the verified calculation.</p>
+  if (load.kind === 'loading') return <Skeleton label="Loading the verified calculation" className="h-40" />
   if (load.kind === 'error') return <p role="alert" className="text-sm text-fg-soft">{load.message}</p>
   const details = inspectableDetails(load.inspection)
   if (details === null) {

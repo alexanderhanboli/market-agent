@@ -3,6 +3,7 @@ import type { FetchImpl } from '../http/authFetch.ts'
 import { fetchThesisHistory } from './thesisClient.ts'
 import { ThesisEditor } from './ThesisEditor.tsx'
 import { AssessmentHistory, VersionHistory } from './ThesisHistory.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import type { ThesisHistoryResponse, ThesisVersion } from '../../../services/agents/src/thesis-types.ts'
 
 type ThesisPanelProps = {
@@ -60,7 +61,7 @@ function ThesisPanelContent({ userId, agentId, initialThesis, refreshKey, fetchI
     <PanelFrame>
       {error ? <p role="status" className="mt-2 text-sm text-negative">{history === null ? 'Thesis conditions are unavailable. ' : 'Assessment history could not be refreshed. '}{error}</p> : null}
       {history === null ? (
-        !error && <p className="text-sm text-muted">Loading thesis conditions…</p>
+        !error && <Skeleton label="Loading thesis conditions" className="h-40" />
       ) : (
         <>
           <ThesisEditor userId={userId} agentId={agentId} initialThesis={initialThesis} savedThesis={history.thesis} metrics={history.metrics ?? []} fetchImpl={fetchImpl} onSaved={recordSaved} />

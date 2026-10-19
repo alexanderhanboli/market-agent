@@ -9,6 +9,7 @@ import {
   type IssuerNewsItem,
 } from '../symbol/issuerNews.ts'
 import { FailureNotice } from '../ui/FailureNotice.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 
 type SubjectNewsRailProps = {
   issuerId: string | null
@@ -30,7 +31,7 @@ export function SubjectNewsRail({ issuerId }: SubjectNewsRailProps) {
       {news.status === 'idle' ? (
         <RailStatus>{ISSUER_NOT_LINKED_MESSAGE}</RailStatus>
       ) : news.status === 'loading' ? (
-        <RailStatus>Loading recent documents…</RailStatus>
+        <Skeleton label="Loading recent documents" className="h-32" />
       ) : news.status === 'unavailable' ? (
         <FailureNotice message="Couldn't load the news." detail={news.reason} onRetry={news.retry} />
       ) : news.data.length === 0 ? (

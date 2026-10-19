@@ -1,4 +1,5 @@
 import { QuoteRow } from '../symbol/QuoteRow'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import type { SubjectRef, WatchlistMember } from './membership'
 import type { ManualWatchlistStatus } from './useManualWatchlist'
 
@@ -19,7 +20,9 @@ type ManualWatchlistProps = {
 export function ManualWatchlist({ members, status, message, onRemove, sparklines }: ManualWatchlistProps) {
   if (status === 'loading' && members.length === 0) {
     return (
-      <div className="px-1.5 py-3 text-xs text-muted">Loading watchlist…</div>
+      <div className="px-1.5 py-3">
+        <Skeleton label="Loading watchlist" className="h-8" />
+      </div>
     )
   }
 

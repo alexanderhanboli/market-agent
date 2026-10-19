@@ -23,6 +23,7 @@ import { SubjectMembershipBadges } from '../watchlists/SubjectMembershipBadges'
 import { useAuth } from './useAuth'
 import { ProtectedActionType } from './authInterruptState'
 import { SubjectNewsRail } from './SubjectNewsRail.tsx'
+import { Skeleton } from '../ui/Skeleton.tsx'
 import type { SubjectDetailOutletContext } from './subjectDetailOutletContext'
 import { useRequestProtectedAction } from './useAuthInterrupt'
 import { useRightRailContent } from './useRightRailContent.ts'
@@ -249,10 +250,11 @@ export function SubjectDetailShell() {
             currentTab={currentTab}
           />
         ) : shouldBlockForHydration ? (
-          <SubjectContextNotice
-            title={hydrationError ? 'Subject context unavailable' : 'Loading subject context'}
-            message={hydrationError ?? 'Loading issuer context for this subject.'}
-          />
+          hydrationError ? (
+            <SubjectContextNotice title="Subject context unavailable" message={hydrationError} />
+          ) : (
+            <SubjectContextSkeleton />
+          )
         ) : (
           <Outlet context={{ subject, quote } satisfies SubjectDetailOutletContext} />
         )}
@@ -285,12 +287,7 @@ function LegacyRouteResolutionView({
   if (state.status === 'not_found' || state.status === 'error') {
     return <SubjectContextNotice title="Subject context unavailable" message={state.message} />
   }
-  return (
-    <SubjectContextNotice
-      title="Loading subject context"
-      message={`Resolving ${normalizedTicker} before loading this section.`}
-    />
-  )
+  return <SubjectContextSkeleton />
 }
 
 function LegacySubjectChoice({
@@ -328,6 +325,14 @@ function LegacySubjectChoice({
           </li>
         ))}
       </ul>
+    </section>
+  )
+}
+
+function SubjectContextSkeleton() {
+  return (
+    <section className="w-full p-8">
+      <Skeleton label="Loading subject context" className="h-40" />
     </section>
   )
 }
