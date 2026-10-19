@@ -93,10 +93,10 @@ async function mount(element: ReactElement): Promise<void> {
   })
 }
 
-function notes(): string[] {
+function notes(): Array<[string, string | null]> {
   return [...dom.window.document.querySelectorAll('p')]
-    .map((p) => p.textContent ?? '')
-    .filter((line) => line.startsWith('Showing earlier'))
+    .filter((p) => (p.textContent ?? '').startsWith('Showing earlier'))
+    .map((p) => [p.textContent ?? '', p.getAttribute('title')])
 }
 
 test('the news rail says when its latest documents failed to refresh', async (t) => {
@@ -110,7 +110,7 @@ test('the news rail says when its latest documents failed to refresh', async (t)
   await mount(<SubjectNewsRail issuerId={ISSUER_ID} />)
 
   assert.match(dom.window.document.body.textContent ?? '', /Apple ships/)
-  assert.deepEqual(notes(), ['Showing earlier news; refresh failed: issuer news fetch failed: HTTP 503'])
+  assert.deepEqual(notes(), [["Showing earlier news. Couldn't refresh.", 'issuer news fetch failed: HTTP 503']])
 })
 
 test('the overview key-stats grid says when its stats failed to refresh', async (t) => {
@@ -141,9 +141,7 @@ test('the overview key-stats grid says when its stats failed to refresh', async 
   failing = true
   await mount(page)
 
-  assert.deepEqual(notes(), [
-    'Showing earlier key stats; refresh failed: fundamentals stats fetch failed: HTTP 503',
-  ])
+  assert.deepEqual(notes(), [["Showing earlier key stats. Couldn't refresh.", 'fundamentals stats fetch failed: HTTP 503']])
 })
 
 test('a live perf comparison says when its retry failed and keeps the chart', async () => {
@@ -170,7 +168,7 @@ test('a live perf comparison says when its retry failed and keeps the chart', as
   await mount(<PerfComparison block={block} />)
 
   assert.notEqual(dom.window.document.querySelector('[data-testid="block-perf-comparison-perf-1-chart"]'), null)
-  assert.deepEqual(notes(), ['Showing earlier series; refresh failed: market series fetch failed: HTTP 503'])
+  assert.deepEqual(notes(), [["Showing earlier series. Couldn't refresh.", 'market series fetch failed: HTTP 503']])
 })
 
 test('the header quote says when its price failed to refresh', () => {
@@ -199,5 +197,5 @@ test('the header quote says when its price failed to refresh', () => {
     />,
   )
 
-  assert.match(html, /<p class="text-xs text-faint">Showing earlier quote; refresh failed: HTTP 503<\/p>/)
+  assert.match(html, /<p class="text-xs text-faint" title="HTTP 503">Showing earlier quote\. Couldn&#x27;t refresh\.<\/p>/)
 })

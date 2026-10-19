@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSubjectDetailContext } from '../../shell/subjectDetailOutletContext.ts'
 import { Card } from '../../symbol/Card.tsx'
+import { ISSUER_NOT_LINKED_MESSAGE } from '../../symbol/FetchStateView.tsx'
 import { CARD_CLASS, SECTION_STACK_CLASS } from '../../symbol/surfaceStyles.ts'
 import { formatCompactNumber } from '../../symbol/format.ts'
 import { issuerIdFromSubject } from '../../symbol/profile.ts'
@@ -109,7 +110,7 @@ function ThemeRationaleCard({ issuerId }: { issuerId: string | null }) {
       heading="Theme rationale"
     >
       {issuerId === null ? (
-        <p className={PLACEHOLDER_CLASS}>Issuer context unavailable for theme rationale.</p>
+        <p className={PLACEHOLDER_CLASS}>{ISSUER_NOT_LINKED_MESSAGE}</p>
       ) : (
         <ThemeRationaleLoader key={issuerId} issuerId={issuerId} />
       )}
@@ -135,10 +136,7 @@ export function SignalsSection() {
         {envelope ? (
           <SentimentTrendBody block={envelope.sentiment_trend} />
         ) : (
-          <p className={PLACEHOLDER_CLASS}>
-            Issuer context unavailable for this entry. Open this symbol from search to load
-            signals.
-          </p>
+          <p className={PLACEHOLDER_CLASS}>{ISSUER_NOT_LINKED_MESSAGE}</p>
         )}
       </Card>
       <Card
@@ -149,7 +147,7 @@ export function SignalsSection() {
         {envelope ? (
           <ClaimClustersBody block={envelope.claim_clusters} />
         ) : (
-          <p className={PLACEHOLDER_CLASS}>Issuer context unavailable for this entry.</p>
+          <p className={PLACEHOLDER_CLASS}>{ISSUER_NOT_LINKED_MESSAGE}</p>
         )}
       </Card>
       <ThemeRationaleCard issuerId={issuerId} />

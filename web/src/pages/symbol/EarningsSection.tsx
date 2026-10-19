@@ -37,7 +37,6 @@ export function EarningsSection() {
         <FetchStateView
           state={earnings}
           noun="earnings history"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load earnings."
         >
           {(envelope) => <BeatMissStrip summary={beatMissSummary(envelope.events, BEAT_MISS_COUNT)} />}
         </FetchStateView>
@@ -51,7 +50,7 @@ export function EarningsSection() {
           <FetchStateView
             state={consensus}
             noun="consensus"
-            idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load consensus."
+            skeletonClassName="h-32"
           >
             {(envelope) => <ConsensusBody envelope={envelope} />}
           </FetchStateView>
@@ -64,7 +63,7 @@ export function EarningsSection() {
           <FetchStateView
             state={consensus}
             noun="price target"
-            idleMessage="Issuer context unavailable for this entry."
+            skeletonClassName="h-24"
           >
             {(envelope) =>
               envelope.price_target ? (
@@ -88,7 +87,7 @@ export function EarningsSection() {
         <FetchStateView
           state={earnings}
           noun="earnings history"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load earnings."
+          skeletonClassName="h-40"
         >
           {(envelope) => <EarningsTable envelope={envelope} />}
         </FetchStateView>

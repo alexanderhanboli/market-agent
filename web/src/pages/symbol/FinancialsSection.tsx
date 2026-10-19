@@ -124,7 +124,7 @@ export function FinancialsSection() {
         <FetchStateView
           state={statements}
           noun="revenue"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load financials."
+          skeletonClassName="h-40"
         >
           {(data) => <RevenueBars response={data} />}
         </FetchStateView>
@@ -146,7 +146,7 @@ export function FinancialsSection() {
         <FetchStateView
           state={segments}
           noun="segments"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load segments."
+          skeletonClassName="h-32"
         >
           {(envelope) => <SegmentsView envelope={envelope} />}
         </FetchStateView>
@@ -170,7 +170,7 @@ export function FinancialsSection() {
         <FetchStateView
           state={statements}
           noun="statements"
-          idleMessage="Issuer context unavailable for this entry. Open this symbol from search to load financials."
+          skeletonClassName="h-40"
         >
           {(data) => <StatementsTable response={data} />}
         </FetchStateView>

@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react'
 
 import { useResource } from '../fetch/resource.ts'
-import { RefreshFailedNote } from '../symbol/FetchStateView.tsx'
+import { ISSUER_NOT_LINKED_MESSAGE, RefreshFailedNote } from '../symbol/FetchStateView.tsx'
 import {
   formatRelativeTime,
   isFilingKind,
   recentIssuerNews,
   type IssuerNewsItem,
 } from '../symbol/issuerNews.ts'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
 
 type SubjectNewsRailProps = {
   issuerId: string | null
@@ -27,11 +28,11 @@ export function SubjectNewsRail({ issuerId }: SubjectNewsRailProps) {
         <span className="text-[10px] font-normal normal-case text-faint">latest</span>
       </h2>
       {news.status === 'idle' ? (
-        <RailStatus>Issuer context unavailable.</RailStatus>
+        <RailStatus>{ISSUER_NOT_LINKED_MESSAGE}</RailStatus>
       ) : news.status === 'loading' ? (
         <RailStatus>Loading recent documents…</RailStatus>
       ) : news.status === 'unavailable' ? (
-        <RailStatus>News unavailable: {news.reason}</RailStatus>
+        <FailureNotice message="Couldn't load the news." detail={news.reason} onRetry={news.retry} />
       ) : news.data.length === 0 ? (
         <RailStatus>No recent news or filings for this issuer.</RailStatus>
       ) : (

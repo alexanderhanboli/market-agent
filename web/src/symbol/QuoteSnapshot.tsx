@@ -14,6 +14,7 @@ import {
 import type { VisibleFetchState } from '../fetch/resource.ts'
 import { ChangePill } from './ChangePill.tsx'
 import { RefreshFailedNote } from './FetchStateView.tsx'
+import { FailureNotice } from '../ui/FailureNotice.tsx'
 
 type QuoteSnapshotProps = {
   subject: ResolvedSubject | RouteResolvedSubject
@@ -29,13 +30,15 @@ export function QuoteSnapshot({ subject, quoteState }: QuoteSnapshotProps) {
         <h1 className="min-w-0 truncate text-2xl font-semibold text-fg">
           {subjectDisplayName(subject)}
         </h1>
-        <p className="mt-3 text-sm text-muted">
-          {quoteState.status === 'loading'
-            ? 'Loading quote…'
-            : quoteState.status === 'unavailable'
-              ? `Quote unavailable: ${quoteState.reason}`
-              : 'Quote unavailable'}
-        </p>
+        <div className="mt-3">
+          {quoteState.status === 'loading' ? (
+            <p className="text-sm text-muted">Loading quote…</p>
+          ) : quoteState.status === 'unavailable' ? (
+            <FailureNotice message="Couldn't load the quote." detail={quoteState.reason} onRetry={quoteState.retry} />
+          ) : (
+            <p className="text-sm text-muted">Quote unavailable</p>
+          )}
+        </div>
         <IssuerProfileLine profile={issuerProfile} />
       </section>
     )
