@@ -27,7 +27,8 @@ export function ChatLayout() {
   useEffect(() => {
     if (routeThreadId !== null && sent.has(routeThreadId)) navigate('/chat', { replace: true })
   }, [routeThreadId, sent, navigate])
-  // Route changes only: a store change can render before a delete's navigation away lands.
+  // Route changes only, never `sent`: a store change can render before a delete's navigation
+  // away lands, and re-running here would cancel the delete just started.
   useEffect(() => {
     if (routeThreadId !== null) cancelThreadDelete(routeThreadId)
   }, [routeThreadId])

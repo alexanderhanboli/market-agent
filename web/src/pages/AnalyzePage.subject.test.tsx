@@ -113,7 +113,7 @@ test('a failed hydration says so with Retry, names the subject neutrally, and Re
   }
 })
 
-test('a failed hydration is spoken through the carried subject\'s standing status region, without Retry or Details', async () => {
+test('a failed hydration speaks only its sentence, not Retry or Details, through the carried subject\'s standing status region', async () => {
   const first = deferred<Reply>()
   let calls = 0
   const page = await renderAnalyze(DEEP_LINK, () => ++calls === 1
