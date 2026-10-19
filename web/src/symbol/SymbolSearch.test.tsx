@@ -26,7 +26,14 @@ async function renderSearch(t: test.TestContext, reply: () => Response) {
   })
   await act(async () => root.render(<MemoryRouter><SymbolSearch /><Announcer /></MemoryRouter>))
   const input = container.querySelector('input')!
+  const region = container.querySelector('[data-testid="announcer"] [role="status"]')!
+  // Every text the region takes, so a repeat of the same message shows as a clear and a refill.
+  const heard: string[] = []
+  new window.MutationObserver(() => {
+    if (heard.at(-1) !== region.textContent) heard.push(region.textContent ?? '')
+  }).observe(region, { childList: true, characterData: true, subtree: true })
   return {
+    heard,
     settle: async () => {
       await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
       await act(async () => new Promise((resolve) => setTimeout(resolve, ANNOUNCE_DELAY_MS)))
@@ -37,31 +44,30 @@ async function renderSearch(t: test.TestContext, reply: () => Response) {
     }),
     submit: () => act(async () => container.querySelector('form')!.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))),
     message: () => container.querySelector('form')?.lastElementChild?.textContent,
-    announced: () => container.querySelector('[data-testid="announcer"] [role="status"]')?.textContent,
     options: () => [...container.querySelectorAll('[role="option"]')].map((option) => option.querySelector('span span')?.textContent),
   }
 }
 
-test('a search with no match says No match for the query, while typing and on submit, and is announced', async (t) => {
+test('a search with no match says No match for the query, while typing and on submit, and is announced each time', async (t) => {
   const search = await renderSearch(t, () => new Response(JSON.stringify({ subjects: [], unresolved: ['ZZZZ'] }), { status: 200 }))
   await search.type('ZZZZ')
   await search.settle()
-  assert.deepEqual([search.message(), search.announced()], ['No match for "ZZZZ".', 'No match for "ZZZZ".'])
+  assert.deepEqual([search.message(), search.heard], ['No match for "ZZZZ".', ['No match for "ZZZZ".']])
 
   await search.submit()
   await search.settle()
-  assert.deepEqual([search.message(), search.announced()], ['No match for "ZZZZ".', 'No match for "ZZZZ".'])
+  assert.deepEqual([search.message(), search.heard], ['No match for "ZZZZ".', ['No match for "ZZZZ".', '', 'No match for "ZZZZ".']])
 })
 
-test('a search that fails says to try again, while typing and on submit, without the error text', async (t) => {
+test('a search that fails says to try again, while typing and on submit, without the error text, and is announced each time', async (t) => {
   const search = await renderSearch(t, () => new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 }))
   await search.type('AAPL')
   await search.settle()
-  assert.deepEqual([search.message(), search.announced()], ["Couldn't search. Try again.", "Couldn't search. Try again."])
+  assert.deepEqual([search.message(), search.heard], ["Couldn't search. Try again.", ["Couldn't search. Try again."]])
 
   await search.submit()
   await search.settle()
-  assert.deepEqual([search.message(), search.announced()], ["Couldn't search. Try again.", "Couldn't search. Try again."])
+  assert.deepEqual([search.message(), search.heard], ["Couldn't search. Try again.", ["Couldn't search. Try again.", '', "Couldn't search. Try again."]])
 })
 
 test('typeahead options with no name or listing are numbered, not blank', async (t) => {
