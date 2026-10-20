@@ -7,22 +7,23 @@ import { activeFinancialSurfaces, loadFinancialModes } from "../src/financial-en
 const EVERY_FINANCE_FLAG = {
   CHAT_FINANCIAL_MODE: "enforce",
   ANALYZE_FINANCIAL_MODE: "enforce",
-  GRID_FINANCIAL_MODE: "enforce",
   THESIS_FINANCIAL_MODE: "enforce",
   FINANCIAL_WORKER_ENABLED: "true",
 };
 
-test("every surface is off unless the server's environment says otherwise", () => {
-  assert.deepEqual(loadFinancialModes({}), { analyze: "off", grid: "off", thesis: "off", worker: false });
-  assert.deepEqual(activeFinancialSurfaces(loadFinancialModes({})), []);
-  assert.deepEqual(loadFinancialModes(EVERY_FINANCE_FLAG), { analyze: "enforce", grid: "enforce", thesis: "enforce", worker: true });
-  assert.deepEqual(activeFinancialSurfaces(loadFinancialModes(EVERY_FINANCE_FLAG)), ["analyze", "grid", "thesis", "worker"]);
+test("every surface is off and the recovery worker on unless the server's environment says otherwise", () => {
+  assert.deepEqual(loadFinancialModes({}), { analyze: "off", thesis: "off", worker: true });
+  assert.deepEqual(activeFinancialSurfaces(loadFinancialModes({})), ["worker"]);
+  assert.deepEqual(loadFinancialModes({ FINANCIAL_WORKER_ENABLED: "false" }), { analyze: "off", thesis: "off", worker: false });
+  assert.deepEqual(activeFinancialSurfaces(loadFinancialModes({ FINANCIAL_WORKER_ENABLED: "false" })), []);
+  assert.deepEqual(loadFinancialModes(EVERY_FINANCE_FLAG), { analyze: "enforce", thesis: "enforce", worker: true });
+  assert.deepEqual(activeFinancialSurfaces(loadFinancialModes(EVERY_FINANCE_FLAG)), ["analyze", "thesis", "worker"]);
 });
 
 test("a malformed mode stops startup rather than falling back to legacy numbers", () => {
   assert.throws(() => loadFinancialModes({ ANALYZE_FINANCIAL_MODE: "on" }), /ANALYZE_FINANCIAL_MODE must be off or enforce/u);
-  assert.throws(() => loadFinancialModes({ GRID_FINANCIAL_MODE: "shadow" }), /GRID_FINANCIAL_MODE must be off or enforce/u);
   assert.throws(() => loadFinancialModes({ THESIS_FINANCIAL_MODE: "shadow" }), /THESIS_FINANCIAL_MODE must be off or enforce/u);
+  assert.throws(() => loadFinancialModes({ FINANCIAL_WORKER_ENABLED: "1" }), /FINANCIAL_WORKER_ENABLED must be true or false/u);
 });
 
 test("enabling verified finance does not enable Discovery", async () => {

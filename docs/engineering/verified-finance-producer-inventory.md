@@ -94,8 +94,8 @@ committed values after enforcement.
 
 | Producer / transport | Location | Current numeric handling | Disposition | Task |
 |---|---|---|---|---|
-| `latest_market_cap` column | `services/analyst-grids/src/column-catalog.ts` | Latest active fact, `Number(row.value_num)` | Unsupported until market/share/timing proof | T22 |
-| `latest_revenue`, `latest_eps_diluted` | `services/analyst-grids/src/fiscal-fact-column.ts` | Latest active fact, `format(Number(row.value_num))` | Engine (`reported_metric` at pinned cutoff) | T22 |
+| `latest_market_cap` column | `services/analyst-grids/src/financial-column.ts` | Explicit unsupported gap; the latest-fact producer is deleted | Unsupported until market/share/timing proof | T22 |
+| `latest_revenue`, `latest_eps_diluted` | `services/analyst-grids/src/financial-column.ts` | Engine only; the latest-fact producer is deleted | Engine (`reported_metric` at pinned cutoff) | T22 |
 | Reader question column | `services/analyst-grids/src/reader-question-column.ts`, `reader-llm.ts` | Model prose over documents | Narrative (non-certified) | T22 |
 | Progress counters | `services/analyst-grids/src/queries.ts`, `run-engine.ts` | Integer counts | Transport; requested/verified/gap/error counts | T22 |
 
@@ -142,9 +142,10 @@ done; it is not counted as complete.
 
 ## 3. Status
 
-Every surface in section 2 now has a certified lane behind a per-surface
-flag. With a flag off (the default), that surface stays on the legacy path
-listed above. The shared foundations are in place:
+Every surface in section 2 now has a certified lane. Grids always use it.
+The other surfaces put it behind a per-surface flag, and with that flag off
+(the default) they stay on the legacy path listed above. The shared
+foundations are in place:
 
 - **T00–T04:** the pure financial core (contracts, exact arithmetic, reviewed
   operations, coverage).
@@ -174,7 +175,7 @@ listed above. The shared foundations are in place:
   |---|---|---|---|
   | Chat | `CHAT_FINANCIAL_MODE` | Model-planned requests over resolved subjects | Assistant message |
   | Analyze | `ANALYZE_FINANCIAL_MODE` | One deterministic plan per memo, one unit per numerical section | `analyze_run_financial_sections` row (0049) |
-  | Grids | `GRID_FINANCIAL_MODE` | One plan per run, one unit per numerical cell | Cell write and progress count (0050) |
+  | Grids | None: always enforced | One plan per run, one unit per numerical cell | Cell write and progress count (0050) |
   | Thesis | `THESIS_FINANCIAL_MODE=enforce` | One plan per saved metric condition | Current-version check under the agent lock |
   | Discovery | `WorkerDeps.financialCriteria` | One plan per candidate × approved criterion | Campaign-fence check (live lease, running, same brief, candidate researching) |
 
@@ -234,7 +235,7 @@ enforced, those values appear as declared gaps rather than numbers.
 |---|---|
 | `services/evidence/src/zero-export-erasure.ts` (T15 access-lock protocol) | Not present. The lock rows are the `sources` and `facts` rows themselves (`lockEvidenceForPublication`, `FOR SHARE` in id order). Every revocation writer conflicts with it, so writers need no changes. `facts.source_id` has no cascade, so `deleteSource` cannot remove a source that still has facts. |
 | `web/src/blocks/renderers/FinancialAnswerBlock.tsx`, `BlockRenderer.tsx` | `web/src/blocks/FinancialAnswer.tsx` plus the `financialAnswer.ts` view helpers, registered through `registerCertifiedFinancialBlocks.ts`, following the existing flat renderer layout and `BlockView` registry. |
-| `services/dev-api/src/api.ts`; narrow `local-runtime.ts` wiring | Routes are composed in `services/dev-api/src/financial-wiring.ts` and dispatched from `http.ts`. `local-runtime.ts` is unchanged. The worker starts from `runtime.ts` through `financial-worker-bootstrap.ts` when `FINANCIAL_WORKER_ENABLED=true`. |
+| `services/dev-api/src/api.ts`; narrow `local-runtime.ts` wiring | Routes are composed in `services/dev-api/src/financial-wiring.ts` and dispatched from `http.ts`. `local-runtime.ts` is unchanged. The worker starts from `runtime.ts` through `financial-worker-bootstrap.ts` unless `FINANCIAL_WORKER_ENABLED=false`. |
 | `db/test/schema-openapi-alignment.test.ts` | `scripts/openapi-contract.test.ts` checks that the `/v1/financial` operations reference `spec/financial_answer_http_schema.json`, that each reference resolves, and that the schema compiles. |
 | Trusted authentication for financial HTTP | The handler takes an already authenticated `userId`. The dev API reads it with the shared `services/shared/src/request-auth.ts` helpers, like its other routes: a UUID `x-user-id` in dev mode, and a signed `x-authenticated-user-id` in `trusted_proxy` mode. |
 | Replay execution | `POST …/replays` reserves a pending run with `replay_of_run_id` and the original's plan, cutoff, policies, and parent version. The supervised worker executes it through `executeReplay`, which never seals. |
@@ -248,8 +249,8 @@ enforced, those values appear as declared gaps rather than numbers.
 | Analyze: memo run saved in the finalization transaction | The narrative memo row commits first (its own snapshot). Each numerical section's snapshot, certificate, and `analyze_run_financial_sections` row then commit together. Coverage is derived from committed rows against the sections the metadata declares, so a failed section reads as a gap, never as complete. |
 | Analyze: derived emitters require certified lineage | With the lane enforced, engine-served sections skip their legacy producers (`runDeterministicSections` `servedByEngine`). The legacy metrics-comparison emitter itself is unchanged for the off lane. |
 | Strict merge: owner/definitions/run provenance | `mergeSealInputs` requires equal snapshot, thread, `as_of`, basis, normalization, and coverage start. It rejects conflicting duplicate facts and repeated block ids, and refuses any certified input: certified units are sealed alone, so there is no definition or run provenance to reconcile. |
-| Grids: `fiscal-fact-column.ts`, `period-context.ts`, `cell-runner.ts` rework | Numerical columns route through `financial-column.ts` when enforced; legacy producers are untouched for the off lane. The row period header still uses the legacy resolver; each certified cell carries its own period labels. |
-| Grids: restart recovery for non-numerical cells | Only engine-backed cells are recoverable (`gridFinancialRecovery`, registered with the dev-api financial worker when `GRID_FINANCIAL_MODE=enforce`). Reader-question cells keep their existing behavior. |
+| Grids: `fiscal-fact-column.ts`, `period-context.ts`, `cell-runner.ts` rework | Numerical columns always route through `financial-column.ts`. The legacy producers and the row period resolver are deleted; each certified cell carries its own period labels. |
+| Grids: restart recovery for non-numerical cells | Only engine-backed cells are recoverable (`gridFinancialRecovery`, always registered with the dev-api financial worker). Reader-question cells keep their existing behavior. |
 | Thesis: `thesis-repo.ts`, `thesis-seal-input.ts`, `thesis-finding-generator.ts` | Not present or unchanged. Certified references ride on `ConditionAssessment.financial`. Findings cite the engine-bound facts that are still current (loaded into the sealed packet); a verified transition whose inputs cannot be sealed keeps its certificate but issues no alert. Dedup is unchanged. |
 | Thesis and Discovery reporting basis | Saved monitoring rules plan with `as_restated`: the latest disclosure public by the cutoff, matching the stored-fact checks, which always read active facts. Chat, memo sections, and grid cells stay `as_reported`. |
 | Thesis: freshness and reuse | Engine freshness is plan-wide, so each condition is its own plan. The reuse key compares status, cited facts, and result hashes (never run, snapshot, or certificate ids). |
@@ -261,7 +262,7 @@ enforced, those values appear as declared gaps rather than numbers.
 | Web: Chat stream consumer changes | None needed beyond T20. The stream carries references only, and the consumer refetches the committed message. |
 | Shared engine request path | Every surface calls `publishRequest` (`services/financial-engine/src/request.ts`). It resumes an earlier attempt's plan or plans anew, then reserves, leases, and publishes, and it owns the lease TTL and the one list of gap reasons (`RequestGap`). Surfaces supply their authority, planner, and parent write, and read back their own records. The deterministic planner can split outputs across publication units. |
 | Shared semantics for thesis and Discovery | `evaluateSavedRule` in `services/financial-engine/src/saved-rule.ts` is the one evaluation for saved numerical rules. Callers supply the authority, request key, threshold attribution (the planner now accepts one), and publication guard. |
-| Grid run completion | One rule for every run and mode: completed only when every cell is a value; any gap, unsupported, or error cell makes it partial. The write that finishes the last cell settles the run. Legacy runs whose cells lack coverage (for example a reader question with no documents) are now partial rather than completed. |
+| Grid run completion | One rule for every run: completed only when every cell is a value; any gap, unsupported, or error cell makes it partial. The write that finishes the last cell settles the run. Legacy runs whose cells lack coverage (for example a reader question with no documents) are now partial rather than completed. |
 
 ### Wave 5 plan deviations
 
@@ -273,7 +274,7 @@ enforced, those values appear as declared gaps rather than numbers.
 | Reauthorization on every read and replay | Already in place since T17/T18 (`inspection.ts`, `read-model.ts`, `replay.ts`). T28 adds erased results, which read as unavailable. |
 | Safe logs | Run events carry only counts, lease epochs, digests, coverage states, and reason codes. The engine writes no console output. |
 | `services/dev-api/src/main.ts` | The entry point is `services/dev-api/src/dev.ts`. The readiness gate is in `runtime.ts` (`createDevApiRuntimeFromEnv`), before any lane or the worker starts. Chat (`runtime.ts` via `ChatFinancialRuntime.assertReady`) and analyst-grids (`dev.ts`) gate their own startup. |
-| `services/dev-api/src/financial-env.ts` scope | It holds the dev API's surfaces (analyze, grid recovery, thesis, worker). Chat and grids read `CHAT_FINANCIAL_MODE`/`GRID_FINANCIAL_MODE` in their own services with the same strict parser. Discovery has no finance flag: its criteria are composed by `DISCOVERY_WORKER_MODULE`, and only `DISCOVERY_ENABLED` starts it. |
+| `services/dev-api/src/financial-env.ts` scope | It holds the dev API's surfaces (analyze, thesis, worker). Chat reads `CHAT_FINANCIAL_MODE` in its own service with the same strict parser. Grids have no flag. Discovery has no finance flag: its criteria are composed by `DISCOVERY_WORKER_MODULE`, and only `DISCOVERY_ENABLED` starts it. |
 | `db/test/schema-openapi-alignment.test.ts` | Covered by `scripts/openapi-contract.test.ts` (Wave 3), which now runs in CI in the new `scripts` job. |
 | Readiness: definition catalog in the database | `financial_definition_versions` is not populated by any writer; definitions are compiled in. Readiness checks the compiled registry against everything the build emits. |
 | T30 file layout | Held-out questions and their recorded drafts live in `scripts/verified-finance-fixtures.ts` beside the golden cases and mutants, so one fixture revision hash covers all of them. |
