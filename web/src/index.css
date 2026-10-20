@@ -133,3 +133,5 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+.hengyuan-site-banner{height:40px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;background:#103c39;color:#edf9f5;font-size:12px}.hengyuan-site-banner a{color:inherit;min-height:40px;display:flex;align-items:center;text-decoration:underline}.hengyuan-site-banner a:focus-visible{outline:2px solid white;outline-offset:2px}body:has(.hengyuan-site-banner) #root{height:calc(100dvh - 40px)}@media(max-width:600px){.hengyuan-site-banner{height:auto;min-height:48px}.hengyuan-site-banner a{min-height:44px;flex-shrink:0}.hengyuan-site-banner span{font-size:11px;line-height:1.3}body:has(.hengyuan-site-banner) #root{height:calc(100dvh - 48px)}}
