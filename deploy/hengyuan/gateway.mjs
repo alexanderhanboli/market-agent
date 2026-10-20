@@ -5,11 +5,11 @@ export const OWNER='00000000-0000-4000-8000-000000000001';
 export const routes=[['/v1/evidence/inspect','dev-api'],['/v1/subjects','resolver'],['/v1/chat','chat'],['/v1/run-activities','chat'],['/v1/analyze','dev-api'],['/v1/agents','dev-api'],['/v1/dev','dev-api'],['/v1/themes','dev-api'],['/v1/watchlists','watchlists'],['/v1/market','market'],['/v1/fundamentals','fundamentals'],['/v1/screener','screener'],['/v1/portfolios','portfolio'],['/v1/home','home'],['/v1/evidence','evidence'],['/v1/analyst-grids','analyst-grids']];
 export function routeService(path){return routes.find(([p])=>path===p||path.startsWith(p+'/'))?.[1]}
 export function authorized(actual,token){const a=Buffer.from(actual||''),b=Buffer.from('Bearer '+token);return !!token&&a.length===b.length&&timingSafeEqual(a,b)}
-export function gateway({token,secret,ports}){return createServer((req,res)=>{
+export function gateway({token,secret,ports,status=async()=>({modelConfigured:false,polygonConfigured:false,referenceAsOf:null})}){return createServer(async(req,res)=>{
  const json=(status,data)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));};
  if(!authorized(req.headers.authorization,token))return json(401,{error:'Authentication required'});
  const path=new URL(req.url,'http://localhost').pathname;
- if(path==='/health')return json(200,{ok:true,mode:'live',frozen:false,modelConfigured:!!process.env.LITELLM_MODEL});
+ if(path==='/health'){try{return json(200,{ok:true,mode:'live',frozen:false,...await status()});}catch{return json(503,{ok:false,error:'Research status temporarily unavailable'});}}
  const service=routeService(path);if(!service)return json(404,{error:'Unknown research API'});
  const headers={'x-authenticated-user-id':OWNER,'x-authenticated-user-signature':signTrustedUserId(OWNER,secret)};
  for(const key of ['content-type','accept','last-event-id','idempotency-key'])if(req.headers[key])headers[key]=req.headers[key];

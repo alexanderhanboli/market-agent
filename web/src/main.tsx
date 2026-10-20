@@ -12,7 +12,13 @@ if (import.meta.env.VITE_HENGYUAN_SITES === 'true') {
   back.href = '/'
   back.textContent = '← 衡远资本总览'
   const note = document.createElement('span')
-  note.textContent = 'Market Agent · 私人研究工作台 · 免费数据可能延迟；AI 服务需配置'
+  note.textContent = 'Market Agent · 正在检查研究服务…'
+  fetch('/api/market-agent/status').then(response => {
+    if (!response.ok) throw new Error('研究服务离线')
+    return response.json() as Promise<{ referenceAsOf?: string; modelConfigured: boolean; polygonConfigured: boolean }>
+  }).then(status => {
+    note.textContent = `筛选快照截至 ${status.referenceAsOf ?? '未导入'} · Polygon ${status.polygonConfigured ? '已配置' : '未配置'} · DeepSeek ${status.modelConfigured ? '已配置' : '未配置'}`
+  }).catch(() => { note.textContent = '研究服务暂时离线，刷新页面后重试。' })
   banner.append(back, note)
   document.body.prepend(banner)
 }

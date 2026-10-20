@@ -1,3 +1,4 @@
+import {createRequire} from 'node:module';
 import {spawn} from 'node:child_process';
 import {appendFileSync,mkdirSync,existsSync,readFileSync} from 'node:fs';
 import {parseEnv} from 'node:util';
@@ -21,5 +22,12 @@ for(const name of Object.keys(ports)){
  if(name==='dev-providers'){launch(name,root+'.venv/bin/python',['-m','uvicorn','dev_providers.main:app','--host','127.0.0.1','--port',String(ports[name])],root+'services/dev-providers');continue;}
  launch(name,process.execPath,['--experimental-strip-types','src/dev.ts'],root+'services/'+name);
 }
-const server=gateway({token:env.HENGYUAN_BRIDGE_TOKEN,secret:env.MA_AUTH_PROXY_SECRET,ports});server.listen(14300,'127.0.0.1',()=>console.log('Authenticated research gateway listening on loopback:14300'));
+const {Pool}=createRequire(root+'db/package.json')('pg');
+const statusPool=new Pool({connectionString:env.DATABASE_URL,max:1});
+const status=async()=>{
+ const values=existsSync(providerFile)?parseEnv(readFileSync(providerFile,'utf8')):{};
+ const {rows}=await statusPool.query("select as_of_date::text as as_of from artifact_ingestion_ledger where market='US' and status <> 'failed' order by finished_at desc limit 1");
+ return {modelConfigured:!!values.LLM_DEEPSEEK_API_KEY?.trim(),polygonConfigured:!!values.POLYGON_API_KEY?.trim(),referenceAsOf:rows[0]?.as_of??null};
+};
+const server=gateway({token:env.HENGYUAN_BRIDGE_TOKEN,secret:env.MA_AUTH_PROXY_SECRET,ports,status});server.listen(14300,'127.0.0.1',()=>console.log('Authenticated research gateway listening on loopback:14300'));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{stopping=true;server.close();for(const child of children)child.kill('SIGTERM');setTimeout(()=>process.exit(),1000);});
