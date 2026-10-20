@@ -25,12 +25,8 @@ export function financialAwareRunner(
   if (!runtime) return runner;
   return async (context) => {
     if (!runtime.answers(context)) return runner(context);
-    if (runtime.mode === "shadow") {
-      await runtime.run(context).catch(() => null);
-      return runner(context);
-    }
     context.emit("turn.started", { bundle_id: FINANCIAL_BUNDLE_ID });
-    let turn: ChatFinancialTurn | null;
+    let turn: ChatFinancialTurn;
     try {
       turn = await runtime.run(context);
     } catch {
@@ -38,7 +34,6 @@ export function financialAwareRunner(
       context.emit("turn.error", { error_code: "financial_answer_failed", message: "The calculation could not be completed." });
       return;
     }
-    if (!turn) return runner(context);
     await emitFinancialTurn(context, turn, options.persistAssistantMessage);
   };
 }
