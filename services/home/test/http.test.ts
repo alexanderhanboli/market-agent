@@ -3,6 +3,7 @@ import test from "node:test";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 
+import { signTrustedUserId } from "../../shared/src/request-auth.ts";
 import { createHomeServer } from "../src/http.ts";
 import type { HomeQuoteProvider, HomeSavedScreensProvider } from "../src/secondary-types.ts";
 import type { QueryExecutor } from "../src/types.ts";
@@ -29,12 +30,12 @@ function emptyQuoteProvider(): HomeQuoteProvider {
 
 const emptySavedScreens: HomeSavedScreensProvider = async () => [];
 
-async function startServer() {
+async function startServer(options: Parameters<typeof createHomeServer>[2] = {}) {
   const server = createHomeServer(fakeDb(), {
     quoteProvider: emptyQuoteProvider(),
     listSavedScreens: emptySavedScreens,
     pulseSubjects: [],
-  });
+  }, options);
   server.listen(0);
   await once(server, "listening");
   const { port } = server.address() as AddressInfo;
@@ -46,6 +47,15 @@ async function startServer() {
       ),
   };
 }
+
+test("an unrecognized MA_AUTH_MODE fails when the home server is built", () => {
+  assert.throws(
+    () => createHomeServer(fakeDb(), { quoteProvider: emptyQuoteProvider(), listSavedScreens: emptySavedScreens, pulseSubjects: [] }, {
+      auth: { env: { MA_AUTH_MODE: "prod" } },
+    }),
+    /unrecognized MA_AUTH_MODE 'prod'/,
+  );
+});
 
 test("GET /v1/home/summary requires the x-user-id header", async () => {
   const { port, close } = await startServer();
@@ -64,6 +74,44 @@ test("GET /v1/home/summary rejects malformed x-user-id", async () => {
       headers: { "x-user-id": "not-a-uuid" },
     });
     assert.equal(res.status, 401);
+  } finally {
+    await close();
+  }
+});
+
+test("GET /v1/home/summary rejects a user id that is not a v4 UUID", async () => {
+  const { port, close } = await startServer();
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/v1/home/summary`, {
+      headers: { "x-user-id": "0195b46a-8e80-7000-8000-000000000001" },
+    });
+    assert.equal(res.status, 401);
+    assert.deepEqual(await res.json(), { error: "'x-user-id' header is required" });
+  } finally {
+    await close();
+  }
+});
+
+test("GET /v1/home/summary in trusted_proxy mode accepts only a signed user id", async () => {
+  const { port, close } = await startServer({
+    auth: { env: { MA_AUTH_MODE: "trusted_proxy", MA_AUTH_PROXY_SECRET: "proxy-secret" } },
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/v1/home/summary`, {
+      headers: { "x-user-id": USER_ID, "x-authenticated-user-id": USER_ID },
+    });
+    assert.equal(res.status, 401);
+    assert.deepEqual(await res.json(), {
+      error: "'x-authenticated-user-id and x-authenticated-user-signature' headers are required",
+    });
+
+    const signed = await fetch(`http://127.0.0.1:${port}/v1/home/summary`, {
+      headers: {
+        "x-authenticated-user-id": USER_ID,
+        "x-authenticated-user-signature": signTrustedUserId(USER_ID, "proxy-secret"),
+      },
+    });
+    assert.equal(signed.status, 200);
   } finally {
     await close();
   }

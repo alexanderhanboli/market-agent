@@ -7,6 +7,7 @@ import { createDiscoveryService } from "../src/service.ts";
 import { createDiscoveryDevApiAdapter } from "../../dev-api/src/discovery-adapter.ts";
 import { createDevApiServer, createFixtureDevApiAdapters } from "../../dev-api/src/http.ts";
 import { briefFixture } from "./fixtures.ts";
+import { signTrustedUserId } from "../../shared/src/request-auth.ts";
 
 const USER = "10000000-0000-4000-8000-000000000001";
 const CAMPAIGN = "20000000-0000-4000-8000-000000000001";
@@ -14,8 +15,12 @@ const RUN = "30000000-0000-4000-8000-000000000001";
 const REQUEST = "40000000-0000-4000-8000-000000000001";
 type TestContext = { after(callback: () => void | Promise<void>): void };
 
-async function startServer(t: TestContext, service = fixtureService()): Promise<{ base: string; service: ReturnType<typeof fixtureService> }> {
-  const server = createDevApiServer({}, {
+async function startServer(
+  t: TestContext,
+  service = fixtureService(),
+  env: Record<string, string> = {},
+): Promise<{ base: string; service: ReturnType<typeof fixtureService> }> {
+  const server = createDevApiServer(env, {
     adapters: { ...createFixtureDevApiAdapters(), discovery: createDiscoveryDevApiAdapter(service as never) },
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -40,6 +45,43 @@ test("discovery HTTP rejects unauthenticated creation before a draft provider ca
   assert.equal(response.status, 401);
   assert.equal(service.calls.create, 0);
   assert.equal(service.calls.draft, 0);
+});
+
+test("discovery HTTP rejects a user id that is not a UUID", async (t) => {
+  const { base, service } = await startServer(t);
+  const response = await request(base, "/v1/discovery/campaigns", {
+    method: "POST",
+    headers: { "x-user-id": "not-a-uuid" },
+    body: JSON.stringify({ name: "Grid", question: "Which US-listed companies benefit from grid modernization spending?" }),
+  });
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: "'x-user-id' header is required" });
+  assert.equal(service.calls.create, 0);
+});
+
+test("discovery HTTP in trusted_proxy mode accepts only a signed user id", async (t) => {
+  const { base, service } = await startServer(t, fixtureService(), {
+    MA_AUTH_MODE: "trusted_proxy",
+    MA_AUTH_PROXY_SECRET: "proxy-secret",
+  });
+  const response = await request(base, "/v1/discovery/campaigns", {
+    method: "POST",
+    headers: { "x-authenticated-user-id": USER },
+    body: JSON.stringify({ name: "Grid", question: "Which US-listed companies benefit from grid modernization spending?" }),
+  });
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), {
+    error: "'x-authenticated-user-id and x-authenticated-user-signature' headers are required",
+  });
+  assert.equal(service.calls.create, 0);
+
+  const signed = await request(base, "/v1/discovery/campaigns", {
+    method: "POST",
+    headers: { "x-authenticated-user-id": USER, "x-authenticated-user-signature": signTrustedUserId(USER, "proxy-secret") },
+    body: JSON.stringify({ name: "Grid", question: "Which US-listed companies benefit from grid modernization spending?" }),
+  });
+  assert.equal(signed.status, 201);
+  assert.equal(service.calls.create, 1);
 });
 
 test("every discovery route authenticates before reading or mutating owned campaign data", async (t) => {

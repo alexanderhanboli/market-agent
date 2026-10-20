@@ -1,6 +1,12 @@
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type Server } from "node:http";
 
 import { isUuidV4 } from "../../market/src/validators.ts";
+import {
+  authenticatedUserRequiredMessage,
+  readAuthenticatedUserId,
+  resolveAuthMode,
+  type RequestAuthConfig,
+} from "../../shared/src/request-auth.ts";
 
 import { HomeFindingFeedError } from "./finding-feed-repo.ts";
 import type { HomeSectionsDeps } from "./secondary-types.ts";
@@ -8,11 +14,14 @@ import { getHomeSummary } from "./summary.ts";
 import type { QueryExecutor } from "./types.ts";
 import { respondJson } from "../../shared/src/http.ts";
 
-const USER_ID_HEADER = "x-user-id";
-
 type Route = { kind: "healthz" } | { kind: "summary" } | null;
 
-export function createHomeServer(db: QueryExecutor, deps: HomeSectionsDeps): Server {
+export function createHomeServer(
+  db: QueryExecutor,
+  deps: HomeSectionsDeps,
+  options: { auth?: RequestAuthConfig } = {},
+): Server {
+  const auth: RequestAuthConfig = { ...options.auth, mode: resolveAuthMode(options.auth) };
   return createServer(async (req, res) => {
     try {
       const route = matchRoute(req.method ?? "GET", req.url ?? "/");
@@ -26,9 +35,9 @@ export function createHomeServer(db: QueryExecutor, deps: HomeSectionsDeps): Ser
         return;
       }
 
-      const userId = readUserId(req);
-      if (userId === null) {
-        respondJson(res, 401, { error: `'${USER_ID_HEADER}' header with a valid UUID is required` });
+      const userId = readAuthenticatedUserId(req, auth);
+      if (userId === null || !isUuidV4(userId)) {
+        respondJson(res, 401, { error: authenticatedUserRequiredMessage(auth) });
         return;
       }
 
@@ -53,10 +62,3 @@ function matchRoute(method: string, rawUrl: string): Route {
   return null;
 }
 
-function readUserId(req: IncomingMessage): string | null {
-  const raw = req.headers[USER_ID_HEADER];
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return isUuidV4(trimmed) ? trimmed : null;
-}
