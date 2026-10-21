@@ -30,3 +30,20 @@ DeepSeek's currently documented `deepseek-flash` model by default.
 The current Cloudflare quick tunnel URL changes when its process restarts. Until
 a stable named tunnel is configured, update MARKET_AGENT_BRIDGE_URL in Sites and
 redeploy after a tunnel restart. Never expose the bridge without bearer auth.
+
+AI runtime: Chat and Analyze both use the real analyst, source-bound financial
+facts, inference judge and snapshot verifier. Analyze templates are provisioned
+once per owner on startup; existing customized templates are retained. Analyze
+tool logs use archived owner threads so reports do not clutter the chat list.
+Missing SEC CIKs are enriched only from an exact ticker and venue match, without
+replacing an existing issuer identity.
+
+Set `JUDGE_LITELLM_MODEL` alongside the main model. Declare `deepseek-flash` in
+`LLM_DEEPSEEK_REASONING_MODELS`, and set `CHAT_ANSWER_REASONING_OFF=true` for this
+deployment: otherwise a reasoning response can exhaust its output budget before
+producing the structured assertion list. Numeric and inference checks remain on.
+Never report an empty model response as a successful Analyze memo.
+
+Quick Tunnel buffers SSE. The gateway ends each chat response after the complete
+terminal event, so the website receives the answer when the turn finishes rather
+than token by token. Reconnecting clients retain the upstream replay semantics.

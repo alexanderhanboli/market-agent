@@ -262,7 +262,7 @@ export async function composeAnalystBlocksWithLlm(input: {
     // Effort is set here; the length of the answer is the prompt's job. The ceiling is a
     // safety net for reasoning that runs long (it counts reasoning tokens too): at 800 a
     // reasoning model spent it all thinking and answered nothing (#124 baseline, #175).
-    reasoning: "low",
+    reasoning: (input.env ?? process.env).CHAT_ANSWER_REASONING_OFF === "true" ? "off" : "low",
     maxTokens: 8192,
   };
   const startedAt = performance.now();

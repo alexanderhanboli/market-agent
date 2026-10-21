@@ -21,6 +21,7 @@ import {
   analystToolRuntime,
   closeLocalRuntimePoolForTests,
   persistAssistantMessage,
+  sealResearchBlocks,
 } from "../src/local-runtime.ts";
 import { createThread } from "../src/threads-repo.ts";
 
@@ -296,6 +297,19 @@ test("chat snapshot cites fundamentals fact_refs and their source for a resolved
   )).rows[0];
   assert.deepEqual(snap?.fact_refs, [factId]);
   assert.ok((snap?.source_ids as string[]).includes(sourceId));
+
+  // Analyze seals the same evidence without a chat-thread association.
+  const memoSnapshotId = "55555555-5555-4555-a555-555555555555";
+  const memo = await sealResearchBlocks({
+    snapshotId: memoSnapshotId,
+    userId: USER_ID,
+    blocks: result.blocks.map((block) => ({ ...block, snapshot_id: memoSnapshotId })),
+  });
+  assert.equal(memo.ok, true);
+  if (memo.ok) {
+    assert.deepEqual(memo.snapshot.fact_refs, [factId]);
+    assert.ok(memo.snapshot.source_ids.includes(sourceId));
+  }
 });
 
 function restoreEnv(key: string, value: string | undefined): void {

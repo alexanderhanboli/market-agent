@@ -457,6 +457,20 @@ test("an answer cut off at the token limit is never shown; the figures pointer i
   assert.equal(reasoning, "low", "the answer asks for low reasoning effort");
 });
 
+test("a deployment can disable answer thinking without changing the verification pipeline", async () => {
+  let reasoning: string | undefined;
+  await composeAnalystBlocksWithLlm({
+    env: { ...BASE_ENV, CHAT_ANSWER_REASONING_OFF: "true" },
+    context: { userIntent: "Analyze NVDA", bundleId: "single_subject_analysis" },
+    blocks: [NARRATIVE_BLOCK], toolCalls: [],
+    createClient: () => async (_deployment, request) => {
+      reasoning = request.reasoning;
+      return { text: "" };
+    },
+  });
+  assert.equal(reasoning, "off");
+});
+
 test("an empty answer replaces the placeholder line instead of leaving it on screen", async () => {
   assert.match((await composeWith({ text: "" }, FACT_BLOCKS)).text, /select any value to see its source/);
   // No figures to point to: say there's no answer rather than show the placeholder.

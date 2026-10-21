@@ -508,12 +508,25 @@ export const generateThreadTitle: ChatThreadTitleGenerator = async (job) =>
   })(job);
 
 async function sealAssistantMessageSnapshot(input: ChatAssistantMessagePersistenceInput) {
-  const blocks = input.blocks as ReadonlyArray<Record<string, unknown>>;
-  const snapshotId = snapshotIdFromBlocks(blocks);
+  return sealResearchBlocks({
+    blocks: input.blocks as ReadonlyArray<Record<string, unknown>>,
+    snapshotId: snapshotIdFromBlocks(input.blocks as ReadonlyArray<Record<string, unknown>>),
+    threadId: input.threadId,
+    userId: await threadUserId(input.threadId),
+  });
+}
+
+// Analyze and Chat share the same independent evidence and numeric verification.
+export async function sealResearchBlocks(input: {
+  blocks: ReadonlyArray<Record<string, unknown>>;
+  snapshotId: string;
+  userId: string | null;
+  threadId?: string;
+}) {
+  const { blocks, snapshotId, userId } = input;
   const asOf = maxBlockAsOf(blocks) ?? turnNow(process.env);
-  const userId = await threadUserId(input.threadId);
   const manifest = await manifestFromBlockRefs({
-    subjectRefs: subjectRefsFromBlocks(blocks, input.threadId),
+    subjectRefs: subjectRefsFromBlocks(blocks, input.threadId ?? snapshotId),
     asOf,
     modelVersion: "chat-local-runtime",
     blocks,
