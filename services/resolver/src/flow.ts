@@ -1,3 +1,4 @@
+import { enrichMissingCik } from './enrich-cik.ts';
 import {
   ambiguous,
   isAmbiguous,
@@ -203,7 +204,8 @@ export async function runSearchToSubjectFlow(
   }
 
   if (isResolved(envelope)) {
-    const handoff = await handoffFromResolved(db, envelope, normalized_input, "auto_advanced");
+    let handoff = await handoffFromResolved(db, envelope, normalized_input, "auto_advanced");
+    handoff = await enrichHandoff(db, handoff, envelope, options);
     await writeResolutionPathLog(db, handoff);
     return {
       status: "hydrated",
@@ -223,7 +225,8 @@ export async function runSearchToSubjectFlow(
       throw new InvalidChoiceError();
     }
     const canonicalSelection = resolvedFromCandidate(chosen);
-    const handoff = await handoffFromResolved(db, canonicalSelection, normalized_input, "explicit_choice");
+    let handoff = await handoffFromResolved(db, canonicalSelection, normalized_input, "explicit_choice");
+    handoff = await enrichHandoff(db, handoff, canonicalSelection, options);
     await writeResolutionPathLog(db, handoff);
 
     return {
@@ -711,4 +714,13 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): T {
     }
   }
   return value;
+}
+
+async function enrichHandoff(db: QueryExecutor, handoff: HydratedSubjectHandoff, envelope: ResolvedEnvelope, options: SearchToSubjectOptions): Promise<HydratedSubjectHandoff> {
+ const {issuer,listing}=handoff.context;
+ if(!issuer||issuer.cik||!listing||!options.tickerDiscoveryProvider)return handoff;
+ try {
+  const changed=await enrichMissingCik(db,{issuerId:issuer.subject_ref.id,cik:issuer.cik,ticker:listing.ticker,mic:listing.mic},options.tickerDiscoveryProvider);
+  return changed?await handoffFromResolved(db,envelope,handoff.normalized_input,handoff.resolution_path):handoff;
+ } catch(error){(options.discoveryLogger??console).warn('SEC identity enrichment unavailable; retaining existing identity',error);return handoff;}
 }

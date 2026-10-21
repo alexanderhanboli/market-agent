@@ -1,5 +1,6 @@
 import {
   createBrowserRouter,
+  createHashRouter,
   createRoutesFromElements,
   Navigate,
   Route,
@@ -53,7 +54,8 @@ const protDiscovery: RouteHandle = { scope: 'protected', label: 'Discover' }
 // createBrowserRouter is the v7 data-router API, required for useMatches()
 // (which RouteScopeGate depends on). createRoutesFromElements preserves the
 // readable JSX route tree.
-const router = createBrowserRouter(
+const hostedSites = import.meta.env.VITE_HENGYUAN_SITES === 'true'
+const router = (hostedSites ? createHashRouter : createBrowserRouter)(
   createRoutesFromElements(
     <Route element={<WorkspaceShell />}>
       <Route index element={<Navigate to="/home" replace />} />
@@ -92,7 +94,7 @@ export function App() {
   return (
     <BlockRegistryProvider registry={blockRegistry}>
       <ThemeProvider>
-        <AuthProvider initialSession={webDevFlags.devAutoLogin ? DEFAULT_MOCK_SESSION : null}>
+        <AuthProvider initialSession={hostedSites ? { ...DEFAULT_MOCK_SESSION, displayName: '衡远私人研究' } : webDevFlags.devAutoLogin ? DEFAULT_MOCK_SESSION : null}>
           <RouterProvider router={router} />
           <Announcer />
         </AuthProvider>

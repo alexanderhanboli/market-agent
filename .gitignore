@@ -28,3 +28,9 @@ web/node_modules/
 
 # Dependency directories may also be symlinked in worktrees
 node_modules
+
+# Private provider configuration and Python caches
+.env.providers
+.venv/
+__pycache__/
+*.pyc
